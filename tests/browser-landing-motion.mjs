@@ -56,6 +56,7 @@ const probe = `
       heroTransform: frame.style.transform,
       phoneTransform: phone.style.transform,
       litAngle: angles.findIndex((i) => i.style.opacity === '1') + 1,
+      angleSources: angles.map((image) => image.currentSrc),
       phoneView: document.querySelector('[data-phone-view]').getAttribute('src'),
       beat: document.querySelector('[data-beat-title]').textContent,
       items: Number(document.querySelector('[data-beat-items]').textContent),
@@ -119,6 +120,8 @@ try {
   }
   assert(new Set([scanEarly.litAngle, scanMid.litAngle, scanLate.litAngle]).size > 1,
     "The room never changes angle, so the walk is not moving between beats.");
+  assert(scanLate.angleSources.length === 5 && scanLate.angleSources.every((source) => /\/landing\/angle-[1-5]-[0-9a-f]{8}\.webp$/.test(source)),
+    `The scanner animation downloaded a PNG fallback or unversioned frame: ${JSON.stringify(scanLate.angleSources)}.`);
 
   // The read-out counts up with the walk rather than sitting at its final value.
   assert(scanLate.items > scanEarly.items, `Items analysed does not climb: ${scanEarly.items} -> ${scanLate.items}.`);

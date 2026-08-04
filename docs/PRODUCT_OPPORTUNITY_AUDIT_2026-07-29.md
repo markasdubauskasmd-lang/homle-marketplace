@@ -201,6 +201,22 @@ Benefit: the principal first-view artwork arrives substantially faster on mobile
 slower connections without changing the approved landing design, animation, route,
 booking logic or Cleaner Dashboard.
 
+## Scanner-animation room-angle transfer — implemented 4 August 2026
+
+Problem: the five photographic room angles in the public scanner animation were stored
+as PNGs despite having no transparency. They totalled 1,638,090 bytes and made the
+most important product explanation expensive to watch on mobile data.
+
+Implemented: modern browsers receive five reviewed WebP frames totalling 102,404
+bytes, a 93.7% reduction. The original PNGs remain exact compatibility fallbacks.
+Each WebP is content-addressed and immutable; tests pin its hash and size, verify the
+WebP/PNG MIME and cache split, and run the animation in Chromium to prove every frame
+loads, cross-fades and stays synchronized with the phone view.
+
+Benefit: the public explanation of Homle's scan-and-speak workflow reaches users much
+faster without changing the real scanner, animation design, copy, routing, account or
+booking logic, or any Cleaner Dashboard file or behaviour.
+
 ## Prioritised opportunities
 
 ### P0 — prove one genuine two-account booking rehearsal
