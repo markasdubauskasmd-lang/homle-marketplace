@@ -1488,6 +1488,11 @@ function renderBookingCard(booking) {
     link.href = `/bookings/${booking.bookingId}`;
     actions.append(link);
   }
+  if (booking.status === "confirmed" && Date.parse(booking.scheduledStartAt) > Date.now()) {
+    const change = element("a", "button button-outline", "Request a change");
+    change.href = `/landlord/help?bookingId=${encodeURIComponent(booking.bookingId)}`;
+    actions.append(change);
+  }
   card.append(heading, facts, element("p", "booking-money-boundary", bookingSummaryMoneyBoundary(booking, "landlord")));
   if (booking.status === "pending-cleaner-acceptance") {
     const deadline = bookingInvitationDeadlineState(booking);

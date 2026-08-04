@@ -33,6 +33,7 @@ DECLARE
   structured_room_scans_installed boolean := false;
   room_measurements_installed boolean := false;
   landlord_support_installed boolean := false;
+  landlord_booking_changes_installed boolean := false;
   administrator_coverage_installed boolean := false;
   administrator_funnel_installed boolean := false;
   property_archiving_installed boolean := false;
@@ -250,6 +251,8 @@ BEGIN
       INTO cleaner_address_lookup_rate_limit_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 87)'
       INTO administrator_funnel_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 88)'
+      INTO landlord_booking_changes_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -276,6 +279,7 @@ BEGIN
     structured_room_scans_installed := to_regclass('public.room_scan_sessions') IS NOT NULL;
     room_measurements_installed := to_regclass('public.room_scan_measurements') IS NOT NULL;
     landlord_support_installed := to_regprocedure('tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)') IS NOT NULL;
+    landlord_booking_changes_installed := to_regprocedure('tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)') IS NOT NULL;
     administrator_coverage_installed := to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NOT NULL;
     property_archiving_installed := to_regprocedure('tideway_private.archive_my_property(uuid)') IS NOT NULL;
     property_restoration_installed := to_regprocedure('tideway_private.restore_my_property(uuid)') IS NOT NULL;
@@ -347,6 +351,20 @@ BEGIN
       'tideway_private.list_administrator_support_requests(text,text,integer,integer)',
       'tideway_private.review_landlord_support_request(uuid,text,text)'
     ];
+  END IF;
+  IF landlord_booking_changes_installed THEN
+    app_functions := app_functions || ARRAY[
+      'tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)'
+    ];
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)');
+    IF to_regclass('public.support_requests_one_open_booking_change_idx') IS NULL
+       OR position('booking.landlord_user_id=actor_id' IN COALESCE(selected_source,''))=0
+       OR position('booking_record.status<>''confirmed''' IN COALESCE(selected_source,''))=0
+       OR position('landlord-booking-change-request-created' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Landlord booking-change intake lost its owner, confirmed-booking, uniqueness or audit boundary';
+    END IF;
   END IF;
   IF administrator_coverage_installed THEN
     app_functions := app_functions || ARRAY[
@@ -1095,6 +1113,7 @@ SELECT json_build_object(
     + CASE WHEN to_regclass('public.cleaner_onboarding_sections') IS NULL THEN 0 ELSE 2 END,
   'appFunctionChecks', 48
     + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END
+    + CASE WHEN to_regprocedure('tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.get_administrator_funnel_report(integer)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.archive_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
