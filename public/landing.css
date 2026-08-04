@@ -1667,6 +1667,10 @@ body.ci-body {
   gap: 10px;
   will-change: transform;
 }
+.ci-person picture {
+  display: block;
+  width: 100%;
+}
 .ci-person img {
   width: 100%;
   height: clamp(150px, 26vh, 300px);
