@@ -51,7 +51,9 @@ const scripts = Object.freeze({
   participantLifecycle: "participant-lifecycle-rehearsal.sql",
   disputeSetup: "marketplace-dispute-setup.sql",
   disputeBehaviour: "marketplace-dispute-behaviour.sql",
+  landlordSupportSetup: "landlord-support-owner-setup.sql",
   landlordSupport: "landlord-support-behaviour.sql",
+  landlordSupportCleanup: "landlord-support-owner-cleanup.sql",
   paymentGate: "marketplace-payment-gate.sql",
   paymentOrdering: "marketplace-payment-ordering.sql",
   verify: "marketplace-integration-verify.sql",
@@ -303,7 +305,12 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     if (!Array.isArray(realtimeProof.accountSignals) || realtimeProof.accountSignals.length < 1 || realtimeProof.accountSignals.some((signal) => !uuidPattern.test(signal?.accountId || "") || !uuidPattern.test(signal?.notificationId || ""))) throw new Error("The participant lifecycle did not produce a privacy-minimal committed account notification signal.");
     runPsqlSync({ label: "Dispute fixture setup", file: scripts.disputeSetup, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Dispute workflow test", file: scripts.disputeBehaviour, environment: appEnvironment, command, execute });
-    runPsqlSync({ label: "Landlord support privacy test", file: scripts.landlordSupport, environment: appEnvironment, command, execute });
+    runPsqlSync({ label: "Landlord support fixture preparation", file: scripts.landlordSupportSetup, environment: ownerEnvironment, command, execute });
+    try {
+      runPsqlSync({ label: "Landlord support privacy test", file: scripts.landlordSupport, environment: appEnvironment, command, execute });
+    } finally {
+      runPsqlSync({ label: "Landlord support fixture cleanup", file: scripts.landlordSupportCleanup, environment: ownerEnvironment, command, execute });
+    }
     runPsqlSync({ label: "Payment reconciliation ordering test", file: scripts.paymentOrdering, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });

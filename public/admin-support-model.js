@@ -6,7 +6,7 @@ export function supportQueueFilter(input = {}) {
   const status = String(input.status || "").trim().toLowerCase();
   const category = String(input.category || "").trim().toLowerCase();
   const statuses = new Set(["", "open", "reviewing", "resolved"]);
-  const categories = new Set(["", "account-access", "property", "room-scan", "booking-preparation", "other"]);
+  const categories = new Set(["", "account-access", "property", "room-scan", "booking-preparation", "booking-change", "other"]);
   if (!statuses.has(status) || !categories.has(category)) throw new TypeError("Choose valid support filters.");
   return Object.freeze({ status, category });
 }

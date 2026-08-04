@@ -51,6 +51,12 @@ function requestCard(record) {
   const meta = document.createElement("small"); meta.textContent = `${supportCategoryLabels[record.category]} · ${formatDate(record.createdAt)}`;
   const description = document.createElement("p"); description.textContent = record.description;
   card.append(status, title, meta, description);
+  if (record.category === "booking-change") {
+    const details = document.createElement("div"); details.className = "support-response";
+    const reference = document.createElement("strong"); reference.className = "support-booking-reference"; reference.textContent = `Booking ${record.bookingId.slice(0, 8).toUpperCase()}`;
+    const requested = document.createElement("p"); requested.textContent = record.bookingChangeKind === "reschedule" ? `Requested reschedule: ${formatDate(record.proposedStartAt)}` : "Cancellation requested. The confirmed booking is still unchanged.";
+    details.append(reference, requested); card.append(details);
+  }
   if (record.resolutionSummary) { const answer = document.createElement("div"); answer.className = "support-response"; const strong = document.createElement("strong"); strong.textContent = "Recorded response"; const copy = document.createElement("p"); copy.textContent = record.resolutionSummary; answer.append(strong, copy); card.append(answer); }
   if (record.status === "open") card.append(button("Start review", "button button-outline", (event) => update(record.supportRequestId, { status: "reviewing" }, event.currentTarget)));
   if (record.status !== "resolved") card.append(button("Record final response", "button", () => openResolution(record)));

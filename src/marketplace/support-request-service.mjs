@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { uuid } from "./validation.mjs";
 
-const categories = new Set(["account-access", "property", "room-scan", "booking-preparation", "other"]);
+const categories = new Set(["account-access", "property", "room-scan", "booking-preparation", "booking-change", "other"]);
 const statuses = new Set(["open", "reviewing", "resolved"]);
 const controlCharacters = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 const sensitiveTerms = /\b(?:password|passcode|door[\s-]?code|alarm[\s-]?code|key[\s-]?safe|api[\s-]?key|secret[\s-]?key|card[\s-]?number|cvv|cvc)\b/i;
@@ -46,6 +46,13 @@ function timestamp(value, label, optional = false) {
   return new Date(value).toISOString();
 }
 
+function futureTimestamp(value, now, label) {
+  const selected = timestamp(value, label);
+  const time = Date.parse(selected);
+  if (time <= now.getTime() || time > now.getTime() + 365 * 24 * 60 * 60 * 1000) throw new TypeError(`${label} must be within the next year.`);
+  return selected;
+}
+
 function object(value) {
   if (typeof value === "string") { try { return JSON.parse(value); } catch { return null; } }
   return value;
@@ -63,8 +70,14 @@ function supportRequest(value) {
     resolutionSummary: text(record.resolutionSummary, 20, 2000, "Support response", true),
     createdAt: timestamp(record.createdAt, "Support request creation time"),
     updatedAt: timestamp(record.updatedAt, "Support request update time"),
-    resolvedAt: timestamp(record.resolvedAt, "Support request resolution time", true)
+    resolvedAt: timestamp(record.resolvedAt, "Support request resolution time", true),
+    bookingId: record.bookingId == null ? null : uuid(record.bookingId, "support booking id"),
+    bookingChangeKind: record.bookingChangeKind == null ? null : String(record.bookingChangeKind),
+    proposedStartAt: timestamp(record.proposedStartAt, "proposed booking start", true)
   };
+  const bookingChange = result.category === "booking-change";
+  if (bookingChange !== (result.bookingId !== null && ["reschedule", "cancel"].includes(result.bookingChangeKind))) throw new Error("The booking-change support request is inconsistent.");
+  if ((result.bookingChangeKind === "reschedule") !== (result.proposedStartAt !== null)) throw new Error("The proposed booking time is inconsistent.");
   if ((result.status === "resolved") !== (result.resolutionSummary !== null && result.resolvedAt !== null)) throw new Error("The support request resolution is inconsistent.");
   return Object.freeze(result);
 }
@@ -80,16 +93,31 @@ function page(value) {
 }
 
 export function createSupportRequestService(repository, options = {}) {
-  if (!repository || !["create", "listOwn", "listForAdministrator", "review"].every((method) => typeof repository[method] === "function")) throw new TypeError("A complete support-request repository is required.");
+  if (!repository || !["create", "createBookingChange", "listOwn", "listForAdministrator", "review"].every((method) => typeof repository[method] === "function")) throw new TypeError("A complete support-request repository is required.");
   const createId = typeof options.createId === "function" ? options.createId : randomUUID;
+  const clock = typeof options.clock === "function" ? options.clock : () => new Date();
   return Object.freeze({
     async create(actor, input = {}) {
       role(actor, "landlord", "ask for support");
       const category = String(input.category || "").trim().toLowerCase();
       if (!categories.has(category)) throw new TypeError("Choose what you need help with.");
       if (input.confirmNoSensitiveData !== true) throw new TypeError("Confirm that the request contains no access codes, passwords, card data or secret keys.");
-      const subject = text(input.subject, 10, 120, "Support subject");
       const description = text(input.description, 20, 2000, "Support description");
+      if (category === "booking-change") {
+        const bookingChangeKind = String(input.bookingChangeKind || "").trim().toLowerCase();
+        if (!["reschedule", "cancel"].includes(bookingChangeKind)) throw new TypeError("Choose whether to reschedule or cancel the booking.");
+        const proposedStartAt = bookingChangeKind === "reschedule" ? futureTimestamp(input.proposedStartAt, clock(), "The proposed start time") : null;
+        noSensitiveDetails(description);
+        return supportRequest(await repository.createBookingChange(actor, {
+          supportRequestId: uuid(createId(), "generated support request id"),
+          clientRequestId: uuid(input.clientRequestId, "support retry id"),
+          bookingId: uuid(input.bookingId, "booking id"),
+          bookingChangeKind,
+          proposedStartAt,
+          description
+        }));
+      }
+      const subject = text(input.subject, 10, 120, "Support subject");
       noSensitiveDetails(subject, description);
       return supportRequest(await repository.create(actor, {
         supportRequestId: uuid(createId(), "generated support request id"),

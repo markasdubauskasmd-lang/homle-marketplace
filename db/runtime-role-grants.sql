@@ -124,6 +124,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_booking_dispute(uuid) TO tideway_a
 GRANT EXECUTE ON FUNCTION tideway_private.list_admin_booking_disputes(text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.review_booking_dispute(uuid,text,text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.create_landlord_support_request(uuid,uuid,text,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamptz,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_my_landlord_support_requests(integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_administrator_support_requests(text,text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.review_landlord_support_request(uuid,text,text) TO tideway_app;

@@ -25,14 +25,22 @@
       <div class="support-layout">
         <section class="support-card" aria-labelledby="support-form-title">
           <h2 id="support-form-title">Ask Homle for help</h2>
-          <p>For a problem with a confirmed booking, use that booking’s case option so the right audit trail is preserved.</p>
+          <p>Ask about your account, property or scan, or request a change to a confirmed booking without changing it immediately.</p>
           <form data-support-form>
             <label>What do you need help with?
               <select name="category" required>
-                <option value="">Choose one</option><option value="account-access">Account access</option><option value="property">Property</option><option value="room-scan">Room scan</option><option value="booking-preparation">Preparing a booking</option><option value="other">Something else</option>
+                <option value="">Choose one</option><option value="account-access">Account access</option><option value="property">Property</option><option value="room-scan">Room scan</option><option value="booking-preparation">Preparing a booking</option><option value="booking-change">Change or cancel a confirmed booking</option><option value="other">Something else</option>
               </select>
             </label>
-            <label>Short subject<input name="subject" minlength="10" maxlength="120" required autocomplete="off" placeholder="For example: Room scan did not save"></label>
+            <div data-support-generic-fields>
+              <label>Short subject<input name="subject" minlength="10" maxlength="120" required autocomplete="off" placeholder="For example: Room scan did not save"></label>
+            </div>
+            <div class="support-booking-change" data-support-booking-change hidden>
+              <label>Confirmed booking<select name="bookingId" data-support-booking><option value="">Choose a booking</option></select></label>
+              <label>What would you like to request?<select name="bookingChangeKind" data-support-change-kind><option value="">Choose one</option><option value="reschedule">Move it to another time</option><option value="cancel">Cancel this booking</option></select></label>
+              <div data-support-proposed-time hidden><label>Preferred new date and time<input name="proposedStartLocal" type="datetime-local"></label></div>
+              <p class="support-boundary">Your current booking, Cleaner commitment and payment stay unchanged until Homle confirms the outcome in this account.</p>
+            </div>
             <label>What happened?<textarea name="description" rows="7" minlength="20" maxlength="2000" required placeholder="Tell us what you were doing and what you expected to happen."></textarea><small>Do not include door or alarm codes, passwords, card numbers, API keys or secret keys.</small></label>
             <label class="checkbox"><input type="checkbox" name="confirmNoSensitiveData" required><span>I removed passwords, property access codes, payment-card data and secret keys.</span></label>
             <div class="support-feedback" data-support-form-feedback role="alert" tabindex="-1" hidden></div>

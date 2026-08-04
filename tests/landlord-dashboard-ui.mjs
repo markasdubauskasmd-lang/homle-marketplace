@@ -182,6 +182,7 @@ assert(page.includes("Secure landlord access") && page.includes("+ New request")
 assert(page.includes("workspace-brand-copy") && page.includes("landlord-sidebar-cta") && page.includes("scan-hero-beam") && page.includes("scan-hero-tags"), "The approved sidebar or scanning-phone presentation is missing from the real dashboard markup.");
 assert(designStyles.includes("grid-template-columns: minmax(0, 1fr) 180px") && designStyles.includes("landlordPhoneScan") && designStyles.includes("@media (max-width: 700px)") && designStyles.includes("overflow-x: auto"), "The reference dashboard styling lost its desktop scan composition or mobile adaptation.");
 assert(designStyles.includes("grid-template-areas: none") && designStyles.includes(".landlord-dashboard-identity > .role-dashboard-welcome { grid-area: auto; }") && designStyles.includes("color: var(--ld-ink)") && designStyles.includes("background: none") && designStyles.includes(".landlord-dashboard-identity .role-dashboard-welcome > p:last-child { color: #755548; }"), "Older shared dashboard grid or colour rules can still displace or wash out the approved Landlord welcome header.");
+assert(script.includes('booking.status === "confirmed"') && script.includes('"Request a change"') && script.includes('/landlord/help?bookingId='), "A confirmed booking no longer offers the Landlord a direct, booking-bound change request.");
 
 
 /* ── Spoken restrictions are named, not blended into the checklist ─────── */

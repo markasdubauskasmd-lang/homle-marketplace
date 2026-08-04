@@ -6,6 +6,8 @@ const cleaner = { userId: "22222222-2222-4222-8222-222222222222", roles: ["clean
 const administrator = { userId: "33333333-3333-4333-8333-333333333333", roles: ["administrator"] };
 const supportRequestId = "44444444-4444-4444-8444-444444444444";
 const retryId = "55555555-5555-4555-8555-555555555555";
+const bookingId = "66666666-6666-4666-8666-666666666666";
+const proposedStartAt = "2026-08-12T09:00:00.000Z";
 const calls = [];
 const base = {
   supportRequestId,
@@ -20,6 +22,7 @@ const base = {
 };
 const repository = {
   async create(actor, input) { calls.push({ kind: "create", actor, input }); return base; },
+  async createBookingChange(actor, input) { calls.push({ kind: "create-booking-change", actor, input }); return { ...base, category: "booking-change", subject: "Request to reschedule confirmed booking", bookingId, bookingChangeKind: input.bookingChangeKind, proposedStartAt: input.proposedStartAt }; },
   async listOwn(actor, input) { calls.push({ kind: "list-own", actor, input }); return { supportRequests: [base], limit: input.limit, offset: input.offset }; },
   async listForAdministrator(actor, input) { calls.push({ kind: "list-admin", actor, input }); return { supportRequests: [base], limit: input.limit, offset: input.offset }; },
   async review(actor, id, input) {
@@ -29,7 +32,7 @@ const repository = {
       : { ...base, status: "resolved", resolutionSummary: input.resolutionSummary, updatedAt: "2026-07-30T10:10:00.000Z", resolvedAt: "2026-07-30T10:10:00.000Z" };
   }
 };
-const service = createSupportRequestService(repository, { createId: () => supportRequestId });
+const service = createSupportRequestService(repository, { createId: () => supportRequestId, clock: () => new Date("2026-08-04T09:00:00.000Z") });
 
 const created = await service.create(landlord, {
   clientRequestId: retryId,
@@ -40,6 +43,20 @@ const created = await service.create(landlord, {
 });
 assert.equal(created.supportRequestId, supportRequestId);
 assert.deepEqual(calls.at(-1).input, { supportRequestId, clientRequestId: retryId, category: "room-scan", subject: base.subject, description: base.description });
+
+const bookingChange = await service.create(landlord, {
+  clientRequestId: retryId,
+  category: "booking-change",
+  bookingId,
+  bookingChangeKind: "reschedule",
+  proposedStartAt,
+  description: "Please move this booking to the proposed morning because the property will be available then.",
+  confirmNoSensitiveData: true
+});
+assert.equal(bookingChange.bookingId, bookingId);
+assert.equal(bookingChange.bookingChangeKind, "reschedule");
+assert.deepEqual(calls.at(-1).input, { supportRequestId, clientRequestId: retryId, bookingId, bookingChangeKind: "reschedule", proposedStartAt, description: "Please move this booking to the proposed morning because the property will be available then." });
+await assert.rejects(() => service.create(landlord, { clientRequestId: retryId, category: "booking-change", bookingId, bookingChangeKind: "reschedule", proposedStartAt: "2026-07-01T09:00:00.000Z", description: "Please move this booking to the proposed morning because the property will be available then.", confirmNoSensitiveData: true }), /within the next year/);
 
 await assert.rejects(() => service.create(cleaner, { clientRequestId: retryId }), (error) => error.statusCode === 403 && error.code === "landlord-required");
 await assert.rejects(() => service.create(landlord, {

@@ -436,12 +436,17 @@
       "order": 87,
       "file": "087_administrator_funnel_report.sql",
       "sha256": "a1f43b44107d8080fbf71dca4a13b32ae7949d49b22740aed0cdfa0da8fd6bda"
+    },
+    {
+      "order": 88,
+      "file": "088_landlord_booking_change_requests.sql",
+      "sha256": "ca2b50bdaab4d32eccf86e111c36300f953f34ff25c52eb8a286ba427a491f55"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "d05e317b128bd736fd98e1f7518994d7dc3e49b77e5e11b4ce9afe086a75bf7d"
+      "sha256": "c1074460945dab8186be792b5e62aa987d9edb8d27b0358c321a288000ec6293"
     },
     {
       "file": "worker-role-grants.sql",

@@ -98,6 +98,30 @@ Expected benefit: Landlords have one private next step before a booking exists, 
 the founder receives a controlled queue without access codes, payment data, room
 photographs or unnecessary identity fields.
 
+## Confirmed-booking change intake added
+
+The authenticated Landlord dashboard previously offered withdrawal only before a
+request became a booking. After confirmation there was no safe route to ask for a
+new time or cancellation; the generic support form explicitly excluded confirmed
+bookings, while the dispute flow was intended for quality, damage and safety issues.
+
+Eligible future confirmed booking cards now offer **Request a change**. The private
+support page captures the booking, reschedule/cancel intent and proposed time as
+structured data. Ownership, active-account state, current booking status, future
+time, idempotent retries and one-open-request-per-booking are enforced again in a
+restricted database function. Administrators see the request in the existing queue
+without receiving an address, access instruction, payment detail or Cleaner contact
+information.
+
+Creating or answering the request deliberately performs no booking, payment,
+notification or Cleaner action. Actual mutation remains a P0/P1 operating-policy
+dependency: Homle first needs approved cancellation windows, refund/payment
+adjustments, Cleaner notice and compensation rules.
+
+Expected benefit: a Landlord has one clear recoverable next step instead of using a
+dispute or abandoning the platform, while Homle avoids making an unaudited booking
+or money promise.
+
 ## Unsupported public trust claim fixed
 
 The live homepage said **Vetted professionals** even though the service remains a
