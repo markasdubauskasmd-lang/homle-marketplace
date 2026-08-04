@@ -6,7 +6,7 @@ The Homle domain is now in use. Owning and pointing a name is not the same as co
 
 - Exact domain name and registrar.
 - Registrar account owner, MFA enabled state, auto-renew decision and recovery method. Keep recovery codes outside the repository.
-- Canonical public origin: use the apex `https://homle.co.uk`; the production app redirects safe `www` reads to it permanently.
+- Canonical public origin: use the apex `https://homlle.com`; the production app redirects safe `www` reads to it permanently.
 - Approved hosting target and DNS records.
 - Where the ownership, DNS and HTTPS verification evidence is stored.
 - Verification date and named person responsible for future renewal/certificate checks.

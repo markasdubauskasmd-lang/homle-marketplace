@@ -42,7 +42,7 @@ for (const key of ["MARKETPLACE_ENABLED", "MAP_PROVIDER", "GEOCODING_PROVIDER", 
   assert.equal(environmentEntry(key), "sync: false", `${key} must preserve the existing Render service value during Blueprint sync.`);
 }
 assert.equal(environmentEntry("AUTHENTICATION_ENABLED"), 'value: "true"', "Approved staging accounts must be able to create and access private profiles in the preview.");
-assert.equal(environmentEntry("APP_ORIGIN"), 'value: "https://homle-marketplace-preview.onrender.com"', "APP_ORIGIN must match the assigned HTTPS preview origin without a manual secret step.");
+assert.equal(environmentEntry("APP_ORIGIN"), 'value: "https://homlle.com"', "APP_ORIGIN must match the connected canonical HTTPS domain without a manual secret step.");
 assert.equal(environmentEntry("RENDER_STAGING_BOOTSTRAP_ENABLED"), 'value: "true"', "The staging database bootstrap must require an explicit deployment flag.");
 assert.equal(environmentEntry("RENDER_STAGING_BASELINE_MIGRATION_COUNT"), 'value: "45"', "The existing staging schema must establish its one-time locked migration baseline before applying upgrades.");
 assert.equal(environmentEntry("STAGING_ACCOUNTS_ONLY"), 'value: "true"', "The public preview must deny all account creation until approved email fingerprints are added privately.");

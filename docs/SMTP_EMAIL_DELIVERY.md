@@ -8,7 +8,7 @@ Render free web services block outbound SMTP ports 25, 465 and 587. Homle theref
 EMAIL_DELIVERY_PROVIDER=resend
 RESEND_API_KEY=re_store_the_real_key_only_in_the_host_secret_manager
 EMAIL_FROM=Homle <onboarding@resend.dev>
-APP_ORIGIN=https://homle-marketplace-preview.onrender.com
+APP_ORIGIN=https://homlle.com
 ```
 
 The temporary `onboarding@resend.dev` sender is only suitable for a controlled owner-mailbox test. Before public intake, verify the Homle domain with the provider and replace it with a domain-aligned sender.
