@@ -748,19 +748,15 @@ so, and distinguishes that from an error of zero.
 
 ## Still outstanding, honestly
 
-- **No physical device trial.** The browser test below is desktop Chromium with
-  a synthetic camera. A real iPhone and Android handset over HTTPS is still
-  required before activation, and it is the last thing between this feature and
-  being trustworthy on a phone.
+- **No physical iPhone trial.** Android Chrome has now been exercised on real
+  Samsung and Pixel handsets (see Phase 11). iPhone Safari over HTTPS is still
+  required before activation because its camera, speech, torch and zoom
+  degradation paths have only been exercised in emulation.
 - **No benchmark dataset.** The harness and the consent rules exist; 200
   consented rooms do not.
 - **Zero shadow comparisons.** The pipeline records them from ordinary trading;
   no accepted booking has been compared yet, so the estimate's error is still
   unknown.
-- **Measurement capture has a model and no screen.** The geometry, the
-  validation, the wording and the storage are complete and tested; the in-scanner
-  tap-two-ends flow is not built. Measurements can be recorded through the API
-  and by customer entry.
 - **`processing_jobs` was not built**, and on reflection is not needed: the
   idempotency it was proposed for is already enforced by the unique constraints
   on the scan session and the measurement and observation tables. The real gap
@@ -803,6 +799,14 @@ Chrome profile. A missing browser is reported with every checked location
 instead of claiming that the scanner passed. This closes the earlier Windows
 verification gap where the machine already had Chrome but the test silently
 looked only for the Linux Playwright path and skipped the real pipeline.
+
+The scanner-control proof now uses that same portable discovery instead of its
+former Linux-only Playwright path. A Windows Chrome run therefore exercised the
+real overlay controls, synthetic camera and stubbed speech state machine rather
+than silently skipping: the asynchronous Blob encode held the main thread for
+0.4ms versus 22.2ms for the old synchronous encode, and the shutter reached its
+frozen review frame in 31ms. This remains desktop evidence, not a substitute for
+the outstanding physical iPhone Safari trial.
 
 # Phase 9 — the field report: a dirty sink graded CLEAN, no way to stop the mic
 

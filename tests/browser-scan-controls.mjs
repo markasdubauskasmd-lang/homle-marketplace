@@ -1,4 +1,9 @@
-import { launchBrowser, serveStatic } from "../tools/browser-harness.mjs";
+import {
+  chromiumExecutableCandidates,
+  launchBrowser,
+  resolveChromiumPath,
+  serveStatic
+} from "../tools/browser-harness.mjs";
 
 // The scanner's controls, driven in a real browser.
 //
@@ -13,10 +18,13 @@ import { launchBrowser, serveStatic } from "../tools/browser-harness.mjs";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
-const chromiumPath = process.env.CHROMIUM_PATH || "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
-const { existsSync } = await import("node:fs");
-if (!existsSync(chromiumPath)) {
-  console.log(`Browser scan-control checks SKIPPED: no Chromium at ${chromiumPath}.`);
+// Use the same portable discovery as the camera-pipeline proof. Keeping a
+// Linux-only Playwright path here made the highest-fidelity control test skip
+// silently on an ordinary Windows or macOS development machine even when a
+// suitable Chrome installation was present.
+const chromiumPath = resolveChromiumPath();
+if (!chromiumPath) {
+  console.log(`Browser scan-control checks SKIPPED: no Chromium executable found. Checked ${chromiumExecutableCandidates().join(", ")}.`);
   process.exit(0);
 }
 
