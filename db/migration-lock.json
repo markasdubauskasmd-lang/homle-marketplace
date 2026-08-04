@@ -431,12 +431,17 @@
       "order": 86,
       "file": "086_cleaner_profile_photos.sql",
       "sha256": "9e317245db11a1d2ceb23de0ff6705558706071d09ab6772886a897e8ffa9a78"
+    },
+    {
+      "order": 87,
+      "file": "087_administrator_funnel_report.sql",
+      "sha256": "a1f43b44107d8080fbf71dca4a13b32ae7949d49b22740aed0cdfa0da8fd6bda"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "23e68f1c8a3953944d5ec561f6a098f1226a9c9397e2f31c106209906d3f2acb"
+      "sha256": "d05e317b128bd736fd98e1f7518994d7dc3e49b77e5e11b4ce9afe086a75bf7d"
     },
     {
       "file": "worker-role-grants.sql",
