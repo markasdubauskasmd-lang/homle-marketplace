@@ -8,6 +8,8 @@ const maximumProfilePhotoBytes = 5 * 1024 * 1024;
 const maximumPreparedPhotoDimension = 1280;
 const photoUploadTimeoutMs = 30_000;
 const acceptedProfilePhotoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const previousAddressFieldNames = Object.freeze(["postcode", "houseNumber", "street", "town", "county", "country", "fromMonth", "fromYear", "yearsLived"]);
+const requiredPreviousAddressFields = Object.freeze(previousAddressFieldNames.filter((name) => name !== "county"));
 
 function loadPhotoImage(objectUrl) {
   return new Promise((resolve, reject) => {
@@ -87,7 +89,11 @@ function nameParts(displayName) {
 }
 
 function formFields(form) {
-  return Object.fromEntries([...new FormData(form).entries()].map(([key, value]) => [key, String(value)]));
+  return {
+    ...Object.fromEntries([...new FormData(form).entries()].map(([key, value]) => [key, String(value)])),
+    livedUnderFiveYears: form.elements.livedUnderFiveYears.checked,
+    previousAddresses: form.elements.livedUnderFiveYears.checked ? collectPreviousAddresses(form) : []
+  };
 }
 
 function putValue(form, name, value) {
@@ -98,8 +104,11 @@ function putValue(form, name, value) {
 }
 
 function personalDetailsComplete(form) {
-  return ["firstName", "lastName", "dateOfBirth", "nationality", "mobileNumber", "email", "emergencyName", "emergencyNumber", "emergencyRelationship", "postcode", "houseNumber", "street", "town", "country"]
+  const currentDetailsComplete = ["firstName", "lastName", "dateOfBirth", "nationality", "mobileNumber", "email", "emergencyName", "emergencyNumber", "emergencyRelationship", "postcode", "houseNumber", "street", "town", "country"]
     .every((name) => String(form.elements.namedItem(name)?.value || "").trim());
+  if (!currentDetailsComplete || !form.elements.livedUnderFiveYears.checked) return currentDetailsComplete;
+  const previousAddresses = collectPreviousAddresses(form);
+  return previousAddresses.length > 0 && previousAddresses.every((address) => requiredPreviousAddressFields.every((name) => String(address[name] || "").trim()));
 }
 
 function renderRail(progress, form) {
@@ -114,6 +123,52 @@ function renderRail(progress, form) {
 function updateUnderFiveCopy(form) {
   const copy = document.querySelector("[data-under-five-copy]");
   if (copy) copy.textContent = form.elements.livedUnderFiveYears.checked ? "Yes" : "No";
+}
+
+function previousAddressRows(form) {
+  return [...form.querySelectorAll("[data-previous-address]")];
+}
+
+function collectPreviousAddresses(form) {
+  return previousAddressRows(form).map((row) => Object.fromEntries(previousAddressFieldNames.map((name) => {
+    const control = row.querySelector(`[data-previous-field="${name}"]`);
+    return [name, String(control?.value || "").trim()];
+  })));
+}
+
+function updatePreviousAddressNumbers(form) {
+  const rows = previousAddressRows(form);
+  rows.forEach((row, index) => {
+    const number = row.querySelector("[data-previous-address-number]");
+    const remove = row.querySelector("[data-remove-previous-address]");
+    if (number) number.textContent = String(index + 1);
+    if (remove instanceof HTMLButtonElement) remove.disabled = rows.length === 1;
+  });
+}
+
+function addPreviousAddress(form, address = {}) {
+  const template = form.querySelector("[data-previous-address-template]");
+  const list = form.querySelector("[data-previous-address-list]");
+  if (!(template instanceof HTMLTemplateElement) || !list) return null;
+  const row = template.content.firstElementChild?.cloneNode(true);
+  if (!(row instanceof HTMLElement)) return null;
+  for (const name of previousAddressFieldNames) {
+    const control = row.querySelector(`[data-previous-field="${name}"]`);
+    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) control.value = String(address?.[name] || (name === "country" ? "United Kingdom" : ""));
+  }
+  list.append(row);
+  updatePreviousAddressNumbers(form);
+  return row;
+}
+
+function showPreviousAddresses(form) {
+  const section = form.querySelector("[data-previous-addresses]");
+  if (!(section instanceof HTMLElement)) return;
+  const visible = form.elements.livedUnderFiveYears.checked;
+  if (visible && previousAddressRows(form).length === 0) addPreviousAddress(form);
+  section.hidden = !visible;
+  section.querySelectorAll("input, select, button").forEach((control) => { control.disabled = !visible; });
+  if (visible) updatePreviousAddressNumbers(form);
 }
 
 export async function setupPersonalDetails({ account, showFeedback, requestJson }) {
@@ -147,6 +202,9 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   };
   const storedFields = onboardingResult.status === "fulfilled" ? onboardingResult.value.section?.data || {} : {};
   Object.entries({ ...defaults, ...draft, ...storedFields, email: account.email || "" }).forEach(([name, value]) => putValue(form, name, value));
+  const restoredAddresses = Object.hasOwn(storedFields, "previousAddresses") ? storedFields.previousAddresses : draft.previousAddresses;
+  if (Array.isArray(restoredAddresses)) restoredAddresses.forEach((address) => addPreviousAddress(form, address));
+  showPreviousAddresses(form);
 
   const photoTitle = document.querySelector("[data-personal-photo-title]");
   const photoCopy = document.querySelector("[data-personal-photo-copy]");
@@ -253,6 +311,19 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
     renderRail(progress, form);
   }
 
+  form.querySelector("[data-add-previous-address]")?.addEventListener("click", () => {
+    const row = addPreviousAddress(form);
+    row?.querySelector("input")?.focus();
+    saveDraft();
+  });
+  form.querySelector("[data-previous-address-list]")?.addEventListener("click", (event) => {
+    const remove = event.target instanceof Element ? event.target.closest("[data-remove-previous-address]") : null;
+    if (!remove || previousAddressRows(form).length <= 1) return;
+    remove.closest("[data-previous-address]")?.remove();
+    updatePreviousAddressNumbers(form);
+    saveDraft();
+  });
+
   form.addEventListener("input", () => {
     const status = document.querySelector("[data-personal-save-status]");
     if (status) status.textContent = "Saving in this browser tab…";
@@ -261,6 +332,7 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   });
   form.addEventListener("change", () => {
     updateUnderFiveCopy(form);
+    showPreviousAddresses(form);
     saveDraft();
   });
   form.addEventListener("submit", async (event) => {
@@ -270,7 +342,7 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
       return;
     }
     try {
-      await saveOnboardingForm(requestJson, "personal", form);
+      await saveOnboardingForm(requestJson, "personal", form, { extra: formFields(form) });
       storage?.removeItem(draftKey);
       showFeedback("Personal details saved securely to your Homle account.");
       location.assign("/cleaner/registration");

@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260804-1">
-  <script src="/cleaner-registration.js?v=20260804-2" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260804-2">
+  <script src="/cleaner-registration.js?v=20260804-3" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -368,6 +368,38 @@
                     <input class="hc-personal-toggle-input" name="livedUnderFiveYears" type="checkbox">
                     <span class="hc-personal-toggle" aria-hidden="true"></span>
                   </label>
+
+                  <section class="hc-previous-addresses" data-previous-addresses hidden aria-labelledby="previous-addresses-title">
+                    <div class="hc-previous-addresses-head">
+                      <span><strong id="previous-addresses-title">Previous addresses</strong><small>Add every previous address needed to cover your last five years.</small></span>
+                      <button class="hc-previous-address-add" data-add-previous-address type="button">+ Add another address</button>
+                    </div>
+                    <div class="hc-previous-address-list" data-previous-address-list></div>
+                  </section>
+
+                  <template data-previous-address-template>
+                    <fieldset class="hc-previous-address" data-previous-address>
+                      <div class="hc-previous-address-title">
+                        <legend>Previous address <span data-previous-address-number></span></legend>
+                        <button class="hc-previous-address-remove" data-remove-previous-address type="button">Remove</button>
+                      </div>
+                      <div class="hc-personal-address-top">
+                        <label><span>Postcode <b aria-hidden="true">*</b></span><input data-previous-field="postcode" autocomplete="off" maxlength="10" required></label>
+                        <label><span>House number <b aria-hidden="true">*</b></span><input data-previous-field="houseNumber" autocomplete="off" maxlength="40" required></label>
+                        <label><span>Street <b aria-hidden="true">*</b></span><input data-previous-field="street" autocomplete="off" maxlength="120" required></label>
+                      </div>
+                      <div class="hc-personal-grid hc-personal-grid-three">
+                        <label><span>Town <b aria-hidden="true">*</b></span><input data-previous-field="town" autocomplete="off" maxlength="100" required></label>
+                        <label><span>County</span><input data-previous-field="county" autocomplete="off" maxlength="100"></label>
+                        <label><span>Country <b aria-hidden="true">*</b></span><select data-previous-field="country" autocomplete="off" required><option value="United Kingdom">United Kingdom</option><option>Ireland</option><option>Other</option></select></label>
+                      </div>
+                      <div class="hc-personal-grid hc-personal-grid-three hc-previous-address-dates">
+                        <label><span>Month moved in <b aria-hidden="true">*</b></span><select data-previous-field="fromMonth" required><option value="">Select month</option><option value="01">January</option><option value="02">February</option><option value="03">March</option><option value="04">April</option><option value="05">May</option><option value="06">June</option><option value="07">July</option><option value="08">August</option><option value="09">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option></select></label>
+                        <label><span>Year moved in <b aria-hidden="true">*</b></span><input data-previous-field="fromYear" type="number" inputmode="numeric" min="1900" max="2100" step="1" placeholder="YYYY" required></label>
+                        <label><span>Number of years lived there <b aria-hidden="true">*</b></span><input data-previous-field="yearsLived" type="number" inputmode="numeric" min="0" max="100" step="0.1" placeholder="e.g. 2" required></label>
+                      </div>
+                    </fieldset>
+                  </template>
                 </fieldset>
 
                 <fieldset class="hc-personal-section">
