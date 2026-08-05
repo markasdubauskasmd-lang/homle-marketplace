@@ -470,10 +470,10 @@
                     <label><input type="radio" name="businessType" value="partnership"><span>Partnership</span></label>
                   </div>
 
-                  <label class="hc-business-name" data-business-name hidden>
-                    <span>Business name <b aria-hidden="true">*</b></span>
-                    <input name="businessName" autocomplete="organization" maxlength="160" placeholder="Enter your registered or trading name" disabled>
-                    <small>Use the name clients should recognise. You can update this later.</small>
+                  <label class="hc-business-name" data-business-name>
+                    <span>Business name <b data-business-name-required aria-hidden="true" hidden>*</b></span>
+                    <input name="businessName" autocomplete="organization" maxlength="160" placeholder="Enter your business or trading name">
+                    <small>Optional for solo applicants. Required for businesses, limited companies and partnerships.</small>
                   </label>
                 </fieldset>
 

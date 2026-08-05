@@ -79,12 +79,12 @@ function setBusinessPresentation(form, draft) {
   const companyLabel = document.querySelector("[data-business-company-label]");
   if (soloLabel) soloLabel.textContent = draft.serviceType === "beautician" ? "Solo beautician" : "Solo cleaner";
   if (companyLabel) companyLabel.textContent = draft.serviceType === "beautician" ? "Beauty business" : "Cleaning business";
-  const nameGroup = document.querySelector("[data-business-name]");
   const nameInput = form.elements.namedItem("businessName");
+  const requiredMarker = document.querySelector("[data-business-name-required]");
   const businessNameRequired = draft.businessType !== "solo";
-  if (nameGroup instanceof HTMLElement) nameGroup.hidden = !businessNameRequired;
+  if (requiredMarker instanceof HTMLElement) requiredMarker.hidden = !businessNameRequired;
   if (nameInput instanceof HTMLInputElement) {
-    nameInput.disabled = !businessNameRequired;
+    nameInput.disabled = false;
     nameInput.required = businessNameRequired;
   }
 }
@@ -158,7 +158,7 @@ export async function setupBusinessDetails({ account, showFeedback, requestJson 
       return;
     }
     try {
-      await saveOnboardingForm(requestJson, "business", form, { extra: { ...draft, businessName: draft.businessType === "solo" ? "" : draft.businessName } });
+      await saveOnboardingForm(requestJson, "business", form, { extra: draft });
       storage?.removeItem(draftKey);
       showFeedback("Business details saved securely to your Homle account.");
       location.assign("/cleaner/registration");
