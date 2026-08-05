@@ -156,7 +156,7 @@ const originalSupportingTransfer = (await Promise.all(supportingFallbacks.map((f
 const reviewedWideTransfer = [59_166, 125_076, 157_374, 157_854, 33_148, 24_020, 22_598, 75_320].reduce((sum, bytes) => sum + bytes, 0);
 assert(reviewedWideTransfer <= originalSupportingTransfer * 0.41, "The complete supporting-photo WebP path no longer saves at least 59% versus its JPEG fallbacks.");
 assert(supportingFallbacks.every((file) => page.includes(`src="/landing/${file}"`)), "The responsive supporting photographs removed an approved JPEG fallback.");
-assert(page.includes('poster="/landing/dark-kitchen-1600-f930f4ce.webp"'), "The full-resolution JPEG is still used as the video poster.");
+assert(page.includes('data-video-poster="/landing/dark-kitchen-1600-f930f4ce.webp"') && !new RegExp('<video[^>]*\\sposter=').test(page), "The reviewed video poster is missing or still joins the initial page request path.");
 assert(page.includes('sizes="(max-width: 720px) 1px, (max-width: 1080px) 180px, 240px"'), "Hidden mobile capability cards can still request desktop-size portraits.");
 
 // The clip is always muted, so its old 128 kb/s audio stream downloaded bytes
@@ -174,6 +174,7 @@ assert(!optimizedClipBoxes.includes("soun"), "The muted landing clip regained an
 assert(optimizedClipBytes.length <= 2_501_348 * 0.38, "The optimized clip no longer saves at least 62% versus the retired payload.");
 assert(page.includes(`data-video-src="/landing/${optimizedClipFile}"`) && page.includes('preload="none"') && !new RegExp(`<video[^>]*\\ssrc="/landing/${optimizedClipFile}"`).test(page) && !page.includes('src="/landing/cleaning.mp4"'), "The homepage can request a landing clip before its below-the-fold act approaches, or still references the retired 2.5 MB clip.");
 assert(script.includes('this.detailVideo.setAttribute("src", this.detailVideoSource)') && script.includes("this.activateDetailVideo();"), "The deferred landing clip never activates when its act approaches.");
+assert(script.includes('this.detailVideo.setAttribute("poster", this.detailVideoPoster)'), "The deferred landing poster never activates with its clip.");
 assert(server.includes(`"/landing/${optimizedClipFile}"`), "The optimized clip is missing from the immutable cache allow-list.");
 
 // Without these the clip is served as application/octet-stream, and a <video>

@@ -55,7 +55,13 @@ try {
       heroSources: heroImages.map((image) => image.currentSrc),
       detailVideo: (() => {
         const video = document.querySelector("[data-detail-video]");
-        return { src: video.getAttribute("src"), deferredSrc: video.dataset.videoSrc, readyState: video.readyState };
+        return {
+          src: video.getAttribute("src"),
+          deferredSrc: video.dataset.videoSrc,
+          poster: video.getAttribute("poster"),
+          deferredPoster: video.dataset.videoPoster,
+          readyState: video.readyState
+        };
       })()
     };
   `);
@@ -79,6 +85,8 @@ try {
     `The 390px landing view downloaded a fallback or oversized hero instead of its 480px WebP pair: ${JSON.stringify(entry.heroSources)}.`);
   assert(entry.detailVideo.src === null && entry.detailVideo.deferredSrc === "/landing/cleaning-720-e8b1a7ce.mp4" && entry.detailVideo.readyState === 0,
     `The below-the-fold detail clip joined the initial mobile load: ${JSON.stringify(entry.detailVideo)}.`);
+  assert(entry.detailVideo.poster === null && entry.detailVideo.deferredPoster === "/landing/dark-kitchen-1600-f930f4ce.webp",
+    `The below-the-fold detail poster joined the initial mobile load: ${JSON.stringify(entry.detailVideo)}.`);
 
   // Walk the whole page the way a visitor would. Every act pins and unpins, and
   // none of them may push the document sideways while it moves — the design is

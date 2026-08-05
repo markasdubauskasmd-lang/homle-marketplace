@@ -65,6 +65,7 @@ const probe = `
       videoSource: video.getAttribute('src'),
       videoDeferredSource: video.dataset.videoSrc,
       videoPoster: video.getAttribute('poster'),
+      videoDeferredPoster: video.dataset.videoPoster,
       beat: document.querySelector('[data-beat-title]').textContent,
       items: Number(document.querySelector('[data-beat-items]').textContent),
       views: document.querySelector('[data-views]').textContent,
@@ -104,6 +105,8 @@ try {
   assert(top.launchOn === false, "The launch button is already revealed before the wipe begins.");
   assert(top.videoSource === null && top.videoDeferredSource === "/landing/cleaning-720-e8b1a7ce.mp4",
     `The detail clip was not held off the initial desktop load: ${JSON.stringify({ source: top.videoSource, deferred: top.videoDeferredSource })}.`);
+  assert(top.videoPoster === null && top.videoDeferredPoster === "/landing/dark-kitchen-1600-f930f4ce.webp",
+    `The detail poster was not held off the initial desktop load: ${JSON.stringify({ poster: top.videoPoster, deferred: top.videoDeferredPoster })}.`);
 
   const wiping = await at("open", 0.55);
   assert(wiping.open > top.open, `Scrolling does not advance the opening act: ${top.open} -> ${wiping.open}.`);
@@ -166,6 +169,7 @@ try {
   assert(past.videoSource === "/landing/cleaning-720-e8b1a7ce.mp4", `The detail act did not retain its reviewed optimized clip: ${past.videoSource}.`);
   assert(past.videoDeferredSource === past.videoSource, `The active detail clip differs from its reviewed deferred source: ${past.videoDeferredSource}.`);
   assert(past.videoPoster === "/landing/dark-kitchen-1600-f930f4ce.webp", `The clip retained its full JPEG poster: ${past.videoPoster}.`);
+  assert(past.videoDeferredPoster === past.videoPoster, `The active detail poster differs from its reviewed deferred poster: ${past.videoDeferredPoster}.`);
 
   /* ── Act 6: the closing button ────────────────────── */
 
