@@ -260,6 +260,14 @@
               <div class="landlord-checklist-heading"><div><p class="eyebrow">Cleaner instructions</p><h3 id="request-tasks-title">Review the concise bullets</h3></div><button class="text-button" type="button" data-use-saved-checklist>Use saved checklist</button></div>
               <div class="landlord-task-preview" data-task-preview role="list" aria-live="polite"><p role="listitem">No tasks yet. Start speaking or type the room walkthrough.</p></div>
               <details class="landlord-task-editor"><summary>Edit concise bullets</summary><div><label for="request-tasks">One room-labelled task per line</label><textarea id="request-tasks" name="tasks" rows="8" placeholder="Kitchen: Wipe the worktops&#10;Bathroom: Remove limescale from the shower screen"></textarea></div></details>
+              <!-- What the Landlord changed against the checklist the scan produced.
+                   Hidden until the two actually differ: a diff that is always on
+                   screen stops being read. -->
+              <section class="landlord-checklist-changes" data-checklist-changes hidden aria-labelledby="checklist-changes-title">
+                <h4 id="checklist-changes-title" data-checklist-changes-title>Your edits to the scanned checklist</h4>
+                <div data-checklist-changes-body></div>
+                <button class="text-button" type="button" data-checklist-restore>Restore the scanned checklist</button>
+              </section>
               <p class="landlord-task-review-status" data-task-review-status role="status">Add at least one room-labelled cleaning action before approval.</p>
               <label class="checkbox landlord-review-confirmation"><input name="scopeReviewed" type="checkbox" required disabled><span>I reviewed every bullet and confirm this is the work I want quoted.</span></label>
             </section>
@@ -291,6 +299,27 @@
       </section>
     </div>
   </main>
+
+  <!-- Who is going to be in the property. The Landlord could favourite and invite
+       a Cleaner while only ever seeing a name and a thumbnail; both endpoints
+       behind this already existed and nothing on the Landlord side called the
+       reviews one. Read-only: no action is taken from here. -->
+  <dialog class="active-job-dialog landlord-cleaner-profile-dialog" data-cleaner-profile-dialog aria-labelledby="cleaner-profile-title">
+    <form method="dialog">
+      <div class="landlord-cleaner-profile-head">
+        <span class="landlord-cleaner-profile-avatar" data-cleaner-profile-avatar aria-hidden="true"></span>
+        <div>
+          <p class="eyebrow">Cleaner profile</p>
+          <h2 id="cleaner-profile-title" data-cleaner-profile-name>Cleaner</h2>
+          <p class="landlord-cleaner-profile-rating" data-cleaner-profile-rating></p>
+        </div>
+      </div>
+      <div class="landlord-cleaner-profile-body" data-cleaner-profile-body role="status" aria-live="polite">
+        <p>Loading this Cleaner’s public profile…</p>
+      </div>
+      <div><button class="button button-outline" type="submit" value="close">Close</button></div>
+    </form>
+  </dialog>
 
   <dialog class="active-job-dialog landlord-invitation-quote-dialog" data-invitation-quote-dialog aria-labelledby="invitation-quote-title">
     <form method="dialog">

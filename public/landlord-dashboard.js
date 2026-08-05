@@ -1,4 +1,5 @@
 import { checklistFromTranscript } from "./checklist.js";
+import { checklistChangeReview } from "./checklist-change-review.js";
 import { clearSelectedCleaner, clearSelectedProperty, readSelectedCleaner, readSelectedProperty, saveSelectedCleaner, saveSelectedProperty } from "./account-intent.js?v=20260718-2";
 import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
@@ -75,6 +76,10 @@ const speechStatus = document.querySelector("[data-speech-status]");
 const speechFallback = document.querySelector("[data-speech-fallback]");
 const taskPreview = document.querySelector("[data-task-preview]");
 const taskReviewStatus = document.querySelector("[data-task-review-status]");
+const checklistChanges = document.querySelector("[data-checklist-changes]");
+const checklistChangesTitle = document.querySelector("[data-checklist-changes-title]");
+const checklistChangesBody = document.querySelector("[data-checklist-changes-body]");
+const checklistRestore = document.querySelector("[data-checklist-restore]");
 const cleaningTypeSelect = requestForm.elements.cleaningType;
 const cleaningTypeHint = document.querySelector("[data-cleaning-type-hint]");
 const mediaReadiness = document.querySelector("[data-landlord-media-readiness]");
@@ -102,6 +107,13 @@ let favouriteCleaners = [];
 let landlordProfile = null;
 let recognition = null;
 let tasksManuallyEdited = false;
+// The checklist exactly as it was generated — from the room scan, the speech
+// summary, or a saved property checklist. Kept so the Landlord can see what
+// THEY changed before confirming, rather than being asked to approve a list
+// with no memory of what the scan actually found. Empty when the Landlord typed
+// the scope themselves, in which case there is nothing to compare against.
+let generatedChecklist = [];
+let generatedChecklistSource = "";
 let liveSummariseTimer = null;
 let assistedSummariseTimer = null;
 let assistedSummaryInFlight = false;
@@ -234,8 +246,153 @@ function invalidateScopeReview(message) {
   showFeedback(requestFeedback, message, "info");
 }
 
+/**
+ * Show what the Landlord changed against the generated checklist.
+ *
+ * `checklistChangeReview` already computes added/removed/reordered scope and is
+ * covered by its own tests; this is the surface that finally reaches a user.
+ * Added and removed scope are what change the price and the cleaner's work, so
+ * they are listed item by item. A pure reorder is stated but not enumerated —
+ * it changes nothing about what gets cleaned.
+ */
+const cleanerProfileDialog = document.querySelector("[data-cleaner-profile-dialog]");
+const cleanerProfileAvatar = document.querySelector("[data-cleaner-profile-avatar]");
+const cleanerProfileName = document.querySelector("[data-cleaner-profile-name]");
+const cleanerProfileRating = document.querySelector("[data-cleaner-profile-rating]");
+const cleanerProfileBody = document.querySelector("[data-cleaner-profile-body]");
+// Only the newest request's response may paint, so a slow first profile cannot
+// overwrite a second one the Landlord opened while waiting.
+let cleanerProfileRequest = 0;
+
+/**
+ * Show a Cleaner's public profile and their completed-job reviews.
+ *
+ * Both endpoints already existed and were already permission-checked server
+ * side; the Landlord side simply never called them. Read-only by design — every
+ * action stays on the cards behind it, so opening a profile cannot change a
+ * booking.
+ */
+async function openCleanerProfile(cleanerId, fallbackName = "Cleaner") {
+  if (!cleanerProfileDialog || !cleanerId) return;
+  const generation = ++cleanerProfileRequest;
+  cleanerProfileName.textContent = fallbackName;
+  cleanerProfileRating.textContent = "";
+  cleanerProfileAvatar.replaceChildren(document.createTextNode(String(fallbackName).slice(0, 1).toLocaleUpperCase("en-GB")));
+  cleanerProfileBody.replaceChildren(element("p", "", "Loading this Cleaner’s public profile…"));
+  if (typeof cleanerProfileDialog.showModal === "function" && !cleanerProfileDialog.open) cleanerProfileDialog.showModal();
+
+  try {
+    const [profileResult, reviewsResult] = await Promise.all([
+      requestJson(`/api/marketplace/cleaners/${encodeURIComponent(cleanerId)}`),
+      // Reviews are supporting detail: a profile is still worth showing without
+      // them, so a failure here must not blank the whole dialog.
+      requestJson(`/api/marketplace/cleaners/${encodeURIComponent(cleanerId)}/reviews`).catch(() => null),
+    ]);
+    if (generation !== cleanerProfileRequest) return;
+    const cleaner = profileResult?.cleaner;
+    if (!cleaner) throw new Error("This Cleaner’s public profile is not available.");
+
+    cleanerProfileName.textContent = cleaner.displayName || fallbackName;
+    const reviewCount = Number(cleaner.reviewCount) || 0;
+    cleanerProfileRating.textContent = reviewCount > 0
+      ? `${Number(cleaner.averageRating).toFixed(1)} stars from ${reviewCount} completed ${reviewCount === 1 ? "job" : "jobs"}`
+      : "No completed-job reviews yet";
+    if (cleaner.profilePhotoUrl) {
+      const image = element("img");
+      image.src = cleaner.profilePhotoUrl;
+      image.alt = "";
+      image.addEventListener("error", () => {
+        cleanerProfileAvatar.replaceChildren(document.createTextNode(String(cleaner.displayName || fallbackName).slice(0, 1).toLocaleUpperCase("en-GB")));
+      }, { once: true });
+      cleanerProfileAvatar.replaceChildren(image);
+    }
+
+    cleanerProfileBody.replaceChildren();
+    const services = Array.isArray(cleaner.services) ? cleaner.services.filter(Boolean) : [];
+    if (services.length) {
+      const block = element("div", "landlord-cleaner-profile-section");
+      block.append(element("h3", "", "Services offered"));
+      const list = element("ul", "landlord-cleaner-profile-services");
+      services.forEach((service) => list.append(element("li", "", typeof service === "string" ? service : String(service?.name || "Service"))));
+      block.append(list);
+      cleanerProfileBody.append(block);
+    }
+    if (cleaner.bio) {
+      const block = element("div", "landlord-cleaner-profile-section");
+      block.append(element("h3", "", "About"), element("p", "", String(cleaner.bio)));
+      cleanerProfileBody.append(block);
+    }
+
+    const reviews = Array.isArray(reviewsResult?.reviews) ? reviewsResult.reviews : [];
+    const block = element("div", "landlord-cleaner-profile-section");
+    block.append(element("h3", "", "Reviews from completed jobs"));
+    if (!reviewsResult) {
+      block.append(element("p", "landlord-cleaner-profile-note", "Reviews could not be loaded just now. The profile above is current."));
+    } else if (!reviews.length) {
+      block.append(element("p", "landlord-cleaner-profile-note", "No published reviews yet. Ratings appear here once a booking with this Cleaner is completed and reviewed."));
+    } else {
+      const list = element("ul", "landlord-cleaner-profile-reviews");
+      for (const review of reviews.slice(0, 5)) {
+        const item = element("li");
+        const rating = Number(review.rating);
+        item.append(element("strong", "", Number.isFinite(rating) ? `${rating.toFixed(1)} stars` : "Rated"));
+        if (review.comment) item.append(element("p", "", String(review.comment)));
+        list.append(item);
+      }
+      block.append(list);
+      if (reviews.length > 5) block.append(element("p", "landlord-cleaner-profile-note", `Showing the 5 most recent of ${reviews.length} reviews.`));
+    }
+    cleanerProfileBody.append(block);
+  } catch (error) {
+    if (generation !== cleanerProfileRequest) return;
+    cleanerProfileBody.replaceChildren(element("p", "landlord-cleaner-profile-note", error?.message || "This Cleaner’s public profile could not be loaded. No booking was changed."));
+  }
+}
+
+function renderChecklistChanges(lines) {
+  if (!checklistChanges) return;
+  if (!generatedChecklist.length) {
+    checklistChanges.hidden = true;
+    return;
+  }
+  const review = checklistChangeReview(generatedChecklist, lines);
+  if (!review.changed) {
+    checklistChanges.hidden = true;
+    return;
+  }
+  checklistChanges.hidden = false;
+  checklistChangesTitle.textContent = `Your edits to the ${generatedChecklistSource || "generated"} checklist`;
+  checklistChangesBody.replaceChildren();
+
+  const section = (label, tasks, kind) => {
+    if (!tasks.length) return;
+    const block = element("div", `landlord-checklist-change landlord-checklist-change-${kind}`);
+    block.append(element("strong", "", `${label} (${tasks.length})`));
+    const list = element("ul");
+    tasks.forEach((task) => list.append(element("li", "", task)));
+    block.append(list);
+    checklistChangesBody.append(block);
+  };
+  section("You added", review.added, "added");
+  section("You removed", review.removed, "removed");
+  if (review.orderChanged && !review.added.length && !review.removed.length) {
+    checklistChangesBody.append(element("p", "landlord-checklist-change-note", "Same tasks, different order. Nothing was added or removed."));
+  }
+}
+
+function restoreGeneratedChecklist() {
+  if (!generatedChecklist.length) return;
+  requestForm.elements.tasks.value = generatedChecklist.join("\n");
+  invalidateScopeReview("The scanned checklist was restored. Review every room task again before saving.");
+  renderTaskPreview();
+  requestDirty = true;
+  scheduleWorkingRequestRecovery();
+  showFeedback(requestFeedback, "Restored the checklist exactly as it was generated.", "success");
+}
+
 function renderTaskPreview() {
   const lines = String(requestForm.elements.tasks.value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  renderChecklistChanges(lines);
   const confirmation = requestForm.elements.scopeReviewed;
   try {
     const reviewedTasks = requestTasksFromLines(lines.join("\n"));
@@ -1677,10 +1834,13 @@ function renderFavouriteCleaners() {
       try { saveSelectedCleaner(localStorage, cleaner.cleanerId); } catch {}
       location.assign("/landlord/dashboard?start=booking");
     });
+    const view = element("button", "text-button", "View profile");
+    view.type = "button";
+    view.addEventListener("click", () => openCleanerProfile(cleaner.cleanerId, displayName));
     const remove = element("button", "text-button", "Remove");
     remove.type = "button";
     remove.addEventListener("click", () => removeFavouriteCleaner(cleaner.cleanerId, remove));
-    actions.append(request, remove);
+    actions.append(request, view, remove);
     card.append(identity, actions);
     return card;
   }));
@@ -1950,6 +2110,8 @@ function useSavedChecklist() {
   if (requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this property's saved checklist?")) return;
   invalidateScopeReview("The checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
+  generatedChecklist = value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  generatedChecklistSource = "saved";
   renderTaskPreview();
   requestDirty = true;
   scheduleWorkingRequestRecovery();
@@ -1969,6 +2131,8 @@ function summariseSpeech({ automatic = false, live = false } = {}) {
   if (!automatic && requestForm.elements.tasks.value.trim() && !window.confirm("Replace the current room tasks with this new concise speech summary?")) return false;
   invalidateScopeReview("The concise checklist changed. Review every room task again before saving.");
   requestForm.elements.tasks.value = value;
+  generatedChecklist = tasks.slice();
+  generatedChecklistSource = "spoken";
   tasksManuallyEdited = false;
   renderTaskPreview();
   requestDirty = true;
@@ -2154,6 +2318,8 @@ function adoptRoomScan() {
   if (transcript) requestForm.elements.transcript.value = transcript.slice(0, 5000);
   if (tasks.length) {
     requestForm.elements.tasks.value = tasks.join("\n");
+    generatedChecklist = tasks.slice();
+    generatedChecklistSource = "scanned";
     // The scan is a fresh scope, so any earlier approval no longer applies.
     invalidateScopeReview("This checklist came from your room scan. Review every room task before saving.");
     renderTaskPreview();
@@ -2169,6 +2335,7 @@ adoptRoomScan();
 document.querySelector("[data-toggle-property-form]").addEventListener("click", () => openPropertyEditor());
 document.querySelector("[data-close-property-form]").addEventListener("click", closePropertyEditor);
 document.querySelector("[data-use-saved-checklist]").addEventListener("click", useSavedChecklist);
+checklistRestore?.addEventListener("click", restoreGeneratedChecklist);
 document.querySelector("[data-summarise-speech]").addEventListener("click", summariseSpeech);
 propertySelect.addEventListener("change", applySuggestedCleaningType);
 cleaningTypeSelect.addEventListener("change", () => {
