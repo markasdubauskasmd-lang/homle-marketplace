@@ -14,7 +14,8 @@ const visibleOldBrand = /(?<![A-Za-z0-9_-])Tideway(?![A-Za-z0-9_-])/;
 // is the thing that actually matters: every public page loads the SAME current
 // version, so none of them serves a stale stylesheet.
 // The landing page is deliberately outside the shared sheet: it is a
-// self-contained dark cinematic design with its own scoped landing.css, and
+// self-contained dark cinematic design with its own content-addressed scoped
+// stylesheet, and
 // loading styles.css on top of it would fight its typography and surface. The
 // version is therefore anchored on account.html, the first page every visitor
 // reaches after it, and home.html is exempted from the shared-sheet rule alone.
