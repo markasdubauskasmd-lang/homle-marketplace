@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260804-2">
-  <script src="/cleaner-registration.js?v=20260805-4" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260805-3">
+  <script src="/cleaner-registration.js?v=20260805-5" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -1087,17 +1087,17 @@
             <section class="hc-personal-card hc-work-card" data-work-areas hidden aria-labelledby="cleaner-work-title">
               <header class="hc-personal-head">
                 <h1 id="cleaner-work-title">Work areas</h1>
-                <p>Select UK regions, then add outward postcodes for precise distance matching.</p>
+                <p>Explore the UK map and select outward postcodes for precise distance matching.</p>
               </header>
 
               <form class="hc-work-form" data-work-form>
                 <div class="hc-work-builder">
                   <section class="hc-work-panel" aria-labelledby="cleaner-work-choose-title">
                     <h2 id="cleaner-work-choose-title">Choose where you work</h2>
-                    <p>Tap regions on the UK map, then add outward postcodes when you want more precise matching.</p>
+                    <p>Click the detailed UK map or enter a postcode. Homle saves only the outward postcode you add.</p>
                     <div class="hc-work-search">
-                      <label class="hc-sr-only" for="cleaner-work-search">Outward postcode</label>
-                      <input id="cleaner-work-search" name="outwardPostcode" autocomplete="postal-code" maxlength="4" placeholder="e.g. LS1 or SW1A" data-work-search>
+                      <label class="hc-sr-only" for="cleaner-work-search">UK postcode</label>
+                      <input id="cleaner-work-search" name="outwardPostcode" autocomplete="postal-code" maxlength="8" placeholder="e.g. LS1 or SW1A 1AA" data-work-search>
                       <button type="button" data-work-add>Add</button>
                     </div>
                     <div class="hc-business-choices hc-work-role-choices" aria-label="Area treatment">
@@ -1106,16 +1106,6 @@
                       <label><input type="radio" name="workAreaRole" value="excluded"><span>Excluded</span></label>
                     </div>
                     <p class="hc-work-role-note">Primary areas can be saved for matching. Secondary and excluded labels are a design preview until those rules are supported.</p>
-
-                    <section class="hc-work-zone-summary" aria-labelledby="cleaner-work-zones-title">
-                      <div class="hc-work-zone-summary-head">
-                        <h2 id="cleaner-work-zones-title">Selected UK zones</h2>
-                        <span data-work-zone-count>0 selected</span>
-                        <button type="button" data-work-zone-clear hidden>Clear all</button>
-                      </div>
-                      <div class="hc-work-zone-list" data-work-zone-list></div>
-                      <p class="hc-work-zone-empty" data-work-zone-empty>Tap a region on the map to select where you want to work.</p>
-                    </section>
 
                     <section class="hc-work-base" aria-labelledby="cleaner-work-base-title">
                       <div><strong id="cleaner-work-base-title">Profile base</strong><span data-work-base>Not set</span></div>
@@ -1129,20 +1119,31 @@
                     </section>
                   </section>
 
-                  <section class="hc-work-map-shell" aria-label="Clickable UK work-zone map">
-                    <div class="hc-work-map-instruction"><strong>Select your regions</strong><span>Click or use Tab and Enter</span></div>
-                    <svg class="hc-work-map" viewBox="0 0 480 600" role="group" aria-labelledby="cleaner-work-map-title cleaner-work-map-desc">
-                      <title id="cleaner-work-map-title">Clickable UK work zones</title>
-                      <desc id="cleaner-work-map-desc">Twelve selectable regions covering Scotland, Northern Ireland, Wales, London and the English regions.</desc>
-                      <rect class="hc-work-map-water" x="0" y="0" width="480" height="600" rx="4"></rect>
-                      <g data-work-zone-map></g>
-                      <g data-work-map-markers></g>
-                    </svg>
-                    <p>Private UK zone selector &middot; no third-party map requests</p>
+                  <section class="hc-work-map-shell" aria-label="Interactive UK postcode map">
+                    <div class="hc-postcode-map" data-postcode-map role="application" tabindex="0" aria-label="Interactive UK map. Drag to move, use plus and minus to zoom, and click a location to find its nearest postcode.">
+                      <div class="hc-postcode-map-tiles" data-postcode-map-tiles aria-hidden="true"></div>
+                      <div class="hc-postcode-map-markers" data-postcode-map-markers></div>
+                      <div class="hc-postcode-map-controls" aria-label="Map zoom controls">
+                        <button type="button" data-postcode-map-zoom-in aria-label="Zoom in">+</button>
+                        <span data-postcode-map-zoom-level>Zoom 5</span>
+                        <button type="button" data-postcode-map-zoom-out aria-label="Zoom out">&minus;</button>
+                        <button type="button" data-postcode-map-reset>UK view</button>
+                      </div>
+                      <div class="hc-work-map-instruction"><strong>Click any UK location</strong><span>Drag to move &middot; scroll or use + / &minus; to zoom</span></div>
+                      <article class="hc-postcode-map-detail" data-postcode-map-detail hidden aria-live="polite">
+                        <span data-postcode-map-outcode>Outward postcode</span>
+                        <strong data-postcode-map-postcode>Postcode</strong>
+                        <p data-postcode-map-place></p>
+                        <small data-postcode-map-distance></small>
+                        <button type="button" data-postcode-map-add>Add postcode</button>
+                      </article>
+                      <a class="hc-postcode-map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">&copy; OpenStreetMap contributors</a>
+                    </div>
+                    <p data-postcode-map-status role="status" aria-live="polite">Click any town, street or area to find its nearest postcode.</p>
                   </section>
                 </div>
 
-                <p class="hc-work-guidance"><strong>Selected UK zones</strong> are stored as your broad work preferences. Primary outward postcodes drive precise distance matching today.</p>
+                <p class="hc-work-guidance"><strong>Postcode privacy:</strong> the map shows public street data. Homle stores only the outward postcode and approximate coordinates you choose for matching, never an address from this page.</p>
 
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/background-checks">&larr; Back</a>
