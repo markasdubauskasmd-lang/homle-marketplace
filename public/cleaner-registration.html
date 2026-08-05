@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260805-3">
-  <script src="/cleaner-registration.js?v=20260805-5" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260805-4">
+  <script src="/cleaner-registration.js?v=20260805-6" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -1121,6 +1121,7 @@
                   <section class="hc-work-map-shell" aria-label="Interactive UK postcode map">
                     <div class="hc-postcode-map" data-postcode-map role="application" tabindex="0" aria-label="Interactive UK map. Drag to move, use plus and minus to zoom, and click a location to find its nearest postcode.">
                       <div class="hc-postcode-map-tiles" data-postcode-map-tiles aria-hidden="true"></div>
+                      <div class="hc-postcode-map-zones" data-postcode-map-zones aria-label="UK postcode areas"></div>
                       <div class="hc-postcode-map-markers" data-postcode-map-markers data-work-map-markers></div>
                       <div class="hc-postcode-map-controls" aria-label="Map zoom controls">
                         <button type="button" data-postcode-map-zoom-in aria-label="Zoom in">+</button>
@@ -1128,7 +1129,7 @@
                         <button type="button" data-postcode-map-zoom-out aria-label="Zoom out">&minus;</button>
                         <button type="button" data-postcode-map-reset>UK view</button>
                       </div>
-                      <div class="hc-work-map-instruction"><strong>Click any UK location</strong><span>Drag to move &middot; scroll or use + / &minus; to zoom</span></div>
+                      <div class="hc-work-map-instruction"><strong>Choose a postcode area</strong><span>Tap a red code to zoom &middot; click the map for an exact postcode</span></div>
                       <article class="hc-postcode-map-detail" data-postcode-map-detail hidden aria-live="polite">
                         <span data-postcode-map-outcode>Outward postcode</span>
                         <strong data-postcode-map-postcode>Postcode</strong>
@@ -1137,6 +1138,7 @@
                         <button type="button" data-postcode-map-add>Add postcode</button>
                       </article>
                       <a class="hc-postcode-map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">&copy; OpenStreetMap contributors</a>
+                      <span class="hc-postcode-zone-key">Red labels = postcode areas</span>
                     </div>
                     <p data-postcode-map-status role="status" aria-live="polite">Click any town, street or area to find its nearest postcode.</p>
                   </section>

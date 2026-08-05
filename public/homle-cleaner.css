@@ -5131,6 +5131,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 }
 
 .hc-postcode-map-tiles,
+.hc-postcode-map-zones,
 .hc-postcode-map-markers {
   position: absolute;
   inset: 0;
@@ -5147,7 +5148,40 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   pointer-events: none;
 }
 
+.hc-postcode-map-zones,
 .hc-postcode-map-markers { pointer-events: none; }
+
+.hc-postcode-zone-label {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  display: grid;
+  min-width: 31px;
+  min-height: 25px;
+  padding: 0 7px;
+  place-items: center;
+  color: #ffffff;
+  border: 2px solid rgba(255, 255, 255, .96);
+  border-radius: 999px;
+  background: rgba(215, 57, 43, .9);
+  box-shadow: 0 3px 9px rgba(47, 34, 28, .24);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: auto;
+  cursor: pointer;
+  translate: -50% -50%;
+}
+
+.hc-postcode-zone-label:hover,
+.hc-postcode-zone-label:focus-visible {
+  color: var(--hc-ink);
+  border-color: var(--hc-red);
+  outline: none;
+  background: #ffffff;
+  transform: scale(1.08);
+}
 
 .hc-postcode-map-radius,
 .hc-postcode-map-picked,
@@ -5297,6 +5331,21 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   background: rgba(255, 255, 255, .9);
   font-size: 7px;
   text-decoration: none;
+}
+
+.hc-postcode-zone-key {
+  position: absolute;
+  z-index: 5;
+  bottom: 6px;
+  left: 6px;
+  padding: 4px 7px;
+  color: #4f4a43;
+  border: 1px solid rgba(186, 171, 147, .7);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .92);
+  font-size: 7px;
+  font-weight: 700;
+  pointer-events: none;
 }
 
 .hc-work-map-shell > p {
