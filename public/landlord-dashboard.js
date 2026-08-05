@@ -579,9 +579,23 @@ async function refreshSelectedCleanerProfile() {
   renderRequests();
 }
 
+/**
+ * Which panel this URL asks for.
+ *
+ * The pathname wins, because /landlord/properties is a destination someone can
+ * bookmark or send to a colleague. The hash form is still read: it is what the
+ * dashboard used until now, so saved links and any open tab keep working.
+ */
+function workspaceTabFromLocation() {
+  const path = /^\/landlord\/(properties|requests|account)\/?$/.exec(location.pathname);
+  if (path) return path[1];
+  const hash = /^#landlord-(properties|requests|account)$/.exec(location.hash);
+  return hash?.[1] || "";
+}
+
+// Retained under the old name so nothing that calls it has to change.
 function workspaceTabFromHash() {
-  const match = /^#landlord-(properties|requests|account)$/.exec(location.hash);
-  return match?.[1] || "";
+  return workspaceTabFromLocation();
 }
 
 const requestBuilderMount = document.querySelector("[data-request-builder-mount]");
@@ -605,8 +619,11 @@ function selectWorkspaceTab(name, { historyMode = "" } = {}) {
     panel.hidden = selected === "requests" ? panel.dataset.landlordPanel !== "properties" : panel.dataset.landlordPanel !== selected;
   });
   setRequestBuilderExpanded(selected === "requests");
-  if (historyMode === "push") history.pushState({ landlordTab: selected }, "", `#landlord-${selected}`);
-  if (historyMode === "replace") history.replaceState({ landlordTab: selected }, "", `#landlord-${selected}`);
+  // A real path, not a fragment, so the address bar names where the Landlord
+  // is, Back returns to the previous panel, and the link can be shared.
+  const url = `/landlord/${selected}`;
+  if (historyMode === "push") history.pushState({ landlordTab: selected }, "", url);
+  if (historyMode === "replace") history.replaceState({ landlordTab: selected }, "", url);
 }
 
 function continueBookingStart() {

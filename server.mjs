@@ -5439,6 +5439,12 @@ async function serveFile(requestPath, response, cspNonce = "") {
     "/cleaner/profile/preview": "cleaner-public-profile.html",
     "/cleaner/payouts": "cleaner-payouts.html",
     "/landlord/dashboard": "landlord-dashboard.html",
+    // The Landlord workspace panels are real, bookmarkable destinations rather
+    // than in-page anchors. Same document: the script selects the panel from
+    // the pathname, so a shared link opens where the sender was.
+    "/landlord/properties": "landlord-dashboard.html",
+    "/landlord/requests": "landlord-dashboard.html",
+    "/landlord/account": "landlord-dashboard.html",
     "/landlord/book": "landlord-journey.html",
     "/landlord/help": "landlord-help.html",
     "/tracking-test": "tracking-test.html",
