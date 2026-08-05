@@ -1,5 +1,59 @@
 # Render activation handoff
 
+## Merged 2026-08-05 — Landlord dashboard (needs a redeploy, nothing else)
+
+Five PRs, all merged to `main`, CI green. **No migration, no new secret and no
+Render setting is required.** One redeploy publishes all of it.
+
+| PR | What it does |
+| --- | --- |
+| #236 | Checklist review loop + Cleaner profiles |
+| #237 | Guard against controls that cannot work |
+| #238 | Real workspace URLs + a loading state |
+| #239 | Payments panel (status, not receipts) |
+| #240 | Stepped wizard off the critical path |
+
+### What actually changed, in product terms
+
+- **A Landlord can now see what they changed** before approving scope. The scan
+  generates a checklist, the Landlord edits it, and the panel lists exactly what
+  they added and removed against what the scan found, with a one-click restore.
+  The module that computes this had existed and been tested for weeks, imported
+  by nothing.
+- **A Landlord can look at a Cleaner** before inviting them into a property —
+  photo, rating, services, and completed-job reviews. Both endpoints already
+  existed; the reviews one had never been called from the Landlord side.
+- **Properties, Requests, Account and Payments are real URLs.** They were
+  in-page anchors, so nothing could be bookmarked or shared and Back did
+  nothing. Old `#landlord-*` links still resolve.
+- **The dashboard shows that it is loading.** Empty states used to render from
+  first paint, so a Landlord with six properties was told they had none until
+  data arrived.
+- **22,370 bytes less JavaScript on first paint**, measured: the stepped wizard
+  now loads when its panel opens rather than on every visit.
+
+### Deliberate decisions — do not "fix" these
+
+- **There are no invoices or receipts, on purpose.** No receipt URL, invoice
+  URL, receipt number, charge id or payment intent is exposed to a Landlord
+  anywhere in this system, and `booking-summary-model.js` states repeatedly that
+  these totals are "not a receipt or refund record". A receipt-shaped document
+  built from authorisation data is something a Landlord could reasonably treat
+  as proof of payment in a dispute. The Payments panel shows authorisation
+  STATUS and never says "paid". Real receipts must come from the payment
+  provider once `paymentsReady` is true — it is currently false.
+- **The room scan stays the primary action.** The scan hero is the main banner
+  and the manual-request CTA is deliberately smaller.
+- **The stepped wizard is progressive enhancement.** If it fails to load the
+  request form still works. Do not make it a hard dependency.
+
+### Still outstanding
+
+- Full code-splitting of `landlord-dashboard.js` (still ~144KB) needs the panels
+  in separate documents. Not attempted; it wants device testing.
+- `emailReady` and `paymentsReady` are both false on the live deployment.
+
+
 ## CURRENT LIVE TRUTH — 4 August 2026
 
 The current verified live release at **`https://homlle.com`** is **`e3403963`** with **88** locked
