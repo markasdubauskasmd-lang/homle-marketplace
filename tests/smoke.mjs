@@ -473,7 +473,11 @@ try {
   const contactValidationAsset = await fetch(`${base}/contact-validation.js?v=smoke-test`);
   const contactValidationAssetText = await contactValidationAsset.text();
   assert(contactValidationAsset.ok && contactValidationAssetText.includes("isUkPostcode") && contactValidationAssetText.includes("isPhone") && contactValidationAssetText.includes("isEmail"), "The shared browser/server contact validation rules were not publicly available to the guided forms.");
-  const [compactLogo128, compactLogo192, originalLogo, cleanHero960, dirtyHero960, originalHero, scanAngleWebp, scanAnglePng, supportingWideWebp, supportingPortraitWebp, supportingJpeg, optimizedClip, retiredClip] = await Promise.all([
+  const [landingCss, landingScript, retiredLandingCss, retiredLandingScript, compactLogo128, compactLogo192, originalLogo, cleanHero960, dirtyHero960, originalHero, scanAngleWebp, scanAnglePng, supportingWideWebp, supportingPortraitWebp, supportingJpeg, optimizedClip, retiredClip] = await Promise.all([
+    fetch(`${base}/landing-7fbca0c2.css`),
+    fetch(`${base}/landing-0122ee96.js`),
+    fetch(`${base}/landing.css?v=20260731-1`),
+    fetch(`${base}/landing.js?v=20260731-1`),
     fetch(`${base}/homle-logo-128-4f82ebad.png`),
     fetch(`${base}/homle-logo-192-c8defd4b.png`),
     fetch(`${base}/homle-logo.png`),
@@ -488,6 +492,8 @@ try {
     fetch(`${base}/landing/cleaning-720-e8b1a7ce.mp4`),
     fetch(`${base}/landing/cleaning.mp4`)
   ]);
+  assert(landingCss.ok && landingScript.ok && landingCss.headers.get("content-type") === "text/css; charset=utf-8" && landingScript.headers.get("content-type") === "text/javascript; charset=utf-8" && landingCss.headers.get("cache-control") === "public, max-age=31536000, immutable" && landingScript.headers.get("cache-control") === "public, max-age=31536000, immutable", "Content-addressed landing code is missing its exact type or isolated immutable cache policy.");
+  assert(retiredLandingCss.status === 404 && retiredLandingScript.status === 404, "Stable landing code URLs remain downloadable and can drift away from the content-addressed homepage contract.");
   assert(compactLogo128.ok && compactLogo192.ok && compactLogo128.headers.get("cache-control") === "public, max-age=31536000, immutable" && compactLogo192.headers.get("cache-control") === "public, max-age=31536000, immutable", "Content-addressed public booking logos were not served with the isolated immutable cache policy.");
   assert(originalLogo.ok && originalLogo.headers.get("cache-control") === "no-cache", "The Cleaner Dashboard's original logo asset boundary was changed by the public booking cache optimisation.");
   assert(cleanHero960.ok && dirtyHero960.ok && cleanHero960.headers.get("content-type") === "image/webp" && dirtyHero960.headers.get("content-type") === "image/webp" && cleanHero960.headers.get("cache-control") === "public, max-age=31536000, immutable" && dirtyHero960.headers.get("cache-control") === "public, max-age=31536000, immutable", "Responsive homepage hero assets are missing their WebP type or immutable cache policy.");

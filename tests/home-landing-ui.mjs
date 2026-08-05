@@ -5,8 +5,8 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 
 const [page, css, script, homeScript, server] = await Promise.all([
   readFile(new URL("../public/home.html", import.meta.url), "utf8"),
-  readFile(new URL("../public/landing.css", import.meta.url), "utf8"),
-  readFile(new URL("../public/landing.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/landing-7fbca0c2.css", import.meta.url), "utf8"),
+  readFile(new URL("../public/landing-0122ee96.js", import.meta.url), "utf8"),
   readFile(new URL("../public/home.js", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8")
 ]);
@@ -36,7 +36,11 @@ for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", 
 
 /* ── The design is actually wired in ────────────────── */
 
-assert(page.includes('<body class="ci-body">') && page.includes('href="/landing.css') && page.includes('src="/landing.js'), "The landing page does not load its scoped stylesheet and scroll script.");
+assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-7fbca0c2.css"') && page.includes('src="/landing-0122ee96.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
+assert(!page.includes('/landing.css?') && !page.includes('/landing.js?'), "The landing page regressed to stable code URLs that must be revalidated on every visit.");
+assert(createHash("sha256").update(css).digest("hex") === "7fbca0c227ad5db2480d89cb476b3c9b3bef866ccd02b94a01a397778b5c0f31", "The landing stylesheet changed without receiving a new content-addressed filename.");
+assert(createHash("sha256").update(script).digest("hex") === "0122ee96906f84194dce9f3c3b64c228b6bc988b89763b8ddaafa3f5b9a97e05", "The landing animation script changed without receiving a new content-addressed filename.");
+assert(server.includes('"/landing-7fbca0c2.css"') && server.includes('"/landing-0122ee96.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
 assert(page.includes('src="/home.js?v=20260729-1"') && page.includes('src="/account-menu.js?v=20260729-1"'), "The landing page still advertises stale shared or account-menu assets, so browsers can miss the latest navigation.");
 
 // All six acts of the design, each one a scroll stage the script drives.

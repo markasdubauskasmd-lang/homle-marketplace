@@ -2,7 +2,8 @@
  * Homle design tokens — one owner for typography, palette, radius and shadow.
  *
  * THE LANDING PAGE IS THE SOURCE OF TRUTH. Every value below is lifted from
- * landing.css, which is the page the product is designed around; this file just
+ * the content-addressed landing stylesheet, which is the page the product is
+ * designed around; this file just
  * moves those decisions somewhere the rest of the app can reach them.
  *
  * The audit that produced it:

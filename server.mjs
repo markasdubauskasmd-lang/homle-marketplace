@@ -254,6 +254,8 @@ const mimeTypes = {
 // Keep the original logo and JPEG fallbacks uncached because their stable URLs
 // are still used inside the strictly untouched Cleaner Dashboard boundary.
 const immutableStaticAssets = new Set([
+  "/landing-7fbca0c2.css",
+  "/landing-0122ee96.js",
   "/homle-logo-128-4f82ebad.png",
   "/homle-logo-192-c8defd4b.png",
   "/landing/open-plan-living-480-15f06faa.webp",
