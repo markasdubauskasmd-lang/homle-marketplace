@@ -613,9 +613,39 @@
 
               <form class="hc-experience-form" data-experience-form>
                 <fieldset class="hc-experience-section">
+                  <legend>Choose your service</legend>
+                  <p class="hc-business-question">Are you joining as a Cleaner or Beautician?</p>
+                  <div class="hc-business-service-choices hc-experience-service-choices" data-experience-service-choices>
+                    <label>
+                      <input type="radio" name="serviceType" value="cleaner" checked>
+                      <span>
+                        <svg class="hc-business-service-icon" viewBox="0 0 48 48" aria-hidden="true">
+                          <path d="M16 16h16l3 22H13l3-22Z"></path>
+                          <path d="M20 22v9m5-9v9m5-9v9"></path>
+                          <path d="m8 12 2 2 4-5"></path>
+                        </svg>
+                        <span class="hc-business-service-copy"><strong>Cleaner</strong><small>Home, rental and workplace cleaning skills</small></span>
+                      </span>
+                    </label>
+                    <label>
+                      <input type="radio" name="serviceType" value="beautician">
+                      <span>
+                        <svg class="hc-business-service-icon" viewBox="0 0 48 48" aria-hidden="true">
+                          <path d="M15 32 31 16l5 5-16 16-7 2 2-7Z"></path>
+                          <path d="m29 18 5 5"></path>
+                          <path d="m12 10 1.5 3.5L17 15l-3.5 1.5L12 20l-1.5-3.5L7 15l3.5-1.5L12 10Z"></path>
+                          <path d="m36 8 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1L36 8Z"></path>
+                        </svg>
+                        <span class="hc-business-service-copy"><strong>Beautician</strong><small>Beauty, grooming and personal-care skills</small></span>
+                      </span>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-experience-section">
                   <legend>Experience</legend>
                   <div class="hc-experience-years">
-                    <label><span>Years of experience</span>
+                    <label><span data-experience-years-label>Years of cleaning experience</span>
                       <select name="yearsExperience" required>
                         <option value="">Choose</option>
                         <option value="0">Less than 1 year</option>
@@ -625,31 +655,52 @@
                         <option value="11">10+ years</option>
                       </select>
                     </label>
-                    <p>Tick every specialism you’re confident in. Connected services can be saved now; training evidence can be added later.</p>
+                    <p data-experience-guidance>Tick every cleaning specialism you’re confident in. Your choices are stored securely; connected cleaning services also support matching.</p>
                   </div>
                 </fieldset>
 
                 <fieldset class="hc-experience-section">
-                  <legend>Specialisms &mdash; tick all that apply</legend>
-                  <p class="hc-sr-only" id="experience-availability-note">Unavailable specialisms are shown to preserve the registration design, but cannot be selected until secure support is connected.</p>
-                  <div class="hc-experience-specialisms" aria-describedby="experience-availability-note">
-                    <label><input type="checkbox" data-experience-service="regular-domestic"><span>Domestic</span></label>
-                    <label><input type="checkbox" data-experience-service="communal-areas"><span>Commercial</span></label>
-                    <label><input type="checkbox" data-experience-service="rental-turnovers"><span>Holiday lets</span></label>
-                    <label class="is-unavailable"><input type="checkbox" disabled><span>Airbnb</span></label>
-                    <label><input type="checkbox" data-experience-service="deep-cleans"><span>Deep cleaning</span></label>
-                    <label><input type="checkbox" data-experience-service="end-of-tenancy"><span>End of tenancy</span></label>
-                    <label><input type="checkbox" data-experience-service="workplaces"><span>Office cleaning</span></label>
-                    <label class="is-unavailable"><input type="checkbox" disabled><span>Builders cleans</span></label>
-                    <label class="is-unavailable"><input type="checkbox" disabled><span>Carpet cleaning</span></label>
-                    <label class="is-unavailable"><input type="checkbox" disabled><span>Oven cleaning</span></label>
-                    <label class="is-unavailable"><input type="checkbox" disabled><span>Window cleaning</span></label>
-                    <label class="is-unavailable"><input type="checkbox" disabled><span>Biohazard cleaning</span></label>
-                    <label class="is-unavailable"><input type="checkbox" disabled><span>School cleaning</span></label>
-                    <label class="is-unavailable"><input type="checkbox" disabled><span>Medical cleaning</span></label>
-                    <label class="is-unavailable"><input type="checkbox" disabled><span>Care home cleaning</span></label>
-                    <label class="is-unavailable"><input type="checkbox" disabled><span>Hotel cleaning</span></label>
-                    <label class="is-unavailable"><input type="checkbox" disabled><span>Other</span></label>
+                  <legend data-experience-specialisms-title>Cleaner specialisms &mdash; tick all that apply</legend>
+                  <p class="hc-sr-only" id="experience-availability-note">Choose every specialism you are confident providing. The list changes when Cleaner or Beautician is selected.</p>
+                  <div class="hc-experience-specialisms" data-experience-specialisms="cleaner" aria-describedby="experience-availability-note">
+                    <label><input type="checkbox" name="specialisms" value="regular-domestic" data-profile-service="regular-domestic"><span>Domestic</span></label>
+                    <label><input type="checkbox" name="specialisms" value="communal-areas" data-profile-service="communal-areas"><span>Commercial</span></label>
+                    <label><input type="checkbox" name="specialisms" value="rental-turnovers" data-profile-service="rental-turnovers"><span>Holiday lets</span></label>
+                    <label><input type="checkbox" name="specialisms" value="airbnb"><span>Airbnb</span></label>
+                    <label><input type="checkbox" name="specialisms" value="deep-cleans" data-profile-service="deep-cleans"><span>Deep cleaning</span></label>
+                    <label><input type="checkbox" name="specialisms" value="end-of-tenancy" data-profile-service="end-of-tenancy"><span>End of tenancy</span></label>
+                    <label><input type="checkbox" name="specialisms" value="workplaces" data-profile-service="workplaces"><span>Office cleaning</span></label>
+                    <label><input type="checkbox" name="specialisms" value="builders-cleans"><span>Builders cleans</span></label>
+                    <label><input type="checkbox" name="specialisms" value="carpet-cleaning"><span>Carpet cleaning</span></label>
+                    <label><input type="checkbox" name="specialisms" value="oven-cleaning"><span>Oven cleaning</span></label>
+                    <label><input type="checkbox" name="specialisms" value="window-cleaning"><span>Window cleaning</span></label>
+                    <label><input type="checkbox" name="specialisms" value="biohazard-cleaning"><span>Biohazard cleaning</span></label>
+                    <label><input type="checkbox" name="specialisms" value="school-cleaning"><span>School cleaning</span></label>
+                    <label><input type="checkbox" name="specialisms" value="medical-cleaning"><span>Medical cleaning</span></label>
+                    <label><input type="checkbox" name="specialisms" value="care-home-cleaning"><span>Care home cleaning</span></label>
+                    <label><input type="checkbox" name="specialisms" value="hotel-cleaning"><span>Hotel cleaning</span></label>
+                    <label><input type="checkbox" name="specialisms" value="cleaning-other"><span>Other cleaning</span></label>
+                  </div>
+                  <div class="hc-experience-specialisms" data-experience-specialisms="beautician" aria-describedby="experience-availability-note" hidden>
+                    <label><input type="checkbox" name="specialisms" value="beauty-hair-cutting"><span>Hair cutting</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-hair-styling"><span>Hair styling</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-hair-colouring"><span>Hair colouring</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-blow-dry"><span>Blow-dry</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-makeup"><span>Makeup</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-bridal-makeup"><span>Bridal makeup</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-manicure"><span>Manicure</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-pedicure"><span>Pedicure</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-gel-nails"><span>Gel nails</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-acrylic-nails"><span>Acrylic nails</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-facials"><span>Facials</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-skincare"><span>Skincare</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-waxing"><span>Waxing</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-threading"><span>Threading</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-eyebrows"><span>Eyebrows</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-eyelashes"><span>Eyelashes</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-massage"><span>Massage</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-spray-tanning"><span>Spray tanning</span></label>
+                    <label><input type="checkbox" name="specialisms" value="beauty-other"><span>Other beauty service</span></label>
                   </div>
                 </fieldset>
 
@@ -701,7 +752,7 @@
 
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/business-details">&larr; Back</a>
-                  <p data-experience-save-status role="status" aria-live="polite">Years of experience and connected specialisms are saved securely when you continue.</p>
+                  <p data-experience-save-status role="status" aria-live="polite">Your service, experience and selected specialisms are saved securely when you continue.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
