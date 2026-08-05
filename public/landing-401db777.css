@@ -179,6 +179,7 @@ body.ci-body {
   text-decoration: none;
   transition: color .3s ease;
 }
+.ci-login[hidden] { display: none; }
 .ci-login:hover { color: var(--ci-ink); }
 
 .ci-signup {

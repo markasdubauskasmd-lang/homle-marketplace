@@ -5,7 +5,7 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 
 const [page, css, script, homeScript, server] = await Promise.all([
   readFile(new URL("../public/home.html", import.meta.url), "utf8"),
-  readFile(new URL("../public/landing-7fbca0c2.css", import.meta.url), "utf8"),
+  readFile(new URL("../public/landing-401db777.css", import.meta.url), "utf8"),
   readFile(new URL("../public/landing-5da99005.js", import.meta.url), "utf8"),
   readFile(new URL("../public/home.js", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8")
@@ -36,7 +36,7 @@ for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", 
 
 /* ── The design is actually wired in ────────────────── */
 
-assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-7fbca0c2.css"') && page.includes('src="/landing-5da99005.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
+assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-401db777.css"') && page.includes('src="/landing-5da99005.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
 assert(page.includes('<link rel="sitemap" type="application/xml" href="/sitemap.xml">'), "The public landing page does not advertise Homlle's canonical sitemap.");
 assert(page.includes('<link rel="canonical" href="https://homlle.com/">') && page.includes('<meta property="og:url" content="https://homlle.com/">'), "The public landing page does not declare the exact canonical production URL.");
 for (const metadata of [
@@ -57,9 +57,9 @@ for (const metadata of [
 ]) assert(page.includes(metadata), `The public landing page is missing share metadata: ${metadata}`);
 assert(!page.includes("onrender.com"), "The public landing metadata exposes the infrastructure preview hostname.");
 assert(!page.includes('/landing.css?') && !page.includes('/landing.js?'), "The landing page regressed to stable code URLs that must be revalidated on every visit.");
-assert(createHash("sha256").update(css).digest("hex") === "7fbca0c227ad5db2480d89cb476b3c9b3bef866ccd02b94a01a397778b5c0f31", "The landing stylesheet changed without receiving a new content-addressed filename.");
+assert(createHash("sha256").update(css).digest("hex") === "401db777807d8460533d86260c964f536aa83fde2271bb9ef185dac46190af26", "The landing stylesheet changed without receiving a new content-addressed filename.");
 assert(createHash("sha256").update(script).digest("hex") === "5da99005d8982faa12833a0e9a6fd817203bd7870aaf07ddd6fec20a55cc1087", "The landing animation script changed without receiving a new content-addressed filename.");
-assert(server.includes('"/landing-7fbca0c2.css"') && server.includes('"/landing-5da99005.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
+assert(server.includes('"/landing-401db777.css"') && server.includes('"/landing-5da99005.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
 assert(page.includes("data-phone-source") && script.includes("this.phoneSource") && script.includes("ANGLE_WEBP"), "The phone view cannot update its visible WebP source as the scan story changes angle.");
 assert(page.includes('src="/home.js?v=20260729-1"') && page.includes('src="/account-menu.js?v=20260729-1"'), "The landing page still advertises stale shared or account-menu assets, so browsers can miss the latest navigation.");
 
@@ -256,6 +256,7 @@ assert(css.includes(".ci-account .account-menu-panel") && css.includes(".ci-acco
 assert(!page.includes("↗") && !page.includes("&#8599;") && !page.includes("→") && !page.includes("&rarr;"), "An arrow glyph is in the markup; home.js textContent updates would erase it. Use a CSS pseudo-element.");
 assert(css.includes(".ci-signup::after") && css.includes(".ci-btn-join::after") && css.includes(".ci-btn-primary::after"), "The CTA arrows are not drawn as pseudo-elements.");
 assert(css.includes(".ci-signup-panel") && css.includes("@keyframes ci-signup-open") && css.includes(".ci-signup-menu[hidden]"), "The role chooser is not a smooth, session-hideable landing control.");
+assert(css.includes(".ci-login[hidden]") && css.includes("display: none"), "The signed-in landing header can still show Log in beside the account avatar because its display rule overrides the hidden attribute.");
 
 // The web scanner cannot infer physical area without a user-confirmed scale
 // reference. Its own overlay refuses to display square metres, so the public
