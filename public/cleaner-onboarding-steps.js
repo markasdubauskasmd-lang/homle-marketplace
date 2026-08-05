@@ -34,8 +34,6 @@ export const onboardingSteps = [
     derive: (d) => (d.availabilityCount || 0) > 0 },
   { key: "areas", title: "Work areas", icon: "pin", sidebar: true, href: "/cleaner/work-areas",
     derive: (d) => (d.profile?.serviceAreas?.length || 0) > 0 },
-  { key: "languages", title: "Languages", icon: "lang", sidebar: false, href: "/cleaner/registration",
-    derive: (d) => (d.profile?.languages?.length || 0) > 0 },
   { key: "skills", title: "Skills", icon: "spark", sidebar: false, href: "", derive: null },
   { key: "training", title: "Training & certificates", icon: "award", sidebar: false, href: "/cleaner/training", derive: null },
   { key: "compliance", title: "Compliance & declarations", icon: "pen", sidebar: false, href: "/cleaner/contracts", derive: null }
