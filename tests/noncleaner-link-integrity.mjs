@@ -14,6 +14,7 @@ const pages = (await readdir(publicDirectory, { withFileTypes: true }))
   .map((entry) => entry.name)
   .sort();
 const facebookDeletionPage = await readFile(path.join(publicDirectory, "facebook-data-deletion.html"), "utf8");
+const adminPrivateNavigation = await readFile(path.join(publicDirectory, "admin-private-navigation.js"), "utf8");
 const unresolved = [];
 let checkedReferences = 0;
 
@@ -42,5 +43,19 @@ assert(pages.length >= 17, "The non-Cleaner page integrity scan stopped covering
 assert(checkedReferences >= 130, "The non-Cleaner page integrity scan stopped covering the expected local routes and assets.");
 assert.deepEqual(unresolved, [], `Non-Cleaner pages reference missing local routes or assets:\n${unresolved.join("\n")}`);
 assert(facebookDeletionPage.includes('class="shell account-card"'), "The Facebook deletion status page lost its bounded responsive account layout.");
+for (const page of [
+  "admin-cases.html",
+  "admin-coverage.html",
+  "admin-funnel.html",
+  "admin-payments.html",
+  "admin-scan-pricing.html",
+  "admin-scan-operations.html",
+  "admin-bookings.html",
+  "admin-verifications.html"
+]) {
+  const source = await readFile(path.join(publicDirectory, page), "utf8");
+  assert(source.includes("data-admin-private-navigation hidden") && /data-admin-private-workspace[^>]*\shidden(?:\s|>)/.test(source) && source.includes('/admin-private-navigation.js?v=20260805-1'), `${page} exposes private Administrator navigation before its server-backed workspace gate succeeds.`);
+}
+assert(adminPrivateNavigation.includes("privateNavigation.hidden = privateWorkspace.hidden") && adminPrivateNavigation.includes('attributeFilter: ["hidden"]'), "The Administrator navigation synchronizer no longer mirrors only the authoritative private-workspace gate.");
 
 console.log(`Non-Cleaner link integrity tests passed: ${checkedReferences} local route and asset references across ${pages.length} shipped pages resolve without entering the Cleaner workspace.`);

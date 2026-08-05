@@ -9,11 +9,12 @@
   <link rel="icon" href="/homle-logo.png" type="image/png">
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <script type="module" src="/admin-private-navigation.js?v=20260805-1"></script>
   <script type="module" src="/admin-payments.js?v=20260723-1"></script>
 </head>
 <body class="booking-dashboard-page admin-payments-page">
   <a class="skip-link" href="#admin-payments-main">Skip to payment operations</a>
-  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator"><a href="/admin/bookings">Booking operations</a><a href="/admin/cases">Booking cases</a><a href="/admin/verifications">Cleaner vetting</a><a href="/admin">Control desk</a></nav></div></header>
+  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator" data-admin-private-navigation hidden><a href="/admin/bookings">Booking operations</a><a href="/admin/cases">Booking cases</a><a href="/admin/verifications">Cleaner vetting</a><a href="/admin">Control desk</a></nav></div></header>
   <div class="booking-dashboard-network" data-network-status role="status" hidden><strong>You are offline.</strong> The last verified queue remains visible. No payment action can be started until you reconnect.</div>
   <main id="admin-payments-main" class="booking-dashboard-shell">
     <section class="booking-dashboard-gate" data-admin-payments-gate>
@@ -21,7 +22,7 @@
       <div><p class="eyebrow">Protected payment operations</p><h1 data-admin-payments-gate-title>Checking secure Administrator access…</h1><p data-admin-payments-gate-copy>Payment actions open only inside an authenticated Homle Administrator account when test payments are connected.</p><div class="booking-dashboard-actions"><a class="button" href="/login?next=%2Fadmin%2Fpayments" data-admin-payments-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-admin-payments-retry hidden>Try again</button></div></div>
     </section>
 
-    <div data-admin-payments-workspace hidden>
+    <div data-admin-private-workspace data-admin-payments-workspace hidden>
       <header class="booking-dashboard-hero">
         <div><p class="eyebrow">Administrator · test payments only</p><h1>Finish the paid-booking lifecycle</h1><p>Review one server-owned payment state, then take only the next eligible action. Homle never asks for card or bank details here.</p></div>
         <button class="button button-outline" type="button" data-admin-payments-refresh>Refresh verified status</button>
