@@ -425,24 +425,61 @@
             <section class="hc-personal-card hc-business-card" data-business-details hidden aria-labelledby="cleaner-business-title">
               <header class="hc-personal-head">
                 <h1 id="cleaner-business-title">Business details</h1>
-                <p>How you’ll operate. Solo cleaners need no company paperwork.</p>
+                <p>Choose the services you want to offer and how you’ll operate.</p>
               </header>
 
               <form class="hc-business-form" data-business-form>
                 <fieldset class="hc-business-section">
+                  <legend>Your service</legend>
+                  <p class="hc-business-question">What are you joining Homle as?</p>
+                  <div class="hc-business-service-choices">
+                    <label>
+                      <input type="radio" name="serviceType" value="cleaner" checked>
+                      <span>
+                        <svg class="hc-business-service-icon" viewBox="0 0 48 48" aria-hidden="true">
+                          <path d="M17 8h14l2 8H15l2-8Z"></path>
+                          <path d="M16 16h16l3 22H13l3-22Z"></path>
+                          <path d="M20 22v9m5-9v9m5-9v9"></path>
+                          <path d="m8 12 2 2 4-5"></path>
+                        </svg>
+                        <span class="hc-business-service-copy"><strong>Cleaner</strong><small>Home, rental and workplace cleaning services</small></span>
+                      </span>
+                    </label>
+                    <label>
+                      <input type="radio" name="serviceType" value="beautician">
+                      <span>
+                        <svg class="hc-business-service-icon" viewBox="0 0 48 48" aria-hidden="true">
+                          <path d="M15 32 31 16l5 5-16 16-7 2 2-7Z"></path>
+                          <path d="m29 18 5 5"></path>
+                          <path d="m12 10 1.5 3.5L17 15l-3.5 1.5L12 20l-1.5-3.5L7 15l3.5-1.5L12 10Z"></path>
+                          <path d="m36 8 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1L36 8Z"></path>
+                        </svg>
+                        <span class="hc-business-service-copy"><strong>Beautician</strong><small>Beauty, grooming and personal-care services</small></span>
+                      </span>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-business-section">
                   <legend>How you’ll work</legend>
-                  <p class="hc-business-question">Are you joining as…</p>
+                  <p class="hc-business-question">Choose the option that best describes you.</p>
                   <div class="hc-business-choices">
-                    <label><input type="radio" name="businessType" value="solo" checked><span>Solo cleaner</span></label>
-                    <label><input type="radio" name="businessType" value="business"><span>Cleaning business</span></label>
+                    <label><input type="radio" name="businessType" value="solo" checked><span data-business-solo-label>Solo cleaner</span></label>
+                    <label><input type="radio" name="businessType" value="business"><span data-business-company-label>Cleaning business</span></label>
                     <label><input type="radio" name="businessType" value="limited"><span>Limited company</span></label>
                     <label><input type="radio" name="businessType" value="partnership"><span>Partnership</span></label>
                   </div>
+
+                  <label class="hc-business-name" data-business-name hidden>
+                    <span>Business name <b aria-hidden="true">*</b></span>
+                    <input name="businessName" autocomplete="organization" maxlength="160" placeholder="Enter your registered or trading name" disabled>
+                    <small>Use the name clients should recognise. You can update this later.</small>
+                  </label>
                 </fieldset>
 
                 <section class="hc-business-section" aria-labelledby="cleaner-business-guidance-title">
                   <h2 id="cleaner-business-guidance-title">Good to know</h2>
-                  <p class="hc-business-note" data-business-guidance>Joining solo — no company paperwork needed. You can switch to a business account later without re-onboarding.</p>
+                  <p class="hc-business-note" data-business-guidance>Joining as a solo cleaner — no company paperwork needed. You can switch to a business account later without re-onboarding.</p>
                 </section>
 
                 <div class="hc-business-actions">
