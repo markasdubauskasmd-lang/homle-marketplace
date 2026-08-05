@@ -38,6 +38,24 @@ for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", 
 
 assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-7fbca0c2.css"') && page.includes('src="/landing-5da99005.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
 assert(page.includes('<link rel="sitemap" type="application/xml" href="/sitemap.xml">'), "The public landing page does not advertise Homlle's canonical sitemap.");
+assert(page.includes('<link rel="canonical" href="https://homlle.com/">') && page.includes('<meta property="og:url" content="https://homlle.com/">'), "The public landing page does not declare the exact canonical production URL.");
+for (const metadata of [
+  '<meta property="og:type" content="website">',
+  '<meta property="og:site_name" content="Homle">',
+  '<meta property="og:locale" content="en_GB">',
+  '<meta property="og:title" content="Homle — cleaning, understood clearly">',
+  '<meta property="og:description"',
+  '<meta property="og:image" content="https://homlle.com/landing/open-plan-living-1600-c403e366.webp">',
+  '<meta property="og:image:width" content="1600">',
+  '<meta property="og:image:height" content="1066">',
+  '<meta property="og:image:alt"',
+  '<meta name="twitter:card" content="summary_large_image">',
+  '<meta name="twitter:title"',
+  '<meta name="twitter:description"',
+  '<meta name="twitter:image" content="https://homlle.com/landing/open-plan-living-1600-c403e366.webp">',
+  '<meta name="twitter:image:alt"'
+]) assert(page.includes(metadata), `The public landing page is missing share metadata: ${metadata}`);
+assert(!page.includes("onrender.com"), "The public landing metadata exposes the infrastructure preview hostname.");
 assert(!page.includes('/landing.css?') && !page.includes('/landing.js?'), "The landing page regressed to stable code URLs that must be revalidated on every visit.");
 assert(createHash("sha256").update(css).digest("hex") === "7fbca0c227ad5db2480d89cb476b3c9b3bef866ccd02b94a01a397778b5c0f31", "The landing stylesheet changed without receiving a new content-addressed filename.");
 assert(createHash("sha256").update(script).digest("hex") === "5da99005d8982faa12833a0e9a6fd817203bd7870aaf07ddd6fec20a55cc1087", "The landing animation script changed without receiving a new content-addressed filename.");
