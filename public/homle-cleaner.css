@@ -1341,9 +1341,19 @@ a.hc-tile:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-decorati
   cursor: pointer;
 }
 .hc-documents-drop:hover { border-color: var(--hc-red); background: rgba(255, 255, 255, .62); }
+.hc-documents-drop.is-dragging { border-color: var(--hc-red); background: #fff0ed; box-shadow: 0 0 0 4px rgba(214, 58, 42, .1); }
 .hc-documents-drop:focus-visible { outline: 3px solid rgba(214, 58, 42, .28); outline-offset: 3px; }
 .hc-documents-drop strong { font-size: 13px; }
 .hc-documents-drop small { color: var(--hc-muted-3); font-size: 10px; }
+[data-documents-file] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .hc-documents-upload-mark {
   width: 36px;
   height: 36px;
@@ -1355,6 +1365,82 @@ a.hc-tile:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-decorati
   font-size: 20px;
   line-height: 1;
 }
+.hc-documents-confirm {
+  display: grid;
+  gap: 15px;
+  margin: 0 0 18px;
+  padding: 20px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(180, 150, 110, .14);
+}
+.hc-documents-confirm[hidden] { display: none; }
+.hc-documents-confirm > header {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.hc-documents-confirm > header > span:last-child,
+.hc-documents-selected-file > span:last-child { display: grid; gap: 3px; min-width: 0; }
+.hc-documents-confirm > header strong { font-size: 13px; }
+.hc-documents-confirm > header small,
+.hc-documents-selected-file small,
+.hc-documents-destination small { color: var(--hc-muted-3); font-size: 9px; line-height: 1.4; }
+.hc-documents-confirm-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  place-items: center;
+  color: #287239;
+  border-radius: 50%;
+  background: #dfeeda;
+  font-size: 15px;
+  font-weight: 800;
+}
+.hc-documents-selected-file {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--hc-rule);
+  border-radius: 11px;
+  background: #fdfaf4;
+}
+.hc-documents-selected-file strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.hc-documents-destination { display: grid; gap: 7px; font-size: 10px; font-weight: 650; }
+.hc-documents-destination b { color: var(--hc-red); }
+.hc-documents-destination select {
+  min-height: 44px;
+  padding: 0 12px;
+  color: var(--hc-ink);
+  border: 1px solid #dfd0bb;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font: inherit;
+  font-size: 10px;
+}
+.hc-documents-destination select:focus { border-color: var(--hc-red); outline: 2px solid rgba(214, 58, 42, .12); }
+.hc-documents-confirm-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid #eadfce;
+  border-radius: 11px;
+  background: #fff8f6;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.hc-documents-confirm-check input { width: 16px; height: 16px; flex: none; accent-color: var(--hc-red); }
+.hc-documents-confirm-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.hc-documents-confirm-actions .hc-personal-submit { min-height: 40px; }
+.hc-documents-confirm-actions .hc-personal-submit:disabled { cursor: not-allowed; opacity: .45; box-shadow: none; }
+.hc-documents-confirm-status { margin: -5px 0 0; color: var(--hc-muted-3); font-size: 9px; text-align: right; }
 .hc-documents-card { border-radius: 19px; background: #ffffff; box-shadow: 0 14px 34px rgba(180, 150, 110, .14); padding: 6px 20px 12px; }
 .hc-documents-list { list-style: none; margin: 0; padding: 0; }
 .hc-document-row {
@@ -5626,6 +5712,11 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-work-form { padding-left: 20px; padding-right: 20px; }
   .hc-documents-heading { padding-right: 48px; }
   .hc-documents-drop { padding: 22px 18px; text-align: center; }
+  .hc-documents-confirm { padding: 17px; }
+  .hc-documents-confirm-actions { align-items: stretch; flex-direction: column-reverse; }
+  .hc-documents-confirm-actions .hc-personal-submit,
+  .hc-documents-confirm-actions .hc-business-quiet-button { width: 100%; }
+  .hc-documents-confirm-status { text-align: left; }
   .hc-documents-card { padding-left: 16px; padding-right: 16px; }
   .hc-document-row {
     grid-template-columns: 40px minmax(0, 1fr) auto;
