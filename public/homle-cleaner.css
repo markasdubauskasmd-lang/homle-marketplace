@@ -4121,6 +4121,41 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   padding: 0 34px 24px;
 }
 
+.hc-equipment-profession {
+  display: flex;
+  min-height: 58px;
+  margin: 20px 0 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 11px 14px;
+  color: var(--hc-ink);
+  border: 1px solid #eadfce;
+  border-radius: 11px;
+  background: #f4ead9;
+}
+
+.hc-equipment-profession > span {
+  display: grid;
+  gap: 3px;
+}
+
+.hc-equipment-profession strong {
+  font-size: 10px;
+}
+
+.hc-equipment-profession small {
+  color: var(--hc-muted);
+  font-size: 8.5px;
+}
+
+.hc-equipment-profession a {
+  flex: none;
+  color: var(--hc-red);
+  font-size: 9px;
+  font-weight: 700;
+}
+
 .hc-equipment-section {
   min-width: 0;
   margin: 0;
@@ -4213,6 +4248,10 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   transition: opacity .16s ease;
 }
 
+.hc-equipment-grid[hidden] {
+  display: none;
+}
+
 .hc-equipment-grid.is-disabled {
   opacity: .52;
 }
@@ -4269,6 +4308,49 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   background: var(--hc-red);
   font-size: 9px;
   font-weight: 700;
+}
+
+.hc-equipment-other {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 14px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 11px;
+  background: #fdfaf4;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.hc-equipment-other[hidden] {
+  display: none;
+}
+
+.hc-equipment-other b {
+  color: var(--hc-red);
+}
+
+.hc-equipment-other input {
+  min-height: 42px;
+  padding: 9px 12px;
+  color: var(--hc-ink);
+  border: 1px solid #dfd0bb;
+  border-radius: 9px;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 500;
+}
+
+.hc-equipment-other input:focus {
+  border-color: var(--hc-red);
+  outline: 2px solid rgba(198, 42, 26, .12);
+}
+
+.hc-equipment-other small {
+  color: var(--hc-muted);
+  font-size: 8px;
+  font-weight: 400;
 }
 
 .hc-equipment-grid input:focus-visible + span {

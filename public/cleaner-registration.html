@@ -922,34 +922,58 @@
 
             <section class="hc-personal-card hc-equipment-card" data-equipment hidden aria-labelledby="cleaner-equipment-title">
               <header class="hc-personal-head">
-                <h1 id="cleaner-equipment-title">Equipment</h1>
-                <p>What kit you bring. Jobs are matched to what you have.</p>
+                <h1 id="cleaner-equipment-title" data-equipment-heading>Equipment</h1>
+                <p data-equipment-intro>What kit you bring. Jobs are matched to what you have.</p>
               </header>
 
               <form class="hc-equipment-form" data-equipment-form>
+                <div class="hc-equipment-profession" data-equipment-profession>
+                  <span><strong data-equipment-profession-label>Cleaner equipment</strong><small>Based on your Business Details selection.</small></span>
+                  <a href="/cleaner/business-details">Change</a>
+                </div>
+
                 <fieldset class="hc-equipment-section">
                   <legend>Your kit</legend>
                   <label class="hc-equipment-own">
-                    <strong>Do you provide your own cleaning equipment?</strong>
+                    <strong data-equipment-own-question>Do you provide your own cleaning equipment?</strong>
                     <span class="hc-equipment-toggle"><span data-equipment-own-copy>No</span><input type="checkbox" name="ownEquipment" data-equipment-own><i aria-hidden="true"></i></span>
                   </label>
                 </fieldset>
 
                 <fieldset class="hc-equipment-section">
-                  <legend>Tick what you have</legend>
-                  <div class="hc-equipment-grid" data-equipment-grid>
-                    <label><input type="checkbox" name="kitItem" value="Vacuum" data-equipment-item data-equipment-kind="equipment"><span>Vacuum</span></label>
-                    <label><input type="checkbox" name="kitItem" value="Steam cleaner" data-equipment-item data-equipment-kind="equipment"><span>Steam cleaner</span></label>
-                    <label><input type="checkbox" name="kitItem" value="Mop &amp; bucket" data-equipment-item data-equipment-kind="equipment"><span>Mop &amp; bucket</span></label>
-                    <label><input type="checkbox" name="kitItem" value="Cleaning chemicals" data-equipment-item data-equipment-kind="product"><span>Cleaning chemicals</span></label>
-                    <label><input type="checkbox" name="kitItem" value="Carpet cleaner" data-equipment-item data-equipment-kind="equipment"><span>Carpet cleaner</span></label>
-                    <label><input type="checkbox" name="kitItem" value="Pressure washer" data-equipment-item data-equipment-kind="equipment"><span>Pressure washer</span></label>
-                    <label><input type="checkbox" name="kitItem" value="Ladder" data-equipment-item data-equipment-kind="equipment"><span>Ladder</span></label>
-                    <label><input type="checkbox" name="kitItem" value="Vehicle" data-equipment-item data-equipment-kind="equipment"><span>Vehicle</span></label>
-                    <label><input type="checkbox" name="kitItem" value="Eco-friendly products" data-equipment-item data-equipment-kind="product"><span>Eco-friendly products</span></label>
-                    <label><input type="checkbox" name="kitItem" value="PPE" data-equipment-item data-equipment-kind="equipment"><span>PPE</span></label>
-                    <label><input type="checkbox" name="kitItem" value="Other" data-equipment-item data-equipment-kind="other"><span>Other</span></label>
+                  <legend data-equipment-list-legend>Tick what you have</legend>
+                  <div class="hc-equipment-grid" data-equipment-grid="cleaner">
+                    <label><input type="checkbox" name="kitItem" value="Vacuum" data-equipment-item data-equipment-profession="cleaner" data-equipment-kind="equipment"><span>Vacuum</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Steam cleaner" data-equipment-item data-equipment-profession="cleaner" data-equipment-kind="equipment"><span>Steam cleaner</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Mop &amp; bucket" data-equipment-item data-equipment-profession="cleaner" data-equipment-kind="equipment"><span>Mop &amp; bucket</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Cleaning chemicals" data-equipment-item data-equipment-profession="cleaner" data-equipment-kind="product"><span>Cleaning chemicals</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Carpet cleaner" data-equipment-item data-equipment-profession="cleaner" data-equipment-kind="equipment"><span>Carpet cleaner</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Pressure washer" data-equipment-item data-equipment-profession="cleaner" data-equipment-kind="equipment"><span>Pressure washer</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Ladder" data-equipment-item data-equipment-profession="cleaner" data-equipment-kind="equipment"><span>Ladder</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Vehicle" data-equipment-item data-equipment-profession="cleaner" data-equipment-kind="equipment"><span>Vehicle</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Eco-friendly products" data-equipment-item data-equipment-profession="cleaner" data-equipment-kind="product"><span>Eco-friendly products</span></label>
+                    <label><input type="checkbox" name="kitItem" value="PPE" data-equipment-item data-equipment-profession="cleaner" data-equipment-kind="equipment"><span>PPE</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Other" data-equipment-item data-equipment-profession="cleaner" data-equipment-kind="other"><span>Other</span></label>
                   </div>
+                  <div class="hc-equipment-grid" data-equipment-grid="beautician" hidden>
+                    <label><input type="checkbox" name="kitItem" value="Portable treatment bed" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="equipment"><span>Portable treatment bed</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Beauty stool or chair" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="equipment"><span>Beauty stool or chair</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Towels and linens" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="equipment"><span>Towels &amp; linens</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Sterilisation kit" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="equipment"><span>Sterilisation kit</span></label>
+                    <label><input type="checkbox" name="kitItem" value="LED or UV nail lamp" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="equipment"><span>LED / UV nail lamp</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Hair styling tools" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="equipment"><span>Hair styling tools</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Waxing kit" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="equipment"><span>Waxing kit</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Makeup kit" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="equipment"><span>Makeup kit</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Facial and skincare equipment" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="equipment"><span>Facial &amp; skincare equipment</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Beauty products" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="product"><span>Beauty products</span></label>
+                    <label><input type="checkbox" name="kitItem" value="PPE" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="equipment"><span>PPE</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Other" data-equipment-item data-equipment-profession="beautician" data-equipment-kind="other"><span>Other</span></label>
+                  </div>
+                  <label class="hc-equipment-other" data-equipment-other hidden>
+                    <span>Tell us what other equipment you have <b aria-hidden="true">*</b></span>
+                    <input type="text" name="otherEquipment" maxlength="300" autocomplete="off" placeholder="For example: airbrush makeup kit, hot towel cabinet">
+                    <small>Separate multiple items with commas.</small>
+                  </label>
                 </fieldset>
 
                 <div class="hc-business-actions">
