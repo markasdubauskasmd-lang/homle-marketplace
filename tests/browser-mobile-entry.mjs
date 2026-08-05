@@ -150,7 +150,7 @@ try {
   assert(media.broken.length === 0, `Landing images failed to load: ${media.broken.join(", ")}.`);
   assert(media.videoSrc === "/landing/cleaning-720-e8b1a7ce.mp4", `The detail act lost its reviewed content-addressed clip: ${media.videoSrc}.`);
   assert(media.videoDeferredSrc === media.videoSrc, `The activated detail clip no longer matches its reviewed deferred source: ${media.videoDeferredSrc}.`);
-  assert(/\/landing\/dark-kitchen-(?:480|960)-[0-9a-f]{8}\.webp$/.test(media.supportingSources.phone), `The mobile scanner-phone image used an oversized JPEG fallback: ${media.supportingSources.phone}.`);
+  assert(/\/landing\/angle-[1-5]-[0-9a-f]{8}\.webp$/.test(media.supportingSources.phone), `The mobile scanner-phone image did not follow the active room angle with its optimized WebP: ${media.supportingSources.phone}.`);
   assert(/\/landing\/sage-living-(?:480|960)-[0-9a-f]{8}\.webp$/.test(media.supportingSources.manual), `The mobile manual-booking background used an oversized JPEG fallback: ${media.supportingSources.manual}.`);
   assert(/\/landing\/people-backdrop-(?:480|960)-[0-9a-f]{8}\.webp$/.test(media.supportingSources.people), `The mobile handoff background used an oversized JPEG fallback: ${media.supportingSources.people}.`);
   assert(media.supportingSources.portraits.every((source) => source === "" || /-[0-9]{3}-[0-9a-f]{8}\.webp$/.test(source)), `A hidden mobile capability card downloaded a full JPEG: ${JSON.stringify(media.supportingSources.portraits)}.`);

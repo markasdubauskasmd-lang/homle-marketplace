@@ -59,6 +59,7 @@ const probe = `
       angleSources: angles.map((image) => image.currentSrc),
       phoneView: document.querySelector('[data-phone-view]').getAttribute('src'),
       phoneViewSource: document.querySelector('[data-phone-view]').currentSrc,
+      resourcePaths: performance.getEntriesByType('resource').map((entry) => new URL(entry.name).pathname),
       manualBgSource: document.querySelector('.ci-manual-bg').currentSrc,
       peopleBgSource: document.querySelector('.ci-people-bg').currentSrc,
       personSources: [...document.querySelectorAll('.ci-person img')].map((image) => image.currentSrc),
@@ -93,7 +94,10 @@ try {
       let frames = 0;
       const tick = () => { if (++frames < 3) requestAnimationFrame(tick); else resolve(frames); };
       requestAnimationFrame(tick);
-      setTimeout(() => resolve(frames), 1000);
+      // Headless Chromium can briefly throttle a just-opened page on a busy CI
+      // host. Give it enough time to produce three real frames before treating
+      // the animation engine as unavailable.
+      setTimeout(() => resolve(frames), 3000);
     });
   `);
   assert(alive >= 3, "requestAnimationFrame is not running, so no motion can be verified in this browser.");
@@ -126,16 +130,22 @@ try {
   assert(scanEarly.phoneTransform !== scanLate.phoneTransform, "The phone holds one position for the whole scan act.");
 
   // The room plate lights exactly one angle, and the phone shows that same angle.
+  const angleFile = { 1: 5, 2: 1, 3: 4, 4: 2, 5: 3 };
   for (const shot of [scanEarly, scanMid, scanLate]) {
     assert(shot.litAngle >= 1 && shot.litAngle <= 5, `No single room angle is lit: ${shot.litAngle}.`);
-    assert(/\/landing\/angle-[1-5]\.png$/.test(shot.phoneView), `The phone is not showing a room angle: ${shot.phoneView}.`);
+    const fileNumber = angleFile[shot.litAngle];
+    assert(shot.phoneView === `/landing/angle-${fileNumber}.png`, `The phone fallback disagrees with lit angle ${shot.litAngle}: ${shot.phoneView}.`);
+    assert(new RegExp(`/landing/angle-${fileNumber}-[0-9a-f]{8}\\.webp$`).test(shot.phoneViewSource),
+      `The visible phone source disagrees with lit angle ${shot.litAngle}: ${shot.phoneViewSource}.`);
   }
   assert(new Set([scanEarly.litAngle, scanMid.litAngle, scanLate.litAngle]).size > 1,
     "The room never changes angle, so the walk is not moving between beats.");
+  assert(new Set([scanEarly.phoneViewSource, scanMid.phoneViewSource, scanLate.phoneViewSource]).size > 1,
+    "The phone keeps showing one image while the room walk changes angle.");
   assert(scanLate.angleSources.length === 5 && scanLate.angleSources.every((source) => /\/landing\/angle-[1-5]-[0-9a-f]{8}\.webp$/.test(source)),
     `The scanner animation downloaded a PNG fallback or unversioned frame: ${JSON.stringify(scanLate.angleSources)}.`);
-  assert(/\/landing\/dark-kitchen-(?:480|960)-[0-9a-f]{8}\.webp$/.test(scanLate.phoneViewSource),
-    `The scanner-phone view downloaded its full JPEG fallback: ${scanLate.phoneViewSource}.`);
+  assert(!scanLate.resourcePaths.some((pathname) => /\/landing\/angle-[1-5]\.png$/.test(pathname)),
+    `The scanner-phone view downloaded a 200-470 KB PNG fallback: ${JSON.stringify(scanLate.resourcePaths.filter((pathname) => pathname.includes("/landing/angle-")))}.`);
 
   // The read-out counts up with the walk rather than sitting at its final value.
   assert(scanLate.items > scanEarly.items, `Items analysed does not climb: ${scanEarly.items} -> ${scanLate.items}.`);

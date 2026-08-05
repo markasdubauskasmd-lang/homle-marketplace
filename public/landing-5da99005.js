@@ -44,6 +44,13 @@ const BEATS = [
 
 /* The phone shows the very angle being scanned. Beat angle -> file number. */
 const ANGLE_FILE = { 1: 5, 2: 1, 3: 4, 4: 2, 5: 3 };
+const ANGLE_WEBP = {
+  1: "/landing/angle-1-664cb339.webp",
+  2: "/landing/angle-2-d071de5c.webp",
+  3: "/landing/angle-3-6a19ea10.webp",
+  4: "/landing/angle-4-7f1915b0.webp",
+  5: "/landing/angle-5-b3d670d8.webp"
+};
 
 class Cinematic {
   constructor(root) {
@@ -73,6 +80,7 @@ class Cinematic {
     this.angles = q("[data-angle]");
 
     this.phone = one("[data-phone]");
+    this.phoneSource = one("[data-phone-source]");
     this.phoneView = one("[data-phone-view]");
     this.scanline = one("[data-scanline]");
     this.views = one("[data-views]");
@@ -348,8 +356,18 @@ class Cinematic {
         img.style.opacity = Number(img.dataset.angle) === bt.ang ? "1" : "0";
       }
       if (this.phoneView) {
-        const src = `/landing/angle-${ANGLE_FILE[bt.ang]}.png`;
-        if (!this.phoneView.getAttribute("src").endsWith(src)) this.phoneView.setAttribute("src", src);
+        const fileNumber = ANGLE_FILE[bt.ang];
+        const fallback = `/landing/angle-${fileNumber}.png`;
+        const optimized = ANGLE_WEBP[fileNumber];
+        // A <source> wins over the <img src> fallback in modern browsers. Keep
+        // both in step so the phone really follows the room walk instead of
+        // remaining on the initial kitchen image while only its fallback mutates.
+        if (this.phoneSource && this.phoneSource.getAttribute("srcset") !== optimized) {
+          this.phoneSource.setAttribute("srcset", optimized);
+        }
+        if (!this.phoneView.getAttribute("src").endsWith(fallback)) {
+          this.phoneView.setAttribute("src", fallback);
+        }
       }
       this.swap(this.beatTitle, bt.title);
       this.swap(this.beatLabel, bt.label);
