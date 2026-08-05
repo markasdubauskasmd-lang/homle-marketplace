@@ -3185,6 +3185,16 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   padding: 0 34px 24px;
 }
 
+.hc-experience-service-choices label > span {
+  min-height: 82px;
+}
+
+.hc-experience-service-choices .hc-business-service-icon {
+  width: 42px;
+  height: 42px;
+  flex-basis: 42px;
+}
+
 .hc-experience-section {
   min-width: 0;
   margin: 0;
@@ -3251,6 +3261,10 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;
+}
+
+.hc-experience-specialisms[hidden] {
+  display: none;
 }
 
 .hc-experience-specialisms label {
