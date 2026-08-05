@@ -1,4 +1,12 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+
+const timeSlotRanges = Object.freeze({
+  morning: Object.freeze({ label: "Morning", start: "06:00", end: "12:00" }),
+  afternoon: Object.freeze({ label: "Afternoon", start: "12:00", end: "17:00" }),
+  evening: Object.freeze({ label: "Evening", start: "17:00", end: "21:00" }),
+  night: Object.freeze({ label: "Night", start: "21:00", end: "06:00" })
+});
 
 function renderRail(progress) {
   const steps = new Map(progress.steps.map((step) => [step.key, step]));
@@ -10,9 +18,9 @@ function renderRail(progress) {
 }
 
 function availabilityStatus(count) {
-  if (count === null) return "Confirmed availability is temporarily unavailable. Weekly planner choices are not saved.";
+  if (count === null) return "Confirmed dated availability is temporarily unavailable. Your weekly time slots can still be saved here.";
   const windows = `${count} confirmed future ${count === 1 ? "window remains" : "windows remain"}`;
-  return `${windows} unchanged. Weekly planner choices are not saved.`;
+  return `${windows} unchanged. Your weekly time slots are stored separately in your onboarding profile.`;
 }
 
 export async function setupAvailability({ account, showFeedback, requestJson }) {
@@ -51,10 +59,11 @@ export async function setupAvailability({ account, showFeedback, requestJson }) 
   if (availabilityTopbar) availabilityTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, onboardingResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    loadOnboardingForm(requestJson, "availability", form)
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
@@ -65,7 +74,11 @@ export async function setupAvailability({ account, showFeedback, requestJson }) 
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount: availabilityCount || 0 }));
 
   const status = form.querySelector("[data-availability-save-status]");
-  if (status) status.textContent = availabilityStatus(availabilityCount);
+  if (status) {
+    status.textContent = onboardingResult.status === "fulfilled"
+      ? availabilityStatus(availabilityCount)
+      : "Your saved weekly time slots could not be loaded. Refresh before making changes.";
+  }
 
   const hours = form.elements.namedItem("maximumHours");
   const hoursOutput = form.querySelector("[data-availability-hours]");
@@ -78,11 +91,25 @@ export async function setupAvailability({ account, showFeedback, requestJson }) 
   hours?.addEventListener("input", updateHours);
 
   form.addEventListener("change", () => {
-    if (status) status.textContent = "Availability choices remain on this open page and are not saved.";
+    if (status) status.textContent = "You have unsaved availability changes.";
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    showFeedback("Recurring availability, limits, holiday mode and job preferences are not connected yet. Your existing confirmed windows were not changed.", "error");
+    if (!form.reportValidity()) return;
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit instanceof HTMLButtonElement) submit.disabled = true;
+    if (status) status.textContent = "Saving your weekly availability securely…";
+    try {
+      await saveOnboardingForm(requestJson, "availability", form, { extra: { timeSlotRanges } });
+      if (status) status.textContent = "Weekly time slots, limits and job preferences saved securely.";
+      showFeedback("Your weekly availability has been saved.", "success");
+      location.assign("/cleaner/registration");
+    } catch (error) {
+      if (status) status.textContent = "Your availability was not saved. Review the message and try again.";
+      showFeedback(error.message || "Your availability could not be saved.", "error");
+    } finally {
+      if (submit instanceof HTMLButtonElement) submit.disabled = false;
+    }
   });
 }

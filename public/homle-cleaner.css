@@ -4301,16 +4301,28 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 
 .hc-availability-table thead th:first-child,
 .hc-availability-table tbody th {
-  width: 86px;
+  width: 104px;
 }
 
 .hc-availability-table tbody th {
-  padding-left: 12px;
+  padding: 7px 8px 7px 12px;
   color: #765a3a;
   background: #fdfaf4;
   font-size: 8.5px;
   font-weight: 500;
   text-align: left;
+}
+
+.hc-availability-period {
+  display: grid;
+  gap: 2px;
+}
+
+.hc-availability-period small {
+  color: var(--hc-muted-2);
+  font-size: 7.5px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .hc-availability-table label,
