@@ -1,5 +1,6 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-import { loadOnboardingForm, onboardingFileMetadata, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { hydrateOnboardingDocumentInputs, storedDocumentCopy, uploadOnboardingFormDocuments } from "./cleaner-onboarding-documents.js?v=20260805-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -32,12 +33,21 @@ function renderVerificationStatus(profile) {
     return;
   }
   banner.classList.add("is-pending");
-  banner.textContent = "Status: Not started — secure document submission is not connected on this preview.";
+  banner.textContent = "Status: Not started — secure document storage is ready. Upload your documents for Homle review.";
 }
 
 function selectedFileCopy(file) {
   const megabytes = Math.max(0.1, file.size / (1024 * 1024)).toFixed(1);
-  return `${file.name} · ${megabytes} MB · selected for this page only`;
+  return `${file.name} · ${megabytes} MB · ready to upload when you save`;
+}
+
+function renderStoredDocument(input, document) {
+  const row = input.closest(".hc-identity-document");
+  row?.classList.add("is-selected");
+  const copy = row?.querySelector("small");
+  const action = row?.querySelector(".hc-identity-document-action");
+  if (copy) copy.textContent = storedDocumentCopy(document);
+  if (action) action.textContent = "Replace";
 }
 
 export async function setupIdentityVerification({ account, showFeedback, requestJson }) {
@@ -72,6 +82,7 @@ export async function setupIdentityVerification({ account, showFeedback, request
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
   renderVerificationStatus(profile);
   await loadOnboardingForm(requestJson, "identity", form).catch(() => null);
+  await hydrateOnboardingDocumentInputs(requestJson, "identity", form, "[data-identity-file]", renderStoredDocument).catch(() => null);
 
   document.querySelectorAll("[data-identity-file]").forEach((input) => {
     input.addEventListener("change", () => {
@@ -93,14 +104,14 @@ export async function setupIdentityVerification({ account, showFeedback, request
       row?.classList.add("is-selected");
       if (copy) copy.textContent = selectedFileCopy(file);
       if (action) action.textContent = "Replace";
-      showFeedback("Document selected for this page only. It has not been uploaded or stored.");
+      showFeedback("Document ready. Select Save & continue to store it securely.");
     });
   });
 
   form.addEventListener("input", (event) => {
     if (event.target instanceof HTMLInputElement && event.target.type !== "file") {
       const status = document.querySelector("[data-identity-save-status]");
-      if (status) status.textContent = "Sensitive document numbers remain only in this open page and are not stored.";
+      if (status) status.textContent = "Document numbers will be encrypted and stored when you continue.";
     }
   });
 
@@ -108,8 +119,13 @@ export async function setupIdentityVerification({ account, showFeedback, request
     event.preventDefault();
     if (!form.reportValidity()) return;
     try {
-      await saveOnboardingForm(requestJson, "identity", form, { extra: { documentSelections: onboardingFileMetadata(form) } });
-      showFeedback("Identity details saved securely. Homle will mark verification complete only after an approved check records the result.");
+      const uploaded = await uploadOnboardingFormDocuments(form, "identity", "[data-identity-file]", ({ current, total }) => showFeedback(`Uploading document ${current} of ${total} securely…`));
+      for (const document of uploaded) {
+        const input = form.elements.namedItem(document.documentType);
+        if (input instanceof HTMLInputElement) renderStoredDocument(input, document);
+      }
+      await saveOnboardingForm(requestJson, "identity", form);
+      showFeedback("Identity details and selected documents were stored securely. Homle will mark verification complete only after an approved check records the result.");
     } catch (error) {
       showFeedback(error.message || "Homle could not save your identity details.", "error");
     }

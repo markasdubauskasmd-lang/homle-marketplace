@@ -134,6 +134,10 @@ GRANT EXECUTE ON FUNCTION tideway_private.archive_my_property(uuid) TO tideway_a
 GRANT EXECUTE ON FUNCTION tideway_private.restore_my_property(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_cleaner_onboarding_sections() TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_my_cleaner_onboarding_documents(text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_my_cleaner_onboarding_document(text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.delete_my_cleaner_onboarding_document(text,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.save_my_cleaner_profile_photo(bytea,text,integer,text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_cleaner_profile_photo() TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.request_my_privacy_action(uuid,text) TO tideway_app;

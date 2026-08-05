@@ -1,4 +1,6 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { hydrateOnboardingDocumentInputs, storedDocumentCopy, uploadOnboardingFormDocuments } from "./cleaner-onboarding-documents.js?v=20260805-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -14,7 +16,16 @@ function renderRail(progress) {
 
 function selectedFileCopy(file) {
   const megabytes = Math.max(0.1, file.size / (1024 * 1024)).toFixed(1);
-  return `${file.name} · ${megabytes} MB · selected for this page only`;
+  return `${file.name} · ${megabytes} MB · ready to upload when you save`;
+}
+
+function renderStoredDocument(input, document) {
+  const row = input.closest(".hc-banking-document");
+  row?.classList.add("is-selected");
+  const copy = row?.querySelector("small");
+  const action = row?.querySelector(".hc-banking-document-action");
+  if (copy) copy.textContent = storedDocumentCopy(document);
+  if (action) action.textContent = "Replace";
 }
 
 function payoutStatusCopy(payout) {
@@ -72,6 +83,8 @@ export async function setupBanking({ account, showFeedback, requestJson }) {
   const payout = payoutResult.status === "fulfilled" ? payoutResult.value.payout : null;
   const payoutState = payout?.ready ? "ready" : payoutResult.status === "fulfilled" ? "not-started" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
+  await loadOnboardingForm(requestJson, "banking", form).catch(() => null);
+  await hydrateOnboardingDocumentInputs(requestJson, "banking", form, "[data-banking-file]", renderStoredDocument).catch(() => null);
 
   const providerStatus = form.querySelector("[data-banking-provider-status]");
   if (providerStatus) {
@@ -109,12 +122,19 @@ export async function setupBanking({ account, showFeedback, requestJson }) {
     if (copy) copy.textContent = selectedFileCopy(file);
     if (action) action.textContent = "Replace";
     const status = form.querySelector("[data-banking-save-status]");
-    if (status) status.textContent = "Invoice template selected for this page only. It has not been uploaded or stored.";
+    if (status) status.textContent = "Invoice template ready. Select Save & continue to store it securely.";
   });
 
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    showFeedback("Opening secure Stripe payout setup. Homle will not receive your full bank details.");
-    location.assign(payout?.ready ? "/cleaner/payouts" : "/cleaner/payouts?resume=1");
+    try {
+      const uploaded = await uploadOnboardingFormDocuments(form, "banking", "[data-banking-file]", () => showFeedback("Uploading the invoice template securely…"));
+      for (const document of uploaded) renderStoredDocument(fileInput, document);
+      await saveOnboardingForm(requestJson, "banking", form);
+      showFeedback("Invoice template and payment preference stored. Opening secure Stripe payout setup; Homle will not receive your full bank details.");
+      location.assign(payout?.ready ? "/cleaner/payouts" : "/cleaner/payouts?resume=1");
+    } catch (error) {
+      showFeedback(error.message || "Homle could not store your invoice template.", "error");
+    }
   });
 }

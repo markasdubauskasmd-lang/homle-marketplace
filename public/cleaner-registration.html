@@ -546,7 +546,7 @@
 
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/business-details">&larr; Back</a>
-                  <p data-identity-save-status role="status" aria-live="polite">Sensitive documents and numbers are not stored in this browser.</p>
+                  <p data-identity-save-status role="status" aria-live="polite">Selected documents and document numbers are encrypted and stored when you continue.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
@@ -599,7 +599,7 @@
 
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/identity-verification">&larr; Back</a>
-                  <p data-background-save-status role="status" aria-live="polite">Sensitive DBS documents and details are not stored in this browser.</p>
+                  <p data-background-save-status role="status" aria-live="polite">Selected DBS documents and details are encrypted and stored when you continue.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
@@ -668,33 +668,33 @@
                   </div>
                 </fieldset>
 
-                <fieldset class="hc-experience-section hc-experience-preview-section" disabled aria-describedby="experience-files-note">
+                <fieldset class="hc-experience-section" aria-describedby="experience-files-note">
                   <legend>CV &amp; certificates</legend>
-                  <p class="hc-sr-only" id="experience-files-note">Secure certificate storage is being connected. No files are accepted or stored on this page yet.</p>
+                  <p class="hc-sr-only" id="experience-files-note">Selected CV and certificate files are encrypted and stored securely when you continue.</p>
                   <div class="hc-experience-documents">
                     <label>
                       <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
                       <span><strong>CV</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
                       <span class="hc-experience-upload-action">Choose file</span>
-                      <input type="file" name="cv" accept="application/pdf,image/jpeg,image/png" disabled>
+                      <input type="file" name="cv" accept="application/pdf,image/jpeg,image/png" data-experience-file>
                     </label>
                     <label>
                       <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
                       <span><strong>Cleaning certificates</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
                       <span class="hc-experience-upload-action">Choose file</span>
-                      <input type="file" name="cleaningCertificates" accept="application/pdf,image/jpeg,image/png" disabled>
+                      <input type="file" name="cleaningCertificates" accept="application/pdf,image/jpeg,image/png" data-experience-file>
                     </label>
                     <label>
                       <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
                       <span><strong>COSHH certificate</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
                       <span class="hc-experience-upload-action">Choose file</span>
-                      <input type="file" name="coshhCertificate" accept="application/pdf,image/jpeg,image/png" disabled>
+                      <input type="file" name="coshhCertificate" accept="application/pdf,image/jpeg,image/png" data-experience-file>
                     </label>
                     <label>
                       <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
                       <span><strong>Health &amp; safety certificate</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
                       <span class="hc-experience-upload-action">Choose file</span>
-                      <input type="file" name="healthSafetyCertificate" accept="application/pdf,image/jpeg,image/png" disabled>
+                      <input type="file" name="healthSafetyCertificate" accept="application/pdf,image/jpeg,image/png" data-experience-file>
                     </label>
                   </div>
                 </fieldset>
@@ -761,14 +761,14 @@
 
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/experience">&larr; Back</a>
-                  <p data-references-save-status role="status" aria-live="polite">Referee contact details are not stored in this browser or sent anywhere.</p>
+                  <p data-references-save-status role="status" aria-live="polite">Reference details and selected letters are encrypted and stored when you continue.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
             </section>
 
             <section class="hc-personal-card hc-insurance-card" data-insurance hidden aria-labelledby="cleaner-insurance-title">
-              <p class="hc-insurance-status" role="status">No verified policy is stored yet. Secure insurance storage and expiry reminders are being connected.</p>
+                <p class="hc-insurance-status" role="status">Insurance documents are stored securely when submitted. Verification remains pending until Homle reviews them.</p>
               <header class="hc-personal-head">
                 <h1 id="cleaner-insurance-title">Insurance</h1>
                 <p>Public liability cover is required before your first job.</p>
@@ -811,7 +811,7 @@
 
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/references">&larr; Back</a>
-                  <p data-insurance-save-status role="status" aria-live="polite">Policy details and documents are not stored in this browser or sent anywhere.</p>
+                  <p data-insurance-save-status role="status" aria-live="polite">Policy details and selected documents are encrypted and stored when you continue.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>
@@ -857,7 +857,7 @@
                       <span class="hc-banking-document-action">Choose file</span>
                       <input type="file" name="invoiceTemplate" accept="application/pdf,image/jpeg,image/png" data-banking-file>
                     </label>
-                    <p class="hc-banking-payout-note">Stripe controls payout timing. The preference and invoice template on this page are not saved yet.</p>
+                    <p class="hc-banking-payout-note">Stripe controls payout timing. Homle stores only your payout preference and optional invoice template.</p>
                   </div>
                 </fieldset>
 
