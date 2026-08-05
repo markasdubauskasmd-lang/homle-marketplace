@@ -5503,6 +5503,16 @@ async function handleHttpRequest(request, response) {
       response.writeHead(308, { "Location": canonicalLocation, "Cache-Control": "public, max-age=300" });
       return response.end();
     }
+    // Browsers, bookmark importers and older home-screen clients still probe
+    // the conventional favicon path even when the current document declares a
+    // PNG icon. Keep that stable path lightweight and point it at the reviewed,
+    // content-addressed Homle artwork instead of filling production logs with
+    // a 404. The short revalidation policy lets a future approved logo replace
+    // the target without leaving a year-long redirect in browser caches.
+    if ((request.method === "GET" || request.method === "HEAD") && requestUrl.pathname === "/favicon.ico") {
+      response.writeHead(308, { "Location": "/homle-logo-128-4f82ebad.png", "Cache-Control": "no-cache" });
+      return response.end();
+    }
     if ((request.method === "GET" || request.method === "HEAD") && ["/landlord/scan", "/room-scan.html"].includes(requestUrl.pathname)) {
       response.writeHead(308, { "Location": "/landlord/book", "Cache-Control": "no-store" });
       return response.end();
