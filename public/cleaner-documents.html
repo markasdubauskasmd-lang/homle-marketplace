@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
-  <script src="/cleaner-documents.js?v=20260729-3" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260805-1">
+  <script src="/cleaner-documents.js?v=20260805-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -153,8 +153,36 @@
             <button class="hc-documents-drop" type="button" data-documents-upload aria-describedby="documents-upload-note">
               <span class="hc-documents-upload-mark" aria-hidden="true">↑</span>
               <strong>Drag &amp; drop a document, or browse</strong>
-              <small id="documents-upload-note">PDF, JPEG or PNG — up to 20MB. Add files from the relevant onboarding step.</small>
+              <small id="documents-upload-note">PDF, JPEG or PNG — up to 20MB. Nothing is submitted until you review and confirm it.</small>
             </button>
+            <input type="file" accept="application/pdf,image/jpeg,image/png" data-documents-file aria-label="Choose a document to upload">
+
+            <form class="hc-documents-confirm" data-documents-confirm hidden>
+              <header>
+                <span class="hc-documents-confirm-mark" aria-hidden="true">✓</span>
+                <span><strong>Review this document before submission</strong><small>Check the file and choose where it belongs.</small></span>
+              </header>
+              <div class="hc-documents-selected-file">
+                <span class="hc-document-type" data-documents-selected-type>PDF</span>
+                <span><strong data-documents-selected-name>No file selected</strong><small data-documents-selected-meta></small></span>
+              </div>
+              <label class="hc-documents-destination">
+                <span>What type of document is this? <b aria-hidden="true">*</b></span>
+                <select name="documentDestination" data-documents-destination required>
+                  <option value="">Choose document type</option>
+                </select>
+                <small data-documents-replacement-note>Select the correct category so it is stored with the right onboarding step.</small>
+              </label>
+              <label class="hc-documents-confirm-check">
+                <input type="checkbox" name="documentConfirmed" data-documents-confirm-check>
+                <span>I confirm this is the correct document and category.</span>
+              </label>
+              <div class="hc-documents-confirm-actions">
+                <button class="hc-business-quiet-button" type="button" data-documents-cancel>Cancel</button>
+                <button class="hc-personal-submit" type="submit" data-documents-submit disabled>Upload securely</button>
+              </div>
+              <p class="hc-documents-confirm-status" data-documents-confirm-status role="status" aria-live="polite">Confirm the file and category to enable secure upload.</p>
+            </form>
 
             <section class="hc-documents-card" aria-label="Document status">
               <ul class="hc-documents-list" data-documents-list></ul>

@@ -1,4 +1,6 @@
 import { createCleanerPage, element } from "./cleaner-page.js?v=20260729-6";
+import { uploadOnboardingDocument, validateOnboardingDocument } from "./cleaner-onboarding-documents.js?v=20260805-1";
+import { saveCsrf, storedCsrf } from "./session-csrf.js";
 
 function recordedCheck(status) {
   if (status === "verified") return { label: "Result verified", tone: "success" };
@@ -8,29 +10,33 @@ function recordedCheck(status) {
 }
 
 const definitions = [
-  ["identity", "passportPhoto", "PDF", "Passport — photo page", "Identity", "/cleaner/identity-verification"],
-  ["identity", "licenceFront", "JPG", "Driving licence — front", "Identity", "/cleaner/identity-verification"],
-  ["identity", "licenceBack", "JPG", "Driving licence — back", "Identity", "/cleaner/identity-verification"],
-  ["identity", "birthCertificate", "PDF", "Birth certificate", "Identity", "/cleaner/identity-verification"],
-  ["identity", "residencePermit", "PDF", "Visa / residence permit", "Identity", "/cleaner/identity-verification"],
-  ["dbs", "dbsCertificate", "PDF", "DBS certificate", "Background", "/cleaner/background-checks"],
-  ["experience", "cv", "PDF", "CV", "Experience", "/cleaner/experience"],
-  ["experience", "cleaningCertificates", "PDF", "Cleaning certificates", "Experience", "/cleaner/experience"],
-  ["experience", "coshhCertificate", "PDF", "COSHH certificate", "Experience", "/cleaner/experience"],
-  ["experience", "healthSafetyCertificate", "PDF", "Health & safety certificate", "Experience", "/cleaner/experience"],
-  ["references", "referenceLetters", "PDF", "Reference letter", "References", "/cleaner/references"],
-  ["insurance", "publicLiabilityPolicy", "PDF", "Public liability policy", "Insurance", "/cleaner/insurance"],
-  ["insurance", "professionalIndemnityPolicy", "PDF", "Professional indemnity policy", "Insurance", "/cleaner/insurance"],
-  ["insurance", "employersLiabilityPolicy", "PDF", "Employers’ liability policy", "Insurance", "/cleaner/insurance"],
-  ["banking", "invoiceTemplate", "PDF", "Invoice template", "Banking", "/cleaner/banking"]
+  { section: "identity", documentType: "passportPhoto", extension: "PDF", title: "Passport — photo page", category: "Identity", href: "/cleaner/identity-verification" },
+  { section: "identity", documentType: "licenceFront", extension: "JPG", title: "Driving licence — front", category: "Identity", href: "/cleaner/identity-verification" },
+  { section: "identity", documentType: "licenceBack", extension: "JPG", title: "Driving licence — back", category: "Identity", href: "/cleaner/identity-verification" },
+  { section: "identity", documentType: "birthCertificate", extension: "PDF", title: "Birth certificate", category: "Identity", href: "/cleaner/identity-verification" },
+  { section: "identity", documentType: "residencePermit", extension: "PDF", title: "Visa / residence permit", category: "Identity", href: "/cleaner/identity-verification" },
+  { section: "dbs", documentType: "dbsCertificate", extension: "PDF", title: "DBS certificate", category: "Background", href: "/cleaner/background-checks" },
+  { section: "experience", documentType: "cv", extension: "PDF", title: "CV", category: "Experience", href: "/cleaner/experience" },
+  { section: "experience", documentType: "cleaningCertificates", extension: "PDF", title: "Cleaning certificates", category: "Experience", href: "/cleaner/experience" },
+  { section: "experience", documentType: "coshhCertificate", extension: "PDF", title: "COSHH certificate", category: "Experience", href: "/cleaner/experience" },
+  { section: "experience", documentType: "healthSafetyCertificate", extension: "PDF", title: "Health & safety certificate", category: "Experience", href: "/cleaner/experience" },
+  { section: "references", documentType: "referenceLetters", extension: "PDF", title: "Reference letter", category: "References", href: "/cleaner/references" },
+  { section: "insurance", documentType: "publicLiabilityPolicy", extension: "PDF", title: "Public liability policy", category: "Insurance", href: "/cleaner/insurance" },
+  { section: "insurance", documentType: "professionalIndemnityPolicy", extension: "PDF", title: "Professional indemnity policy", category: "Insurance", href: "/cleaner/insurance" },
+  { section: "insurance", documentType: "employersLiabilityPolicy", extension: "PDF", title: "Employers’ liability policy", category: "Insurance", href: "/cleaner/insurance" },
+  { section: "banking", documentType: "invoiceTemplate", extension: "PDF", title: "Invoice template", category: "Banking", href: "/cleaner/banking" }
 ];
 
+function documentKey(section, documentType) {
+  return `${section}:${documentType}`;
+}
+
 function documentRows(profile, documents) {
-  const stored = new Map(documents.map((document) => [`${document.section}:${document.documentType}`, document]));
-  return definitions.map(([section, documentType, extension, title, category, href]) => {
-    const document = stored.get(`${section}:${documentType}`);
-    const check = section === "identity" ? profile?.identityCheckStatus : section === "dbs" ? profile?.backgroundCheckStatus : "not-started";
-    return { extension, title, category, href, document, status: document ? { label: "Stored securely", tone: "success" } : recordedCheck(check) };
+  const stored = new Map(documents.map((document) => [documentKey(document.section, document.documentType), document]));
+  return definitions.map((definition) => {
+    const document = stored.get(documentKey(definition.section, definition.documentType));
+    const check = definition.section === "identity" ? profile?.identityCheckStatus : definition.section === "dbs" ? profile?.backgroundCheckStatus : "not-started";
+    return { ...definition, document, status: document ? { label: "Stored securely", tone: "success" } : recordedCheck(check) };
   });
 }
 
@@ -56,16 +62,167 @@ function renderDocumentRow(row) {
   return item;
 }
 
+function readableMegabytes(bytes) {
+  return `${Math.max(0.1, Number(bytes) / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileExtension(file) {
+  if (file.type === "application/pdf") return "PDF";
+  if (file.type === "image/png") return "PNG";
+  return "JPG";
+}
+
+function populateDestinations(select) {
+  const options = definitions.map((definition) => {
+    const option = element("option", "", `${definition.title} — ${definition.category}`);
+    option.value = documentKey(definition.section, definition.documentType);
+    return option;
+  });
+  select.append(...options);
+}
+
+async function secureCsrf(requestJson) {
+  const existing = storedCsrf();
+  if (existing) return existing;
+  const session = await requestJson("/api/marketplace/auth/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}"
+  });
+  if (!session.csrfToken || !saveCsrf(session.csrfToken)) throw new Error("Your secure upload access could not be restored. Sign in again before uploading.");
+  return session.csrfToken;
+}
+
 createCleanerPage("documents", async ({ requestJson, showFeedback }) => {
   const [profileResult, documentResult] = await Promise.all([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/onboarding/documents")
   ]);
   const profile = profileResult.profile && typeof profileResult.profile === "object" ? profileResult.profile : null;
-  const documents = Array.isArray(documentResult.documents) ? documentResult.documents : [];
-  document.querySelector("[data-documents-list]")?.replaceChildren(...documentRows(profile, documents).map(renderDocumentRow));
-  document.querySelector("[data-documents-upload]")?.addEventListener("click", () => {
-    showFeedback("Choose the relevant onboarding step to add or replace a document.");
-    location.assign("/cleaner/identity-verification");
+  let documents = Array.isArray(documentResult.documents) ? documentResult.documents : [];
+  let pendingFile = null;
+  let uploading = false;
+
+  const list = document.querySelector("[data-documents-list]");
+  const drop = document.querySelector("[data-documents-upload]");
+  const fileInput = document.querySelector("[data-documents-file]");
+  const form = document.querySelector("[data-documents-confirm]");
+  const destination = document.querySelector("[data-documents-destination]");
+  const confirmed = document.querySelector("[data-documents-confirm-check]");
+  const submit = document.querySelector("[data-documents-submit]");
+  const status = document.querySelector("[data-documents-confirm-status]");
+
+  function renderRows() {
+    list?.replaceChildren(...documentRows(profile, documents).map(renderDocumentRow));
+  }
+
+  function selectedDefinition() {
+    return definitions.find((definition) => documentKey(definition.section, definition.documentType) === destination?.value) || null;
+  }
+
+  function updateConfirmationState() {
+    const ready = Boolean(pendingFile && selectedDefinition() && confirmed?.checked && !uploading);
+    if (submit instanceof HTMLButtonElement) submit.disabled = !ready;
+    const replacement = document.querySelector("[data-documents-replacement-note]");
+    const definition = selectedDefinition();
+    const existing = definition && documents.find((document) => documentKey(document.section, document.documentType) === documentKey(definition.section, definition.documentType));
+    if (replacement) replacement.textContent = existing
+      ? `This will securely replace ${existing.filename}.`
+      : "Select the correct category so it is stored with the right onboarding step.";
+    if (status && !uploading) status.textContent = ready
+      ? "Confirmed. This document is ready for secure submission."
+      : "Confirm the file and category to enable secure upload.";
+  }
+
+  function resetConfirmation({ hide = true } = {}) {
+    pendingFile = null;
+    uploading = false;
+    if (fileInput instanceof HTMLInputElement) fileInput.value = "";
+    if (destination instanceof HTMLSelectElement) destination.value = "";
+    if (confirmed instanceof HTMLInputElement) confirmed.checked = false;
+    if (form instanceof HTMLFormElement) form.hidden = hide;
+    drop?.classList.remove("is-dragging");
+    updateConfirmationState();
+  }
+
+  function prepareFile(file) {
+    try {
+      pendingFile = validateOnboardingDocument(file);
+    } catch (error) {
+      resetConfirmation();
+      showFeedback(error.message, "error");
+      return;
+    }
+    const name = document.querySelector("[data-documents-selected-name]");
+    const meta = document.querySelector("[data-documents-selected-meta]");
+    const type = document.querySelector("[data-documents-selected-type]");
+    if (name) name.textContent = pendingFile.name;
+    if (meta) meta.textContent = `${pendingFile.type} • ${readableMegabytes(pendingFile.size)}`;
+    if (type) type.textContent = fileExtension(pendingFile);
+    if (form instanceof HTMLFormElement) {
+      form.hidden = false;
+      form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    if (confirmed instanceof HTMLInputElement) confirmed.checked = false;
+    showFeedback("Review the selected document and confirm it before uploading.");
+    updateConfirmationState();
+    destination?.focus();
+  }
+
+  renderRows();
+  if (destination instanceof HTMLSelectElement) populateDestinations(destination);
+
+  drop?.addEventListener("click", () => fileInput?.click());
+  fileInput?.addEventListener("change", () => {
+    const file = fileInput instanceof HTMLInputElement ? fileInput.files?.[0] : null;
+    if (file) prepareFile(file);
+  });
+  for (const eventName of ["dragenter", "dragover"]) {
+    drop?.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      drop.classList.add("is-dragging");
+    });
+  }
+  for (const eventName of ["dragleave", "drop"]) {
+    drop?.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      drop.classList.remove("is-dragging");
+    });
+  }
+  drop?.addEventListener("drop", (event) => {
+    const file = event.dataTransfer?.files?.[0];
+    if (file) prepareFile(file);
+  });
+  destination?.addEventListener("change", updateConfirmationState);
+  confirmed?.addEventListener("change", updateConfirmationState);
+  document.querySelector("[data-documents-cancel]")?.addEventListener("click", () => {
+    resetConfirmation();
+    showFeedback("Document upload cancelled. Nothing was submitted.");
+  });
+
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const definition = selectedDefinition();
+    if (!pendingFile || !definition || !(confirmed instanceof HTMLInputElement) || !confirmed.checked || uploading) {
+      showFeedback("Review the document, choose its category and confirm it before submitting.", "error");
+      updateConfirmationState();
+      return;
+    }
+    uploading = true;
+    if (submit instanceof HTMLButtonElement) submit.disabled = true;
+    if (status) status.textContent = "Uploading and encrypting your confirmed document…";
+    try {
+      await secureCsrf(requestJson);
+      const stored = await uploadOnboardingDocument(definition.section, definition.documentType, pendingFile);
+      documents = [...documents.filter((document) => documentKey(document.section, document.documentType) !== documentKey(stored.section, stored.documentType)), stored];
+      renderRows();
+      const filename = stored.filename;
+      resetConfirmation();
+      showFeedback(`${filename} was confirmed, encrypted and stored securely in your Document Centre.`, "success");
+    } catch (error) {
+      uploading = false;
+      updateConfirmationState();
+      showFeedback(error.message || "The confirmed document could not be uploaded.", "error");
+    }
   });
 });

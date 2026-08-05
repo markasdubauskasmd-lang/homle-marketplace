@@ -12,3 +12,13 @@
 export function storedCsrf() {
   try { return sessionStorage.getItem("tideway_csrf") || ""; } catch { return ""; }
 }
+
+export function saveCsrf(value) {
+  try {
+    if (value) sessionStorage.setItem("tideway_csrf", value);
+    else sessionStorage.removeItem("tideway_csrf");
+    return value ? sessionStorage.getItem("tideway_csrf") === value : true;
+  } catch {
+    return false;
+  }
+}
