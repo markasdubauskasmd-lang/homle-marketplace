@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
-  <script src="/cleaner-training.js?v=20260729-3" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260805-1">
+  <script src="/cleaner-training.js?v=20260805-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -146,19 +146,25 @@
 
           <section class="hc-academy" aria-labelledby="academy-title">
             <header class="hc-academy-heading">
-              <h1 id="academy-title">Homle Academy</h1>
-              <p>Free training catalogue for Cleaner development. Course delivery, progress tracking and certificates are being connected; nothing is started or recorded on this preview.</p>
+              <h1 id="academy-title" data-training-title>Homle Cleaner Academy</h1>
+              <p data-training-intro>Free training catalogue tailored to your Cleaner profession. Course delivery, progress tracking and certificates are being connected; nothing is started or recorded on this preview.</p>
             </header>
+
+            <aside class="hc-academy-profession" data-training-profession aria-live="polite">
+              <span class="hc-academy-profession-icon" data-training-profession-icon aria-hidden="true">⌂</span>
+              <span><strong data-training-profession-label>Cleaner training</strong><small>Based on your saved Business Details selection.</small></span>
+              <a href="/cleaner/business-details">Change</a>
+            </aside>
 
             <section class="hc-academy-feature" aria-labelledby="academy-feature-title">
               <div class="hc-academy-feature-copy">
                 <span class="hc-academy-eyebrow">FEATURED COURSE</span>
-                <h2 id="academy-feature-title">COSHH — safe use of chemicals</h2>
-                <p>Labels, dilution, storage and what to do after a spill. Course access is not connected yet.</p>
-                <button class="hc-academy-feature-button" type="button" data-training-start="COSHH — safe use of chemicals">View course status <span aria-hidden="true">↗</span></button>
+                <h2 id="academy-feature-title" data-training-feature-title>COSHH — safe use of chemicals</h2>
+                <p data-training-feature-copy>Labels, dilution, storage and what to do after a spill. Course access is not connected yet.</p>
+                <button class="hc-academy-feature-button" type="button" data-training-start>View course status <span aria-hidden="true">↗</span></button>
               </div>
               <dl class="hc-academy-stats" aria-label="Academy status">
-                <div><dt>CATALOGUE</dt><dd>34</dd></div>
+                <div><dt>CATALOGUE</dt><dd data-training-catalogue-count>34</dd></div>
                 <div><dt>AVAILABLE</dt><dd>0</dd></div>
                 <div><dt>CERTIFICATES</dt><dd>0</dd></div>
               </dl>
@@ -175,7 +181,7 @@
             <div class="hc-feedback" data-training-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
             <p class="hc-sr-only" data-training-result-status aria-live="polite"></p>
 
-            <section class="hc-academy-grid" data-training-modules aria-label="34 learning modules"></section>
+            <section class="hc-academy-grid" data-training-modules aria-label="34 Cleaner learning modules"></section>
 
             <section class="hc-academy-documents" aria-labelledby="academy-documents-title">
               <div>

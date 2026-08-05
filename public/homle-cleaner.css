@@ -1514,6 +1514,42 @@ a.hc-tile:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-decorati
   font-size: 12px;
   line-height: 1.55;
 }
+.hc-academy-profession {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  color: var(--hc-ink);
+  border: 1px solid #ead8bf;
+  border-radius: 15px;
+  background: #fffaf1;
+}
+.hc-academy-profession-icon {
+  display: grid;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  color: #ffffff;
+  border-radius: 11px;
+  background: var(--hc-red);
+  font-size: 19px;
+  font-weight: 800;
+  box-shadow: 0 7px 14px rgba(198, 42, 26, .2);
+}
+.hc-academy-profession > span:not(.hc-academy-profession-icon) { display: grid; gap: 2px; min-width: 0; }
+.hc-academy-profession strong { font-size: 11px; }
+.hc-academy-profession small { color: var(--hc-muted-3); font-size: 8.5px; }
+.hc-academy-profession a {
+  flex: none;
+  margin-left: auto;
+  color: var(--hc-red);
+  font-size: 9px;
+  font-weight: 750;
+}
+.hc-academy-profession a:hover { color: var(--hc-red-hover); }
 .hc-academy-feature {
   position: relative;
   display: grid;
