@@ -4643,6 +4643,74 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   font-size: 8.5px !important;
 }
 
+.hc-work-zone-summary {
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #e4d9c8;
+  border-radius: 12px;
+  background: #fffdf8;
+}
+
+.hc-work-zone-summary-head {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.hc-work-zone-summary-head h2 {
+  flex: 1;
+  margin: 0;
+  color: var(--hc-ink);
+  font-size: 10px;
+}
+
+.hc-work-zone-summary-head span {
+  color: var(--hc-muted-2);
+  font-size: 8px;
+}
+
+.hc-work-zone-summary-head button {
+  padding: 0;
+  color: var(--hc-red);
+  border: 0;
+  background: transparent;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hc-work-zone-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.hc-work-zone-chip {
+  min-height: 26px;
+  padding: 0 9px;
+  color: #ffffff;
+  border: 0;
+  border-radius: 999px;
+  background: var(--hc-red);
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hc-work-zone-chip:focus-visible,
+.hc-work-zone-summary-head button:focus-visible {
+  outline: 2px solid var(--hc-ink);
+  outline-offset: 2px;
+}
+
+.hc-work-zone-empty {
+  margin: 8px 0 0 !important;
+  color: var(--hc-muted-2);
+  font-size: 8px !important;
+  line-height: 1.45;
+}
+
 .hc-work-base {
   padding: 12px;
   border: 1px solid #e4d9c8;
@@ -4793,7 +4861,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   position: relative;
   min-height: 510px;
   overflow: hidden;
-  background: #dbe7c7;
+  background: #cfe3e2;
 }
 
 .hc-work-map {
@@ -4803,11 +4871,65 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   min-height: 510px;
 }
 
-.hc-work-map-land { fill: #e5e9c9; }
-.hc-work-map-water { fill: #c4e0dd; opacity: .9; }
-.hc-work-map-road { fill: none; stroke: #edba8a; stroke-width: 3; opacity: .75; }
-.hc-work-map-road.major { stroke: #df8f6d; stroke-width: 5; }
-.hc-work-map-boundary { fill: none; stroke: #b5c596; stroke-width: 2; stroke-dasharray: 5 5; }
+.hc-work-map-water { fill: #cfe3e2; }
+
+.hc-work-map-instruction {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 14px;
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  color: var(--hc-ink);
+  border: 1px solid rgba(186, 171, 147, .72);
+  border-radius: 9px;
+  background: rgba(255, 253, 248, .92);
+  box-shadow: 0 6px 18px rgba(51, 44, 32, .1);
+  pointer-events: none;
+}
+
+.hc-work-map-instruction strong { font-size: 9px; }
+.hc-work-map-instruction span { color: var(--hc-muted); font-size: 7.5px; }
+
+.hc-work-zone {
+  cursor: pointer;
+  outline: none;
+}
+
+.hc-work-zone-shape {
+  fill: #fffaf1;
+  stroke: #bda990;
+  stroke-width: 2.5;
+  transition: fill .16s ease, stroke .16s ease, filter .16s ease;
+}
+
+.hc-work-zone-label {
+  fill: var(--hc-ink);
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+  transition: fill .16s ease;
+}
+
+.hc-work-zone:hover .hc-work-zone-shape {
+  fill: #f5d8d1;
+  stroke: var(--hc-red);
+  filter: drop-shadow(0 4px 5px rgba(62, 48, 40, .14));
+}
+
+.hc-work-zone[aria-checked="true"] .hc-work-zone-shape {
+  fill: var(--hc-red);
+  stroke: #a7261b;
+  filter: drop-shadow(0 5px 7px rgba(198, 42, 26, .24));
+}
+
+.hc-work-zone[aria-checked="true"] .hc-work-zone-label { fill: #ffffff; }
+
+.hc-work-zone:focus-visible .hc-work-zone-shape {
+  stroke: var(--hc-ink);
+  stroke-width: 5;
+}
 
 .hc-work-map-marker-radius {
   fill: rgba(215, 57, 43, .12);
@@ -4830,32 +4952,6 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   stroke-width: 5px;
   stroke-linejoin: round;
 }
-
-.hc-work-map-controls {
-  position: absolute;
-  z-index: 2;
-  top: 12px;
-  left: 12px;
-  display: grid;
-  overflow: hidden;
-  border: 1px solid #c8bca9;
-  border-radius: 7px;
-  box-shadow: 0 5px 14px rgba(51, 44, 32, .16);
-}
-
-.hc-work-map-controls button {
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  color: var(--hc-ink);
-  border: 0;
-  border-bottom: 1px solid #d8ccba;
-  background: #ffffff;
-  font-size: 19px;
-  cursor: pointer;
-}
-
-.hc-work-map-controls button:last-child { border-bottom: 0; }
 
 .hc-work-map-shell > p {
   position: absolute;

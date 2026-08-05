@@ -1,5 +1,6 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
 import { storedCsrf } from "./session-csrf.js";
+import { normalizedWorkZones, toggledWorkZones, ukWorkZones, workZoneName } from "./cleaner-work-zones.js?v=20260805-1";
 
 const outwardPostcodePattern = /^[A-Z]{1,2}[0-9][A-Z0-9]?$/;
 const svgNamespace = "http://www.w3.org/2000/svg";
@@ -7,7 +8,7 @@ const milesPerKilometre = 0.621371;
 let areas = [];
 let profile = null;
 let travelRadiusMiles = 15;
-let mapZoom = 1;
+let selectedWorkZones = [];
 
 function renderRail(progress) {
   const steps = new Map(progress.steps.map((step) => [step.key, step]));
@@ -39,16 +40,14 @@ function mapPoint(area) {
   let x;
   let y;
   if (Number.isFinite(area.longitude) && Number.isFinite(area.latitude)) {
-    x = (area.longitude + 8.5) / 11 * 600;
-    y = (59 - area.latitude) / 9.5 * 680;
+    x = (area.longitude + 8.5) / 11 * 480;
+    y = (59 - area.latitude) / 9.5 * 600;
   } else {
     const hash = [...area.outwardPostcode].reduce((value, character) => value * 31 + character.charCodeAt(0), 17);
-    x = 110 + Math.abs(hash % 380);
-    y = 130 + Math.abs(Math.floor(hash / 11) % 410);
+    x = 100 + Math.abs(hash % 280);
+    y = 130 + Math.abs(Math.floor(hash / 11) % 360);
   }
-  x = (x - 300) * mapZoom + 300;
-  y = (y - 340) * mapZoom + 340;
-  return { x: Math.max(36, Math.min(564, x)), y: Math.max(36, Math.min(644, y)) };
+  return { x: Math.max(28, Math.min(452, x)), y: Math.max(28, Math.min(572, y)) };
 }
 
 function updateRadiusCopy() {
@@ -71,6 +70,67 @@ function renderMap() {
     return group;
   });
   host.replaceChildren(...markers);
+}
+
+function renderZoneSummary() {
+  const list = document.querySelector("[data-work-zone-list]");
+  const empty = document.querySelector("[data-work-zone-empty]");
+  const count = document.querySelector("[data-work-zone-count]");
+  const clear = document.querySelector("[data-work-zone-clear]");
+  if (!list || !empty) return;
+  const selected = selectedWorkZones.map((code) => ukWorkZones.find((zone) => zone.code === code)).filter(Boolean);
+  list.replaceChildren(...selected.map((zone) => {
+    const button = element("button", "hc-work-zone-chip", `${zone.name} ×`);
+    button.type = "button";
+    button.setAttribute("aria-label", `Remove ${zone.name}`);
+    button.addEventListener("click", () => {
+      selectedWorkZones = toggledWorkZones(selectedWorkZones, zone.code);
+      renderZoneMap();
+    });
+    return button;
+  }));
+  empty.hidden = selected.length > 0;
+  if (count) count.textContent = `${selected.length} selected`;
+  if (clear instanceof HTMLButtonElement) clear.hidden = selected.length === 0;
+}
+
+function toggleZone(code) {
+  selectedWorkZones = toggledWorkZones(selectedWorkZones, code);
+  renderZoneMap();
+  const selected = selectedWorkZones.includes(code);
+  const status = document.querySelector("[data-work-save-status]");
+  if (status) status.textContent = `${workZoneName(code)} ${selected ? "selected" : "removed"}. Save to store your UK work-zone preferences.`;
+}
+
+function renderZoneMap() {
+  const host = document.querySelector("[data-work-zone-map]");
+  if (!host) return;
+  const selected = new Set(selectedWorkZones);
+  const zones = ukWorkZones.map((zone) => {
+    const group = svgElement("g", {
+      class: "hc-work-zone",
+      role: "checkbox",
+      tabindex: "0",
+      "aria-label": `${zone.name} work zone`,
+      "aria-checked": selected.has(zone.code) ? "true" : "false",
+      "data-work-zone": zone.code
+    });
+    group.append(svgElement("path", { class: "hc-work-zone-shape", d: zone.path }));
+    const label = svgElement("text", { class: "hc-work-zone-label", x: zone.labelX, y: zone.labelY, "text-anchor": "middle" });
+    label.textContent = zone.shortLabel;
+    group.append(label);
+    group.addEventListener("click", () => toggleZone(zone.code));
+    group.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleZone(zone.code);
+      }
+    });
+    return group;
+  });
+  host.replaceChildren(...zones);
+  renderZoneSummary();
+  renderMap();
 }
 
 function renderAreas() {
@@ -131,7 +191,7 @@ function renderAreas() {
   }));
   empty.hidden = areas.length > 0;
   updateRadiusCopy();
-  renderMap();
+  renderZoneMap();
 }
 
 function profileUpdate(currentProfile) {
@@ -178,10 +238,11 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
   if (workTopbar) workTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, workZoneResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    requestJson("/api/marketplace/cleaner/onboarding/areas")
   ]);
   profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
@@ -197,6 +258,7 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
   areas = Array.isArray(profile.serviceAreas)
     ? profile.serviceAreas.map((area) => ({ outwardPostcode: area.outwardPostcode, latitude: area.latitude, longitude: area.longitude, role: "primary" }))
     : [];
+  selectedWorkZones = normalizedWorkZones(workZoneResult.status === "fulfilled" ? workZoneResult.value.section?.data?.workZones : []);
   travelRadiusMiles = Number.isFinite(profile.travelRadiusKm) ? Math.max(1, Math.min(50, Math.round(profile.travelRadiusKm * milesPerKilometre))) : 15;
   const radius = document.querySelector("[data-work-radius]");
   if (radius instanceof HTMLInputElement) {
@@ -236,13 +298,11 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
       addArea();
     }
   });
-  document.querySelector("[data-work-zoom-in]")?.addEventListener("click", () => {
-    mapZoom = Math.min(1.8, mapZoom + 0.2);
-    renderMap();
-  });
-  document.querySelector("[data-work-zoom-out]")?.addEventListener("click", () => {
-    mapZoom = Math.max(0.8, mapZoom - 0.2);
-    renderMap();
+  document.querySelector("[data-work-zone-clear]")?.addEventListener("click", () => {
+    selectedWorkZones = [];
+    renderZoneMap();
+    const status = document.querySelector("[data-work-save-status]");
+    if (status) status.textContent = "UK work-zone selection cleared. Save to store this change.";
   });
 
   form.addEventListener("submit", async (event) => {
@@ -251,8 +311,8 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
       showFeedback("Change every area to Primary or remove it before saving. Secondary and excluded matching rules are not connected yet.", "error");
       return;
     }
-    if (areas.length === 0) {
-      showFeedback("Add at least one Primary outward postcode before saving.", "error");
+    if (areas.length === 0 && selectedWorkZones.length === 0) {
+      showFeedback("Select at least one UK work zone or add a Primary outward postcode before saving.", "error");
       return;
     }
     const csrf = storedCsrf();
@@ -263,15 +323,31 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
     const submit = form.querySelector('button[type="submit"]');
     if (submit instanceof HTMLButtonElement) submit.disabled = true;
     try {
-      const result = await requestJson("/api/marketplace/cleaner/profile", {
+      await requestJson("/api/marketplace/cleaner/onboarding/areas", {
         method: "PUT",
         headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-        body: JSON.stringify(profileUpdate(profile))
+        body: JSON.stringify({
+          status: "submitted",
+          data: {
+            workZones: selectedWorkZones,
+            outwardPostcodes: areas.map((area) => area.outwardPostcode),
+            travelRadiusMiles
+          }
+        })
       });
-      profile = result.profile;
-      areas = profile.serviceAreas.map((area) => ({ ...area, role: "primary" }));
+      if (areas.length > 0) {
+        const result = await requestJson("/api/marketplace/cleaner/profile", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+          body: JSON.stringify(profileUpdate(profile))
+        });
+        profile = result.profile;
+        areas = profile.serviceAreas.map((area) => ({ ...area, role: "primary" }));
+      }
       renderAreas();
-      showFeedback("Work areas saved. Homle can now use these outward postcodes for matching.", "success");
+      showFeedback(areas.length > 0
+        ? "UK work zones and outward postcodes saved. Homle can use the postcodes for precise matching."
+        : "UK work zones saved. Add outward postcodes later for precise distance matching.", "success");
       location.assign("/cleaner/registration");
     } catch (error) {
       showFeedback(error.message || "Work areas could not be saved.", "error");
