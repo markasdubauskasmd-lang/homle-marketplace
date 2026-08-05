@@ -1,6 +1,7 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
 import { storedCsrf } from "./session-csrf.js";
 import { normalizedWorkZones } from "./cleaner-work-zones.js?v=20260805-1";
+import { postcodeZoneCentres } from "./postcode-zone-centres.js?v=20260805-1";
 import {
   clampedMapZoom,
   coordinateFromWorldPixel,
@@ -54,6 +55,7 @@ function mapSize(host) {
 function createPostcodeMap({ onAdd, showFeedback }) {
   const host = document.querySelector("[data-postcode-map]");
   const tileLayer = document.querySelector("[data-postcode-map-tiles]");
+  const zoneLayer = document.querySelector("[data-postcode-map-zones]");
   const markerLayer = document.querySelector("[data-postcode-map-markers]");
   const status = document.querySelector("[data-postcode-map-status]");
   const detail = document.querySelector("[data-postcode-map-detail]");
@@ -63,7 +65,7 @@ function createPostcodeMap({ onAdd, showFeedback }) {
   const detailDistance = document.querySelector("[data-postcode-map-distance]");
   const detailAdd = document.querySelector("[data-postcode-map-add]");
   const zoomOutput = document.querySelector("[data-postcode-map-zoom-level]");
-  if (!(host instanceof HTMLElement) || !(tileLayer instanceof HTMLElement) || !(markerLayer instanceof HTMLElement)) return null;
+  if (!(host instanceof HTMLElement) || !(tileLayer instanceof HTMLElement) || !(zoneLayer instanceof HTMLElement) || !(markerLayer instanceof HTMLElement)) return null;
 
   const state = { latitude: 54.55, longitude: -3.25, zoom: 5 };
   let selectedPostcode = null;
@@ -121,6 +123,39 @@ function createPostcodeMap({ onAdd, showFeedback }) {
     markerLayer.replaceChildren(...nodes);
   }
 
+  function renderPostcodeZones() {
+    const { width, height } = mapSize(host);
+    const spacing = state.zoom <= 5 ? 46 : state.zoom <= 7 ? 38 : 30;
+    const candidates = postcodeZoneCentres
+      .map((zone) => ({ ...zone, ...markerPosition(zone.latitude, zone.longitude) }))
+      .filter((zone) => zone.x >= 18 && zone.x <= width - 18 && zone.y >= 22 && zone.y <= height - 22)
+      .sort((first, second) => {
+        const firstDistance = Math.hypot(first.x - width / 2, first.y - height / 2);
+        const secondDistance = Math.hypot(second.x - width / 2, second.y - height / 2);
+        return firstDistance - secondDistance || first.code.localeCompare(second.code);
+      });
+    const placed = [];
+    const labels = [];
+    for (const zone of candidates) {
+      if (placed.some((point) => Math.hypot(zone.x - point.x, zone.y - point.y) < spacing)) continue;
+      placed.push(zone);
+      const label = element("button", "hc-postcode-zone-label", zone.code);
+      label.type = "button";
+      label.title = `${zone.code} postcode area`;
+      label.setAttribute("aria-label", `Zoom to ${zone.code} postcode area`);
+      label.style.transform = `translate(${Math.round(zone.x)}px, ${Math.round(zone.y)}px)`;
+      label.addEventListener("click", () => {
+        state.latitude = zone.latitude;
+        state.longitude = zone.longitude;
+        state.zoom = Math.max(8, Math.min(12, state.zoom + 2));
+        renderTiles();
+        setStatus(`${zone.code} postcode area centred. Click a town or street to find the exact outward postcode.`);
+      });
+      labels.push(label);
+    }
+    zoneLayer.replaceChildren(...labels);
+  }
+
   function renderTiles() {
     const { width, height } = mapSize(host);
     const centre = worldPixelFromCoordinate(state.latitude, state.longitude, state.zoom);
@@ -144,6 +179,7 @@ function createPostcodeMap({ onAdd, showFeedback }) {
     }
     tileLayer.replaceChildren(...tiles);
     if (zoomOutput) zoomOutput.textContent = `Zoom ${state.zoom}`;
+    renderPostcodeZones();
     renderMarkers();
   }
 
