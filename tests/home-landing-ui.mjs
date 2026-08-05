@@ -235,11 +235,13 @@ for (const unsupportedClaim of [
   assert(!page.includes(unsupportedClaim), `The landing page reintroduced the unsupported claim: ${unsupportedClaim}.`);
 }
 for (const truthfulPromise of [
-  "Review the scope.", "No camera or room photos required", "Sign in to book",
+  "Review the scope.", "No camera or room photos required", "Create account to book",
   "The work stays clear.", "Verified account", "COVERAGE CONFIRMED BEFORE MATCHING"
 ]) {
   assert(page.includes(truthfulPromise), `The landing page lost the grounded promise: ${truthfulPromise}.`);
 }
+assert(page.includes('<a class="ci-btn-lg" href="/signup?intent=book">Create account to book</a>') && page.includes('<a class="ci-btn-ghost" href="/login">Log in</a>'), "The manual-booking account actions no longer name their actual destinations clearly.");
+assert(!page.includes('href="/signup?intent=book">Sign in') && !page.includes('href="/login">Already registered?</a>'), "The manual-booking account actions are misleading users about whether they will create an account or log in.");
 assert((page.match(/data-book-entry/g) || []).length >= 2 && (page.match(/data-cleaner-entry/g) || []).length >= 1, "The redesign dropped the role-aware booking or cleaner entry hooks home.js drives.");
 assert(page.includes('class="ci-signup-menu" data-signup-menu') && page.includes('aria-label="Choose how you want to use Homle"'), "The landing header does not expose an accessible two-role Sign up menu.");
 assert(page.includes("data-account-menu hidden") && page.includes("data-account-avatar") && page.includes("data-account-entry hidden") && page.includes("/account-menu.js?"), "The account menu, avatar or sign-in state hooks were lost.");
