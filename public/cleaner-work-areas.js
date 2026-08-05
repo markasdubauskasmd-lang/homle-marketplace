@@ -74,6 +74,7 @@ function createPostcodeMap({ onAdd, showFeedback }) {
   let pendingPan = null;
   let requestNumber = 0;
   let wheelDelta = 0;
+  let wheelGestureLocked = false;
   let wheelTimer = 0;
   let zoomTimer = 0;
   let queuedZoom = null;
@@ -335,11 +336,14 @@ function createPostcodeMap({ onAdd, showFeedback }) {
     wheelDelta += event.deltaY * multiplier;
     window.clearTimeout(wheelTimer);
     wheelTimer = window.setTimeout(() => {
-      const direction = wheelDelta < 0 ? 1 : -1;
-      const shouldZoom = Math.abs(wheelDelta) >= 12;
       wheelDelta = 0;
-      if (shouldZoom) changeZoom(direction, event.clientX, event.clientY);
-    }, 55);
+      wheelGestureLocked = false;
+    }, 220);
+    if (wheelGestureLocked || Math.abs(wheelDelta) < 12) return;
+    const direction = wheelDelta < 0 ? 1 : -1;
+    wheelDelta = 0;
+    wheelGestureLocked = true;
+    changeZoom(direction, event.clientX, event.clientY);
   }, { passive: false });
   host.addEventListener("keydown", (event) => {
     const pan = Math.max(24, 180 / 2 ** Math.max(0, state.zoom - 5));
