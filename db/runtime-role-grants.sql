@@ -54,6 +54,25 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_request_photo_upload_for_completio
 GRANT EXECUTE ON FUNCTION tideway_private.reject_request_photo_upload(uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.complete_request_photo_upload(uuid,integer,text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_request_scan(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_room_scan(uuid,uuid,text,timestamptz,jsonb,text,text,text,smallint) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_room_scan(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.correct_room_scan_object(uuid,text,text,boolean) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.delete_room_scan(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_room_scan_measurements(uuid,jsonb) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_active_scan_pricing_ruleset(text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.publish_scan_pricing_ruleset(text,jsonb,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_scan_pricing_rulesets(text,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_scan_estimate_observation(uuid,text,integer,integer,smallint,integer,boolean,integer,integer,integer,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.scan_estimate_shadow_report(text,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_request_voice_instructions(uuid,jsonb) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_request_voice_instructions(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_scan_pricing_addons() TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.upsert_scan_pricing_addon(text,text,integer,integer,boolean) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.set_scan_retention_policy(integer,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_scan_retention_policy() TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_scan_ground_truth(uuid,text,jsonb,boolean,text,boolean) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_scan_ground_truth_queue(integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.scan_ground_truth_report() TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_request_photo_object(uuid,uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.submit_cleaning_request(uuid,boolean,boolean) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.withdraw_cleaning_request(uuid,text) TO tideway_app;
@@ -104,6 +123,19 @@ GRANT EXECUTE ON FUNCTION tideway_private.open_booking_dispute(uuid,uuid,uuid,te
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_dispute(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.list_admin_booking_disputes(text,integer,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.review_booking_dispute(uuid,text,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.create_landlord_support_request(uuid,uuid,text,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamptz,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_my_landlord_support_requests(integer,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.list_administrator_support_requests(text,text,integer,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.review_landlord_support_request(uuid,text,text) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_administrator_coverage_report(integer,boolean) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_administrator_funnel_report(integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.archive_my_property(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.restore_my_property(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_my_cleaner_onboarding_sections() TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.save_my_cleaner_profile_photo(bytea,text,integer,text,integer,integer) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_my_cleaner_profile_photo() TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.request_my_privacy_action(uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_privacy_requests() TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.request_facebook_data_deletion(uuid,text,bytea,bytea) TO tideway_app;
@@ -129,6 +161,7 @@ REVOKE INSERT, UPDATE, DELETE ON users FROM tideway_app;
 -- Booking transitions are only writable through the audited, actor-aware functions above.
 REVOKE INSERT, UPDATE, DELETE ON bookings, booking_status_history, cleaning_tasks, task_updates, job_pauses, unexpected_task_decisions, booking_progress_events, job_photos, job_photo_uploads, cleaner_locations, conversations, messages, notifications, audit_logs FROM tideway_app;
 REVOKE INSERT, UPDATE, DELETE ON disputes FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON support_requests FROM tideway_app;
 -- Object keys and upload verification records are reachable only through the narrow SECURITY DEFINER projections.
 REVOKE SELECT ON job_photos, job_photo_uploads FROM tideway_app;
 REVOKE SELECT ON conversations, messages FROM tideway_app;
@@ -144,10 +177,37 @@ REVOKE ALL ON TABLE tideway_private.request_rate_limits FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.pending_social_identities FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON authentication_identities FROM tideway_app;
 REVOKE ALL ON TABLE tideway_private.cleaner_payout_accounts, tideway_private.cleaner_payout_onboarding, tideway_private.payment_provider_events FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaner_onboarding_sections, cleaner_onboarding_documents FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaner_profile_photos FROM tideway_app;
 -- Sessions may be created/revoked through actor-bound application transactions, but only the restricted worker may physically purge expired rows.
 REVOKE DELETE ON sessions FROM tideway_app;
 -- Submitted requests may be created directly under owner RLS, but dispatch consent and lifecycle changes are function-only.
 REVOKE UPDATE, DELETE ON cleaning_requests FROM tideway_app;
 REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaning_request_photos, cleaning_request_photo_uploads FROM tideway_app;
+-- A structured scan is a description of the inside of someone's home. It is
+-- reachable only through the participant-aware projections above, so no future
+-- direct query can widen the audience by accident. The model-version table is
+-- readable because attributing a reading to a model discloses nothing about a
+-- customer, and the projection needs it to report which model produced a scan.
+REVOKE SELECT, INSERT, UPDATE, DELETE ON room_scan_sessions, room_scans, room_scan_objects, room_scan_object_corrections FROM tideway_app;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON room_scan_measurements FROM tideway_app;
+-- These numbers decide what customers are charged, and the table is append-only
+-- so an estimate can always be recomputed from the rules that produced it. A
+-- direct UPDATE would silently rewrite the past.
+REVOKE SELECT, INSERT, UPDATE, DELETE ON scan_pricing_rulesets FROM tideway_app;
+-- Individual observations carry a request id. The reporting function returns
+-- statistics instead, because an error distribution discloses nothing while a
+-- list of requests and agreed prices is a list of what customers paid.
+REVOKE SELECT, INSERT, UPDATE, DELETE ON scan_estimate_observations FROM tideway_app;
+-- Spoken instructions are the customer's own words about their home, reachable
+-- only through the participant-aware projection. Rates, add-ons and the retention
+-- policy stay readable because a customer is entitled to see what they are
+-- quoted from and how long their scan is kept.
+REVOKE SELECT, INSERT, UPDATE, DELETE ON cleaning_request_voice_instructions FROM tideway_app;
+REVOKE INSERT, UPDATE, DELETE ON scan_pricing_addons, scan_retention_policy FROM tideway_app;
+-- Reviewer verdicts about the inside of homes: function-only, like the scans
+-- they describe. The report function returns counts, never rows.
+REVOKE SELECT, INSERT, UPDATE, DELETE ON room_scan_ground_truth FROM tideway_app;
+REVOKE INSERT, UPDATE, DELETE ON room_scan_model_versions FROM tideway_app;
 
 COMMIT;

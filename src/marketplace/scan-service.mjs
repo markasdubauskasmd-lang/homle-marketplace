@@ -1,0 +1,448 @@
+import { randomUUID } from "node:crypto";
+import { uuid } from "./validation.mjs";
+import {
+  cleanConditionReviewThreshold, conditionReviewThreshold, isItemCondition, isRoomCondition, isSoilingKind, objectOrigins
+} from "./room-condition-vocabulary.mjs";
+import { assessCleaningComplexity } from "./cleaning-complexity.mjs";
+import { derivedArea, measurementLabel, normalizedMeasurements, userConfirmedMeasurement } from "./room-measurement.mjs";
+import { defaultPricingRuleset, estimateScanPrice, normalizedPricingRuleset } from "./scan-pricing.mjs";
+import { instructionKinds } from "./speech-summary.mjs";
+
+// Structured room scans: what the scanner actually saw, kept.
+//
+// Until this module existed the scan produced per-object conditions, soiling
+// types, two confidence scores and evidence strings, and the browser threw all
+// of it away at the moment of submission — only the generated task strings
+// survived. See docs/ROOM_SCAN_ARCHITECTURE_AUDIT.md, gap G1.
+//
+// Two rules govern everything below, and both are about not manufacturing
+// certainty the scan never had:
+//
+//   1. An absent or unrecognised condition becomes no assessment, never a
+//      grade. The vision reader already refuses to coerce 'unknown' into
+//      'light'; a normaliser that quietly did so on the way to storage would
+//      undo that at the last step, and the stored grade is what will later
+//      influence a price.
+//   2. Numbers are clamped, names and enums are rejected. A confidence of 1.4
+//      is a malformed number with an obvious honest reading; a condition of
+//      "filthy" is a claim about someone's home that has no safe substitute.
+//
+// This module records observations. It computes no price and no duration.
+
+export const maximumScanRooms = 20;
+export const maximumRoomObjects = 40;
+export const maximumScanObjects = 200;
+const deviceClasses = Object.freeze(["guided-web", "camera-fallback", "unknown"]);
+// A preview is never stored, so it has no request. This satisfies the shared
+// normaliser's id check without implying a request exists.
+const previewRequestId = "00000000-0000-4000-8000-000000000000";
+const correctionFields = Object.freeze(["label", "condition", "quantity", "removed"]);
+
+function boundedText(value, maximum, label, minimum = 0) {
+  const normalized = typeof value === "string" ? value.trim().replace(/[\u0000-\u001f\u007f]/g, "") : "";
+  if (normalized.length < minimum || normalized.length > maximum) throw new TypeError(`${label} must contain ${minimum} to ${maximum} characters.`);
+  return normalized;
+}
+
+// Absent, unparseable or out-of-range all resolve to a number inside 0..1,
+// matching confidenceValue() on the device. A missing score reads as no
+// confidence rather than as full confidence, so a payload that omits the field
+// cannot silently assert certainty.
+function confidence(value) {
+  const supplied = Number(value);
+  if (!Number.isFinite(supplied)) return 0;
+  return Math.round(Math.max(0, Math.min(1, supplied)) * 1000) / 1000;
+}
+
+function quantity(value) {
+  const supplied = Number(value);
+  if (!Number.isInteger(supplied)) return 1;
+  return Math.max(1, Math.min(20, supplied));
+}
+
+function instant(value, label) {
+  const parsed = value instanceof Date ? value : new Date(String(value ?? ""));
+  if (Number.isNaN(parsed.getTime())) throw new TypeError(`${label} must be a valid timestamp.`);
+  return parsed.toISOString();
+}
+
+function soiling(value) {
+  const supplied = Array.isArray(value) ? value : [];
+  const kept = [];
+  for (const entry of supplied) {
+    const kind = String(entry || "").toLowerCase().trim();
+    if (isSoilingKind(kind) && !kept.includes(kind)) kept.push(kind);
+  }
+  return kept.slice(0, 4);
+}
+
+// '' and 'unknown' both mean the photograph could not support a judgement, and
+// so does any value the reader was never allowed to produce. All three become
+// absence, because there is no honest grade to fall back to.
+function itemCondition(value) {
+  const supplied = String(value || "").toLowerCase().trim();
+  return isItemCondition(supplied) ? supplied : "";
+}
+
+function roomCondition(value) {
+  const supplied = String(value || "").toLowerCase().trim();
+  return isRoomCondition(supplied) ? supplied : "";
+}
+
+function scanObject(input, roomLabel, index) {
+  const label = boundedText(input?.label, 40, `${roomLabel} object ${index + 1} name`, 1);
+  // The identity the device tracked this object under, from before any rename.
+  // Falling back to the label keeps a hand-marked item recordable; it is the
+  // only case where the two are the same by construction.
+  const inventoryKey = boundedText(input?.inventoryKey || label, 60, `${roomLabel} object ${index + 1} key`, 1).toLowerCase();
+  const origin = String(input?.origin || "").toLowerCase().trim();
+  return {
+    inventoryKey,
+    label,
+    quantity: quantity(input?.quantity),
+    condition: itemCondition(input?.condition),
+    soiling: soiling(input?.soiling),
+    confidenceLabel: confidence(input?.confidenceLabel ?? input?.confidence),
+    confidenceCondition: confidence(input?.confidenceCondition),
+    conditionConfirmed: input?.conditionConfirmed === true,
+    evidence: boundedText(input?.evidence ?? input?.note, 200, `${roomLabel} object ${index + 1} evidence`),
+    // An unrecognised origin resolves to the on-device detector rather than
+    // rejecting the object. 'manual' and 'vision' are the two values a
+    // correction rate is measured against, so neither may be assumed.
+    origin: objectOrigins.includes(origin) ? origin : "detector"
+  };
+}
+
+function scanRoom(input, index) {
+  const roomName = boundedText(input?.roomName ?? input?.name, 120, `Room ${index + 1} name`, 1);
+  const objects = Array.isArray(input?.objects) ? input.objects : [];
+  if (objects.length > maximumRoomObjects) throw new TypeError(`${roomName} contains more than ${maximumRoomObjects} objects.`);
+  return {
+    roomName,
+    condition: roomCondition(input?.condition),
+    note: boundedText(input?.note ?? input?.transcript, 1000, `${roomName} note`),
+    objects: objects.map((object, objectIndex) => scanObject(object, roomName, objectIndex))
+  };
+}
+
+export function normalizedRoomScan(input = {}, options = {}) {
+  const rooms = Array.isArray(input.rooms) ? input.rooms : [];
+  if (!rooms.length || rooms.length > maximumScanRooms) throw new TypeError(`A room scan must contain 1 to ${maximumScanRooms} rooms.`);
+  const normalizedRooms = rooms.map(scanRoom);
+  const totalObjects = normalizedRooms.reduce((total, room) => total + room.objects.length, 0);
+  if (totalObjects > maximumScanObjects) throw new TypeError(`A room scan may carry at most ${maximumScanObjects} objects.`);
+  const deviceClass = String(input.deviceClass || "").trim();
+  return {
+    // Supplied by the client so a retried save is absorbed rather than
+    // duplicated, and generated here when absent so a caller that forgets one
+    // still cannot create two scans by pressing save twice.
+    sessionId: uuid(input.sessionId || randomUUID(), "scan session id"),
+    cleaningRequestId: uuid(input.cleaningRequestId, "cleaning request id"),
+    deviceClass: deviceClasses.includes(deviceClass) ? deviceClass : "unknown",
+    capturedAt: instant(input.capturedAt ?? options.clock?.() ?? new Date(), "Scan capture time"),
+    rooms: normalizedRooms
+  };
+}
+
+// Attribution comes from the server's own configuration, never from the request
+// body. A client able to name the model that read its scan could write an
+// arbitrary claim into the audit trail, and the audit trail exists precisely to
+// be trusted when a quote is disputed.
+function modelAttribution(vision) {
+  if (!vision?.provider || !vision.models?.confirmation) return null;
+  return {
+    purpose: "confirmation",
+    provider: String(vision.provider).slice(0, 40),
+    modelId: String(vision.models.confirmation).slice(0, 80),
+    schemaVersion: Number.isInteger(vision.schemaVersion) ? vision.schemaVersion : 1
+  };
+}
+
+function objectProjection(record) {
+  const conditionValue = itemCondition(record?.condition);
+  const confidenceCondition = confidence(record?.confidenceCondition);
+  const confirmed = record?.conditionConfirmed === true;
+  return Object.freeze({
+    objectId: record?.objectId,
+    inventoryKey: record?.inventoryKey || "",
+    label: record?.label || "",
+    quantity: quantity(record?.quantity),
+    condition: conditionValue,
+    soiling: Object.freeze(soiling(record?.soiling)),
+    confidenceLabel: confidence(record?.confidenceLabel),
+    confidenceCondition,
+    conditionConfirmed: confirmed,
+    evidence: String(record?.evidence || ""),
+    origin: record?.origin || "detector",
+    // Surfaced rather than hidden. An uncertain grade the customer can see and
+    // correct is useful; the same grade presented as a finding is what changes
+    // what someone is charged on evidence nobody checked. A grade the customer
+    // has already confirmed needs no second look.
+    // "clean" is held to the higher threshold because a wrong clean hides work
+    // rather than inviting review — see the vocabulary for why the two errors
+    // are not symmetric.
+    needsConfirmation: !confirmed && (!conditionValue
+      || confidenceCondition < (conditionValue === "clean" ? cleanConditionReviewThreshold : conditionReviewThreshold))
+  });
+}
+
+// A measurement always travels with how it was arrived at and how far out it
+// could be. There is no shape in which one leaves this module as a bare number.
+function measurementProjection(record) {
+  const projected = {
+    measurementId: record?.measurementId,
+    subject: String(record?.subject || ""),
+    method: String(record?.method || ""),
+    valueMm: Number(record?.valueMm) || 0,
+    toleranceMm: Number(record?.toleranceMm) || 0,
+    confidence: String(record?.confidence || "low"),
+    reference: String(record?.reference || ""),
+    // Both figures survive a correction, for the same reason object
+    // corrections keep theirs: the first is the label, the second is the truth
+    // the customer asserted.
+    originalValueMm: record?.originalValueMm == null ? null : Number(record.originalValueMm)
+  };
+  return Object.freeze({
+    ...projected,
+    relativeTolerance: projected.valueMm ? Math.round((projected.toleranceMm / projected.valueMm) * 10000) / 10000 : 0,
+    // Only a person's own figure about their own home is settled. Everything
+    // else stays an estimate however tight the arithmetic came out.
+    estimated: projected.method !== "user-confirmed",
+    label: measurementLabel({ ...projected, referenceLabel: projected.reference.replace(/-/g, " "), relativeTolerance: projected.valueMm ? projected.toleranceMm / projected.valueMm : 0 })
+  });
+}
+
+function roomProjection(record) {
+  const objects = (Array.isArray(record?.objects) ? record.objects : []).map(objectProjection);
+  const measurements = (Array.isArray(record?.measurements) ? record.measurements : []).map(measurementProjection);
+  return Object.freeze({
+    roomScanId: record?.roomScanId,
+    roomName: record?.roomName || "",
+    condition: roomCondition(record?.condition),
+    note: String(record?.note || ""),
+    measurements: Object.freeze(measurements),
+    objects: Object.freeze(objects),
+    objectCount: objects.reduce((total, object) => total + object.quantity, 0),
+    unresolvedCount: objects.filter((object) => object.needsConfirmation).length
+  });
+}
+
+export function scanProjection(record) {
+  const rooms = (Array.isArray(record?.rooms) ? record.rooms : []).map(roomProjection);
+  const session = record?.session;
+  return Object.freeze({
+    cleaningRequestId: record?.cleaningRequestId ?? null,
+    session: session ? Object.freeze({
+      sessionId: session.sessionId,
+      deviceClass: session.deviceClass,
+      capturedAt: session.capturedAt ? new Date(session.capturedAt).toISOString() : null,
+      createdAt: session.createdAt ? new Date(session.createdAt).toISOString() : null,
+      model: session.model ? Object.freeze({ ...session.model }) : null
+    }) : null,
+    rooms: Object.freeze(rooms),
+    roomCount: rooms.length,
+    objectCount: rooms.reduce((total, room) => total + room.objectCount, 0),
+    // How much of this scan is still asking a question. The booking journey
+    // shows it rather than burying it, because the alternative is a confident
+    // summary built on readings the scan itself was unsure about.
+    unresolvedCount: rooms.reduce((total, room) => total + room.unresolvedCount, 0),
+    // Derived on read, never stored. The observations are the record; this is a
+    // reading of them. Keeping it derived means a weight change re-scores every
+    // historical scan and can be evaluated against them, which is impossible
+    // once a score has been frozen into a row.
+    complexity: assessCleaningComplexity({ rooms })
+  });
+}
+
+function normalizedCorrection(input = {}) {
+  const field = String(input.field || "").toLowerCase().trim();
+  if (!correctionFields.includes(field)) throw new TypeError("Choose a supported room-scan correction.");
+  if (field === "removed") return { field, value: null, trainingConsent: input.trainingConsent === true };
+  if (field === "label") return { field, value: boundedText(input.value, 40, "Corrected object name", 1), trainingConsent: input.trainingConsent === true };
+  if (field === "quantity") {
+    const supplied = Number(input.value);
+    if (!Number.isInteger(supplied) || supplied < 1 || supplied > 20) throw new TypeError("An object quantity must be between 1 and 20.");
+    return { field, value: String(supplied), trainingConsent: input.trainingConsent === true };
+  }
+  const condition = String(input.value || "").toLowerCase().trim();
+  // An empty condition is a real correction: it is the customer saying they
+  // cannot tell either, which is more honest than the grade that was there.
+  if (condition && !isItemCondition(condition)) throw new TypeError("Choose a supported cleaning condition.");
+  return { field, value: condition, trainingConsent: input.trainingConsent === true };
+}
+
+export function createScanService(repository, options = {}) {
+  // The estimate is layered onto the projection rather than computed inside it,
+  // because reading the operator's published rates is a database call and the
+  // projection is pure. Keeping the projection pure is what lets every
+  // structural rule above be tested without a database.
+  const pricing = options.pricing || null;
+  // Optional, and every call is guarded. A missing collector must not change
+  // behaviour: this observes the scan, it is not part of it.
+  const telemetry = options.telemetry || null;
+  const observe = (metric, extra) => { try { telemetry?.record(metric, extra); } catch { /* never the reason a scan fails */ } };
+  async function estimateFor(actor, scan, chosenAddOnCodes = []) {
+    if (!scan?.complexity?.assessed) return null;
+    let ruleset = defaultPricingRuleset;
+    try {
+      // An unconfigured deployment prices identically to a configured one. A
+      // failure to read the rates must never turn into a differently-priced
+      // estimate, so it falls back to the shipped defaults rather than to
+      // nothing or to a partial ruleset.
+      const published = pricing ? await pricing.getActiveRuleset(actor, "default") : null;
+      if (published) ruleset = normalizedPricingRuleset(published);
+    } catch { ruleset = defaultPricingRuleset; }
+
+    // Add-ons are resolved against the catalogue, never taken from the request.
+    // A client that could name its own price for an extra could name any price,
+    // and the whole point of the ruleset is that every component has a reviewed
+    // amount behind it.
+    let addOns = [];
+    const requested = Array.isArray(chosenAddOnCodes) ? chosenAddOnCodes.slice(0, 10).map((code) => String(code || "")) : [];
+    if (requested.length && pricing?.listAddons) {
+      try {
+        const catalogue = await pricing.listAddons(actor);
+        addOns = (Array.isArray(catalogue) ? catalogue : []).filter((entry) => requested.includes(String(entry?.code || "")));
+      } catch { addOns = []; }
+    }
+    return estimateScanPrice(scan, ruleset, addOns);
+  }
+
+  if (!repository || typeof repository.recordScan !== "function" || typeof repository.getScan !== "function"
+    || typeof repository.correctObject !== "function" || typeof repository.deleteScan !== "function"
+    || typeof repository.recordMeasurements !== "function"
+    || typeof repository.recordVoiceInstructions !== "function" || typeof repository.getVoiceInstructions !== "function") {
+    throw new TypeError("A complete room-scan repository is required.");
+  }
+  const vision = options.vision || null;
+  return Object.freeze({
+    async recordOwnScan(actor, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to save a room scan.");
+      const scan = normalizedRoomScan(input, options);
+      const recorded = scanProjection(await repository.recordScan(actor, { ...scan, model: modelAttribution(vision) }));
+      // A recorded scan is a completed one: the customer finished the walkthrough
+      // and reached the point of saving it.
+      observe("scan.session.completed", { dimensions: { deviceClass: scan.deviceClass } });
+      if (recorded.roomCount) observe("scan.room.completed", { count: recorded.roomCount, dimensions: { deviceClass: scan.deviceClass } });
+      return recorded;
+    },
+    // Assesses a scan the customer is still holding, before any draft exists.
+    //
+    // Stores absolutely nothing. The booking journey needs to show a complexity
+    // level, an explanation and an estimate at the review step, and at that
+    // point there is no request to attach a scan to — the private draft is
+    // created at checkout. Computing it here rather than in the browser keeps
+    // one implementation of the model and applies the rates an operator actually
+    // published, which client-side arithmetic could not.
+    async previewScan(actor, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to review a room scan.");
+      // Normalised through exactly the same path as a stored scan, so the
+      // preview cannot show a level the saved scan would not produce.
+      const normalized = normalizedRoomScan({ ...input, cleaningRequestId: input.cleaningRequestId || previewRequestId }, options);
+      const scan = scanProjection({
+        cleaningRequestId: null,
+        session: null,
+        rooms: normalized.rooms.map((room) => ({
+          roomScanId: null,
+          roomName: room.roomName,
+          condition: room.condition,
+          note: room.note,
+          measurements: room.measurements || [],
+          // The preview has no server-assigned ids, so the identity key stands
+          // in. The client already tracks objects by it, and inventing a uuid
+          // here would hand back an id that matches nothing once saved.
+          objects: room.objects.map((object) => ({ ...object, objectId: object.inventoryKey }))
+        }))
+      });
+      return Object.freeze({ ...scan, estimate: await estimateFor(actor, scan, input.addOns) });
+    },
+    async getScan(actor, cleaningRequestId) {
+      if (!actor?.userId || !actor.roles?.some((role) => role === "landlord" || role === "administrator")) {
+        throw new TypeError("A Landlord or Administrator account is required to view this room scan.");
+      }
+      const requestId = uuid(cleaningRequestId, "cleaning request id");
+      const scan = scanProjection(await repository.getScan(actor, requestId));
+      const estimate = await estimateFor(actor, scan);
+      if (estimate) observe(estimate.priceable ? "scan.estimate.produced" : "scan.estimate.refused", { dimensions: { level: String(estimate.complexityLevel ?? 0) } });
+      observe("scan.condition.unresolved", { count: Math.max(1, scan.unresolvedCount) });
+      // Recorded so the estimate's error against the price a Cleaner actually
+      // accepted accrues from ordinary trading. Awaited rather than fired and
+      // forgotten, because an unawaited promise rejecting after the response is
+       // an unhandled rejection; the recorder swallows its own failures instead.
+      if (estimate && pricing?.recordObservation) await pricing.recordObservation(actor, requestId, estimate);
+      return Object.freeze({ ...scan, estimate });
+    },
+    async recordOwnVoiceInstructions(actor, cleaningRequestId, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to save spoken instructions.");
+      // Filtered before normalising, not after. These arrive from the
+      // classifier rather than from the customer, so a blank entry is our own
+      // malformed output — and throwing would lose every good instruction
+      // alongside it. Same trade as everywhere else in this feature: one lost
+      // line, not a lost set.
+      const supplied = (Array.isArray(input.instructions) ? input.instructions : [])
+        .filter((entry) => String(entry?.instruction ?? "").trim().length > 0)
+        .slice(0, 60);
+      const instructions = supplied.map((entry) => ({
+        roomName: boundedText(entry?.roomName, 120, "Instruction room"),
+        instruction: boundedText(entry?.instruction, 300, "Spoken instruction", 1),
+        // An unrecognised kind resolves the cautious way, exactly as the
+        // classifier does: a refusal becomes a restriction, never work to do.
+        kind: instructionKinds.includes(String(entry?.kind || "")) ? String(entry.kind) : (entry?.excluded === true ? "restriction" : "request"),
+        subject: boundedText(entry?.subject, 80, "Instruction subject"),
+        priority: String(entry?.priority || "") === "high" ? "high" : "normal",
+        excluded: entry?.excluded === true
+      }));
+      const stored = await repository.recordVoiceInstructions(actor, uuid(cleaningRequestId, "cleaning request id"), instructions);
+      return Object.freeze({ instructions: Object.freeze(Array.isArray(stored) ? stored.map((entry) => Object.freeze({ ...entry })) : []) });
+    },
+    async correctOwnObject(actor, objectId, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to correct a room scan.");
+      const normalizedInput = normalizedCorrection(input);
+      const correction = await repository.correctObject(actor, uuid(objectId, "scan object id"), normalizedInput);
+      // Counted separately, because a customer deleting a detection and a customer
+      // renaming one say different things about the model.
+      observe(normalizedInput.field === "removed" ? "scan.object.removed" : "scan.object.corrected");
+      if (correction?.removed === true) return Object.freeze({ objectId: correction.objectId, removed: true });
+      return Object.freeze({ ...objectProjection(correction), removed: false });
+    },
+    async recordOwnMeasurements(actor, roomScanId, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to save room measurements.");
+      // A typed figure arriving without a band gets the standard user-confirmed
+      // one rather than zero. People estimate too, and a stored zero tolerance
+      // would make "about four metres" read like a laser measurement for ever.
+      const supplied = (Array.isArray(input.measurements) ? input.measurements : []).map((entry) => (
+        entry?.method === "user-confirmed" && !(Number(entry?.toleranceMm) >= 0)
+          ? userConfirmedMeasurement(entry)
+          : entry
+      ));
+      // Normalised before it reaches the database, which then applies the same
+      // rules again. Both layers refuse a bare number on purpose: a measurement
+      // whose provenance is unknown sits in the same column as the others and
+      // looks exactly like them.
+      const measurements = normalizedMeasurements(supplied);
+      if (!measurements.length) throw new TypeError("A measurement needs a supported subject, a method and a tolerance.");
+      // A length and a width imply the floor area, so it is derived here — once,
+      // by the module that owns the compounding-tolerance arithmetic — rather
+      // than asked of the customer or, worse, computed loosely by a client. The
+      // derived figure is only stored while it is honest: `derivedArea` widens
+      // the band to the sum of its parts and refuses when that is unusable.
+      const length = measurements.find((entry) => entry.subject === "room-length");
+      const width = measurements.find((entry) => entry.subject === "room-width");
+      const withArea = length && width && !measurements.some((entry) => entry.subject === "floor-area")
+        ? (() => {
+          const area = derivedArea({ length, width });
+          return area.usable ? [...measurements, {
+            subject: area.subject, method: area.method, valueMm: area.valueMm,
+            toleranceMm: area.toleranceMm, confidence: area.confidence, reference: ""
+          }] : measurements;
+        })()
+        : measurements;
+      const stored = await repository.recordMeasurements(actor, uuid(roomScanId, "room scan id"), normalizedMeasurements(withArea));
+      return Object.freeze({ measurements: Object.freeze((Array.isArray(stored) ? stored : []).map(measurementProjection)) });
+    },
+    async deleteOwnScan(actor, cleaningRequestId) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to delete a room scan.");
+      return Object.freeze({ deleted: await repository.deleteScan(actor, uuid(cleaningRequestId, "cleaning request id")) === true });
+    }
+  });
+}

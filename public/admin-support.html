@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Landlord support | Homle</title>
+  <link rel="icon" href="/homle-logo.png" type="image/png">
+  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
+  <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <link rel="stylesheet" href="/landlord-help.css?v=20260730-1">
+  <script type="module" src="/admin-support.js?v=20260805-1"></script>
+</head>
+<body class="support-page admin-support-page">
+  <a class="skip-link" href="#admin-support-main">Skip to support queue</a>
+  <header class="support-header"><div class="shell support-nav"><a class="brand" href="/"><img src="/homle-logo.png" alt="" width="42" height="42"><span>Homle</span></a><nav aria-label="Administrator" data-admin-support-private-navigation hidden><a href="/admin">Control desk</a><a href="/admin/cases">Booking cases</a><a aria-current="page" href="/admin/support">Landlord support</a></nav></div></header>
+  <main id="admin-support-main" class="shell support-main">
+    <section class="support-gate" data-admin-support-gate role="status" aria-live="polite"><strong data-admin-support-gate-title>Checking secure Administrator access…</strong><p data-admin-support-gate-copy>Landlord support messages are private.</p><div><a class="button" href="/login" data-admin-support-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-admin-support-retry hidden>Try again</button></div></section>
+    <div data-admin-support-workspace hidden>
+      <header class="support-heading"><div><p class="eyebrow">Private Administrator queue</p><h1>Landlord support</h1><p>Triage account, property, room-scan, pre-booking and confirmed-booking change requests. Recording a response never changes a booking or payment.</p></div><button class="button button-outline" type="button" data-admin-support-refresh>Refresh queue</button></header>
+      <section class="support-card">
+        <div class="admin-support-toolbar"><label>Status<select data-admin-support-status><option value="">All</option><option value="open">Sent</option><option value="reviewing">Under review</option><option value="resolved">Answered</option></select></label><label>Category<select data-admin-support-category><option value="">All</option><option value="account-access">Account access</option><option value="property">Property</option><option value="room-scan">Room scan</option><option value="booking-preparation">Preparing a booking</option><option value="booking-change">Booking change</option><option value="other">Something else</option></select></label></div>
+        <div class="support-feedback" data-admin-support-feedback role="status" tabindex="-1" hidden></div>
+        <div class="support-list" data-admin-support-list aria-live="polite" aria-busy="true"></div>
+        <div class="support-empty" data-admin-support-empty hidden><strong>No requests in this view.</strong><p>Change the filters or refresh the queue.</p></div>
+      </section>
+    </div>
+  </main>
+  <dialog class="settings-dialog" data-admin-support-dialog>
+    <form method="dialog" data-admin-support-form>
+      <p class="eyebrow">Private in-app answer</p><h2>Resolve support request</h2>
+      <p data-admin-support-dialog-copy></p>
+      <label>Response<textarea name="resolutionSummary" rows="7" minlength="20" maxlength="2000" required></textarea><small>Do not include passwords, access details, payment data, secret keys or unnecessary personal information.</small></label>
+      <label class="checkbox"><input type="checkbox" name="privacyConfirmed" required><span>I kept private and secret information out of this response.</span></label>
+      <label class="checkbox"><input type="checkbox" name="noExternalActionConfirmed" required><span>I understand this records an in-app response only. It does not contact anyone or change a booking, payment or account.</span></label>
+      <div class="support-feedback" data-admin-support-dialog-feedback role="alert" hidden></div>
+      <div class="settings-dialog-actions"><button class="button" type="submit" data-admin-support-resolve>Record final response</button><button class="button button-outline" type="button" data-admin-support-cancel>Cancel</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

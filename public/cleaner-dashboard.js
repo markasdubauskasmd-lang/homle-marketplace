@@ -1,6 +1,6 @@
 import { bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, cleanerMarketplaceCapabilityState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260723-3";
-import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-7";
-import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-6";
+import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-9";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260729-6";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { storedCsrf } from "./session-csrf.js";
@@ -23,6 +23,7 @@ let responding = false;
 let payoutStatus = null;
 let availabilityWindows = [];
 let cleanerProfile = null;
+let cleanerOnboardingSections = [];
 let marketplaceCapabilities = cleanerMarketplaceCapabilityState();
 let invitationDeadlineTimer = null;
 let refreshingExpiredInvitations = false;
@@ -511,7 +512,8 @@ function renderWorkOverview(summary, capabilities, buckets) {
     account: accountRecord,
     profile: cleanerProfile,
     payoutState: summary.payoutState,
-    availabilityCount: summary.availableWindowCount
+    availabilityCount: summary.availableWindowCount,
+    onboardingSections: cleanerOnboardingSections
   });
   const percent = progress.percent;
   setText("[data-cleaner-profile-progress]", `${percent}%`);
@@ -750,11 +752,12 @@ async function loadDashboard() {
     dashboard.hidden = false;
     dashboard.setAttribute("aria-busy", "true");
 
-    const [bookingResult, profileResult, payoutResult, availabilityResult, healthResult] = await Promise.allSettled([
+    const [bookingResult, profileResult, payoutResult, availabilityResult, onboardingResult, healthResult] = await Promise.allSettled([
       requestJson("/api/marketplace/bookings?limit=50"),
       requestJson("/api/marketplace/cleaner/profile"),
       loadOptionalPayoutStatus(),
       requestJson("/api/marketplace/cleaner/availability"),
+      requestJson("/api/marketplace/cleaner/onboarding"),
       requestJson("/api/health")
     ]);
     const failures = [bookingResult, profileResult, availabilityResult].filter((result) => result.status === "rejected");
@@ -764,6 +767,7 @@ async function loadDashboard() {
     if (profileResult.status === "fulfilled") cleanerProfile = profileResult.value.profile && typeof profileResult.value.profile === "object" ? profileResult.value.profile : null;
     if (payoutResult.status === "fulfilled") payoutStatus = payoutResult.value;
     if (availabilityResult.status === "fulfilled") availabilityWindows = Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability : [];
+    if (onboardingResult.status === "fulfilled") cleanerOnboardingSections = Array.isArray(onboardingResult.value.sections) ? onboardingResult.value.sections : [];
     marketplaceCapabilities = cleanerMarketplaceCapabilityState({
       checked: healthResult.status === "fulfilled",
       pricingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.matchingReady === true,

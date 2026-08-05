@@ -3,27 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Sign in to Homle to follow a cleaning request through to completion, or take one of the two routes that need no account.">
+  <meta name="description" content="Sign in or create a verified Homle account to manage cleaning bookings or Cleaner work through separate private workspaces.">
+  <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#faf7ec" />
   <title>Sign in to Homle</title>
-  <link rel="icon" href="/homle-logo.png" type="image/png">
+  <link rel="icon" href="/homle-logo-192-c8defd4b.png" type="image/png">
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/account-entry.css?v=20260728-2">
-  <script src="/auth-entry.js?v=20260728-4" type="module"></script>
+  <link rel="stylesheet" href="/account-entry.css?v=20260729-2">
+  <script src="/auth-entry.js?v=20260805-1" type="module"></script>
 </head>
 <body class="account-page account-entry">
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="site-header">
-    <div class="shell nav-wrap">
-      <a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" alt="" width="40" height="40"><span>Homle</span></a>
-      <nav class="account-nav" aria-label="Account page navigation"><a href="/">Back to Homle</a></nav>
-    </div>
-  </header>
 
   <main id="main" class="ae-stage">
       <article class="ae-panel">
-        <div class="ae-pulse" aria-hidden="true"><b></b><i></i></div>
+        <a class="ae-logo" href="/" aria-label="Return to Homle home"><img src="/homle-logo-192-c8defd4b.png" alt="" width="76" height="76"></a>
         <p class="ae-eyebrow" data-account-side-title>Cleaner and landlord accounts</p>
 
         <!-- The headline text is swapped by auth-entry.js as the mode resolves, so
@@ -50,6 +45,11 @@
 
           <div class="account-choice-divider" data-account-choice-divider hidden><span>or</span></div>
           <button class="account-email-toggle" type="button" data-email-toggle aria-expanded="false" hidden>Continue with email</button>
+
+          <section class="account-form account-unavailable" data-account-unavailable hidden aria-label="Account recovery unavailable">
+            <p data-account-unavailable-copy>This email-password action is not available.</p>
+            <a class="button" data-account-unavailable-action href="/login">Return to sign in</a>
+          </section>
 
           <form id="account-email-login" class="account-form" data-account-form="login" hidden novalidate>
             <fieldset data-account-controls disabled>
@@ -141,16 +141,6 @@
           </section>
         </section>
 
-        <!-- The design called these "continue without an account", but the public
-             /request and /join journeys were retired in #146 — every route into the
-             product is account-first now. So these are the two private workspaces,
-             which is what the retired links became. -->
-        <div class="ae-or" data-pilot-divider><span>or go straight to a workspace</span></div>
-        <div class="ae-alt" data-pilot-actions>
-          <a href="/landlord/dashboard"><span class="ae-ico ae-ico-mint" aria-hidden="true">✦</span><div><strong>Open Landlord dashboard</strong><small>Add a property, scan rooms and follow a booking.</small></div></a>
-          <a href="/cleaner/dashboard"><span class="ae-ico ae-ico-citrus" aria-hidden="true">✓</span><div><strong>Open Cleaner dashboard</strong><small>Choose the areas and times that suit you.</small></div></a>
-        </div>
-
         <p class="ae-fine" data-account-side-note>Nothing is booked and no payment is taken while this check runs.</p>
         <noscript><p class="account-noscript">Account access needs JavaScript. No booking, payment or account action happens on this page without it.</p></noscript>
       </article>
@@ -165,6 +155,6 @@
       </ol>
   </main>
 
-  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle private pilot.</span><a href="/privacy">Privacy notice</a></div></footer>
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle private pilot.</span><span><a href="/privacy">Privacy notice</a> · <a href="/terms">Pilot terms</a></span></div></footer>
 </body>
 </html>

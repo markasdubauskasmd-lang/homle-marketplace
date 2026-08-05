@@ -30,9 +30,19 @@ DECLARE
   bookings_cleaning_request_index_installed boolean := false;
   payment_and_directory_indexes_installed boolean := false;
   account_notification_realtime_installed boolean := false;
+  structured_room_scans_installed boolean := false;
+  room_measurements_installed boolean := false;
+  landlord_support_installed boolean := false;
+  landlord_booking_changes_installed boolean := false;
+  administrator_coverage_installed boolean := false;
+  administrator_funnel_installed boolean := false;
+  property_archiving_installed boolean := false;
+  property_restoration_installed boolean := false;
+  cleaner_onboarding_records_installed boolean := false;
+  cleaner_address_lookup_rate_limit_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
-  rls_tables constant text[] := ARRAY[
+  rls_tables text[] := ARRAY[
     'users','user_roles','authentication_identities','password_credentials','email_verification_tokens','password_reset_tokens','sessions',
     'cleaner_profiles','cleaner_services','cleaner_service_areas','cleaner_availability','landlord_profiles','properties','property_photos',
     'cleaning_requests','cleaning_request_tasks','cleaning_request_photos','cleaning_request_photo_uploads','cleaning_request_status_history','bookings','booking_status_history',
@@ -40,13 +50,13 @@ DECLARE
     'cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','favourite_cleaners','disputes','privacy_requests','audit_logs',
     'booking_payments','payment_commands','payment_status_history'
   ];
-  protected_write_tables constant text[] := ARRAY[
+  protected_write_tables text[] := ARRAY[
     'authentication_identities','bookings','booking_status_history','cleaning_tasks','task_updates','job_pauses','unexpected_task_decisions','booking_progress_events',
     'cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','cleaner_locations','conversations','messages','booking_realtime_events','notifications','reviews','disputes','privacy_requests','audit_logs',
     'booking_payments','payment_commands','payment_status_history'
   ];
-  protected_read_tables constant text[] := ARRAY['authentication_identities','cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','disputes','privacy_requests','booking_payments','payment_commands','payment_status_history'];
-  app_functions constant text[] := ARRAY[
+  protected_read_tables text[] := ARRAY['authentication_identities','cleaning_request_photos','cleaning_request_photo_uploads','job_photos','job_photo_uploads','conversations','messages','booking_realtime_events','notifications','reviews','disputes','privacy_requests','booking_payments','payment_commands','payment_status_history'];
+  app_functions text[] := ARRAY[
     'tideway_private.lookup_session(bytea)',
     'tideway_private.resolve_social_identity(authentication_provider,text,citext,boolean,text,text,jsonb)',
     'tideway_private.search_cleaner_directory(text,text,timestamp with time zone,timestamp with time zone,numeric,integer,boolean,numeric,numeric,numeric,integer,integer)',
@@ -223,6 +233,26 @@ BEGIN
       INTO payment_and_directory_indexes_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 72)'
       INTO account_notification_realtime_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 73)'
+      INTO structured_room_scans_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 74)'
+      INTO room_measurements_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 80)'
+      INTO landlord_support_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 81)'
+      INTO administrator_coverage_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 82)'
+      INTO property_archiving_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 83)'
+      INTO property_restoration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 84)'
+      INTO cleaner_onboarding_records_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 85)'
+      INTO cleaner_address_lookup_rate_limit_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 87)'
+      INTO administrator_funnel_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 88)'
+      INTO landlord_booking_changes_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -246,6 +276,15 @@ BEGIN
     minimum_contribution_migration_installed := to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL;
     public_cleaner_lookup_migration_installed := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)') IS NOT NULL;
     account_notification_realtime_installed := to_regprocedure('tideway_private.emit_account_notification_realtime_event()') IS NOT NULL;
+    structured_room_scans_installed := to_regclass('public.room_scan_sessions') IS NOT NULL;
+    room_measurements_installed := to_regclass('public.room_scan_measurements') IS NOT NULL;
+    landlord_support_installed := to_regprocedure('tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)') IS NOT NULL;
+    landlord_booking_changes_installed := to_regprocedure('tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)') IS NOT NULL;
+    administrator_coverage_installed := to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NOT NULL;
+    property_archiving_installed := to_regprocedure('tideway_private.archive_my_property(uuid)') IS NOT NULL;
+    property_restoration_installed := to_regprocedure('tideway_private.restore_my_property(uuid)') IS NOT NULL;
+    cleaner_onboarding_records_installed := to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NOT NULL;
+    administrator_funnel_installed := to_regprocedure('tideway_private.get_administrator_funnel_report(integer)') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.complete_automatic_dispatch(uuid,uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)')
@@ -266,6 +305,11 @@ BEGIN
       WHERE procedure.oid=to_regprocedure('tideway_private.consume_rate_limit(text,bytea)')
         AND position('session-recovery' IN procedure.prosrc)>0
     ) INTO rate_limit_scope_migration_installed;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.consume_rate_limit(text,bytea)')
+        AND position('marketplace-cleaner:address-lookup' IN procedure.prosrc)>0
+    ) INTO cleaner_address_lookup_rate_limit_installed;
     cleaner_verification_migration_installed := EXISTS (
       SELECT 1 FROM pg_trigger trigger_row
       WHERE trigger_row.tgrelid='public.cleaner_profiles'::regclass
@@ -290,6 +334,123 @@ BEGIN
     bookings_cleaning_request_index_installed := to_regclass('public.bookings_cleaning_request_idx') IS NOT NULL;
     payment_and_directory_indexes_installed := to_regclass('public.payment_commands_latest_by_kind_idx') IS NOT NULL
       AND to_regclass('public.cleaner_profiles_public_directory_idx') IS NOT NULL;
+  END IF;
+
+  -- This verifier runs both before and after pending migrations. Requiring
+  -- migration-80 objects before the bootstrapper can apply migration 080
+  -- deadlocks the upgrade. Once the ledger (or a ledger-free object probe)
+  -- proves the feature is installed, every table, privilege and function
+  -- boundary below becomes mandatory.
+  IF landlord_support_installed THEN
+    rls_tables := rls_tables || ARRAY['support_requests'];
+    protected_write_tables := protected_write_tables || ARRAY['support_requests'];
+    protected_read_tables := protected_read_tables || ARRAY['support_requests'];
+    app_functions := app_functions || ARRAY[
+      'tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)',
+      'tideway_private.list_my_landlord_support_requests(integer,integer)',
+      'tideway_private.list_administrator_support_requests(text,text,integer,integer)',
+      'tideway_private.review_landlord_support_request(uuid,text,text)'
+    ];
+  END IF;
+  IF landlord_booking_changes_installed THEN
+    app_functions := app_functions || ARRAY[
+      'tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)'
+    ];
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)');
+    IF to_regclass('public.support_requests_one_open_booking_change_idx') IS NULL
+       OR position('booking.landlord_user_id=actor_id' IN COALESCE(selected_source,''))=0
+       OR position('booking_record.status<>''confirmed''' IN COALESCE(selected_source,''))=0
+       OR position('landlord-booking-change-request-created' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Landlord booking-change intake lost its owner, confirmed-booking, uniqueness or audit boundary';
+    END IF;
+  END IF;
+  IF administrator_coverage_installed THEN
+    app_functions := app_functions || ARRAY[
+      'tideway_private.get_administrator_coverage_report(integer,boolean)'
+    ];
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)')
+        AND position('has_role(''administrator'')' IN procedure.prosrc)>0
+        AND position('recommend_cleaners_for_request_v3(request.id,50,require_payout_ready)' IN procedure.prosrc)>0
+        AND position('Outward-postcode aggregates only' IN procedure.prosrc)>0
+        AND position('outwardPostcode' IN procedure.prosrc)>0
+        AND position('requestId' IN procedure.prosrc)=0
+        AND position('propertyId' IN procedure.prosrc)=0
+        AND position('cleanerId' IN procedure.prosrc)=0
+    ) THEN
+      RAISE EXCEPTION 'Administrator coverage report is missing, overprivileged or does not use the eligibility matcher';
+    END IF;
+  END IF;
+  IF administrator_funnel_installed THEN
+    app_functions := app_functions || ARRAY[
+      'tideway_private.get_administrator_funnel_report(integer)'
+    ];
+    IF NOT EXISTS (
+      SELECT 1
+      FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.get_administrator_funnel_report(integer)')
+        AND position('has_role(''administrator'')' IN procedure.prosrc)>0
+        AND position('interval ''24 hours''' IN procedure.prosrc)>0
+        AND position('Aggregate stage counts only' IN procedure.prosrc)>0
+        AND position('addressLine' IN procedure.prosrc)=0
+        AND position('exactPostcode' IN procedure.prosrc)=0
+        AND position('emailAddress' IN procedure.prosrc)=0
+        AND position('avatarUrl' IN procedure.prosrc)=0
+    ) THEN
+      RAISE EXCEPTION 'Administrator funnel report is missing, overprivileged or exposes a private field';
+    END IF;
+  END IF;
+  IF property_archiving_installed THEN
+    app_functions := app_functions || ARRAY['tideway_private.archive_my_property(uuid)'];
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.archive_my_property(uuid)');
+    IF position('property-has-active-request' IN COALESCE(selected_source,''))=0
+       OR position('property-has-active-booking' IN COALESCE(selected_source,''))=0
+       OR position('property-archived' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Owner property archiving lost its active-work guard or audit evidence';
+    END IF;
+  END IF;
+  IF property_restoration_installed THEN
+    app_functions := app_functions || ARRAY['tideway_private.restore_my_property(uuid)'];
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.restore_my_property(uuid)');
+    IF position('archived_at IS NOT NULL' IN COALESCE(selected_source,''))=0
+       OR position('property-restored' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Owner property restoration lost its archived-owner guard or audit evidence';
+    END IF;
+  END IF;
+  IF cleaner_onboarding_records_installed THEN
+    rls_tables := rls_tables || ARRAY['cleaner_onboarding_sections','cleaner_onboarding_documents'];
+    protected_write_tables := protected_write_tables || ARRAY['cleaner_onboarding_sections','cleaner_onboarding_documents'];
+    protected_read_tables := protected_read_tables || ARRAY['cleaner_onboarding_sections','cleaner_onboarding_documents'];
+    app_functions := app_functions || ARRAY[
+      'tideway_private.get_my_cleaner_onboarding_sections()',
+      'tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)'
+    ];
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_attribute
+      WHERE attrelid='public.cleaner_onboarding_sections'::regclass
+        AND attname='payload_ciphertext' AND atttypid='bytea'::regtype AND NOT attisdropped
+    ) OR EXISTS (
+      SELECT 1 FROM pg_attribute
+      WHERE attrelid='public.cleaner_onboarding_sections'::regclass
+        AND attname IN ('payload','data') AND atttypid='jsonb'::regtype AND NOT attisdropped
+    ) THEN
+      RAISE EXCEPTION 'Cleaner onboarding payloads are missing encrypted byte storage or expose plaintext JSON';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)');
+    IF position('has_role(''cleaner'')' IN COALESCE(selected_source,''))=0
+       OR position('cleaner-onboarding-section-saved' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Cleaner onboarding persistence lost its Cleaner-only or audit boundary';
+    END IF;
   END IF;
 
   active_invite_function := CASE WHEN minimum_contribution_migration_installed THEN
@@ -426,6 +587,118 @@ BEGIN
       OR position('NEW.recipient_user_id' IN COALESCE(selected_source,''))=0
       OR position('NEW.id' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'The account notification real-time trigger leaks payload data or does not emit the privacy-minimal account wake-up';
+    END IF;
+  END IF;
+  IF structured_room_scans_installed THEN
+    -- A structured scan describes the inside of a customer's home. Its entire
+    -- participant boundary is the SECURITY DEFINER projection, so a deployment
+    -- where the runtime role can read the tables directly has no boundary at
+    -- all — the RLS policies would be the only thing left, and they were never
+    -- meant to carry that weight alone.
+    IF has_table_privilege('tideway_app','public.room_scan_sessions','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scans','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scan_object_corrections','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','INSERT')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','UPDATE')
+      OR has_table_privilege('tideway_app','public.room_scan_objects','DELETE') THEN
+      RAISE EXCEPTION 'The runtime role can read or write structured room scans directly, bypassing the participant-aware projection';
+    END IF;
+    IF has_table_privilege('tideway_app','public.room_scan_model_versions','INSERT')
+      OR has_table_privilege('tideway_app','public.room_scan_model_versions','UPDATE')
+      OR has_table_privilege('tideway_app','public.room_scan_model_versions','DELETE') THEN
+      RAISE EXCEPTION 'The runtime role can write model attribution directly, so a stored scan cannot be trusted to name the model that read it';
+    END IF;
+    FOR selected_source IN SELECT unnest(ARRAY[
+      'tideway_private.record_room_scan(uuid,uuid,text,timestamp with time zone,jsonb,text,text,text,smallint)',
+      'tideway_private.get_room_scan(uuid)',
+      'tideway_private.correct_room_scan_object(uuid,text,text,boolean)',
+      'tideway_private.delete_room_scan(uuid)'
+    ]) LOOP
+      selected_function := to_regprocedure(selected_source);
+      IF selected_function IS NULL
+        OR NOT EXISTS (
+          SELECT 1 FROM pg_proc procedure
+          WHERE procedure.oid=selected_function
+            AND procedure.prosecdef
+            AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+        )
+        OR has_function_privilege('public', selected_function, 'EXECUTE') THEN
+        RAISE EXCEPTION 'The room-scan function % is missing, not SECURITY DEFINER with a pinned search_path, or executable by PUBLIC', selected_source;
+      END IF;
+      IF NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE') THEN
+        RAISE EXCEPTION 'The runtime role cannot execute the room-scan function %, so the structured scan is unreachable', selected_source;
+      END IF;
+    END LOOP;
+    -- The detailed structured observation/pricing read is deliberately narrower
+    -- than the Cleaner photo/checklist projection: only the owning Landlord and
+    -- an Administrator may use it.
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.get_room_scan(uuid)');
+    IF position('request_record.landlord_user_id = actor_id' IN COALESCE(selected_source,''))=0
+      OR position('has_role(''administrator'')' IN COALESCE(selected_source,''))=0
+      OR position('cleaner_preview_authorized' IN COALESCE(selected_source,''))>0
+      OR position('cleaner_user_id' IN COALESCE(selected_source,''))>0 THEN
+      RAISE EXCEPTION 'The structured room-scan read is not restricted to the owning Landlord and an Administrator';
+    END IF;
+    -- One scan per request. Without this, a retried save writes a second scan
+    -- and every object count downstream doubles.
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint constraint_entry
+      WHERE constraint_entry.conrelid='public.room_scan_sessions'::regclass
+        AND constraint_entry.contype='u'
+        AND array_length(constraint_entry.conkey,1)=1
+        AND constraint_entry.conkey[1]=(
+          SELECT attribute.attnum FROM pg_attribute attribute
+          WHERE attribute.attrelid='public.room_scan_sessions'::regclass AND attribute.attname='cleaning_request_id')
+    ) THEN
+      RAISE EXCEPTION 'room_scan_sessions does not restrict a cleaning request to one structured scan, so a retried save can duplicate every room';
+    END IF;
+  END IF;
+  IF room_measurements_installed THEN
+    -- Under the web-only decision nothing a browser produces is exact. A stored
+    -- measurement with no band would read as exact for ever after, so the
+    -- constraint that forbids it is verified on every deployment rather than
+    -- trusted to have survived a later migration.
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint constraint_entry
+      WHERE constraint_entry.conrelid='public.room_scan_measurements'::regclass
+        AND constraint_entry.conname='room_scan_measurements_estimate_has_band'
+    ) THEN
+      RAISE EXCEPTION 'room_scan_measurements does not require an estimated measurement to carry a tolerance, so an estimate can be stored looking exact';
+    END IF;
+    IF has_table_privilege('tideway_app','public.room_scan_measurements','SELECT')
+      OR has_table_privilege('tideway_app','public.room_scan_measurements','INSERT')
+      OR has_table_privilege('tideway_app','public.room_scan_measurements','UPDATE')
+      OR has_table_privilege('tideway_app','public.room_scan_measurements','DELETE') THEN
+      RAISE EXCEPTION 'The runtime role can reach room measurements directly, bypassing the participant-aware projection';
+    END IF;
+    selected_function := to_regprocedure('tideway_private.record_room_scan_measurements(uuid,jsonb)');
+    IF selected_function IS NULL
+      OR NOT EXISTS (
+        SELECT 1 FROM pg_proc procedure
+        WHERE procedure.oid=selected_function
+          AND procedure.prosecdef
+          AND array_to_string(procedure.proconfig, ',') LIKE '%search_path=public, pg_temp%'
+      )
+      OR has_function_privilege('public', selected_function, 'EXECUTE')
+      OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE') THEN
+      RAISE EXCEPTION 'The room-measurement recording function is missing, unsafe, or unreachable by the runtime role';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    -- A browser cannot take a sensor reading. The enum keeps the value so a
+    -- native path is a code change later, but nothing may store one now.
+    IF position('room-measurement-method-unavailable' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'The room-measurement function does not refuse sensor readings, so a web client can claim an accuracy no browser delivers';
+    END IF;
+    -- One value per subject per room. Two floor areas for one room is an
+    -- unresolved disagreement nothing downstream could act on.
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint constraint_entry
+      WHERE constraint_entry.conrelid='public.room_scan_measurements'::regclass
+        AND constraint_entry.contype='u' AND array_length(constraint_entry.conkey,1)=2
+    ) THEN
+      RAISE EXCEPTION 'room_scan_measurements allows two values for one subject in one room';
     END IF;
   END IF;
   IF bookings_cleaning_request_index_installed THEN
@@ -645,6 +918,21 @@ BEGIN
       RAISE EXCEPTION 'Shared rate-limit scope CHECK constraint does not admit the session-recovery or public Cleaner profile scope';
     END IF;
   END IF;
+  IF cleaner_address_lookup_rate_limit_installed THEN
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.consume_rate_limit(text,bytea)');
+    IF position('(''marketplace-cleaner:address-lookup'',40,900)' IN replace(COALESCE(selected_source,''), ' ', ''))=0 THEN
+      RAISE EXCEPTION 'Shared rate limiter is missing the Cleaner address-lookup policy';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint constraint_record
+      WHERE constraint_record.conrelid='tideway_private.request_rate_limits'::regclass
+        AND constraint_record.conname='request_rate_limits_scope_check'
+        AND position('marketplace-cleaner:address-lookup' IN pg_get_constraintdef(constraint_record.oid))>0
+    ) THEN
+      RAISE EXCEPTION 'Shared rate-limit scope CHECK constraint does not admit Cleaner address lookup';
+    END IF;
+  END IF;
   IF cleaner_verification_migration_installed THEN
     IF NOT EXISTS (
       SELECT 1 FROM pg_trigger trigger_row
@@ -821,8 +1109,16 @@ $verification$;
 SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
-  'rlsTableCount', 40,
-  'appFunctionChecks', 48,
+  'rlsTableCount', 39 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 1 END
+    + CASE WHEN to_regclass('public.cleaner_onboarding_sections') IS NULL THEN 0 ELSE 2 END,
+  'appFunctionChecks', 48
+    + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END
+    + CASE WHEN to_regprocedure('tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)') IS NULL THEN 0 ELSE 1 END
+    + CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END
+    + CASE WHEN to_regprocedure('tideway_private.get_administrator_funnel_report(integer)') IS NULL THEN 0 ELSE 1 END
+    + CASE WHEN to_regprocedure('tideway_private.archive_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
+    + CASE WHEN to_regprocedure('tideway_private.restore_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
+    + CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NULL THEN 0 ELSE 2 END,
   'workerFunctionChecks', 14
 ) AS tideway_deployment_verification;
 

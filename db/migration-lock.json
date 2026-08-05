@@ -361,16 +361,96 @@
       "order": 72,
       "file": "072_account_notification_realtime_events.sql",
       "sha256": "83f6b15726a8a9f1940a66644f6d1ae51ecabb3a6d3610aa735ced10968547bf"
+    },
+    {
+      "order": 73,
+      "file": "073_structured_room_scans.sql",
+      "sha256": "83617dce614cee47da314d9d95e0ab458b5436a4b4c182d2a0c7048bf2c41001"
+    },
+    {
+      "order": 74,
+      "file": "074_room_scan_measurements.sql",
+      "sha256": "2a46c5f8018085e2d5cd64ab1dc324a921abc02b7f266d5259b18a6d80f4d4d9"
+    },
+    {
+      "order": 75,
+      "file": "075_scan_pricing_rulesets.sql",
+      "sha256": "f9dcc3dee5c2eab09566bfa08485c179d0417030a1edfa5b6c0daf18d45ddf65"
+    },
+    {
+      "order": 76,
+      "file": "076_scan_estimate_observations.sql",
+      "sha256": "7f10a2a9e4ca7ed05390dd9baf1b83e103dc0f3bb46d282af7bf745089878f18"
+    },
+    {
+      "order": 77,
+      "file": "077_scan_preview_rate_limit.sql",
+      "sha256": "b9f89b5a78d204889889d8b657a66591c9952b91cfcd8007bf471a97cae257bf"
+    },
+    {
+      "order": 78,
+      "file": "078_scan_retention_voice_and_addons.sql",
+      "sha256": "c7e3c767b4918ac102f2d624663d740717028662797cd5e1369eb297dc87138d"
+    },
+    {
+      "order": 79,
+      "file": "079_scan_ground_truth.sql",
+      "sha256": "615b281290cde496ba35fbd7562e31e18ed7c8d54c371457f66dd4bf4d6e1bf1"
+    },
+    {
+      "order": 80,
+      "file": "080_landlord_support_requests.sql",
+      "sha256": "0251c771d29190bb8b5aa97a31fbf2bf7628179cc00de4c8e77b29d652a34fde"
+    },
+    {
+      "order": 81,
+      "file": "081_administrator_coverage_report.sql",
+      "sha256": "a40a4a8c8898b48e754e901571911bd415a29ec84101cf858ceef21fde71885c"
+    },
+    {
+      "order": 82,
+      "file": "082_owner_property_archiving.sql",
+      "sha256": "6d5676a2d617feea0e0d953007120e62ead015c14b4c926a50b12704cdf18723"
+    },
+    {
+      "order": 83,
+      "file": "083_owner_property_restoration.sql",
+      "sha256": "b85503045c2c56d2f555cf82407b002022f6ade21aa3c9f4772346fdfde3f351"
+    },
+    {
+      "order": 84,
+      "file": "084_cleaner_onboarding_records.sql",
+      "sha256": "a0aa07cf825b4ca73536b4c4dcde401364c2721031e3165ff61e2c1f36911e8a"
+    },
+    {
+      "order": 85,
+      "file": "085_cleaner_address_lookup_rate_limit.sql",
+      "sha256": "29997d20875dfe9c7a8d3e541ae0fcc7bef549c2f3022dda3433d175bd899965"
+    },
+    {
+      "order": 86,
+      "file": "086_cleaner_profile_photos.sql",
+      "sha256": "9e317245db11a1d2ceb23de0ff6705558706071d09ab6772886a897e8ffa9a78"
+    },
+    {
+      "order": 87,
+      "file": "087_administrator_funnel_report.sql",
+      "sha256": "a1f43b44107d8080fbf71dca4a13b32ae7949d49b22740aed0cdfa0da8fd6bda"
+    },
+    {
+      "order": 88,
+      "file": "088_landlord_booking_change_requests.sql",
+      "sha256": "ca2b50bdaab4d32eccf86e111c36300f953f34ff25c52eb8a286ba427a491f55"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "3e0b561573083a83fa8302b23e65f1953a3b83cb49fe63e6c5a4814f8e8604e2"
+      "sha256": "c1074460945dab8186be792b5e62aa987d9edb8d27b0358c321a288000ec6293"
     },
     {
       "file": "worker-role-grants.sql",
-      "sha256": "37a558f9ff8339f3f7105fbebe7005fb554fb9a861018462f18b664dee464c5c"
+      "sha256": "ad8116f468627ed9d6f8c4351990951c9d3e52fec0fd93c99070f5b6b52549c0"
     }
   ]
 }

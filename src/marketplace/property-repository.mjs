@@ -43,6 +43,46 @@ export function createPropertyRepository(database) {
         return result.rows;
       });
     },
+    listArchivedOwnProperties(actor) {
+      return database.withUserTransaction(actor, async (client) => {
+        const result = await client.query("SELECT * FROM properties WHERE landlord_user_id=$1::uuid AND archived_at IS NOT NULL ORDER BY archived_at DESC, name, id", [actor.userId]);
+        return result.rows;
+      });
+    },
+    archiveOwnProperty(actor, propertyId) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.archive_my_property($1::uuid) AS archive", [propertyId]);
+          return result.rows[0]?.archive || null;
+        } catch (error) {
+          const mapped = {
+            "landlord-required": [403, "landlord-required", "A Landlord account is required."],
+            "invalid-property-id": [422, "invalid-property-id", "Choose a valid property."],
+            "property-not-found": [404, "property-not-found", "This property was not found or is already archived."],
+            "property-has-active-request": [409, "property-has-active-request", "Withdraw the open cleaning request for this property before archiving it."],
+            "property-has-active-booking": [409, "property-has-active-booking", "This property has an active booking. Complete or cancel the booking before archiving it."]
+          }[error?.message];
+          if (!mapped) throw error;
+          throw Object.assign(new Error(mapped[2]), { statusCode: mapped[0], code: mapped[1], cause: error });
+        }
+      });
+    },
+    restoreOwnProperty(actor, propertyId) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.restore_my_property($1::uuid) AS restoration", [propertyId]);
+          return result.rows[0]?.restoration || null;
+        } catch (error) {
+          const mapped = {
+            "landlord-required": [403, "landlord-required", "A Landlord account is required."],
+            "invalid-property-id": [422, "invalid-property-id", "Choose a valid property."],
+            "property-not-found": [404, "property-not-found", "This archived property was not found or is already active."]
+          }[error?.message];
+          if (!mapped) throw error;
+          throw Object.assign(new Error(mapped[2]), { statusCode: mapped[0], code: mapped[1], cause: error });
+        }
+      });
+    },
     getBookingProperty(actor, bookingId) {
       return database.withUserTransaction(actor, async (client) => {
         const result = await client.query(

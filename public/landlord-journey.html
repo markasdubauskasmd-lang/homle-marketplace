@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Homle">
 <title>Book a clean — Homle</title>
-<link rel="icon" href="/homle-logo.png" type="image/png">
+<link rel="icon" href="/homle-logo-128-4f82ebad.png" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2"><link rel="stylesheet" href="/styles.css?v=20260728-3">
@@ -18,7 +18,7 @@
 
 <section class="journey-access" data-access-gate aria-live="polite">
   <div class="journey-access-card">
-    <img src="/homle-logo.png" alt="" width="54" height="54">
+    <img src="/homle-logo-128-4f82ebad.png" alt="" width="54" height="54">
     <p class="eyebrow">Private Landlord workspace</p>
     <h1 data-access-title>Checking your secure account…</h1>
     <p data-access-copy>Your room scan opens only after Homle confirms this browser has a signed-in Landlord workspace.</p>
@@ -114,6 +114,80 @@
           <div class="res-cell"><b data-results-tasks>0</b><span>Tasks</span></div>
         </div>
         <p class="res-hero-note">Guide time comes from the work listed, not from measuring your home. Your cleaner confirms the final time.</p>
+      </div>
+
+      <!-- Everything below appears only once the scan has been assessed. It is
+           hidden rather than empty, because a review panel with nothing in it
+           teaches people to scroll past the one place they are asked to check
+           what we got wrong. -->
+      <div class="scan-review" data-review hidden>
+        <div class="scan-review-level" data-review-level>
+          <b data-review-level-label>—</b>
+          <span data-review-level-scale>Level — of 5</span>
+          <p data-review-explanation></p>
+          <p class="hint" data-review-provisional hidden></p>
+        </div>
+
+        <div class="scan-review-estimate" data-review-estimate hidden>
+          <div class="scan-review-estimate-head">
+            <b data-review-price>—</b>
+            <span data-review-price-range></span>
+          </div>
+          <p class="hint">An estimate from what the scan found, not a quote. Your cleaner confirms the price before anything is booked, and nothing is charged now.</p>
+          <details data-review-breakdown-wrap>
+            <summary>How this was worked out</summary>
+            <ul class="scan-review-lines" data-review-breakdown></ul>
+            <p class="hint" data-review-rates></p>
+          </details>
+        </div>
+
+        <div class="scan-review-refusal" data-review-refusal hidden role="note">
+          <b>We are not going to guess a price for this</b>
+          <p data-review-refusal-reason></p>
+        </div>
+
+        <div class="scan-review-questions" data-review-questions hidden>
+          <h3 class="scan-review-h3">Can you check these?</h3>
+          <p class="hint">The scan was not sure, so it is asking rather than guessing. Answering makes the estimate tighter.</p>
+          <ul class="scan-review-question-list" data-review-question-list></ul>
+        </div>
+
+        <div class="scan-review-rooms" data-review-rooms>
+          <h3 class="scan-review-h3">What we found, room by room</h3>
+          <p class="hint">Tap anything we read wrong. Your corrections are what your cleaner is sent.</p>
+          <div data-review-room-list></div>
+        </div>
+      </div>
+
+      <!-- Measuring from a room photo. Two taps across something whose size is
+           known, two taps across the thing being measured; the arithmetic and
+           its honesty rules live on the server, and only the two line lengths
+           travel — the photo itself never leaves this page. -->
+      <div class="scan-measure" data-measure hidden role="dialog" aria-modal="true" aria-labelledby="homle-measure-title">
+        <div class="scan-measure-in">
+          <p class="scan-measure-eyebrow" data-measure-room>Kitchen</p>
+          <h3 id="homle-measure-title">Measure from the photo</h3>
+          <p class="scan-measure-instruction" data-measure-instruction role="status"></p>
+          <p class="scan-measure-problem" data-measure-problem role="alert" hidden></p>
+          <div class="scan-measure-stage" data-measure-stage>
+            <img data-measure-photo alt="Your room photo. Tap each end of the object or wall being measured.">
+            <svg data-measure-lines aria-hidden="true"></svg>
+          </div>
+          <div class="scan-measure-choices" data-measure-refs role="group" aria-label="Choose a known-size object in the photo"></div>
+          <div class="scan-measure-choices" data-measure-subjects role="group" aria-label="Choose what to measure" hidden></div>
+          <div class="scan-measure-confirm" data-measure-confirm hidden>
+            <p data-measure-confirm-text></p>
+            <div class="scan-measure-confirm-actions">
+              <button class="btn btn-p" type="button" data-measure-keep>Keep this estimate</button>
+              <button class="btn" type="button" data-measure-type>Type the real size</button>
+              <button class="btn" type="button" data-measure-retry>Start again</button>
+            </div>
+          </div>
+          <div class="scan-measure-actions">
+            <button class="btn" type="button" data-measure-undo>Undo tap</button>
+            <button class="btn" type="button" data-measure-close>Done measuring</button>
+          </div>
+        </div>
       </div>
 
       <div class="field">

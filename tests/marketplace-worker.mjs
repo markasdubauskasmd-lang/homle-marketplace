@@ -84,17 +84,22 @@ const maintenanceJobs = createMarketplaceMaintenanceJobs({
   async purgeSessions() { return { processedCount: 0, batchFull: false }; },
   async purgeRateLimits() { return { processedCount: 0, batchFull: false }; },
   async purgePendingSocialIdentities() { return { processedCount: 0, batchFull: false }; },
+  async purgeRoomScans() { return { processedCount: 0, batchFull: false }; },
   async expireJobPhotoUploads() { return { processedCount: 1, batchFull: false, uploads: [{ quarantineStorageKey: "q/job", finalStorageKey: "f/job" }] }; },
   async expireRequestPhotoUploads() { return { processedCount: 0, batchFull: false, uploads: [] }; }
 }, { objectStorage: { async deleteObject(key) { deletedObjects.push(key); } } });
-assert.equal(maintenanceJobs.length, 9);
+assert.equal(maintenanceJobs.length, 10);
+// Time-based deletion of room scans. Named explicitly rather than counted only,
+// because a retention job silently absent is a retention policy that quietly
+// does not run.
+assert(maintenanceJobs.some((job) => job.name === "room-scan-retention"), "The room-scan retention job is not registered.");
 assert.deepEqual(await maintenanceJobs.find((job) => job.name === "invitation-expiry").runOnce(), { batches: 2, processed: 100, moreMayRemain: false });
 assert.deepEqual(await maintenanceJobs.find((job) => job.name === "job-photo-upload-expiry").runOnce(), { batches: 1, processed: 1, objectsDeleted: 2, moreMayRemain: false });
 assert.deepEqual(deletedObjects, ["q/job", "f/job"]);
 
-const zeroRepository = Object.fromEntries(["expireInvitations", "queuePaymentReadinessReminders", "queueBookingVisitReminders", "purgeLocations", "purgeSessions", "purgeRateLimits", "purgePendingSocialIdentities"].map((name) => [name, async () => ({ processedCount: 0, batchFull: false })]));
+const zeroRepository = Object.fromEntries(["expireInvitations", "queuePaymentReadinessReminders", "queueBookingVisitReminders", "purgeLocations", "purgeSessions", "purgeRateLimits", "purgePendingSocialIdentities", "purgeRoomScans"].map((name) => [name, async () => ({ processedCount: 0, batchFull: false })]));
 const runtime = createMarketplaceWorkerRuntime({ query() {} }, { createMaintenanceRepository: () => zeroRepository, onUnexpectedError() {} });
-assert.deepEqual(runtime.snapshot().jobs.map((job) => job.name), ["invitation-expiry", "location-expiry", "payment-readiness-reminders", "booking-visit-reminders", "session-expiry", "rate-limit-retention", "social-identity-retention"]);
+assert.deepEqual(runtime.snapshot().jobs.map((job) => job.name), ["invitation-expiry", "location-expiry", "payment-readiness-reminders", "booking-visit-reminders", "session-expiry", "rate-limit-retention", "social-identity-retention", "room-scan-retention"]);
 await runtime.close();
 
 let poolClosed = 0;

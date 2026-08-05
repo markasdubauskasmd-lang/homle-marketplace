@@ -4,6 +4,10 @@ import { createAuthenticationRepository } from "./auth-repository.mjs";
 import { createAuthenticationHttpRouter } from "./authentication-http.mjs";
 import { createCleanerProfileService } from "./cleaner-profile.mjs";
 import { createCleanerProfileRepository } from "./cleaner-repository.mjs";
+import { createCleanerOnboardingService } from "./cleaner-onboarding.mjs";
+import { createCleanerOnboardingRepository } from "./cleaner-onboarding-repository.mjs";
+import { createCleanerProfilePhotoService } from "./cleaner-profile-photo.mjs";
+import { createCleanerProfilePhotoRepository } from "./cleaner-profile-photo-repository.mjs";
 import { createBookingRepository } from "./booking-repository.mjs";
 import { bookingPricingPolicyFromEnvironment, createBookingWorkflowService } from "./booking-workflow.mjs";
 import { createPaymentRepository } from "./payment-repository.mjs";
@@ -14,6 +18,11 @@ import { createMatchingRepository } from "./matching-repository.mjs";
 import { createMatchingService } from "./matching-service.mjs";
 import { createCleaningRequestRepository } from "./cleaning-request-repository.mjs";
 import { createCleaningRequestService } from "./cleaning-request-service.mjs";
+import { createScanRepository } from "./scan-repository.mjs";
+import { createScanService } from "./scan-service.mjs";
+import { createScanPricingRepository, createScanPricingService } from "./scan-pricing-repository.mjs";
+import { createScanGroundTruthRepository, createScanGroundTruthService } from "./scan-ground-truth.mjs";
+import { createScanTelemetry } from "./scan-telemetry.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config.mjs";
 import { createCredentialService } from "./credential-service.mjs";
 import { createMarketplaceDatabase } from "./database.mjs";
@@ -31,6 +40,8 @@ import { createMarketplaceHttpRouter } from "./marketplace-http.mjs";
 import { createPropertyRepository } from "./property-repository.mjs";
 import { createPropertyService } from "./property-service.mjs";
 import { geocoderFromEnvironment } from "./postcode-geocoder.mjs";
+import { addressLookupFromEnvironment } from "./address-lookup.mjs";
+import { mapsClientConfigurationFromEnvironment } from "./maps-client-config.mjs";
 import { speechSummaryFromEnvironment } from "./speech-summary.mjs";
 import { roomVisionFromEnvironment } from "./room-vision.mjs";
 import { etaProviderFromEnvironment } from "./straight-line-eta.mjs";
@@ -51,6 +62,8 @@ import { createReviewRepository } from "./review-repository.mjs";
 import { createReviewService } from "./review-service.mjs";
 import { createDisputeRepository } from "./dispute-repository.mjs";
 import { createDisputeService } from "./dispute-service.mjs";
+import { createSupportRequestRepository } from "./support-request-repository.mjs";
+import { createSupportRequestService } from "./support-request-service.mjs";
 import { createPrivacyRequestRepository } from "./privacy-request-repository.mjs";
 import { createPrivacyRequestService } from "./privacy-request-service.mjs";
 import { createStagingAccountAccess } from "./staging-account-access.mjs";
@@ -58,6 +71,10 @@ import { createAdministratorBookingRepository } from "./administrator-booking-re
 import { createAdministratorBookingService } from "./administrator-booking-service.mjs";
 import { createAdministratorVerificationRepository } from "./administrator-verification-repository.mjs";
 import { createAdministratorVerificationService } from "./administrator-verification-service.mjs";
+import { createAdministratorCoverageRepository } from "./administrator-coverage-repository.mjs";
+import { createAdministratorCoverageService } from "./administrator-coverage-service.mjs";
+import { createAdministratorFunnelRepository } from "./administrator-funnel-repository.mjs";
+import { createAdministratorFunnelService } from "./administrator-funnel-service.mjs";
 import { createFavouriteCleanerRepository } from "./favourite-cleaner-repository.mjs";
 import { createFavouriteCleanerService } from "./favourite-cleaner-service.mjs";
 
@@ -127,6 +144,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     production: environment.production
   });
   const geocoder = options.geocoder || geocoderFromEnvironment(env);
+  const addressLookup = options.addressLookup === undefined ? addressLookupFromEnvironment(env, { fetch: options.addressLookupFetch }) : options.addressLookup;
+  const mapsClientConfig = options.mapsClientConfig === undefined ? mapsClientConfigurationFromEnvironment(env) : options.mapsClientConfig;
   // Optional assisted understanding of the dictated walkthrough. Absent
   // configuration leaves the on-device parser as the only path.
   const speechSummary = options.speechSummary || speechSummaryFromEnvironment(env);
@@ -134,12 +153,33 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const roomVision = options.roomVision || roomVisionFromEnvironment(env);
   const cleanerProfileRepository = createCleanerProfileRepository(database);
   const cleanerProfileService = createCleanerProfileService(cleanerProfileRepository, { geocoder });
+  const cleanerOnboardingRepository = createCleanerOnboardingRepository(database);
+  const cleanerOnboardingService = createCleanerOnboardingService(cleanerOnboardingRepository, { dataEncryptionSecret: env.DATA_ENCRYPTION_KEY });
+  const cleanerProfilePhotoRepository = createCleanerProfilePhotoRepository(database);
+  const cleanerProfilePhotoService = createCleanerProfilePhotoService(cleanerProfilePhotoRepository);
   const favouriteCleanerRepository = createFavouriteCleanerRepository(database);
   const favouriteCleanerService = createFavouriteCleanerService(favouriteCleanerRepository);
   const propertyRepository = createPropertyRepository(database);
   const propertyService = createPropertyService(propertyRepository, { dataEncryptionSecret: env.DATA_ENCRYPTION_KEY, geocoder });
   const cleaningRequestRepository = createCleaningRequestRepository(database);
   const cleaningRequestService = createCleaningRequestService(cleaningRequestRepository);
+  // The vision reader is passed in so a stored scan can name the model that
+  // read it. It stays optional: with no provider configured the scan still
+  // records everything the device found, simply without attribution.
+  // In-memory and process-local by design. Telemetry must not be able to slow
+  // down or fail a scan, so it neither writes to the database nor contacts a
+  // network; an Administrator reads the snapshot out.
+  const scanTelemetry = options.scanTelemetry || createScanTelemetry();
+  const scanPricingService = createScanPricingService(createScanPricingRepository(database));
+  // The pricing service is passed in so a scan can be estimated against the
+  // rules an operator actually published. With nothing published the estimate
+  // falls back to the shipped defaults, so an unconfigured deployment prices
+  // identically to a configured one rather than not pricing at all.
+  const scanService = createScanService(createScanRepository(database), { vision: roomVision, pricing: scanPricingService, telemetry: scanTelemetry });
+  // Reviewer verdicts about stored scans, and the aggregate accuracy report
+  // built from them — the collection point that turns real traffic into the
+  // measured false-clean rate every phase has honestly reported as unknown.
+  const scanGroundTruthService = createScanGroundTruthService(createScanGroundTruthRepository(database));
   const bookingRepository = createBookingRepository(database);
   const bookingPricingPolicy = options.bookingPricingPolicy || bookingPricingPolicyFromEnvironment(env);
   const paymentRepository = createPaymentRepository(database);
@@ -154,7 +194,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const matchingRepository = createMatchingRepository(database);
   const matchingService = createMatchingService(matchingRepository, { pricingPolicy: bookingPricingPolicy, requirePayoutReady: paymentService !== null });
   const journeyRepository = createJourneyRepository(database);
-  const journeyService = createJourneyService(journeyRepository, { etaProvider: options.etaProvider === undefined ? etaProviderFromEnvironment(env) : options.etaProvider });
+  const journeyService = createJourneyService(journeyRepository, { etaProvider: options.etaProvider === undefined ? etaProviderFromEnvironment(env, { fetch: options.etaFetch }) : options.etaProvider });
   const progressRepository = createProgressRepository(database);
   const progressService = createProgressService(progressRepository);
   const mediaRepository = createMediaRepository(database);
@@ -172,13 +212,19 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const reviewService = createReviewService(reviewRepository);
   const disputeRepository = createDisputeRepository(database);
   const disputeService = createDisputeService(disputeRepository);
+  const supportRequestRepository = createSupportRequestRepository(database);
+  const supportRequestService = createSupportRequestService(supportRequestRepository);
   const administratorBookingRepository = createAdministratorBookingRepository(database);
   const administratorBookingService = createAdministratorBookingService(administratorBookingRepository);
   const administratorVerificationRepository = createAdministratorVerificationRepository(database);
   const administratorVerificationService = createAdministratorVerificationService(administratorVerificationRepository);
+  const administratorCoverageRepository = createAdministratorCoverageRepository(database, { requirePayoutReady: paymentService !== null });
+  const administratorCoverageService = createAdministratorCoverageService(administratorCoverageRepository);
+  const administratorFunnelRepository = createAdministratorFunnelRepository(database);
+  const administratorFunnelService = createAdministratorFunnelService(administratorFunnelRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, cleanerOnboardingService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
   const authenticationRouter = options.emailDelivery || googleOidcProvider || appleSignInProvider
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, appleSignInProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: true })
@@ -207,6 +253,14 @@ export function createMarketplaceRuntime(pool, options = {}) {
     security,
     cleanerProfileRepository,
     cleanerProfileService,
+    cleanerOnboardingRepository,
+    cleanerOnboardingService,
+    cleanerProfilePhotoRepository,
+    cleanerProfilePhotoService,
+    addressLookup,
+    addressLookupReady: addressLookup !== null,
+    mapsClientConfig,
+    mapsReady: mapsClientConfig !== null,
     favouriteCleanerRepository,
     favouriteCleanerService,
     propertyRepository,
@@ -216,6 +270,9 @@ export function createMarketplaceRuntime(pool, options = {}) {
     bookingRepository,
     bookingWorkflowService,
     geocodingReady: geocoder !== null,
+    scanService,
+    scanPricingService,
+    scanTelemetry,
     speechSummary,
     speechSummaryReady: speechSummary !== null,
     roomVision,
@@ -247,9 +304,15 @@ export function createMarketplaceRuntime(pool, options = {}) {
     reviewService,
     disputeRepository,
     disputeService,
+    supportRequestRepository,
+    supportRequestService,
     administratorBookingRepository,
     administratorBookingService,
     administratorVerificationService,
+    administratorCoverageRepository,
+    administratorCoverageService,
+    administratorFunnelRepository,
+    administratorFunnelService,
     privacyRequestRepository,
     privacyRequestService,
     authenticationRouter,

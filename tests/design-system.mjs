@@ -74,32 +74,54 @@ assert.ok(used.size >= 12, `Only ${used.size} shared tokens are consumed; the ap
 
 const stylesheets = readdirSync(new URL("../public", import.meta.url)).filter((name) => name.endsWith(".css"));
 const declaringFonts = stylesheets.filter((name) => /@font-face\s*\{/.test(stripComments(read(`public/${name}`))));
-// homle-cleaner.css is the Cleaner workspace's own system (Archivo/Poppins),
-// deliberately left alone — a separate, newer design owned by someone else.
+// Two stylesheets own type outside homle-tokens.css, and both are deliberate:
+// homle-cleaner.css is the Cleaner workspace's own system (Archivo/Poppins), a
+// separate, newer design owned by someone else; landing-7fbca0c2.css is the public
+// landing page, a self-contained dark design that loads neither styles.css nor
+// the tokens (see public-brand.mjs) precisely so its typography and surface
+// cannot be pulled around by the app's. Neither shares the app's look, so
+// neither can read the app's font declarations.
 assert.deepEqual(
   declaringFonts.sort(),
-  ["homle-cleaner.css", "homle-tokens.css"],
+  ["homle-cleaner.css", "homle-tokens.css", "landing-7fbca0c2.css"],
   `@font-face is declared in ${declaringFonts.join(", ")}. The same two families were once repeated across three stylesheets; one owner means a font swap is one edit rather than a hunt.`
 );
 
 /* ── Every page that shares the app's look loads the system ── */
 
 const cleanerWorkspace = new Set([
+  "cleaner-contracts",
   "cleaner-dashboard",
+  "cleaner-documents",
+  "cleaner-disputes",
   "cleaner-job",
   "cleaner-jobs-map",
+  "cleaner-messages",
+  "cleaner-notifications",
+  "cleaner-help-centre",
+  "cleaner-incident-reports",
+  "cleaner-support-tickets",
   "cleaner-performance",
   "cleaner-public-profile",
   "cleaner-registration",
   "cleaner-reviews",
   "cleaner-schedule",
-  "cleaner-sign-off"
+  "cleaner-settings",
+  "cleaner-sign-off",
+  "cleaner-training"
 ]);
+// The public landing page is its own dark cinematic design: it loads neither
+// styles.css nor the tokens, on purpose, so the app's palette and typography
+// cannot pull it around. public-brand.mjs holds the matching exemption and
+// asserts it stays off the shared sheet rather than merely drifting off it.
+const standaloneDesigns = new Set(["home"]);
+const exempt = (name) => cleanerWorkspace.has(name) || standaloneDesigns.has(name);
+
 const pages = readdirSync(new URL("../public", import.meta.url)).filter((name) => name.endsWith(".html"));
 const missing = [];
 for (const page of pages) {
   const name = page.slice(0, -5);
-  if (cleanerWorkspace.has(name)) continue;
+  if (exempt(name)) continue;
   const markup = read(`public/${page}`);
   if (!markup.includes("homle-tokens.css")) missing.push(name);
 }
@@ -109,7 +131,7 @@ assert.deepEqual(missing, [], `These pages do not load the shared design tokens,
 // custom property has to be declared before it is used.
 for (const page of pages) {
   const name = page.slice(0, -5);
-  if (cleanerWorkspace.has(name)) continue;
+  if (exempt(name)) continue;
   const markup = read(`public/${page}`);
   const tokenAt = markup.indexOf("homle-tokens.css");
   const stylesAt = markup.indexOf("styles.css");
@@ -117,7 +139,7 @@ for (const page of pages) {
   assert.ok(tokenAt < stylesAt, `${name} loads styles.css before homle-tokens.css, so every shared token it reads is undefined at parse time.`);
 }
 
-console.log(`Design system tests passed: the landing page's two self-hosted families are the app's, declared once and consumed by styles.css; the "Sora"/Inter fonts the app could never load cannot return; one \`:root\` owns the palette; and all ${pages.length - cleanerWorkspace.size} shared-look pages load the tokens before the stylesheet that reads them.`);
+console.log(`Design system tests passed: the app's two self-hosted families are declared once and consumed by styles.css; the "Sora"/Inter fonts the app could never load cannot return; one \`:root\` owns the palette; and all ${pages.length - cleanerWorkspace.size - standaloneDesigns.size} shared-look pages load the tokens before the stylesheet that reads them.`);
 
 /* ── The Cleaner workspace must survive not loading the tokens ── */
 

@@ -1,7 +1,55 @@
-import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-7";
+import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { storedCsrf } from "./session-csrf.js";
 
 const draftKey = "homle-cleaner-personal-details-draft-v1";
 const draftLifetimeMs = 8 * 60 * 60 * 1000;
+const maximumProfilePhotoBytes = 5 * 1024 * 1024;
+const maximumPreparedPhotoDimension = 1280;
+const photoUploadTimeoutMs = 30_000;
+const acceptedProfilePhotoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const previousAddressFieldNames = Object.freeze(["postcode", "houseNumber", "street", "town", "county", "country", "fromMonth", "fromYear", "yearsLived"]);
+const requiredPreviousAddressFields = Object.freeze(previousAddressFieldNames.filter((name) => name !== "county"));
+
+function loadPhotoImage(objectUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.decoding = "async";
+    image.addEventListener("load", () => resolve(image), { once: true });
+    image.addEventListener("error", () => reject(new Error("Choose a valid JPG, PNG or WebP photo.")), { once: true });
+    image.src = objectUrl;
+  });
+}
+
+function canvasJpeg(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Homle could not prepare this photo. Try a different image."));
+    }, "image/jpeg", 0.82);
+  });
+}
+
+async function prepareProfilePhoto(file) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadPhotoImage(objectUrl);
+    const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
+    if (!longestSide) throw new Error("Choose a valid JPG, PNG or WebP photo.");
+    const scale = Math.min(1, maximumPreparedPhotoDimension / longestSide);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Homle could not prepare this photo. Try a different image.");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return await canvasJpeg(canvas);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 function safeSessionStorage() {
   try {
@@ -41,7 +89,11 @@ function nameParts(displayName) {
 }
 
 function formFields(form) {
-  return Object.fromEntries([...new FormData(form).entries()].map(([key, value]) => [key, String(value)]));
+  return {
+    ...Object.fromEntries([...new FormData(form).entries()].map(([key, value]) => [key, String(value)])),
+    livedUnderFiveYears: form.elements.livedUnderFiveYears.checked,
+    previousAddresses: form.elements.livedUnderFiveYears.checked ? collectPreviousAddresses(form) : []
+  };
 }
 
 function putValue(form, name, value) {
@@ -52,8 +104,11 @@ function putValue(form, name, value) {
 }
 
 function personalDetailsComplete(form) {
-  return ["firstName", "lastName", "dateOfBirth", "nationality", "mobileNumber", "email", "emergencyName", "emergencyNumber", "emergencyRelationship", "postcode", "houseNumber", "street", "town", "country"]
+  const currentDetailsComplete = ["firstName", "lastName", "dateOfBirth", "nationality", "mobileNumber", "email", "emergencyName", "emergencyNumber", "emergencyRelationship", "postcode", "houseNumber", "street", "town", "country"]
     .every((name) => String(form.elements.namedItem(name)?.value || "").trim());
+  if (!currentDetailsComplete || !form.elements.livedUnderFiveYears.checked) return currentDetailsComplete;
+  const previousAddresses = collectPreviousAddresses(form);
+  return previousAddresses.length > 0 && previousAddresses.every((address) => requiredPreviousAddressFields.every((name) => String(address[name] || "").trim()));
 }
 
 function renderRail(progress, form) {
@@ -70,6 +125,52 @@ function updateUnderFiveCopy(form) {
   if (copy) copy.textContent = form.elements.livedUnderFiveYears.checked ? "Yes" : "No";
 }
 
+function previousAddressRows(form) {
+  return [...form.querySelectorAll("[data-previous-address]")];
+}
+
+function collectPreviousAddresses(form) {
+  return previousAddressRows(form).map((row) => Object.fromEntries(previousAddressFieldNames.map((name) => {
+    const control = row.querySelector(`[data-previous-field="${name}"]`);
+    return [name, String(control?.value || "").trim()];
+  })));
+}
+
+function updatePreviousAddressNumbers(form) {
+  const rows = previousAddressRows(form);
+  rows.forEach((row, index) => {
+    const number = row.querySelector("[data-previous-address-number]");
+    const remove = row.querySelector("[data-remove-previous-address]");
+    if (number) number.textContent = String(index + 1);
+    if (remove instanceof HTMLButtonElement) remove.disabled = rows.length === 1;
+  });
+}
+
+function addPreviousAddress(form, address = {}) {
+  const template = form.querySelector("[data-previous-address-template]");
+  const list = form.querySelector("[data-previous-address-list]");
+  if (!(template instanceof HTMLTemplateElement) || !list) return null;
+  const row = template.content.firstElementChild?.cloneNode(true);
+  if (!(row instanceof HTMLElement)) return null;
+  for (const name of previousAddressFieldNames) {
+    const control = row.querySelector(`[data-previous-field="${name}"]`);
+    if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement) control.value = String(address?.[name] || (name === "country" ? "United Kingdom" : ""));
+  }
+  list.append(row);
+  updatePreviousAddressNumbers(form);
+  return row;
+}
+
+function showPreviousAddresses(form) {
+  const section = form.querySelector("[data-previous-addresses]");
+  if (!(section instanceof HTMLElement)) return;
+  const visible = form.elements.livedUnderFiveYears.checked;
+  if (visible && previousAddressRows(form).length === 0) addPreviousAddress(form);
+  section.hidden = !visible;
+  section.querySelectorAll("input, select, button").forEach((control) => { control.disabled = !visible; });
+  if (visible) updatePreviousAddressNumbers(form);
+}
+
 export async function setupPersonalDetails({ account, showFeedback, requestJson }) {
   document.title = "Personal details | Homle";
   const overview = document.querySelector("[data-registration-overview]");
@@ -79,10 +180,11 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   if (personal) personal.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, onboardingResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    requestJson("/api/marketplace/cleaner/onboarding/personal")
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
@@ -98,15 +200,99 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
     postcode: profile?.serviceAreas?.[0]?.outwardPostcode || "",
     country: "United Kingdom"
   };
-  Object.entries({ ...defaults, ...draft, email: account.email || "" }).forEach(([name, value]) => putValue(form, name, value));
+  const storedFields = onboardingResult.status === "fulfilled" ? onboardingResult.value.section?.data || {} : {};
+  Object.entries({ ...defaults, ...draft, ...storedFields, email: account.email || "" }).forEach(([name, value]) => putValue(form, name, value));
+  const restoredAddresses = Object.hasOwn(storedFields, "previousAddresses") ? storedFields.previousAddresses : draft.previousAddresses;
+  if (Array.isArray(restoredAddresses)) restoredAddresses.forEach((address) => addPreviousAddress(form, address));
+  showPreviousAddresses(form);
 
-  const connectedPhoto = Boolean(profile?.profilePhotoUrl || account.avatarUrl);
   const photoTitle = document.querySelector("[data-personal-photo-title]");
   const photoCopy = document.querySelector("[data-personal-photo-copy]");
-  const photoAction = document.querySelector(".hc-personal-photo-action");
-  if (photoTitle) photoTitle.textContent = connectedPhoto ? "Profile photo connected" : "No profile photo connected";
-  if (photoCopy) photoCopy.textContent = connectedPhoto ? "Homle uses your verified account photo." : "A verified sign-in photo will appear here when available.";
-  if (photoAction) photoAction.textContent = connectedPhoto ? "Connected" : "Not connected";
+  const photoStatus = document.querySelector("[data-personal-photo-status]");
+  const photoPreview = document.querySelector("[data-personal-photo-preview]");
+  const photoPlaceholder = document.querySelector("[data-personal-photo-placeholder]");
+  const photoInput = document.querySelector("[data-personal-photo-input]");
+  const photoButton = document.querySelector("[data-personal-photo-button]");
+  let photoObjectUrl = "";
+
+  function showPhoto(blob) {
+    if (!(photoPreview instanceof HTMLImageElement)) return;
+    if (photoObjectUrl) URL.revokeObjectURL(photoObjectUrl);
+    photoObjectUrl = URL.createObjectURL(blob);
+    photoPreview.src = photoObjectUrl;
+    photoPreview.hidden = false;
+    if (photoPlaceholder) photoPlaceholder.hidden = true;
+  }
+
+  async function loadSavedPhoto() {
+    try {
+      const response = await fetch("/api/marketplace/cleaner/profile-photo", { credentials: "same-origin", headers: { Accept: "image/*" } });
+      if (response.status === 404) return;
+      if (!response.ok) throw new Error("The saved photo could not be loaded.");
+      showPhoto(await response.blob());
+      if (photoTitle) photoTitle.textContent = "Profile photo uploaded";
+      if (photoStatus) photoStatus.textContent = "Saved securely to your Homle account.";
+      if (photoButton) photoButton.textContent = "Change photo";
+    } catch {
+      if (photoStatus) photoStatus.textContent = "Your saved photo could not be displayed. You can upload it again.";
+    }
+  }
+
+  photoButton?.addEventListener("click", () => photoInput?.click());
+  photoInput?.addEventListener("change", async () => {
+    const file = photoInput.files?.[0];
+    if (!file) return;
+    if (!acceptedProfilePhotoTypes.has(file.type)) {
+      photoInput.value = "";
+      showFeedback("Choose a JPG, PNG or WebP photo.", "error");
+      return;
+    }
+    if (file.size > maximumProfilePhotoBytes) {
+      photoInput.value = "";
+      showFeedback("The profile photo must be 5 MB or smaller.", "error");
+      return;
+    }
+    const csrf = storedCsrf();
+    if (!csrf) {
+      showFeedback("Your secure editing token is missing. Sign in again before uploading a photo.", "error");
+      return;
+    }
+    showPhoto(file);
+    photoButton.disabled = true;
+    photoButton.textContent = "Preparing…";
+    if (photoStatus) photoStatus.textContent = "Making your photo quicker to upload…";
+    const controller = new AbortController();
+    let uploadTimeout = 0;
+    try {
+      const preparedPhoto = await prepareProfilePhoto(file);
+      photoButton.textContent = "Uploading…";
+      if (photoStatus) photoStatus.textContent = "Securely saving your photo…";
+      uploadTimeout = window.setTimeout(() => controller.abort(), photoUploadTimeoutMs);
+      const response = await fetch("/api/marketplace/cleaner/profile-photo", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { Accept: "application/json", "Content-Type": preparedPhoto.type, "X-CSRF-Token": csrf },
+        body: preparedPhoto,
+        signal: controller.signal
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Homle could not upload your photo.");
+      if (photoTitle) photoTitle.textContent = "Profile photo uploaded";
+      if (photoCopy) photoCopy.textContent = "Your photo was resized and its metadata was removed before private storage.";
+      if (photoStatus) photoStatus.textContent = "Saved securely to your Homle account.";
+      showFeedback("Profile photo uploaded securely.");
+    } catch (error) {
+      if (photoStatus) photoStatus.textContent = "The photo was not saved. Try again.";
+      showFeedback(error.name === "AbortError" ? "The upload took too long. Check your connection and try again." : error.message || "Homle could not upload your photo.", "error");
+    } finally {
+      window.clearTimeout(uploadTimeout);
+      photoButton.disabled = false;
+      photoButton.textContent = "Change photo";
+      photoInput.value = "";
+    }
+  });
+  window.addEventListener("pagehide", () => { if (photoObjectUrl) URL.revokeObjectURL(photoObjectUrl); }, { once: true });
+  void loadSavedPhoto();
 
   let saveTimer = 0;
   function saveDraft() {
@@ -125,6 +311,19 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
     renderRail(progress, form);
   }
 
+  form.querySelector("[data-add-previous-address]")?.addEventListener("click", () => {
+    const row = addPreviousAddress(form);
+    row?.querySelector("input")?.focus();
+    saveDraft();
+  });
+  form.querySelector("[data-previous-address-list]")?.addEventListener("click", (event) => {
+    const remove = event.target instanceof Element ? event.target.closest("[data-remove-previous-address]") : null;
+    if (!remove || previousAddressRows(form).length <= 1) return;
+    remove.closest("[data-previous-address]")?.remove();
+    updatePreviousAddressNumbers(form);
+    saveDraft();
+  });
+
   form.addEventListener("input", () => {
     const status = document.querySelector("[data-personal-save-status]");
     if (status) status.textContent = "Saving in this browser tab…";
@@ -133,20 +332,23 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   });
   form.addEventListener("change", () => {
     updateUnderFiveCopy(form);
+    showPreviousAddresses(form);
     saveDraft();
   });
-  document.querySelector("[data-address-lookup]")?.addEventListener("click", () => {
-    form.elements.postcode?.focus();
-    showFeedback("Address lookup is not connected yet. Enter the verified address manually; nothing was sent.");
-  });
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!form.reportValidity()) {
       showFeedback("Complete the required Personal details before continuing.", "error");
       return;
     }
-    saveDraft();
-    location.assign("/cleaner/registration");
+    try {
+      await saveOnboardingForm(requestJson, "personal", form, { extra: formFields(form) });
+      storage?.removeItem(draftKey);
+      showFeedback("Personal details saved securely to your Homle account.");
+      location.assign("/cleaner/registration");
+    } catch (error) {
+      showFeedback(error.message || "Homle could not save your Personal details.", "error");
+    }
   });
 
   updateUnderFiveCopy(form);

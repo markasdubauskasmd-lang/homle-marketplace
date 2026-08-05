@@ -32,10 +32,13 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 72);
-  assert.equal(repositoryResult.migrations.at(-1), "072_account_notification_realtime_events.sql");
+  assert.equal(repositoryResult.migrations.length, 88);
+  assert.equal(repositoryResult.migrations.at(-1), "088_landlord_booking_change_requests.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
+  const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
+  const roomMeasurementMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "074_room_scan_measurements.sql"), "utf8");
+  const bookingChangeMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "088_landlord_booking_change_requests.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
   const publicCleanerProfileBehaviour = await readFile(path.join(sourceDatabaseDirectory, "integration", "public-cleaner-profile-behaviour.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
@@ -71,6 +74,50 @@ try {
   // correction cannot be lost again.
   assert(t71Payment(deploymentVerifier) && t71Directory(deploymentVerifier), "Migration-71 verification must prove the Administrator payment page and the unauthenticated Cleaner directory both have an index that their query shape can actually use.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 72\)'/, "Deployment verification must detect account notification real-time signals dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 73\)'/, "Deployment verification must detect the structured room-scan migration dynamically.");
+  // The structured scan's only participant boundary is the SECURITY DEFINER
+  // projection. A deployment that grants the runtime role direct table access
+  // has no boundary left, so the check has to run on every deployment rather
+  // than once in CI.
+  assert(deploymentVerifier.includes("bypassing the participant-aware projection") && deploymentVerifier.includes("room_scan_object_corrections"), "Migration-73 verification must prove the runtime role cannot reach structured room scans directly.");
+  assert(deploymentVerifier.includes("restricted to the owning Landlord and an Administrator") && deploymentVerifier.includes("position('cleaner_user_id'"), "Migration-73 verification must prove the detailed structured scan cannot become a Cleaner-facing projection.");
+  for (const [name, source] of [["migration 73", structuredScanMigration], ["migration 74", roomMeasurementMigration]]) {
+    const createMarker = source.includes("CREATE OR REPLACE FUNCTION tideway_private.get_room_scan")
+      ? "CREATE OR REPLACE FUNCTION tideway_private.get_room_scan"
+      : "CREATE FUNCTION tideway_private.get_room_scan";
+    const projection = source.slice(source.indexOf(createMarker));
+    assert(projection.includes("request_record.landlord_user_id = actor_id") && projection.includes("has_role('administrator')"), `${name} must keep the detailed room-scan projection owner/Admin-only.`);
+    assert(!projection.includes("cleaner_preview_authorized") && !projection.includes("booking.cleaner_user_id"), `${name} must not reintroduce detailed scanner data into Cleaner access.`);
+  }
+  assert(deploymentVerifier.includes("one structured scan, so a retried save can duplicate every room"), "Migration-73 verification must prove a cleaning request cannot carry two structured scans.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 74\)'/, "Deployment verification must detect the room-measurement migration dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 80\)'/, "Deployment verification must detect private Landlord support dynamically.");
+  assert(deploymentVerifier.includes("create_landlord_support_request(uuid,uuid,text,text,text)") && deploymentVerifier.includes("create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)") && deploymentVerifier.includes("review_landlord_support_request(uuid,text,text)") && deploymentVerifier.includes("'support_requests'"), "Deployment verification must prove the private support table and role-isolated functions are installed.");
+  assert(deploymentVerifier.includes("IF landlord_support_installed THEN")
+    && deploymentVerifier.includes("rls_tables := rls_tables || ARRAY['support_requests']")
+    && deploymentVerifier.includes("app_functions := app_functions || ARRAY["),
+  "Pre-upgrade verification must not require migration-80 objects until migration 080 is installed.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 81\)'/, "Deployment verification must detect the Administrator coverage report dynamically.");
+  assert(deploymentVerifier.includes("get_administrator_coverage_report(integer,boolean)")
+    && deploymentVerifier.includes("Administrator coverage report is missing, overprivileged or does not use the eligibility matcher"),
+  "Deployment verification must prove the privacy-minimal coverage report, shared matcher and restricted runtime execution boundary.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 82\)'/, "Deployment verification must detect owner property archiving dynamically.");
+  assert(deploymentVerifier.includes("archive_my_property(uuid)") && deploymentVerifier.includes("Owner property archiving lost its active-work guard or audit evidence"), "Deployment verification must prove property archiving keeps active work and history protected.");
+  assert(deploymentVerifier.includes("restore_my_property(uuid)") && deploymentVerifier.includes("Owner property restoration lost its archived-owner guard or audit evidence"), "Deployment verification must prove property restoration remains owner-bound, archived-only and audited.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 84\)'/, "Deployment verification must detect encrypted Cleaner onboarding records dynamically.");
+  assert(deploymentVerifier.includes("Cleaner onboarding payloads are missing encrypted byte storage or expose plaintext JSON") && deploymentVerifier.includes("Cleaner onboarding persistence lost its Cleaner-only or audit boundary"), "Deployment verification must prove Cleaner onboarding records are encrypted, owner-bound and audited.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 85\)'/, "Deployment verification must detect the Cleaner address-lookup rate limit dynamically.");
+  assert(deploymentVerifier.includes("Shared rate limiter is missing the Cleaner address-lookup policy") && deploymentVerifier.includes("Shared rate-limit scope CHECK constraint does not admit Cleaner address lookup"), "Deployment verification must prove the metered address provider has a shared bounded allowance.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 87\)'/, "Deployment verification must detect the Administrator funnel report dynamically.");
+  assert(deploymentVerifier.includes("get_administrator_funnel_report(integer)") && deploymentVerifier.includes("Administrator funnel report is missing, overprivileged or exposes a private field"), "Deployment verification must prove the privacy-minimal funnel report, maturity boundary and restricted runtime execution boundary.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 88\)'/, "Deployment verification must detect structured Landlord booking-change intake dynamically.");
+  assert(deploymentVerifier.includes("Landlord booking-change intake lost its owner, confirmed-booking, uniqueness or audit boundary") && deploymentVerifier.includes("support_requests_one_open_booking_change_idx"), "Deployment verification must prove booking-change intake remains owner-bound, confirmed-only, unique and audited.");
+  assert(bookingChangeMigration.includes("ON CONFLICT ON CONSTRAINT support_requests_retry_idempotency DO NOTHING") && bookingChangeMigration.includes("interval '365 days'"), "Booking-change intake must keep concurrent retries idempotent and use the same bounded scheduling horizon as the service and browser.");
+  assert(!/\bUPDATE\s+bookings\b/i.test(bookingChangeMigration) && !/\bDELETE\s+FROM\s+bookings\b/i.test(bookingChangeMigration), "Creating a booking-change request must not mutate or delete the booking it references.");
+  // Under the web-only decision nothing a browser produces is exact. A stored
+  // measurement with no band would read as exact for ever after.
+  assert(deploymentVerifier.includes("room_scan_measurements_estimate_has_band"), "Migration-74 verification must prove an estimated measurement cannot be stored looking exact.");
+  assert(deploymentVerifier.includes("claim an accuracy no browser delivers"), "Migration-74 verification must prove a web client cannot store a sensor measurement.");
   assert(deploymentVerifier.includes("The account notification real-time trigger is missing or unsafe") && deploymentVerifier.includes("account_notification_realtime_after_insert"), "Migration-72 verification must prove the notification trigger is commit-bound, internal-only and safe.");
   assert(deploymentVerifier.includes("A fully manual fresh install has no private migration ledger") && deploymentVerifier.includes("activate_my_workspace(user_role)") && deploymentVerifier.includes("recommend_cleaners_for_request_v2(uuid,integer)") && deploymentVerifier.includes("position('avatar_url' IN pg_get_function_result(procedure.oid))") && deploymentVerifier.includes("get_public_cleaner_profile(uuid)') IS NOT NULL"), "A ledger-free fresh install can still be mistaken for the historical migration-45 baseline instead of detecting its actual schema level.");
   const migration48VerificationStart = deploymentVerifier.indexOf("IF latest_migration_installed THEN");
@@ -98,6 +145,7 @@ try {
     "identity.providerIN(''google'',''apple'',''facebook'')"
   ]) assert(deploymentVerifier.includes(`position('${normalizedNeedle}' IN replace`), `Migration-60 verification compares normalized function source against a non-normalized needle: ${normalizedNeedle}`);
   assert(integrationRunner.includes('publicCleanerProfile: "public-cleaner-profile-behaviour.sql"') && integrationRunner.includes('label: "Public Cleaner profile privacy test"') && publicCleanerProfileBehaviour.includes("get_public_cleaner_profile") && publicCleanerProfileBehaviour.includes("active, complete and public Cleaner profile") && publicCleanerProfileBehaviour.includes("email', 'phone', 'address") && publicCleanerProfileBehaviour.includes("account without a public Cleaner profile") && publicCleanerProfileBehaviour.includes("Exact declared outward coverage disappeared"), "The real PostgreSQL rehearsal must exercise the direct public Cleaner lookup, its projection, visibility gates and safe coordinate-migration fallback.");
+  assert(integrationRunner.includes('administratorFunnelSetup: "administrator-funnel-owner-setup.sql"') && integrationRunner.includes('administratorFunnel: "administrator-funnel-behaviour.sql"') && integrationRunner.includes('administratorFunnelCleanup: "administrator-funnel-owner-cleanup.sql"') && integrationRunner.includes('label: "Administrator funnel privacy and cohort test"'), "The real PostgreSQL rehearsal must prepare mature fixtures as the owner while exercising the Administrator funnel through the restricted runtime role.");
   assert(deploymentVerifier.includes("active_invite_function := CASE WHEN minimum_contribution_migration_installed") && deploymentVerifier.includes("active_dispatch_function := CASE WHEN minimum_contribution_migration_installed"), "Pre-upgrade verification must select the booking function signatures installed at the current migration level.");
   assert(deploymentVerifier.includes("app_functions || ARRAY[active_invite_function]") && deploymentVerifier.includes("worker_functions || ARRAY[active_dispatch_function]"), "Runtime privilege verification must follow the migration-aware booking function signatures.");
   assert(deploymentVerifier.includes("IF minimum_contribution_migration_installed THEN") && deploymentVerifier.includes("Superseded minimum-contribution function is missing"), "Post-migration verification must still prove that the older booking signatures are revoked.");
@@ -106,12 +154,21 @@ try {
   assert.match(onboardingRepair, /ON CONFLICT ON CONSTRAINT cleaner_profiles_pkey DO NOTHING/, "Cleaner onboarding must name its conflict constraint explicitly.");
   assert.match(onboardingRepair, /ON CONFLICT ON CONSTRAINT landlord_profiles_pkey DO NOTHING/, "Landlord onboarding must name its conflict constraint explicitly.");
   assert.doesNotMatch(deploymentVerifier, /to_regclass\('tideway_private\.schema_migrations'\) IS NOT NULL\s+AND EXISTS/, "Pre-upgrade verification statically referenced a ledger that may not exist yet.");
-  const appBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("app_functions constant"), deploymentVerifier.indexOf("worker_functions constant"));
+  const appBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("app_functions text[]"), deploymentVerifier.indexOf("worker_functions constant"));
   const workerBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("worker_functions constant"), deploymentVerifier.indexOf("BEGIN", deploymentVerifier.indexOf("worker_functions constant")));
-  const advertisedAppChecks = Number(deploymentVerifier.match(/'appFunctionChecks',\s*(\d+)/)?.[1]);
   const advertisedWorkerChecks = Number(deploymentVerifier.match(/'workerFunctionChecks',\s*(\d+)/)?.[1]);
   assert.doesNotMatch(workerBlock, /get_automatic_dispatch_candidates\(uuid,uuid,integer,boolean\)/, "Pre-upgrade verification required migration 68's paid-dispatch function before the locked migration could be applied.");
-  assert.equal(advertisedAppChecks, [...appBlock.matchAll(/'tideway_private\./g)].length + 3, "deployment report must count core functions plus the migration-aware invitation, migration-48 workspace and paid direct-invitation checks");
+  assert.equal(48, [...appBlock.matchAll(/'tideway_private\./g)].length + 3, "deployment report must count core functions plus the migration-aware invitation, migration-48 workspace and paid direct-invitation checks");
+  assert(deploymentVerifier.includes("'appFunctionChecks', 48")
+    && deploymentVerifier.includes("+ CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END")
+    && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)') IS NULL THEN 0 ELSE 1 END")
+    && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END")
+    && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.get_administrator_funnel_report(integer)') IS NULL THEN 0 ELSE 1 END")
+    && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.archive_my_property(uuid)') IS NULL THEN 0 ELSE 1 END")
+    && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.restore_my_property(uuid)') IS NULL THEN 0 ELSE 1 END")
+    && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NULL THEN 0 ELSE 2 END")
+    && deploymentVerifier.includes("+ CASE WHEN to_regclass('public.cleaner_onboarding_sections') IS NULL THEN 0 ELSE 2 END"),
+  "deployment report must distinguish the verified pre-upgrade schema from migration-80 support through migration-88 booking-change intake");
   assert.equal(advertisedWorkerChecks, [...workerBlock.matchAll(/'tideway_private\./g)].length + 1, "deployment report must count core worker functions plus the migration-aware automatic-dispatch function");
 
   await freshFixture();

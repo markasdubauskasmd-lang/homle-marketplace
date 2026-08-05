@@ -1,6 +1,6 @@
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260728-6";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260729-6";
 
 const gate = document.querySelector("[data-profile-gate]");
 const gateTitle = document.querySelector("[data-profile-gate-title]");
@@ -10,8 +10,31 @@ const retry = document.querySelector("[data-profile-retry]");
 const view = document.querySelector("[data-profile]");
 const offline = document.querySelector("[data-profile-offline]");
 const feedback = document.querySelector("[data-profile-feedback]");
+const bookingPreview = document.querySelector("[data-profile-booking-preview]");
 
 let loading = false;
+
+const serviceLabels = Object.freeze({
+  "regular-domestic": "Domestic",
+  "deep-clean": "Deep cleaning",
+  "end-of-tenancy": "End of tenancy",
+  "holiday-let": "Holiday lets",
+  "office-cleaning": "Office cleaning",
+  "airbnb-turnover": "Airbnb",
+  "commercial-cleaning": "Commercial",
+  "carpet-cleaning": "Carpet cleaning",
+  "oven-cleaning": "Oven cleaning",
+  "window-cleaning": "Window cleaning"
+});
+
+const availabilityPeriods = Object.freeze([
+  { label: "Morning", start: 5, end: 12 },
+  { label: "Afternoon", start: 12, end: 17 },
+  { label: "Evening", start: 17, end: 22 },
+  { label: "Night", start: 22, end: 29 }
+]);
+
+const weekdayLabels = Object.freeze(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
 
 function browserOffline() {
   return typeof navigator === "object" && navigator !== null && navigator.onLine === false;
@@ -63,24 +86,47 @@ async function requestJson(path) {
   return body;
 }
 
-function chips(selector, values, emptyLabel) {
+function chips(selector, values, emptyLabel, classForIndex = null) {
   const host = document.querySelector(selector);
   if (!host) return;
   const items = Array.isArray(values) ? values.filter(Boolean) : [];
   host.replaceChildren(...(items.length
-    ? items.map((value) => element("span", "hc-pp-chip", String(value)))
+    ? items.map((value, index) => element("span", `hc-pp-chip${classForIndex?.(index) || ""}`, String(value)))
     : [element("span", "hc-pp-none", emptyLabel)]));
 }
 
-// Only the two checks Homle actually records are shown as verified. The design's DBS,
-// right-to-work, insurance and reference badges have no backing store in this codebase,
-// so they are not rendered as ticks a client would read as verified.
+function publicDisplayName(value) {
+  const parts = String(value || "Cleaner").trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return parts[0] || "Cleaner";
+  return `${parts[0]} ${parts.at(-1).charAt(0).toUpperCase()}.`;
+}
+
+function serviceLabel(value) {
+  const code = String(value?.serviceCode || value?.code || value || "").trim();
+  if (!code) return "";
+  if (serviceLabels[code]) return serviceLabels[code];
+  return code.split(/[-_]/).filter(Boolean).map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`).join(" ");
+}
+
+function experienceBand(value) {
+  if (!Number.isFinite(value)) return "—";
+  if (value < 1) return "New";
+  if (value < 3) return "1–3 yrs";
+  if (value < 5) return "3–5 yrs";
+  if (value < 10) return "5–10 yrs";
+  return "10+ yrs";
+}
+
+// Only states backed by the Cleaner profile response are presented as verified.
+// Insurance, references, training and right-to-work are never inferred here.
 function renderBadges(profile) {
   const host = document.querySelector("[data-profile-badges]");
   if (!host) return;
   const badges = [];
   if (profile?.identityCheckStatus === "verified") badges.push(["✓ Identity verified", true]);
   if (profile?.backgroundCheckStatus === "verified") badges.push(["✓ Background check", true]);
+  if (profile?.profileCompletionPercent === 100) badges.push(["✓ Profile complete", true]);
+  if (profile?.isPublic === true) badges.push(["✓ Visible to clients", true]);
   if (!badges.length) badges.push(["Verification pending with the Homle team", false]);
   host.replaceChildren(...badges.map(([label, verified]) => element("span", `hc-pp-badge${verified ? "" : " hc-pp-badge-pending"}`, label)));
 }
@@ -88,54 +134,106 @@ function renderBadges(profile) {
 function renderChecklist(profile) {
   const host = document.querySelector("[data-profile-checklist]");
   if (!host) return;
-  const percent = Number(profile?.profileCompletionPercent) || 0;
+  const percent = Math.max(0, Math.min(100, Number(profile?.profileCompletionPercent) || 0));
+  setText("[data-profile-strength]", `${percent}%`);
+  const progress = document.querySelector("[data-profile-strength-bar]");
+  if (progress) progress.style.width = `${percent}%`;
+  const equipment = [...(Array.isArray(profile?.equipmentSupplied) ? profile.equipmentSupplied : []), ...(Array.isArray(profile?.productsSupplied) ? profile.productsSupplied : [])];
   const rows = [
-    ["Profile complete", percent === 100],
-    ["Services and pricing", Array.isArray(profile?.services) && profile.services.length > 0],
-    ["Coverage area", Array.isArray(profile?.serviceAreas) && profile.serviceAreas.length > 0],
-    ["Published for matching", profile?.isPublic === true]
+    ["Profile photo added", Boolean(profile?.profilePhotoUrl), true],
+    ["Biography added", String(profile?.biography || "").trim().length >= 40, false],
+    ["Specialisms selected", Array.isArray(profile?.services) && profile.services.length > 0, true],
+    ["Work area added", Array.isArray(profile?.serviceAreas) && profile.serviceAreas.length > 0, false],
+    ["Equipment added", equipment.length > 0, false],
+    ["Visible to clients", profile?.isPublic === true, false]
   ];
-  host.replaceChildren(...rows.map(([label, done]) => {
-    const line = element("div", "hc-bar-row");
-    const track = element("div", "hc-bar-track");
-    const fill = element("div", "hc-bar-fill");
-    fill.style.width = done ? "100%" : "0%";
-    if (done) fill.style.background = "var(--hc-green)";
-    track.append(fill);
-    line.append(element("span", "hc-bar-label", done ? "✓" : "•"), track, element("span", "hc-bar-count", ""));
-    const wrap = element("div");
-    wrap.append(element("div", "hc-pp-stat-label", label), line);
-    return wrap;
+  host.replaceChildren(...rows.map(([label, done, important]) => {
+    const row = element("div", "hc-profile-check-row");
+    const mark = element("span", `hc-profile-check-mark${done ? " is-done" : important ? " is-attention" : ""}`, done ? "✓" : important ? "!" : "•");
+    row.append(mark, element("span", "", label));
+    return row;
   }));
 }
 
-function renderProfile(account, profile) {
+function renderAvailability(records) {
+  const host = document.querySelector("[data-profile-availability]");
+  if (!host) return;
+  const active = Array.from({ length: 7 }, () => Array(4).fill(false));
+  for (const record of Array.isArray(records) ? records : []) {
+    if (!record || !["available", "held"].includes(record.status)) continue;
+    const start = new Date(record.startAt);
+    const end = new Date(record.endAt);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) continue;
+    for (let cursor = new Date(start); cursor < end; cursor = new Date(cursor.getTime() + 30 * 60_000)) {
+      const dayIndex = (cursor.getDay() + 6) % 7;
+      const adjustedHour = cursor.getHours() < 5 ? cursor.getHours() + 24 : cursor.getHours();
+      const periodIndex = availabilityPeriods.findIndex((period) => adjustedHour >= period.start && adjustedHour < period.end);
+      if (periodIndex >= 0) active[dayIndex][periodIndex] = true;
+    }
+  }
+  host.replaceChildren(...weekdayLabels.map((label, dayIndex) => {
+    const day = element("div", "hc-pp-availability-day");
+    day.append(element("span", "hc-pp-availability-label", label));
+    const dots = element("span", "hc-pp-availability-dots");
+    for (let periodIndex = 0; periodIndex < availabilityPeriods.length; periodIndex += 1) {
+      const dot = element("span", "hc-pp-availability-dot");
+      dot.dataset.on = String(active[dayIndex][periodIndex]);
+      dot.title = `${label} ${availabilityPeriods[periodIndex].label}: ${active[dayIndex][periodIndex] ? "available" : "not listed"}`;
+      dots.append(dot);
+    }
+    day.append(dots);
+    return day;
+  }));
+}
+
+function renderReviews(profile) {
+  const host = document.querySelector("[data-profile-reviews]");
+  if (!host) return;
+  const count = Number(profile?.reviewCount) || 0;
+  const rating = Number(profile?.averageRating) || 0;
+  host.textContent = count > 0
+    ? `${count} verified ${count === 1 ? "review" : "reviews"} · ${rating.toFixed(1)} average rating`
+    : "No reviews yet — new to Homle. Verified reviews appear after completed bookings.";
+}
+
+function renderProfile(account, profile, availability) {
   const name = account.displayName || "Cleaner";
-  setText("[data-profile-name]", name);
+  setText("[data-profile-name]", publicDisplayName(name));
   const avatar = document.querySelector("[data-profile-avatar]");
   if (avatar) avatar.textContent = name.trim().charAt(0).toUpperCase() || "C";
 
-  const areas = Array.isArray(profile?.serviceAreas) ? profile.serviceAreas.map((area) => area.outwardCode || area.label || area).filter(Boolean) : [];
+  const areas = Array.isArray(profile?.serviceAreas) ? profile.serviceAreas.map((area) => area.outwardPostcode || area.outwardCode || area.label || area).filter(Boolean) : [];
   const radius = Number.isFinite(profile?.travelRadiusKm) ? `travels up to ${profile.travelRadiusKm} km` : "travel radius not set";
-  setText("[data-profile-location]", `${areas.length ? areas.slice(0, 3).join(", ") : "Coverage not set"} · ${radius}`);
+  const languages = Array.isArray(profile?.languages) ? profile.languages.filter(Boolean) : [];
+  const language = languages.length ? ` · speaks ${languages.slice(0, 2).join(" & ")}` : "";
+  setText("[data-profile-location]", `${areas.length ? areas[0] : "Coverage not set"} · ${radius}${language}`);
 
   const reviewCount = Number(profile?.reviewCount) || 0;
   const completed = Number(profile?.completedJobCount) || 0;
-  setText("[data-profile-standing]", profile?.isPublic === true ? "Live on Homle" : "Not published yet");
-  setText("[data-profile-experience]", Number.isFinite(profile?.yearsExperience) ? `${profile.yearsExperience} ${profile.yearsExperience === 1 ? "yr" : "yrs"}` : "—");
+  setText("[data-profile-standing]", profile?.isPublic === true ? "Live on Homle" : "New to Homle");
+  setText("[data-profile-experience]", experienceBand(profile?.yearsExperience));
   setText("[data-profile-jobs]", completed > 0 ? String(completed) : "New");
   setText("[data-profile-rating]", reviewCount > 0 && Number.isFinite(profile?.averageRating) ? `${Number(profile.averageRating).toFixed(1)} ★` : "—");
 
   const equipment = [...(Array.isArray(profile?.equipmentSupplied) ? profile.equipmentSupplied : []), ...(Array.isArray(profile?.productsSupplied) ? profile.productsSupplied : [])];
-  setText("[data-profile-equipment]", equipment.length ? equipment.slice(0, 3).join(", ") : "Not supplied");
+  setText("[data-profile-equipment]", equipment.length ? "Brings own equipment" : "Not supplied");
   setText("[data-profile-about]", profile?.biography || profile?.introduction || "You have not added an introduction yet.");
-  setText("[data-profile-live-state]", profile?.isPublic === true ? "Visible in the Cleaner directory" : "Publish the completed profile when you are ready");
+  setText("[data-profile-live-state]", profile?.isPublic === true ? "Visible to clients" : "Goes live on approval");
 
-  chips("[data-profile-services]", (Array.isArray(profile?.services) ? profile.services : []).map((service) => service.serviceCode || service.code || service), "No services selected yet.");
-  chips("[data-profile-languages]", profile?.languages, "No languages added yet.");
-  chips("[data-profile-areas]", areas, "No coverage areas added yet.");
+  chips("[data-profile-services]", (Array.isArray(profile?.services) ? profile.services : []).map(serviceLabel), "No specialisms selected yet.");
+  chips("[data-profile-skills]", [], "No extra skills recorded yet.");
+  chips("[data-profile-training]", [], "No training badges earned yet.");
+  chips("[data-profile-areas]", areas, "No coverage areas added yet.", (index) => index === 0 ? " is-primary" : "");
+  setText("[data-profile-training-count]", "· 0 earned");
+  const visibility = document.querySelector("[data-profile-visibility]");
+  if (visibility) {
+    visibility.dataset.on = String(profile?.isPublic === true);
+    visibility.setAttribute("aria-checked", String(profile?.isPublic === true));
+  }
   renderBadges(profile);
   renderChecklist(profile);
+  renderAvailability(availability);
+  renderReviews(profile);
 }
 
 async function loadProfile() {
@@ -156,9 +254,16 @@ async function loadProfile() {
 
     const profileResult = await requestJson("/api/marketplace/cleaner/profile");
     const profile = profileResult.profile && typeof profileResult.profile === "object" ? profileResult.profile : null;
+    let availability = [];
+    try {
+      const availabilityResult = await requestJson("/api/marketplace/cleaner/availability");
+      availability = Array.isArray(availabilityResult.availability) ? availabilityResult.availability : [];
+    } catch {
+      availability = [];
+    }
     const payoutLink = document.querySelector("[data-cleaner-payout-link]");
     if (payoutLink) payoutLink.hidden = false;
-    renderProfile(account, profile);
+    renderProfile(account, profile, availability);
     renderAccountAvatar(account, profile?.profilePhotoUrl);
     showFeedback(profile ? "" : "Your Cleaner profile has not been created yet. Complete it to see the client-facing preview.", profile ? "info" : "error");
   } catch (error) {
@@ -172,12 +277,14 @@ async function loadProfile() {
 }
 
 retry.addEventListener("click", loadProfile);
+bookingPreview?.addEventListener("click", () => {
+  showFeedback("Client booking preview is not connected yet. Nothing was sent or changed.");
+  feedback.focus();
+});
 window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", () => {
   updateNetworkStatus();
   if (!gate.hidden) loadProfile();
 });
-const yearNode = document.querySelector("[data-year]");
-if (yearNode) yearNode.textContent = String(new Date().getFullYear());
 updateNetworkStatus();
 loadProfile();

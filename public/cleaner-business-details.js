@@ -1,4 +1,5 @@
-import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-7";
+import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
 
 const draftKey = "homle-cleaner-business-details-draft-v1";
 const draftLifetimeMs = 8 * 60 * 60 * 1000;
@@ -48,7 +49,7 @@ function setGuidance(businessType) {
   if (note) note.textContent = guidance[businessType] || guidance.solo;
 }
 
-export async function setupBusinessDetails({ account, requestJson }) {
+export async function setupBusinessDetails({ account, showFeedback, requestJson }) {
   document.title = "Business details | Homle";
   const overview = document.querySelector("[data-registration-overview]");
   const layout = document.querySelector("[data-personal-details]");
@@ -63,10 +64,11 @@ export async function setupBusinessDetails({ account, requestJson }) {
   if (topbar) topbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, onboardingResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    requestJson("/api/marketplace/cleaner/onboarding/business")
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
@@ -77,7 +79,9 @@ export async function setupBusinessDetails({ account, requestJson }) {
   renderRail(progress);
 
   const storage = safeSessionStorage();
-  const savedType = savedBusinessType(storage);
+  const savedType = onboardingResult.status === "fulfilled" && guidance[onboardingResult.value.section?.data?.businessType]
+    ? onboardingResult.value.section.data.businessType
+    : savedBusinessType(storage);
   const savedControl = form.elements.namedItem("businessType");
   if (savedControl instanceof RadioNodeList) savedControl.value = savedType;
   setGuidance(savedType);
@@ -99,9 +103,16 @@ export async function setupBusinessDetails({ account, requestJson }) {
   }
 
   form.addEventListener("change", saveChoice);
-  form.addEventListener("submit", (event) => {
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     saveChoice();
-    location.assign("/cleaner/registration");
+    try {
+      await saveOnboardingForm(requestJson, "business", form);
+      storage?.removeItem(draftKey);
+      showFeedback("Business details saved securely to your Homle account.");
+      location.assign("/cleaner/registration");
+    } catch (error) {
+      showFeedback(error.message || "Homle could not save your Business details.", "error");
+    }
   });
 }

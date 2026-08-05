@@ -76,10 +76,10 @@ Do not add credentials to source control or `.env.example`.
 For Homle, the canonical callbacks are:
 
 ```text
-https://homle.co.uk/api/marketplace/auth/google/callback
-https://homle.co.uk/api/marketplace/auth/apple/callback
-https://homle.co.uk/api/marketplace/auth/facebook/callback
-https://homle.co.uk/api/marketplace/auth/facebook/data-deletion
+https://homlle.com/api/marketplace/auth/google/callback
+https://homlle.com/api/marketplace/auth/apple/callback
+https://homlle.com/api/marketplace/auth/facebook/callback
+https://homlle.com/api/marketplace/auth/facebook/data-deletion
 ```
 
 Before starting managed staging, set `TIDEWAY_EXPECT_RELEASE` to the exact eight-character `sourceCommit` in the uploaded package manifest, set `TIDEWAY_EXPECT_SOCIAL_PROVIDERS` to the provider being activated first (for example `google`) and run `pnpm run preflight:authentication`. The command reads the bounded identity embedded in the running package and refuses a missing or different build. Its JSON contains only booleans, expected/running commit IDs, provider names, callback URLs and missing-action text; it never returns credential values. A passing configuration report is not permission to expose the buttons: the report lists the remaining live service probes, external-domain check and two-account staging evidence that must still pass.
@@ -103,8 +103,8 @@ The Meta account-removal callback is also implemented behind the same attachment
 Register these exact Meta values only after managed staging is attached:
 
 ```text
-Data deletion callback: https://homle.co.uk/api/marketplace/auth/facebook/data-deletion
-Status page base URL:   https://homle.co.uk/facebook-data-deletion
+Data deletion callback: https://homlle.com/api/marketplace/auth/facebook/data-deletion
+Status page base URL:   https://homlle.com/facebook-data-deletion
 ```
 
 Migration `038_facebook_data_deletion_callback.sql` adds the private callback/status record, the two reviewed rate-limit scopes and function-only runtime grants. A valid callback creates an honest privacy queue item; it does not claim the deletion has already been fulfilled. The 17 July 2026 disposable PostgreSQL 16.14 run proved known-subject queueing, opaque retry stability, honest unknown-subject completion, request-ID collision denial, status isolation, private-table denial, one audit event and complete fixture removal. Administrator fulfilment, retention exceptions, managed staging and final deletion evidence remain operational launch requirements.

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Coverage report | Homle</title>
+  <link rel="icon" href="/homle-logo.png" type="image/png">
+  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
+  <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <link rel="stylesheet" href="/admin-coverage.css?v=20260730-1">
+  <script type="module" src="/admin-private-navigation.js?v=20260805-1"></script>
+  <script type="module" src="/admin-coverage.js?v=20260730-1"></script>
+</head>
+<body class="coverage-page">
+  <a class="skip-link" href="#coverage-main">Skip to coverage report</a>
+  <header class="coverage-header"><div class="shell coverage-nav"><a class="brand" href="/"><img src="/homle-logo.png" alt="" width="42" height="42"><span>Homle</span></a><nav aria-label="Administrator" data-admin-private-navigation hidden><a href="/admin">Control desk</a><a href="/admin/bookings">Booking operations</a><a href="/admin/support">Landlord support</a><a aria-current="page" href="/admin/coverage">Coverage</a><a href="/admin/funnel">Funnel</a></nav></div></header>
+  <main id="coverage-main" class="shell coverage-main">
+    <section class="coverage-gate" data-coverage-gate role="status" aria-live="polite"><strong data-coverage-gate-title>Checking secure Administrator access…</strong><p data-coverage-gate-copy>Coverage counts are private operational data.</p><div><a class="button" href="/login" data-coverage-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-coverage-retry hidden>Try again</button></div></section>
+    <div data-admin-private-workspace data-coverage-workspace hidden>
+      <header class="coverage-heading"><div><p class="eyebrow">Privacy-minimal marketplace operations</p><h1>Supply and demand coverage</h1><p>Outward-postcode aggregates only—Homle omits identities, exact postcodes, addresses, coordinates, notes and photos.</p></div><div class="coverage-controls"><label>Reporting window<select data-coverage-window><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select></label><button class="button button-outline" type="button" data-coverage-refresh>Refresh</button></div></header>
+      <aside class="coverage-boundary"><strong>Operational snapshot, not a supply promise.</strong><p>“Listed supply” is a coarse marketplace count. Area eligibility is recalculated per future unmatched request under the real matching rules, including service, date, availability, distance, schedule and—when payments are enabled—payout readiness.</p></aside>
+      <div class="coverage-feedback" data-coverage-feedback role="alert" hidden></div>
+      <section class="coverage-summary" data-coverage-summary aria-label="Coverage summary"></section>
+      <p class="coverage-generated" data-coverage-generated aria-live="polite"></p>
+      <section class="coverage-list" data-coverage-list aria-live="polite" aria-busy="true"></section>
+      <section class="coverage-empty" data-coverage-empty hidden><strong>No submitted demand in this window.</strong><p>Choose a longer reporting window or refresh after a real request is submitted.</p></section>
+    </div>
+  </main>
+</body>
+</html>

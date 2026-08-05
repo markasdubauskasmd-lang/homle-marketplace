@@ -22,7 +22,10 @@ const supportedScopes = Object.freeze([
   "marketplace-public:cleaner-reviews",
   // Metered provider call — see db/migrations/065_scan_summary_rate_limit.sql
   "marketplace-landlord:scan-summary",
-  "marketplace-landlord:room-reading"
+  "marketplace-landlord:room-reading",
+  // Stores nothing, but costs CPU and a rates lookup — see migration 077.
+  "marketplace-landlord:scan-preview",
+  "marketplace-cleaner:address-lookup"
 ]);
 
 function secretKey(value) {

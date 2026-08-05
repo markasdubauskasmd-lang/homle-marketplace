@@ -140,6 +140,15 @@ assert(overallCondition([{ condition: "" }]) === "" && conditionLabel("") === "N
 
 const lines = scanChecklistLines([{ name: "Kitchen", tasks: ["Degrease the worktops", "Degrease the worktops", "Mop the floor"] }, { name: "", tasks: ["Dust the shelves"] }]);
 assert(lines.includes("Kitchen: Degrease the worktops") && lines.includes("Kitchen: Mop the floor") && lines.includes("Dust the shelves") && lines.length === 3, "The scan checklist lost a task, its room, or was not de-duplicated.");
+// Locally derived tasks already carry their room prefix. Re-prefixing them
+// shipped "Bedroom: Bedroom: …" to a real checklist on a real phone.
+{
+  const prefixed = scanChecklistLines([{ name: "Bedroom", tasks: ["Bedroom: Make the bed", "Wipe the sills", "bedroom: dust the shelves"] }]);
+  assert(prefixed.includes("Bedroom: Make the bed") && prefixed.includes("Bedroom: Wipe the sills"),
+    `An already-prefixed task was double-prefixed or an unprefixed one missed its room: ${JSON.stringify(prefixed)}`);
+  assert(prefixed.includes("bedroom: dust the shelves"), "Prefix detection is case-sensitive, so a lowercase room prefix gets doubled.");
+  assert(!prefixed.some((line) => /Bedroom: Bedroom:/i.test(line)), `The double room prefix is back: ${JSON.stringify(prefixed)}`);
+}
 
 const summary = scanSummary([{ name: "Kitchen", tasks: ["Degrease the worktops"], detections: [{ label: "Worktop" }], condition: "heavy" }]);
 assert(summary.roomCount === 1 && summary.fixtureCount === 1 && summary.conditionLabel === "Heavy", `The scan summary is wrong: ${JSON.stringify(summary)}`);
@@ -264,7 +273,18 @@ assert(overlay.includes('data-discard hidden role="alertdialog"') && overlay.inc
 assert(/function requestClose\(\)[\s\S]{0,180}hasScanProgress\(\)[\s\S]{0,80}showDiscard\(\)[\s\S]{0,80}close\(null\)/.test(overlay) && /for \(const button of \$\$\("\[data-close\]"\)\) button\.addEventListener\("click", requestClose\)/.test(overlay), "A close button can still destroy confirmed rooms or notes without the discard safeguard.");
 assert(/function setScanBackgroundInert\(inert, except = el\.discard\)[\s\S]{0,320}child\.inert = inert/.test(overlay) && /function openDiscardDecision\([\s\S]{0,700}setScanBackgroundInert\(true\)[\s\S]{0,120}discardKeep\.focus/.test(overlay), "The discard decision leaves covered camera controls interactive or does not move focus to its safe action.");
 assert(overlay.includes('window.addEventListener("beforeunload", onBeforeUnload)') && overlay.includes('window.removeEventListener("beforeunload", onBeforeUnload)') && /function onBeforeUnload\(event\)[\s\S]{0,220}!hasScanProgress\(\)[\s\S]{0,320}event\.returnValue = ""/.test(overlay), "Browser navigation can silently erase an in-progress room scan or leaves a permanent leave-page warning after teardown.");
-assert(!overlay.includes("localStorage") && !overlay.includes("JSON.stringify(state.rooms"), "The discard safeguard persists private room photos or the scan roster in browser storage.");
+// Sharpened from a blanket localStorage ban when the spoken-guidance preference
+// arrived: what is actually guarded is that nothing PRIVATE reaches browser
+// storage. An on/off setting under its named key is allowed; a photo, a room
+// roster or anything built from scan state is not.
+{
+  const storageWrites = [...overlay.matchAll(/localStorage\.setItem\(([^)]*)\)/g)].map((match) => match[1]);
+  assert(storageWrites.every((args) => args.includes("spokenGuidancePreferenceKey")), `A localStorage write beyond the named guidance preference appeared: ${storageWrites.join(" | ")}`);
+  const storageReads = [...overlay.matchAll(/localStorage\.getItem\(([^)]*)\)/g)].map((match) => match[1]);
+  assert(storageReads.every((args) => args.includes("spokenGuidancePreferenceKey")), "A localStorage read beyond the named guidance preference appeared.");
+  assert(!/localStorage\.setItem\([^)]*(rooms|photo|transcript|frozenFrame|image|dataUrl)/i.test(overlay), "Scan content reached localStorage.");
+  assert(!overlay.includes("JSON.stringify(state.rooms"), "The discard safeguard persists private room photos or the scan roster in browser storage.");
+}
 // Scoped to the function body. The window kept breaking as finishScan grew, and
 // widening a number teaches nothing; what is guarded is that the photos handed on
 // are the current rooms' own images.
@@ -360,7 +380,10 @@ assert(!/https?:\/\//.test(overlay) && !/["'`]\/\/[a-z0-9]/i.test(overlay), "The
 // the second could never fail while the first passed. What actually needs saying is
 // that the policy still names the directive, and still grants it nothing but 'self' —
 // an absent directive would satisfy a bare "does not contain" check just as well.
-assert(!server.includes("unsafe-eval"), "The Content-Security-Policy was weakened to run the on-device detector.");
+const mapPolicyStart = server.indexOf("response.setHeader(\"Content-Security-Policy\", googleMapPage");
+const mapPolicyEnd = server.indexOf("response.setHeader(\"Referrer-Policy\"", mapPolicyStart);
+const nonMapPolicies = `${server.slice(0, mapPolicyStart)}${server.slice(mapPolicyEnd)}`;
+assert(mapPolicyStart >= 0 && !nonMapPolicies.includes("unsafe-eval"), "unsafe-eval escaped the nonce-protected Google Maps page and weakened another Content-Security-Policy.");
 assert(/script-src\s+'self'/.test(server), "The script-src directive no longer pins scripts to 'self', so the no-eval guarantee above is checking a policy that may not exist.");
 
 // The library's own default is an off-origin model that connect-src blocks
@@ -490,7 +513,8 @@ assert(overlay.includes("data-camera-deck") && /function blockCamera[\s\S]{0,700
 assert(overlay.includes("data-camera-fallback") && overlay.includes("data-camera-fallback-input") && overlay.includes('capture="environment"') && overlay.includes("decodePhoto") && overlay.includes("captureSelectedPhoto"), "A denied live-camera permission no longer has a native phone-camera fallback.");
 assert(overlay.includes("Live camera blank? Open your phone camera") && overlay.includes("for (const button of el.fallbacks)"), "The native phone-camera fallback is hidden until the live camera fails, leaving a black-but-open stream with no escape.");
 assert(overlay.includes('accept="image/*"') && photoSelection.includes('startsWith("image/")'), "The native rear-camera fallback is restricted to a MIME list that can make phones open only the photo library or reject their own camera format.");
-assert(/function captureSelectedPhoto\(file\)[\s\S]{0,220}state\.photoProcessing[\s\S]{0,180}aria-busy[\s\S]{0,1500}finally[\s\S]{0,180}state\.photoProcessing = false/.test(overlay), "A native photo decode can be started twice, gives no busy state or leaves the camera-resume gate permanently locked.");
+const selectedPhotoBody = overlay.slice(overlay.indexOf("async function captureSelectedPhoto(file)"), overlay.indexOf("function videoContactSheet", overlay.indexOf("async function captureSelectedPhoto(file)")));
+assert(/state\.photoProcessing[\s\S]{0,180}aria-busy/.test(selectedPhotoBody) && /finally[\s\S]{0,180}state\.photoProcessing = false/.test(selectedPhotoBody), "A native photo decode can be started twice, gives no busy state or leaves the camera-resume gate permanently locked.");
 assert(overlay.includes('import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js"') && overlay.includes("data-video-fallback") && overlay.includes('accept="video/*"') && overlay.includes('capture="environment"'), "The main guided scanner cannot open a phone's rear video recorder or reuse the validated private video-frame extractor.");
 assert(overlay.includes("function videoContactSheet(frames)") && /function captureSelectedVideo\(file\)[\s\S]{0,1400}extractRoomVideoFrames\(file, \{ frameCount: maximumRoomVideoFrames \}\)[\s\S]{0,300}videoContactSheet\(frames\)/.test(overlay) && overlay.includes("The raw video and audio stayed on this phone"), "A guided room video is uploaded raw, exposes its audio, or does not combine its beginning, middle and end into one locally extracted review frame.");
 assert(overlay.includes("roomVideoContactSheetLayout({") && overlay.includes("sourceWidth: first.naturalWidth") && overlay.includes("canvasWidth: canvas.width"), "The video contact sheet ignores the tested portrait/landscape layout and can turn every frame into an unreadable thumbnail.");
@@ -578,7 +602,7 @@ assert(/function freezeFrame[\s\S]{0,400}state\.revisiting = false/.test(overlay
 // The phone-camera decode must not draw onto the shared canvas until the
 // Landlord is confirmed still in this room — otherwise an abandoned decode
 // corrupts a later crop.
-assert(overlay.includes("function decodePhoto") && /decodePhoto\(file\)[\s\S]{0,260}session !== state\.roomSession[\s\S]{0,200}drawVisibleRegion/.test(overlay), "A phone-camera photo draws to the shared canvas before confirming the room.");
+assert(overlay.includes("function decodePhoto") && /decodePhoto\(file\)[\s\S]*session !== state\.roomSession[\s\S]*refreshPrivateRegionsForSource\(image[\s\S]*session !== state\.roomSession[\s\S]*drawVisibleRegion/.test(selectedPhotoBody), "A phone-camera photo draws to the shared canvas before confirming the room.");
 assert(overlay.includes("validatedGuidedRoomPhotoFile(file)") && overlay.includes("validatedGuidedRoomPhotoDimensions(image.naturalWidth, image.naturalHeight)"), "The broad native phone-camera picker can pass vector or oversized decoded images into the scanner.");
 
 // A tap during the revisit photo load must not start a fresh capture that the
@@ -629,4 +653,164 @@ assert(!server.includes('"/landlord/scan": "room-scan.html"'), "The legacy stand
 assert(/landlordDashboardPage \|\| journeyPage[\s\S]{0,120}\? "camera=\(self\), microphone=\(self\), geolocation=\(\)"/.test(server), "The embedded scanner is rendered on /landlord/book, but that real phone journey still blocks its own camera and microphone in Permissions-Policy.");
 assert(server.includes("activeJobPage || landlordDashboardPage || journeyPage"), "The protected booking journey cannot connect to private object storage for room-photo uploads.");
 
+
+/* ── Nothing leaves the device with a face in it ───────────────────────── */
+
+// Until Phase 8 a captured frame was metadata-stripped by the server and
+// otherwise stored intact, so a person in the room or a payslip on a desk
+// reached the assigned Cleaner under a signed URL.
+assert(/redactPrivateContent\(el\.canvas[^)]*\);[\s\S]{0,600}toDataURL/.test(overlay),
+  "A frame can be serialised before private content is erased.");
+assert(/async function refreshPrivateRegionsForSource[\s\S]*state\.privateRegions = \[\][\s\S]*detector\.detect\(source[\s\S]*shouldRedact/.test(overlay),
+  "A phone photo or video contact sheet can reuse stale live-camera privacy boxes instead of checking its own pixels.");
+assert(/decodePhoto\(file\)[\s\S]{0,650}refreshPrivateRegionsForSource\(image[\s\S]{0,300}drawVisibleRegion\(image/.test(overlay),
+  "The phone-camera fallback draws or serialises a selected photo before its own private-content check.");
+assert(/state\.candidates = live \?[\s\S]{0,350}: \[\]/.test(overlay),
+  "A fallback photo can inherit selectable boxes from an unrelated live camera frame.");
+assert(/refreshPrivateRegionsForSource[\s\S]*private-content check[\s\S]*voice note instead/.test(overlay),
+  "The selected-photo privacy check can fail open when on-device detection is unavailable.");
+// The single place every uploaded frame, crop source and read frame is
+// produced. Redacting anywhere else means a caller added later has to remember.
+assert(overlay.split("toDataURL(\"image/jpeg\"").length === 2 || /redactPrivateContent/.test(overlay),
+  "Frames are produced in more than one place without redaction.");
+// Gathered from the raw detector output, not the tracker: a person is filtered
+// out by implausibleForRoom and by the tracking threshold, and neither is a
+// reason to publish their face.
+assert(/state\.privateRegions = found[\s\S]{0,200}shouldRedact/.test(overlay),
+  "Private regions are taken from the tracker rather than from raw detections.");
+// Somebody handing a photograph of their home to a stranger is entitled to
+// know what was removed from it.
+assert(overlay.includes("state.lastRedaction?.summary") && overlay.includes("unusableRedactionRatio"),
+  "The scanner neither reports what it blurred nor refuses a frame that is mostly a person.");
+
 console.log("Room scan UI tests passed: embedded overlay with one implementation, real camera and speech, consent before any photograph leaves, camera released on every exit, safe detection overlay, honest duration and condition, no invented measurement and the approved presentation.");
+
+/* ── The microphone can always be stopped, cancelled and reviewed ── */
+
+// While recording, the panel header holds a visible Stop (and Cancel); while
+// reviewing, Done and Delete. The old stylesheet rule hid the panel's only
+// button during recording, leaving stop to an unlabelled toggle — the exact
+// field complaint this section pins against return.
+assert(overlay.includes("data-voice-stop") && overlay.includes("data-voice-cancel") && overlay.includes("data-voice-delete"), "The voice panel lost its explicit Stop, Cancel or Delete control.");
+assert(!/\.voice\.recording \.voice-done\s*\{\s*display:\s*none/.test(styles), "The stylesheet once again hides the note panel's confirm button during recording, leaving no visible way to stop.");
+assert(/el\.voiceStop\.hidden = !recording;\s*\n\s*el\.voiceCancel\.hidden = !recording;\s*\n\s*el\.noteDone\.hidden = recording;/.test(overlay), "Recording and review no longer swap the Stop/Cancel and Done/Delete button pairs, so one state shows the other's controls.");
+assert(/micLabel\.textContent = recording \? "Stop"/.test(overlay) && /aria-label", recording \? "Stop recording"/.test(overlay), "The mic button does not become a labelled Stop control while recording.");
+assert(/el\.voiceStop\.addEventListener\("click", \(\) => stopVoice\(\)\)/.test(overlay), "The visible Stop button is not wired to stop the recording.");
+// Cancel restores the note to exactly what it was when the mic was tapped —
+// discarding the recording, never the note it was being appended to.
+assert(/state\.voiceSessionStartNote = sessionBase/.test(overlay) && /function cancelVoice\(\)[\s\S]{0,420}stopVoice\(\{ silent: true \}\);[\s\S]{0,120}setRoomTranscript\(restore\)/.test(overlay), "Cancelling a recording no longer restores the pre-recording note.");
+assert(/function deleteVoiceNote\(\)[\s\S]{0,320}setRoomTranscript\(""\)/.test(overlay), "There is no way to delete a room note from the review panel.");
+// Failure causes are named, because "try again" is wrong advice for a blocked
+// permission and for a phone with no microphone.
+assert(/event\?\.error === "not-allowed" \|\| event\?\.error === "service-not-allowed"/.test(overlay) && overlay.includes("Microphone access is blocked"), "A denied microphone permission is reported as a generic failure, sending people tapping the mic forever.");
+assert(overlay.includes('event?.error === "audio-capture"') && overlay.includes("No microphone was found"), "A missing microphone is reported as a generic failure.");
+assert(overlay.includes("Nothing was heard"), "An empty recording ends silently instead of saying nothing was heard.");
+// The timer restarts visibly with each recording.
+assert(/el\.voiceTime\.textContent = "0:00"/.test(overlay), "A new recording shows the previous recording's elapsed time until the first tick.");
+
+/* ── One capture mode: the deck offers no video button ── */
+
+// The scanner already reads the room continuously while the Landlord walks; a
+// separate video mode was a second way to do what the default does, and a
+// media-mode decision no customer should be handed. The video path itself must
+// survive on the camera-blocked recovery card, where it is genuinely needed.
+{
+  const deckMarkup = overlay.slice(overlay.indexOf('class="deck-row"'), overlay.indexOf("deck-camera-alt"));
+  assert(!deckMarkup.includes("data-video-fallback"), "The video-mode button is back in the main camera deck.");
+  assert(deckMarkup.includes("data-note-open"), "The deck lost its typed-note entry when the video button left.");
+  assert(deckMarkup.includes("Finish room"), "The shutter carries no visible label saying it finishes the room.");
+  const blockedMarkup = overlay.slice(overlay.indexOf("vf-blocked"), overlay.indexOf('class="scan-top"'));
+  assert(blockedMarkup.includes("data-video-fallback"), "The camera-blocked recovery card lost its video fallback — a phone with a blank live camera now has no walkthrough capture at all.");
+}
+
+/* ── The press is acknowledged before the encode ── */
+
+// The 1600px JPEG now encodes off the main thread; the flash and the locked
+// shutter are what make that wait read as a response instead of a dead button,
+// and the post-await guards are what stop a stale encode landing on a view the
+// Landlord has already left or frozen.
+assert(/function flashViewfinder\(\)[\s\S]{0,240}classList\.add\("pop"\)/.test(overlay), "Nothing triggers the capture flash the stylesheet has always defined.");
+assert(/async function capture\(\)[\s\S]{0,1200}flashViewfinder\(\);\s*\n\s*el\.shutter\.disabled = true/.test(overlay), "The shutter press is not acknowledged before the asynchronous encode.");
+assert(/async function capture\(\)[\s\S]{0,1600}const frame = await pending;[\s\S]{0,300}if \(state\.closed \|\| state\.frozen \|\| state\.screen !== "live"\) return;/.test(overlay), "A capture encoded after the Landlord moved on can still freeze the wrong view.");
+assert(/await pending\.catch\(\(\) => ""\)/.test(overlay), "A failed tap-to-freeze encode rejects unhandled instead of degrading to the warming-up message.");
+
+/* ── Spoken guidance never talks into the microphone ── */
+
+// The one hard rule: guidance must never be transcribed into the customer's
+// own note. The speak function refuses while recording, and starting a
+// recording silences anything mid-sentence BEFORE the microphone opens.
+assert(/function announceGuidance\(text, key = text\)[\s\S]{0,120}state\.voiceOn\) return;/.test(overlay), "Spoken guidance can talk while a voice note is recording, transcribing itself into the customer's note.");
+assert(/function startVoice\(\)[\s\S]{0,220}stopSpeaking\(\);/.test(overlay), "Starting a recording does not silence guidance already mid-sentence.");
+// Off by default, per-device, and torn down with everything else.
+assert(overlay.includes("data-speech-toggle") && /function toggleSpokenGuidance\(\)[\s\S]{0,320}localStorage\.setItem\(spokenGuidancePreferenceKey/.test(overlay), "The spoken-guidance choice is not a visible, remembered toggle.");
+assert(/function readSpokenGuidancePreference\(\)[\s\S]{0,160}=== "on"/.test(overlay), "Spoken guidance is not off by default — an unset preference must stay silent.");
+assert(/function close\(result\)[\s\S]{0,400}stopSpeaking\(\)/.test(overlay) && /function pauseForBackground\(\)[\s\S]{0,300}stopSpeaking\(\)/.test(overlay), "Closing or backgrounding the scanner can leave it talking.");
+// One thing at a time — stale guidance queued behind current guidance narrates
+// the past.
+assert(/synth\.cancel\(\);[\s\S]{0,400}synth\.speak\(utterance\)/.test(overlay), "Queued utterances can stack up and narrate stale guidance.");
+
+/* ── The capture assists come on by themselves, and off only by hand ── */
+
+// Torch and zoom decisions live in camera-assist.js where their rules are
+// tested; what is pinned here is the wiring that keeps them safe in the
+// overlay: streaks counted on every quality sample (including unchanged-advice
+// ones — the early return must come after), declines recorded on the manual
+// controls and reset per room, and everything cleared when the camera stops.
+// The torch streak counts RAW measured luma, not the "too dark" advice kind:
+// auto-exposure brightens a dark bedroom past the advice threshold, which is
+// exactly why the first field trial's torch never fired.
+assert(/state\.darkStreak = quality\.luma < torchLumaThreshold[\s\S]{0,900}void maybeAssistCamera\(\);[\s\S]{0,140}if \(key === state\.qualityKind\) return true;/.test(overlay), "Assist streaks are counted after the unchanged-advice early return, or the torch is keyed to the post-auto-exposure-blind advice kind again.");
+assert(/async function maybeAssistCamera\(\)[\s\S]{0,120}state\.closed \|\| state\.frozen \|\| !state\.cameraTrack\) return;/.test(overlay), "The assist can fire while the frame is frozen or the camera is gone.");
+assert(/if \(shouldEnableTorch\(\{/.test(overlay) && /nextAutoZoom\(\{/.test(overlay), "The overlay makes its own assist decisions instead of using the tested rules.");
+// Manual off is final for the room, on both assists.
+assert(/async function toggleTorch\(\)[\s\S]{0,420}state\.torchOn = false;[\s\S]{0,160}state\.torchDeclined = true;/.test(overlay), "Turning the torch off does not decline it, so it re-lights a second later.");
+assert(/async function cycleZoom\(\)[\s\S]{0,520}state\.zoomDeclined = true;/.test(overlay), "A manual zoom step does not take over from the automation, so it re-zooms a second later.");
+// A new room is a new conversation: declines and streaks reset, zoom returns
+// to wide.
+assert(/function prepareLiveRoom\(\)[\s\S]{0,900}state\.torchDeclined = false;[\s\S]{0,80}state\.zoomDeclined = false;/.test(overlay), "A decline in one room silences the assists in every later room.");
+// Stopping the camera physically extinguishes the torch; the state must agree.
+assert(/function stopCamera\(\)[\s\S]{0,700}state\.torchOn = false;[\s\S]{0,120}renderCameraAssist\(\)/.test(overlay), "A stopped camera leaves the torch control claiming to be on.");
+// The controls exist and are hidden until the camera proves support.
+assert(overlay.includes("data-torch") && overlay.includes("data-zoom-reset") && /el\.torch\.hidden = !state\.stream \|\| !torchSupported\(state\.cameraCapabilities\)/.test(overlay), "The assist controls show on cameras that cannot honour them.");
+// Counted, never photographed: the assists report bare counters only.
+assert(/scanEvents\.record\("scan\.assist\.torch"\)/.test(overlay) && /scanEvents\.record\("scan\.assist\.zoom"\)/.test(overlay), "The assists fire without being counted, so nobody learns how often rooms are too dark or too far.");
+// Chrome on Android populates getCapabilities() asynchronously after
+// getUserMedia resolves, so a single read at open sees no torch and no zoom on
+// exactly the phones the assists exist for — the third field trial's Pixel.
+// The read must repeat: at open, on delayed probes while the pipeline settles,
+// and on every quality sample while the camera still claims it can do nothing.
+assert(/function refreshCameraCapabilities\(\)[\s\S]{0,260}track\.getCapabilities\?\.\(\)[\s\S]{0,340}renderCameraAssist\(\)/.test(overlay), "The capability read cannot repeat, so late-arriving torch and zoom support never arms the assists.");
+assert(/refreshCameraCapabilities\(\);\s*\n\s*scheduleCapabilityProbes\(\);/.test(overlay), "Opening the camera reads capabilities only once — the Pixel race that kept both assists dormant.");
+assert(/state\.timers\.capabilityProbes = \[600, 2000\]\.map/.test(overlay), "The delayed capability probes are gone or drifted from the settle window field evidence chose.");
+assert(/async function maybeAssistCamera\(\)[\s\S]{0,500}if \(!torchSupported\(state\.cameraCapabilities\) && !zoomRange\(state\.cameraCapabilities\)\) refreshCameraCapabilities\(\);/.test(overlay), "A camera whose capabilities arrive after the probe window never gets re-asked.");
+// The zoom's second trigger — the fourth field report: a ready detector that
+// persistently finds NOTHING in a good frame is the other face of "too far".
+// Counted only while no quality problem outranks it (zooming into darkness or
+// motion blur reveals nothing), fed to the decision, and reset per room.
+assert(/state\.emptyStreak = !advice && state\.detectorState === "ready" && state\.tracks\.length === 0 \? state\.emptyStreak \+ 1 : 0;/.test(overlay), "The empty-view streak is gone or counts while a quality problem outranks it.");
+assert(/nextAutoZoom\(\{[\s\S]{0,220}emptyStreak: state\.emptyStreak/.test(overlay), "The empty-view streak never reaches the zoom decision, so a scanner that finds nothing still never zooms — the fourth field report.");
+assert(/function prepareLiveRoom\(\)[\s\S]{0,1200}state\.emptyStreak = 0;/.test(overlay), "The empty-view streak leaks across rooms.");
+assert(/function stopCamera\(\)[\s\S]{0,600}state\.timers\.capabilityProbes = \[\];/.test(overlay), "Stopping the camera leaves capability probes armed against a dead track.");
+
+// The framing guidance ("move slowly", "too dark") lives at the TOP of the
+// viewfinder, under the step pill. The third field trial proved the bottom
+// position sits exactly where thumbs and the shutter live, so the one line
+// telling the customer what to change went unread.
+assert(/\.scan-detector-state\{[^}]*top:calc\(max\(22px,env\(safe-area-inset-top\)\) \+ 96px\)/.test(styles), "The framing guidance is no longer anchored under the step pill at the top of the viewfinder.");
+assert(!/\.scan-detector-state\{[^}]*bottom:/.test(styles), "The framing guidance moved back to the bottom of the viewfinder, under the customer's thumbs.");
+
+// The glow and the item list are two different systems — the on-device
+// detector highlights instantly, the paid reader names and grades a moment
+// later — and "0 items found" over a screen full of glowing boxes read as a
+// broken scanner (the fifth field report). While the named list is empty the
+// header describes the glow: how many things are spotted, and "reading" only
+// while a read is genuinely in flight. The line moves with the glow.
+assert(/el\.found\.hidden = items\.length === 0 && !currentRoomBusy && spotted === 0;/.test(overlay), "A screen full of glowing boxes can still say nothing was found.");
+assert(overlay.includes('`spotted · ${currentRoomBusy ? "reading…" : "hold steady to read"}`'), "The spotted header claims to be reading while no read is in flight, or is gone.");
+assert(/state\.tracks\.length !== state\.lastSpottedCount[\s\S]{0,160}if \(inventoryFor\(\)\.length === 0\) renderInventory\(\);/.test(overlay), "The spotted count does not follow the glow it describes — or re-renders the inventory on every detection frame.");
+
+// The detector's megabytes travel from the journey page's idle time, before
+// the scanner opens — and a failed warm-up clears the memo so the overlay's
+// own (final) attempt starts fresh instead of inheriting a network hiccup.
+assert(/export function warmRoomScanDetector\(\)[\s\S]{0,220}if \(detectorLoad === attempt\) detectorLoad = null/.test(overlay), "The pre-warm hook is gone, or a failed background warm-up now burns the overlay's single detector attempt.");
+assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmScanner/.test(journey) && /setTimeout\(warmScanner/.test(journey), "The journey page no longer warms the detector from idle time, so the scanner is back to loading its model after opening.");

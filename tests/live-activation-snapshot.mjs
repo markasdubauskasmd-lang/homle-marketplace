@@ -51,6 +51,7 @@ for (const invalid of ["http://homle.example", "https://localhost", "https://127
 
 const providerGaps = liveActivationSnapshot(health(), { origin: "https://homle.example", expectedRelease: "746d0599", providers: providers() });
 assert.equal(providerGaps.readiness.coreBookingRehearsal, true);
+assert.equal(providerGaps.readiness.automaticMatchingRehearsal, true);
 assert.equal(providerGaps.readiness.transactionalNotifications, false);
 assert.equal(providerGaps.readiness.emailFallback, false);
 assert.equal(providerGaps.readiness.requestedAccountEntry, false);
@@ -70,6 +71,13 @@ assert.equal(fullyConfiguredTest.readiness.realPayments, false, "A staging healt
 const missingStorage = liveActivationSnapshot(health({ mediaReady: false }), { origin: "https://homle.example", providers: providers() });
 assert.deepEqual(missingStorage.remainingActions.map((entry) => entry.key), ["facebook-sign-in", "apple-sign-in", "private-media", "transactional-email", "test-payments"]);
 assert.equal(missingStorage.readiness.coreBookingRehearsal, false);
+
+const deliberatelyHeldDispatch = liveActivationSnapshot(health({ automaticDispatchReady: false }), { origin: "https://homle.example", providers: providers() });
+assert.equal(deliberatelyHeldDispatch.readiness.coreBookingRehearsal, true, "A safe direct-invitation rehearsal was blocked by the separately approved automatic-dispatch gate.");
+assert.equal(deliberatelyHeldDispatch.readiness.automaticMatchingRehearsal, false);
+const dispatchAction = deliberatelyHeldDispatch.remainingActions.find((entry) => entry.key === "automatic-dispatch");
+assert(dispatchAction?.action.includes("founder explicitly approves") && dispatchAction.action.includes("exactly one monitored worker"), "The live verifier invited an operator to enable automatic dispatch without its approval and single-worker evidence boundary.");
+assert(!dispatchAction.action.includes("Restore"), "An intentionally held automatic-dispatch gate was misreported as a broken runtime.");
 
 assert.throws(() => liveActivationSnapshot(health(), { origin: "https://homle.example", expectedRelease: "aaaaaaaa", providers: providers() }), /does not match expected release/);
 assert.throws(() => liveActivationSnapshot({ ...health(), marketplace: { ...health().marketplace, mediaReady: "yes" } }, { origin: "https://homle.example", providers: providers() }), /explicit boolean/);

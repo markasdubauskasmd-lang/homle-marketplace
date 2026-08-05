@@ -19,6 +19,11 @@ const scripts = Object.freeze({
   cleanerVerificationQueuePagination: "cleaner-verification-queue-pagination.sql",
   matchingSelfExclusion: "matching-self-exclusion.sql",
   paidMatchingPayoutReadiness: "paid-matching-payout-readiness.sql",
+  administratorCoverage: "administrator-coverage-behaviour.sql",
+  administratorFunnelSetup: "administrator-funnel-owner-setup.sql",
+  administratorFunnel: "administrator-funnel-behaviour.sql",
+  administratorFunnelCleanup: "administrator-funnel-owner-cleanup.sql",
+  propertyArchive: "property-archive-behaviour.sql",
   automaticDispatchSetup: "automatic-dispatch-rehearsal-setup.sql",
   automaticDispatchClaimA: "automatic-dispatch-claim-a.sql",
   automaticDispatchClaimB: "automatic-dispatch-claim-b.sql",
@@ -33,6 +38,11 @@ const scripts = Object.freeze({
   landlordSingleDispatch: "landlord-single-dispatch-authorization.sql",
   cleaningRequestRealtimeAndAvatar: "cleaning-request-realtime-and-avatar.sql",
   facebookDataDeletion: "facebook-data-deletion-behaviour.sql",
+  structuredRoomScan: "structured-room-scan-behaviour.sql",
+  scanPricingRuleset: "scan-pricing-ruleset-behaviour.sql",
+  scanEstimateShadow: "scan-estimate-shadow-behaviour.sql",
+  scanRetentionVoiceAddon: "scan-retention-voice-addon-behaviour.sql",
+  scanGroundTruth: "scan-ground-truth-behaviour.sql",
   rls: "marketplace-rls-behaviour.sql",
   acceptA: "accept-booking-a.sql",
   acceptB: "accept-booking-b.sql",
@@ -41,6 +51,9 @@ const scripts = Object.freeze({
   participantLifecycle: "participant-lifecycle-rehearsal.sql",
   disputeSetup: "marketplace-dispute-setup.sql",
   disputeBehaviour: "marketplace-dispute-behaviour.sql",
+  landlordSupportSetup: "landlord-support-owner-setup.sql",
+  landlordSupport: "landlord-support-behaviour.sql",
+  landlordSupportCleanup: "landlord-support-owner-cleanup.sql",
   paymentGate: "marketplace-payment-gate.sql",
   paymentOrdering: "marketplace-payment-ordering.sql",
   verify: "marketplace-integration-verify.sql",
@@ -221,6 +234,14 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Administrator Cleaner verification queue pagination", file: scripts.cleanerVerificationQueuePagination, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Matching self-exclusion behaviour test", file: scripts.matchingSelfExclusion, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Paid matching payout-readiness test", file: scripts.paidMatchingPayoutReadiness, environment: appEnvironment, command, execute });
+    runPsqlSync({ label: "Administrator coverage privacy and eligibility test", file: scripts.administratorCoverage, environment: appEnvironment, command, execute });
+    runPsqlSync({ label: "Administrator funnel fixture preparation", file: scripts.administratorFunnelSetup, environment: ownerEnvironment, command, execute });
+    try {
+      runPsqlSync({ label: "Administrator funnel privacy and cohort test", file: scripts.administratorFunnel, environment: appEnvironment, command, execute });
+    } finally {
+      runPsqlSync({ label: "Administrator funnel fixture cleanup", file: scripts.administratorFunnelCleanup, environment: ownerEnvironment, command, execute });
+    }
+    runPsqlSync({ label: "Owner property archive lifecycle test", file: scripts.propertyArchive, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Automatic-dispatch rehearsal setup", file: scripts.automaticDispatchSetup, environment: ownerEnvironment, command, execute });
     const dispatchClaims = await executeConcurrent([
       { file: scripts.automaticDispatchClaimA, environment: workerEnvironment },
@@ -244,6 +265,19 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     runPsqlSync({ label: "Landlord single-dispatch authorization test", file: scripts.landlordSingleDispatch, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Private request live-update and session-avatar test", file: scripts.cleaningRequestRealtimeAndAvatar, environment: appEnvironment, command, execute });
     runPsqlSync({ label: "Facebook data-deletion behaviour test", file: scripts.facebookDataDeletion, environment: appEnvironment, command, execute });
+    // Owner-run because it asserts on stored correction rows that the runtime
+    // role is deliberately forbidden to read. It names tideway_app explicitly
+    // when proving that boundary, so running as the owner does not weaken it.
+    runPsqlSync({ label: "Structured room-scan behaviour test", file: scripts.structuredRoomScan, environment: ownerEnvironment, command, execute });
+    runPsqlSync({ label: "Scan pricing ruleset behaviour test", file: scripts.scanPricingRuleset, environment: ownerEnvironment, command, execute });
+    // Owner-run: it moves a fixture booking to confirmed to prove that only an
+    // accepted price is treated as a reviewed figure, and asserts on stored rows
+    // the runtime role is deliberately forbidden to read.
+    runPsqlSync({ label: "Scan estimate shadow behaviour test", file: scripts.scanEstimateShadow, environment: ownerEnvironment, command, execute });
+    runPsqlSync({ label: "Scan retention, voice and add-on behaviour test", file: scripts.scanRetentionVoiceAddon, environment: ownerEnvironment, command, execute });
+    // Owner-run for the same reason as the scan tests above: it asserts on the
+    // stored label rows the runtime role is deliberately forbidden to read.
+    runPsqlSync({ label: "Scan ground-truth behaviour test", file: scripts.scanGroundTruth, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "RLS behaviour test", file: scripts.rls, environment: appEnvironment, command, execute });
 
     const concurrentResults = await executeConcurrent([
@@ -271,11 +305,17 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     if (!Array.isArray(realtimeProof.accountSignals) || realtimeProof.accountSignals.length < 1 || realtimeProof.accountSignals.some((signal) => !uuidPattern.test(signal?.accountId || "") || !uuidPattern.test(signal?.notificationId || ""))) throw new Error("The participant lifecycle did not produce a privacy-minimal committed account notification signal.");
     runPsqlSync({ label: "Dispute fixture setup", file: scripts.disputeSetup, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Dispute workflow test", file: scripts.disputeBehaviour, environment: appEnvironment, command, execute });
+    runPsqlSync({ label: "Landlord support fixture preparation", file: scripts.landlordSupportSetup, environment: ownerEnvironment, command, execute });
+    try {
+      runPsqlSync({ label: "Landlord support privacy test", file: scripts.landlordSupport, environment: appEnvironment, command, execute });
+    } finally {
+      runPsqlSync({ label: "Landlord support fixture cleanup", file: scripts.landlordSupportCleanup, environment: ownerEnvironment, command, execute });
+    }
     runPsqlSync({ label: "Payment reconciliation ordering test", file: scripts.paymentOrdering, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, administratorCoverage: true, administratorFunnel: true, propertyArchive: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, landlordSupport: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {

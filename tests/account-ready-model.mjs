@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { accountReadyPresentation, availableAccountMethodLabel } from "../public/account-ready-model.js";
+import { accountReadyPresentation, availableAccountMethodLabel, unavailableEmailActionPresentation } from "../public/account-ready-model.js";
 
 const cleaner = { selectedRole: "cleaner", roles: ["cleaner"] };
 const landlord = { selectedRole: "landlord", roles: ["landlord"] };
@@ -27,6 +27,21 @@ assert.equal(availableAccountMethodLabel({ google: true, emailPassword: true }),
 assert.equal(availableAccountMethodLabel({ google: true, apple: true, facebook: true, emailPassword: true }), "Google, Apple, Facebook or verified email", "The complete account-method list is unclear.");
 assert.equal(availableAccountMethodLabel({ google: false, apple: false, facebook: false, emailPassword: false }), "", "Unavailable providers appeared in account-entry copy.");
 
+assert.deepEqual(
+  unavailableEmailActionPresentation("reset", { google: true, emailPassword: false }, "book"),
+  {
+    title: "Password reset is unavailable",
+    lead: "Homle currently uses Google sign-in instead of Homle passwords.",
+    copy: "There is no Homle password to reset. Return to the secure sign-in page to continue with an available provider.",
+    actionHref: "/login?intent=book",
+    actionLabel: "Continue with Google"
+  },
+  "A Google-only deployment strands visitors on an empty password-reset screen."
+);
+assert.equal(unavailableEmailActionPresentation("reset", { google: true, emailPassword: true }, "book"), null, "An available email-password reset was replaced by the provider fallback.");
+assert.equal(unavailableEmailActionPresentation("login", { google: true, emailPassword: false }), null, "The provider fallback appeared on an unrelated account screen.");
+assert.equal(unavailableEmailActionPresentation("verify", { google: true, emailPassword: false }, "unexpected")?.actionHref, "/login", "An untrusted account intent escaped into the recovery link.");
+
 const accountScript = await readFile(new URL("../public/auth-entry.js", import.meta.url), "utf8");
 const logoutStart = accountScript.indexOf("async function logoutReadyAccount()");
 const logoutEnd = accountScript.indexOf("async function submitAccountForm", logoutStart);
@@ -48,5 +63,12 @@ assert(accountScript.includes('title.textContent = "Opening your workspace."'), 
 assert(!loadTimeCopy.includes("Account access is safely unavailable.") && !loadTimeCopy.includes("Secure account access is ready."), "Account entry states a readiness verdict before the provider check resolves, so it can flash a false unavailable or ready state.");
 const staticMarkup = await readFile(new URL("../public/account.html", import.meta.url), "utf8");
 assert(staticMarkup.includes("Checking secure account access"), "The served account page does not say that the capability check is still running.");
+assert(!staticMarkup.includes('<header class="site-header">'), "The retired account-page header returned.");
+assert(/<article class="ae-panel">[\s\S]*?<a class="ae-logo" href="\/" aria-label="Return to Homle home"><img src="\/homle-logo-192-c8defd4b\.png"/.test(staticMarkup), "The compact Homle logo is not inside the account panel where the decorative tile used to be.");
+assert(!staticMarkup.includes('class="ae-pulse"'), "The green decorative pulse still occupies the account panel logo position.");
+assert(!staticMarkup.includes("data-pilot-actions") && !staticMarkup.includes("or go straight to a workspace") && !staticMarkup.includes('href="/cleaner/dashboard"') && !staticMarkup.includes('href="/landlord/dashboard"'), "Unsigned account entry still offers protected or cross-role dashboard shortcuts instead of one focused sign-in journey.");
+assert(!accountScript.includes("pilotActions"), "The removed cross-role account shortcuts left dead controller logic behind.");
+assert(staticMarkup.includes("data-account-unavailable hidden") && staticMarkup.includes("data-account-unavailable-action"), "An unavailable password or verification action has no visible recovery route.");
+assert(accountScript.includes("unavailableEmailActionPresentation(selectedMode.form, providers, accountIntent)") && accountScript.includes("unavailableEmailAction.hidden = !unavailableEmailPresentation"), "Provider discovery can still leave an email-only account route as an empty form region.");
 
 console.log("Account-ready handoff tests passed: exact live provider copy, neutral capability loading, role-safe destinations and recoverable sign-out.");

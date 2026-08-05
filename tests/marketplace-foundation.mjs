@@ -13,6 +13,7 @@ import {
 } from "../src/marketplace/domain.mjs";
 import "./staging-account-access.mjs";
 import "./authentication-attachment.mjs";
+import "./google-maps-integration.mjs";
 import { marketplaceEnvironment, publicAuthenticationCapabilities, validateMarketplaceEnvironment } from "../src/marketplace/config.mjs";
 import { createMarketplaceDatabase, postgresPoolOptions, postgresTransportSecurity, realtimePostgresPoolOptions } from "../src/marketplace/database.mjs";
 import { createAuthenticationRepository, normalizedEmail } from "../src/marketplace/auth-repository.mjs";
@@ -53,6 +54,12 @@ const invalidFacebookVersion = validateMarketplaceEnvironment({ FACEBOOK_APP_ID:
 assert(!invalidFacebookVersion.ok && invalidFacebookVersion.errors.some((error) => error.includes("vN.N")), "Facebook configuration accepted a floating Graph API version.");
 const invalidStorageOrigin = validateMarketplaceEnvironment({ OBJECT_STORAGE_ENDPOINT: "https://objects.example.com/private/path" });
 assert(!invalidStorageOrigin.ok && invalidStorageOrigin.errors.some((error) => error.includes("exact HTTPS origin")), "Private object storage accepted a path-bearing origin that cannot be safely allowlisted for active-job media.");
+const partialAddressLookup = validateMarketplaceEnvironment({ ADDRESS_LOOKUP_PROVIDER: "google-maps" });
+assert(!partialAddressLookup.ok && partialAddressLookup.errors.some((error) => error.includes("GOOGLE_MAPS_SERVER_API_KEY")), "Address lookup appeared configured without its server-side provider key.");
+const configuredAddressLookup = marketplaceEnvironment({ ADDRESS_LOOKUP_PROVIDER: "google-maps", GOOGLE_MAPS_SERVER_API_KEY: "private-address-key" });
+assert(configuredAddressLookup.addressLookup.configured === true && !JSON.stringify(configuredAddressLookup).includes("private-address-key"), "Address lookup readiness exposed or lost its provider secret.");
+const partialMap = validateMarketplaceEnvironment({ MAP_PROVIDER: "google-maps" });
+assert(!partialMap.ok && partialMap.errors.some((error) => error.includes("GOOGLE_MAPS_BROWSER_API_KEY")), "Google Maps appeared configured without its restricted browser key.");
 assert(publicAuthenticationCapabilities({ GOOGLE_CLIENT_ID: "client", GOOGLE_CLIENT_SECRET: "secret" }).google === false, "OAuth client credentials enabled a provider without the database, session and exact-origin boundary.");
 const partialStripe = validateMarketplaceEnvironment({ STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}` });
 assert(!partialStripe.ok && partialStripe.errors.some((error) => error.includes("STRIPE_WEBHOOK_SECRET")), "Partial Stripe configuration did not fail closed.");

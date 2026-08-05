@@ -4,6 +4,7 @@ import { createRequestJson } from "./request-json.js";
 const buttons = [...document.querySelectorAll("[data-account-sign-out]")];
 const accountMenus = [...document.querySelectorAll("[data-account-menu]")];
 const signInLinks = [...document.querySelectorAll("[data-account-sign-in]")];
+const signupMenus = [...document.querySelectorAll("[data-signup-menu]")];
 let signedInAccountRequest;
 
 function savedCsrf() {
@@ -47,6 +48,10 @@ async function hydrateAccountMenu() {
     renderAccountAvatar(result.account);
     for (const link of signInLinks) link.hidden = true;
     for (const link of document.querySelectorAll("[data-account-entry]")) link.hidden = true;
+    for (const menu of signupMenus) {
+      menu.open = false;
+      menu.hidden = true;
+    }
     for (const node of document.querySelectorAll("[data-account-role]")) node.textContent = workspace.label;
     for (const link of document.querySelectorAll("[data-account-dashboard]")) {
       link.href = workspace.href;
@@ -59,6 +64,7 @@ async function hydrateAccountMenu() {
     if (error?.status === 401) {
       for (const menu of accountMenus) menu.hidden = true;
       for (const link of signInLinks) link.hidden = false;
+      for (const menu of signupMenus) menu.hidden = false;
       document.documentElement.dataset.accountState = "signed-out";
     }
     return null;
@@ -79,7 +85,7 @@ async function recoverCsrf() {
 }
 
 function showStatus(button, message) {
-  const status = button.closest("[data-account-menu]")?.querySelector("[data-account-sign-out-status]");
+  const status = button.closest("[data-account-menu], [data-account-group]")?.querySelector("[data-account-sign-out-status]");
   if (!status) return;
   status.textContent = message;
   status.hidden = !message;

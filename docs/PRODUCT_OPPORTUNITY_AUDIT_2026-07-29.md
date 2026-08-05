@@ -1,0 +1,389 @@
+# Homle product and launch opportunity audit — 29 July 2026
+
+This audit records the highest-value opportunities found while reviewing the current
+marketplace, live Render readiness, account entry, Landlord journey, scanner,
+matching, booking, payments, notifications and operational documentation.
+
+The Cleaner Dashboard is deliberately excluded. None of the recommendations below
+requires changing its design, pages, routes, workflows, styling or backend behaviour.
+
+## Current architecture and live evidence
+
+- Native Node.js 20+ web service and browser UI; there is no framework rewrite or
+  parallel application.
+- PostgreSQL 16 with locked migrations, transaction-local identity, row-level
+  security and separate application/worker responsibilities.
+- Opaque server sessions, CSRF protection, provider-first Google authentication and
+  capability-gated email, Apple and Facebook authentication.
+- Private S3-compatible room/job media with server-authorised reads and metadata
+  stripping.
+- PostgreSQL-backed matching, bookings, notifications, messages, reviews, disputes,
+  current location and cleaning progress.
+- Server-sent events provide participant updates without constant browser polling.
+- Stripe test-mode-only source boundaries exist, but the public payment gate remains
+  off and live keys are rejected.
+- The live `/api/health` response rechecked on 30 July 2026 reported marketplace,
+  authentication, media, realtime, geocoding, matching, speech summary and room
+  vision ready. Transactional email, payments and automatic dispatch reported not
+  ready, and public intake remained closed.
+- The live release was `4cbf3210` with 80 locked migrations when this evidence
+  was rechecked after the private support journey deployed.
+
+## Issue fixed during this audit
+
+### Archived-property recovery
+
+The owner-safe property archive flow retained completed work but was irreversible in
+the product. A mistaken archive therefore removed the property from future requests
+and required manual database support to recover it.
+
+The Landlord dashboard now keeps archived locations in a collapsed owner-only list
+and restores one through a protected, audited database operation. The restored
+property returns to active request selection while its historical work remains
+intact. The recovery route remains Landlord-only, owner-bound, CSRF-protected and
+archived-only.
+
+Expected benefit: fewer founder support interventions, faster correction of an
+ordinary Landlord mistake, and less risk that someone recreates the same property and
+fragments its history.
+
+The Cleaner Dashboard, matching, pricing, payments and shared presentation assets
+were not changed.
+
+Unsigned account entry offered both **Open Landlord dashboard** and **Open Cleaner
+dashboard** beneath every login/sign-up intent. These links only reopened protected
+gates, added decisions and mixed the two roles on the page intended to separate them.
+
+The shortcuts and their unused controller/CSS code were removed. Provider login,
+intent preservation, explicit role activation, signed-in role routing and the
+role-specific account-ready action remain unchanged.
+
+Expected benefit: one fewer decision point, no cross-role distraction, and a clearer
+path from **Book service** to Landlord account creation.
+
+## Account management defect fixed
+
+The protected account-settings backend remained active after its public page and
+canonical `/settings` route were removed. Google, Apple and Facebook provider
+connection and step-up callbacks still redirected authenticated users to that missing
+route, so a successful security action could end on a 404. The same removal made the
+already-protected data-export and account-deletion request intake unreachable.
+
+The reviewed settings interface and route are restored, and the Landlord account menu
+now links to it as **Sign-in and privacy**. Provider controls remain hidden until
+authenticated capability discovery succeeds; connection/removal stays protected by
+exact-provider step-up, last-method safeguards, CSRF and allowlisted provider
+navigation. Privacy actions remain request intake only and cannot automatically
+delete data, cancel a booking, move money or bypass retention review.
+
+Expected benefit: provider connection callbacks have a valid destination, Landlords
+can manage account access without leaving the product, and UK privacy-rights intake
+is once again reachable without exposing provider subjects or private identifiers.
+
+## Private Landlord support journey added
+
+The Landlord account previously had no single recoverable path for account, property,
+room-scan or pre-booking problems. Booking disputes were too late and too specific,
+while publishing an email address would have created an unaudited parallel queue.
+
+`/landlord/help` now accepts a bounded category, subject and description after an
+explicit sensitive-data check. The same page shows the Landlord only their own request
+status and final in-app response. `/admin/support` provides the separate
+Administrator-only triage queue. Database functions enforce role isolation, active
+request limits, idempotent retries and an audit trail; the queue cannot change a
+booking, payment, account or external system. Migration 080 and the real PostgreSQL
+RLS rehearsal are live.
+
+Expected benefit: Landlords have one private next step before a booking exists, while
+the founder receives a controlled queue without access codes, payment data, room
+photographs or unnecessary identity fields.
+
+## Confirmed-booking change intake added
+
+The authenticated Landlord dashboard previously offered withdrawal only before a
+request became a booking. After confirmation there was no safe route to ask for a
+new time or cancellation; the generic support form explicitly excluded confirmed
+bookings, while the dispute flow was intended for quality, damage and safety issues.
+
+Eligible future confirmed booking cards now offer **Request a change**. The private
+support page captures the booking, reschedule/cancel intent and proposed time as
+structured data. Ownership, active-account state, current booking status, future
+time, idempotent retries and one-open-request-per-booking are enforced again in a
+restricted database function. Administrators see the request in the existing queue
+without receiving an address, access instruction, payment detail or Cleaner contact
+information.
+
+Once submitted, the confirmed booking card now reconciles the open request from the
+same owner-only support projection. It shows the requested action and current support
+state, includes the preferred replacement time where relevant and replaces the
+duplicate request action with **View change request**. Support history is loaded as a
+non-blocking dashboard dependency, so a temporary failure cannot prevent properties,
+cleaning requests or bookings from opening.
+
+Creating or answering the request deliberately performs no booking, payment,
+notification or Cleaner action. Actual mutation remains a P0/P1 operating-policy
+dependency: Homle first needs approved cancellation windows, refund/payment
+adjustments, Cleaner notice and compensation rules.
+
+Expected benefit: a Landlord has one clear recoverable next step instead of using a
+dispute or abandoning the platform, while Homle avoids making an unaudited booking
+or money promise.
+
+## Unsupported public trust claim fixed
+
+The live homepage said **Vetted professionals** even though the service remains a
+restricted private pilot and no public Cleaner supply or coverage is confirmed. That
+headline turned an implemented verification capability into a claim about current
+supply, contradicting the product's evidence-only launch rules.
+
+The homepage now says **Fit checked before matching** and explains the actual
+server-backed boundary: coverage, availability and price are confirmed before a
+Cleaner is invited. No verification workflow, matching rule, Cleaner page or Cleaner
+Dashboard behavior changed. A landing-page regression rejects common unsupported
+public screening and insurance claims.
+
+Expected benefit: prospective customers receive an accurate explanation of how
+matching works without being promised supply or vetting evidence Homle does not yet
+have.
+
+## Non-Cleaner route and asset defect fixed
+
+The public Facebook data-deletion status page requested `/account.css`, an asset that
+has never existed in the repository and returned a live 404. The page already uses
+the shared account primitives shipped in `styles.css`, so the dead request added no
+visual behavior; it only wasted a request and left a production error on a required
+provider-compliance journey.
+
+The invalid stylesheet reference is removed. A new source-level integrity gate now
+checks every local route and asset reference across the shipped customer, Landlord,
+account, legal and Administrator HTML pages while explicitly excluding the Cleaner
+workspace. API actions are left to their existing HTTP authorization suites.
+
+Expected benefit: the Facebook deletion journey loads without a known production
+404, and future non-Cleaner page changes fail CI when they introduce a missing local
+route, script, stylesheet, image or manifest.
+
+## Public booking-path logo transfer — implemented 4 August 2026
+
+Problem: the approved 1254 px Homle logo is 1,969,846 bytes, but the homepage and
+Landlord journeys display it at only 36–54 CSS pixels, while account entry shows it at
+76 CSS pixels. A cold mobile visitor had to download almost 2 MB before a small brand
+mark and tab icon could finish loading.
+
+Implemented: public and Landlord-only pages now use a reviewed 128 px lossless PNG
+derivative weighing 18,506 bytes. Account entry uses a 192 px lossless derivative
+weighing 36,801 bytes to retain sharpness on dense mobile screens. Both filenames
+contain their content hash and only those exact paths receive an immutable one-year
+cache lifetime. The original owner-approved artwork is unchanged and remains available
+where its existing contract is intentionally preserved. Tests lock all three hashes,
+cap the compact transfers at 20 KB and 40 KB and prove the Cleaner Dashboard still
+references its original asset.
+
+Benefit: more than 99% less logo transfer on the booking entry path, improving cold
+mobile load time without redesigning the logo, changing a route or touching Cleaner
+Dashboard behaviour.
+
+## Responsive homepage hero transfer — implemented 4 August 2026
+
+Problem: the animated landing hero displayed two full-bleed 2200 px JPEG layers and
+eagerly downloaded both on every cold visit. Together they weighed 1,626,741 bytes,
+including on a narrow mobile viewport where most of those pixels could not be shown.
+
+Implemented: both layers retain their exact JPEG fallbacks, but modern browsers now
+choose a reviewed WebP at 480, 960, 1600 or 2200 px through `srcset` and `sizes`.
+The likely high-density phone pair totals 174,640 bytes, an 89.3% reduction; even the
+largest WebP pair totals 716,506 bytes, 56.0% less than the fallbacks. Filenames are
+content-addressed and only those exact paths receive immutable caching. Tests pin the
+eight asset hashes and sizes, responsive preload and picture markup, MIME/cache
+headers, JPEG fallback and unchanged Cleaner Dashboard asset boundary.
+
+Benefit: the principal first-view artwork arrives substantially faster on mobile and
+slower connections without changing the approved landing design, animation, route,
+booking logic or Cleaner Dashboard.
+
+## Scanner-animation room-angle transfer — implemented 4 August 2026
+
+Problem: the five photographic room angles in the public scanner animation were stored
+as PNGs despite having no transparency. They totalled 1,638,090 bytes and made the
+most important product explanation expensive to watch on mobile data.
+
+Implemented: modern browsers receive five reviewed WebP frames totalling 102,404
+bytes, a 93.7% reduction. The original PNGs remain exact compatibility fallbacks.
+Each WebP is content-addressed and immutable; tests pin its hash and size, verify the
+WebP/PNG MIME and cache split, and run the animation in Chromium to prove every frame
+loads, cross-fades and stays synchronized with the phone view.
+
+Benefit: the public explanation of Homle's scan-and-speak workflow reaches users much
+faster without changing the real scanner, animation design, copy, routing, account or
+booking logic, or any Cleaner Dashboard file or behaviour.
+
+## Supporting landing photography transfer — implemented 5 August 2026
+
+Problem: after the hero and scanner frames were optimized, the lower landing acts
+still named seven full-resolution JPEGs totalling 1,638,741 bytes. They were used as
+a small phone view, two subdued backgrounds and four cards no wider than 240 px.
+
+Implemented: modern browsers receive width-appropriate, content-addressed WebPs for
+all seven photographs, while the exact JPEGs remain compatibility fallbacks. The
+largest complete path—including a separate reviewed video poster and every desktop
+card—is 654,556 bytes, a 60.1% reduction. The mobile browser proof now scrolls each
+lazy act into view before asserting the chosen sources; the desktop motion proof
+checks that the optimized media preserves all six scroll acts. Hash, byte-size, MIME
+and immutable-cache checks protect the reviewed files.
+
+Benefit: visitors who read beyond the scanner explanation spend materially less
+mobile data and wait less for the booking, evidence and handoff sections without a
+visual redesign or any change to accounts, the real scanner, booking logic or the
+Cleaner Dashboard.
+
+## Landing detail-video transfer — implemented 5 August 2026
+
+Problem: the landing page's muted 10-second detail clip still transferred 2,501,348
+bytes. Its H.264 stream used a fixed 1.86 Mb/s bitrate and the file also carried a
+128 kb/s stereo track that visitors could never hear because the product experience
+deliberately keeps the clip muted.
+
+Implemented: a visually reviewed H.264 replacement removes the unused audio, uses a
+quality-targeted encode and places its metadata before the media payload for fast
+start. It is 926,233 bytes, a 63.0% reduction, while measuring 0.9867 SSIM and
+43.34 dB PSNR against the previous file. Side-by-side frames at one, five and nine
+seconds preserve faces, room detail, motion composition and on-screen copy. Its URL
+contains the first eight SHA-256 characters and receives immutable caching; the old
+stable URL is retired. Browser proofs at 390 px and 1280 px require the exact source,
+successful metadata decode and the same on-screen-only play/pause lifecycle. Tests
+also pin exact bytes, SHA-256, fast-start box order and the absence of an audio track.
+
+Benefit: the final large landing-media transfer is reduced by almost two thirds with
+no new codec compatibility risk, visual redesign or change to accounts, the scanner,
+booking logic or the Cleaner Dashboard.
+
+## Prioritised opportunities
+
+### P0 — prove one genuine two-account booking rehearsal
+
+Problem: source and integration tests are broad, but they do not prove the complete
+hosted journey on two physical phones against the real provider configuration.
+
+Action:
+
+1. Use founder-approved test mailboxes only.
+2. Create one Landlord and one Cleaner test account.
+3. Add a real test property, scan rooms, review the checklist and submit a request.
+4. Invite/accept, verify overlap prevention, journey sharing, arrival, checklist
+   progress, completion and one review.
+5. Capture only privacy-safe evidence and purge the test accounts/records afterward
+   with the existing staging purge tooling.
+
+Benefit: exposes integration and mobile-browser failures before customer acquisition.
+
+### P0 — activate transactional email safely
+
+Problem: `emailReady: false` means email signup verification, password reset and
+outbound lifecycle notifications cannot be relied upon.
+
+Technical requirements:
+
+- verified sending domain and approved `EMAIL_FROM`;
+- Render secret for the reviewed Resend HTTPS adapter or SMTP alternative;
+- controlled staging sends and receipt evidence;
+- bounce/complaint suppression and provider-webhook validation before broad sending;
+- no customer contact until the founder authorises it.
+
+Benefit: recoverable accounts and dependable booking notifications.
+
+### P0 — complete a Stripe test-mode marketplace cycle
+
+Problem: `paymentsReady: false`; a booking cannot yet prove authorization, capture,
+Cleaner transfer, refund and reversal against a real test platform.
+
+Technical requirements:
+
+- founder approval of merchant-of-record, cancellation, refund, chargeback, Cleaner
+  engagement and payout policies;
+- approved Stripe Connect test platform and hosted Cleaner onboarding;
+- signed webhook registration;
+- two-account HTTPS rehearsal covering authorization, 3-D Secure, delayed webhook,
+  completion, capture, transfer, partial/full refund and reversal;
+- keep live keys rejected until legal and operational launch gates are approved.
+
+Benefit: verifies money movement without risking real funds.
+
+### P1 — launch-area supply and demand control — implemented
+
+Problem: a marketplace can collect demand in an area where no suitable Cleaner has
+declared coverage, creating manual support work and slow first response.
+
+Implemented: `/admin/coverage` provides an Administrator-only, privacy-minimal
+operational report for 7, 30 or 90 days. It groups demand by outward postcode and
+reuses the production eligibility matcher per future unmatched request instead of
+inventing a weaker counting rule. It shows zero-match and at-risk demand, unmatched
+age, service gaps and a coarse active-listed-supply total. The database and API return
+no identities, exact postcodes, addresses, coordinates, notes or photos.
+
+Limit: this is a current operational snapshot, not a forecast or a coverage promise.
+Eligible counts are capped at 50 per request; active listed supply is not attributed
+to an area. The report never contacts or recruits Cleaners and changes no request,
+booking, price, payment or Cleaner Dashboard behavior.
+
+Benefit: tells the founder where supply is missing and where not to promise coverage,
+using the same eligibility boundary that actually governs matching.
+
+### P1 — explicit service-recovery workflow
+
+Problem: disputes exist, but customers need a simple, bounded next action when work is
+incomplete: report an issue, request review, then see the agreed remedy state.
+
+Recommendation: extend the existing case workflow only after the founder approves
+re-clean/refund rules. Keep evidence, deadlines, decisions and money actions
+server-authorised and audited.
+
+Benefit: increases trust while preventing informal promises or unaudited refunds.
+
+### P1 — foreground-location reliability evidence
+
+Problem: mobile web browsers cannot guarantee continuous background location. An
+Uber-like experience can therefore appear stale when the Cleaner locks their phone.
+
+Recommendation: keep current explicit foreground consent and last-updated time, add
+hosted two-device browser evidence, and consider an installable PWA/native companion
+only after data proves background reliability is a material problem.
+
+Benefit: truthful arrival tracking without collecting unnecessary location history.
+
+### P2 — privacy-minimal marketplace funnel analytics
+
+Implemented: `/admin/funnel` derives counts from authoritative account, property,
+structured-scan, request, booking, payment and review records. It uses separate
+account/request/payment cohorts, excludes the newest 24 hours and shows 7, 30 or 90
+day windows. No tracking event, browser identifier or private record is added.
+
+Privacy boundary: the Administrator-only database projection returns counts and
+timestamps only—never identities, IDs, addresses, postcodes, rooms, photos, provider
+references, prices or payment amounts. The runtime has execute permission on that
+projection but no direct structured-scan or payment-table read.
+
+Benefit: directs product and marketing work at measured conversion loss rather than
+visual guesswork. Remaining limitation: this is operational cohort evidence, not
+causal attribution, and small cohorts must not be over-interpreted.
+
+## Features deliberately not recommended yet
+
+- Dynamic/surge pricing: insufficient liquidity and pricing evidence; it would reduce
+  trust before solving a real problem.
+- Public map history: unnecessary privacy exposure; current-point-only sharing is the
+  safer product boundary.
+- Automatic recurring charges/bookings: frequency is currently a planning preference.
+  Each visit should remain separately scoped and accepted until cancellation and supply
+  operations are proven.
+- AI-generated dimensions or floor area from a browser camera: unreliable and likely
+  to misprice work.
+- Gamified Cleaner metrics without recorded evidence: would invent performance claims.
+
+## Next implementation order
+
+1. Ship and verify the focused account-entry fix.
+2. Run the genuine two-account hosted rehearsal.
+3. Activate and evidence transactional email.
+4. Complete the founder-approved Stripe test-mode cycle.
+5. Build the privacy-minimal supply/demand report only after the rehearsal exposes the
+   real operating-area data required.

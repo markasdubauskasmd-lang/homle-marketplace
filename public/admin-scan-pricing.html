@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="referrer" content="no-referrer">
+  <title>Scan pricing rules · Homle</title>
+  <link rel="icon" href="/homle-logo.png" type="image/png">
+  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
+  <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <script type="module" src="/admin-private-navigation.js?v=20260805-1"></script>
+  <script type="module" src="/admin-scan-pricing.js?v=20260729-1"></script>
+</head>
+<body class="booking-dashboard-page admin-payments-page">
+  <a class="skip-link" href="#admin-pricing-main">Skip to pricing rules</a>
+  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator" data-admin-private-navigation hidden><a href="/admin/bookings">Booking operations</a><a href="/admin/cases">Booking cases</a><a href="/admin/verifications">Cleaner vetting</a><a href="/admin">Control desk</a></nav></div></header>
+  <main id="admin-pricing-main" class="booking-dashboard-shell">
+    <section class="booking-dashboard-gate" data-admin-pricing-gate>
+      <div class="booking-dashboard-gate-icon" aria-hidden="true">£</div>
+      <div>
+        <p class="eyebrow">Protected pricing rules</p>
+        <h1 data-admin-pricing-gate-title>Checking secure Administrator access…</h1>
+        <p data-admin-pricing-gate-copy>Scan-estimate rates open only inside an authenticated Homle Administrator account.</p>
+        <div class="booking-dashboard-actions">
+          <a class="button" href="/login?next=%2Fadmin%2Fscan-pricing" data-admin-pricing-sign-in hidden>Sign in</a>
+          <button class="button button-outline" type="button" data-admin-pricing-retry hidden>Try again</button>
+        </div>
+      </div>
+    </section>
+
+    <div data-admin-private-workspace data-admin-pricing-workspace hidden>
+      <header class="booking-dashboard-hero">
+        <div>
+          <p class="eyebrow">Administrator · scan estimates</p>
+          <h1>Rates behind the scan estimate</h1>
+          <p>These figures are the only thing that turns a room scan into a price. No model decides money; this arithmetic does.</p>
+        </div>
+        <button class="button button-outline" type="button" data-admin-pricing-refresh>Reload published rates</button>
+      </header>
+
+      <aside class="booking-dashboard-next-action admin-payment-boundary" role="note">
+        <div><span class="booking-dashboard-next-icon" aria-hidden="true">!</span><div>
+          <strong>Publishing applies to every new estimate immediately</strong>
+          <p>Rates are never edited in place. Publishing writes a new version and retires the current one, so an estimate given last month can still be explained by the rules that produced it. Existing bookings and their agreed prices are untouched.</p>
+        </div></div>
+      </aside>
+
+      <section class="booking-dashboard-card">
+        <h2>Current rates</h2>
+        <p data-admin-pricing-current>Loading…</p>
+      </section>
+
+      <form class="booking-dashboard-card" data-admin-pricing-form novalidate>
+        <h2>Change the rates</h2>
+        <div data-admin-pricing-fields></div>
+
+        <fieldset>
+          <legend>Condition multipliers</legend>
+          <p class="form-help">Applied to the labour and per-room subtotal. 100% is the standard rate, so a lighter home can legitimately sit below it. <strong>Specialist review has no field because it cannot be priced</strong> — a level-5 scan means a person must look at the property before a cleaner is sent, and Homle refuses to quote for one.</p>
+          <div data-admin-pricing-levels></div>
+        </fieldset>
+
+        <label for="admin-pricing-reason">Why are these rates changing?</label>
+        <p class="form-help" id="admin-pricing-reason-help">Recorded against the new version with your account and the time. Ten characters minimum.</p>
+        <textarea id="admin-pricing-reason" name="changeReason" rows="3" maxlength="500" aria-describedby="admin-pricing-reason-help" data-admin-pricing-reason required></textarea>
+
+        <section aria-live="polite">
+          <h3>What this will change</h3>
+          <ul data-admin-pricing-summary></ul>
+        </section>
+
+        <p class="form-error" role="alert" data-admin-pricing-error hidden></p>
+        <p role="status" data-admin-pricing-status></p>
+        <div class="booking-dashboard-actions">
+          <button class="button" type="submit" data-admin-pricing-publish>Publish new rates</button>
+        </div>
+      </form>
+
+      <section class="booking-dashboard-card">
+        <h2>Rate history</h2>
+        <ol data-admin-pricing-history></ol>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

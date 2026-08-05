@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   containmentRatio, deduplicateDetections, detectionMinimumScore,
-  implausibleForRoom, joinSpokenText, preferredSpeechLanguage, cocoLabel
+  implausibleForRoom, joinSpokenText, recognitionTranscripts, preferredSpeechLanguage, cocoLabel
 } from "../public/room-scan-model.js";
 
 // Both failures these pin were photographed on a real phone against the deployed
@@ -31,17 +31,13 @@ function resultList(entries) {
   return list;
 }
 
-// What the handler does, extracted so the sequencing can be asserted here.
+// The REAL rebuild, not a copy of it. An earlier version of this test carried
+// its own copy of the handler's loop; the copy passed while the real behaviour
+// corrupted a customer's note in the field. Testing the exported function is
+// the only arrangement that cannot drift.
 function handleResults(base, results) {
-  let finalText = "";
-  let interim = "";
-  for (let index = 0; index < results.length; index += 1) {
-    const result = results[index];
-    if (!result?.[0]) continue;
-    if (result.isFinal) finalText += result[0].transcript;
-    else interim += result[0].transcript;
-  }
-  return { note: joinSpokenText(base, finalText), interim };
+  const rebuilt = recognitionTranscripts(results);
+  return { note: joinSpokenText(base, rebuilt.finalText), interim: rebuilt.interim };
 }
 
 // A Landlord says "tidy up the cupboards". This is the reported sequence.
@@ -82,6 +78,65 @@ assert.equal(
   "Committing a pending phrase kept only the finalised half of the sentence."
 );
 assert.ok(liveInterim === "" || typeof liveInterim === "string", "The live interim must always be a string so the transcript can be displayed for editing.");
+
+// THE FIELD CORRUPTION, reproduced from a real Samsung phone's screenshots. The
+// Android speech service reports every interim revision as a NEW non-final
+// entry — all present in one event's list — and concatenating them turned
+// "please ensure that the windows are cleaned" into "pleasepleaseplease
+// ensureplease ensure that…" in a real customer note.
+{
+  const snapshots = resultList([
+    { isFinal: false, text: "please" },
+    { isFinal: false, text: "please ensure" },
+    { isFinal: false, text: "please ensure that" },
+    { isFinal: false, text: "please ensure that the" },
+    { isFinal: false, text: "please ensure that the windows" }
+  ]);
+  const handled = handleResults("", snapshots);
+  assert.equal(handled.interim, "please ensure that the windows",
+    `Cumulative interim snapshots were concatenated instead of superseded: ${JSON.stringify(handled.interim)}`);
+  // Committing the pending phrase — what stopping the mic does — must store the
+  // sentence once.
+  assert.equal(joinSpokenText("", `${handled.note} ${handled.interim}`).replace(/\s+/g, " ").trim(),
+    "please ensure that the windows", "The stop-commit path still stores the multiplied transcript.");
+  // The engine revising DOWN is still a snapshot: the latest belief wins.
+  const revised = handleResults("", resultList([
+    { isFinal: false, text: "please ensure that the windows are" },
+    { isFinal: false, text: "please ensure that the window" }
+  ]));
+  assert.equal(revised.interim, "please ensure that the window", "A downward revision was appended instead of superseding.");
+  // And genuinely independent interim segments still append — superseding must
+  // not eat a second phrase that merely follows the first.
+  const segments = handleResults("", resultList([
+    { isFinal: false, text: "clean the hob" },
+    { isFinal: false, text: " and the oven" }
+  ]));
+  assert.equal(segments.interim, "clean the hob and the oven", "Independent interim segments were superseded away.");
+}
+
+// THE SECOND FIELD CORRUPTION (Pixel): the same cumulative revisions, but
+// arriving as FINAL entries — "Please", "please clean", "please clean the",
+// all final in one list. Concatenating finals multiplied them exactly as the
+// interim case had. Supersession now applies to both, at a stated cost: a
+// customer who restates a sentence verbatim from its first word inside one
+// session keeps only the restatement. Editable transcript, no multiplied
+// garbage.
+{
+  const cumulativeFinals = handleResults("", resultList([
+    { isFinal: true, text: "Please" },
+    { isFinal: true, text: "please clean" },
+    { isFinal: true, text: "please clean the" },
+    { isFinal: true, text: "please clean the room" }
+  ]));
+  assert.equal(cumulativeFinals.note, "please clean the room",
+    `Cumulative FINAL snapshots were concatenated instead of superseded: ${JSON.stringify(cumulativeFinals.note)}`);
+  // Spec-shaped finals — genuinely successive segments — still concatenate.
+  const segmentedFinals = handleResults("", resultList([
+    { isFinal: true, text: "tidy up the" },
+    { isFinal: true, text: " cupboards" }
+  ]));
+  assert.equal(segmentedFinals.note, "tidy up the cupboards", "Genuine successive final segments were superseded away.");
+}
 
 assert.equal(joinSpokenText("a note", ""), "a note", "An empty result mutated the note.");
 assert.equal(joinSpokenText("", ""), "", "Empty input did not produce an empty note.");
@@ -150,7 +205,16 @@ const overlaySource = readFileSync(new URL("../public/room-scan-overlay.js", imp
 const resultHandler = overlaySource.slice(overlaySource.indexOf("recognition.onresult"), overlaySource.indexOf("recognition.onend"));
 assert.ok(resultHandler, "The speech result handler could not be located to check it.");
 assert.doesNotMatch(resultHandler, /for \(const \w+ of event\.results\)/, "The speech handler iterates `event.results` with for...of. SpeechRecognitionResultList is not iterable — this throws on every result event and takes out voice notes completely.");
-assert.match(resultHandler, /index < event\.results\.length/, "The speech handler no longer walks `event.results` by index.");
+// The rebuild moved into the model (recognitionTranscripts) so this suite tests
+// the real function; the handler must actually call it, and the model must
+// still walk by index — for...of throws on the WebIDL list just the same there.
+assert.match(resultHandler, /recognitionTranscripts\(event\.results\)/, "The speech handler no longer rebuilds through the tested model function.");
+{
+  const modelSource = readFileSync(new URL("../public/room-scan-model.js", import.meta.url), "utf8");
+  const rebuildSource = modelSource.slice(modelSource.indexOf("export function recognitionTranscripts"));
+  assert.match(rebuildSource.slice(0, 900), /index < length/, "The model rebuild no longer walks the result list by index.");
+  assert.doesNotMatch(rebuildSource.slice(0, 900), /for \(const \w+ of /, "The model rebuild iterates the WebIDL list with for...of, which throws.");
+}
 assert.match(
   overlaySource,
   /recognition\.lang = preferredSpeechLanguage\(\s*document\.documentElement\.lang,\s*navigator\.languages \|\| navigator\.language\s*\)/,

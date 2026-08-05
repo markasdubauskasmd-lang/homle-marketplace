@@ -12,10 +12,10 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-4">
-  <script src="/cleaner-jobs-map.js?v=20260728-1" type="module"></script>
-  <script src="/account-menu.js?v=20260718-3" type="module"></script>
-  <script src="/notification-badge.js?v=20260726-2" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
+  <script nonce="__CSP_NONCE__" src="/cleaner-jobs-map.js?v=20260804-1" type="module"></script>
+  <script nonce="__CSP_NONCE__" src="/account-menu.js?v=20260729-1" type="module"></script>
+  <script nonce="__CSP_NONCE__" src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
 <body class="cleaner-workspace-page">
   <a class="hc-skip" href="#cleaner-jobs-map-main">Skip to Jobs map</a>
@@ -84,12 +84,12 @@
           <div data-onboarding-nav></div>
         </details>
 
-        <details class="hc-nav-group" data-account-group>
+        <details class="hc-nav-group" data-account-group open>
           <summary class="hc-nav-group-summary">
             <span class="hc-nav-group-label">ACCOUNT</span>
             <span class="hc-nav-chevron" aria-hidden="true">▾</span>
           </summary>
-          <div>
+          <div data-account-nav>
             <a class="hc-nav-item" href="/cleaner/dashboard">
               <span class="hc-nav-label">Availability</span>
             </a>
@@ -107,6 +107,7 @@
               <span class="hc-nav-label">Public directory</span>
             </a>
           </div>
+          <small class="hc-account-nav-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small>
         </details>
       </nav>
 
@@ -162,30 +163,25 @@
           <a class="hc-back" href="/cleaner/dashboard">← Job list</a>
         </div>
 
-        <!--
-          The design embeds an interactive Leaflet map here. Homle has MAP_PROVIDER=none,
-          and the design's own map page loads Leaflet from unpkg with OpenStreetMap tiles,
-          both of which this site's Content-Security-Policy blocks. The frame keeps the
-          design's dimensions and treatment and states that plainly, so the route is real
-          and navigable without pretending a map is rendering.
-        -->
         <div class="hc-map-frame">
-          <div class="hc-map-empty">
+          <div class="hc-map-canvas" data-google-map aria-label="Google map showing the approximate areas of your jobs"></div>
+          <div class="hc-map-empty" data-map-loading>
             <div class="hc-map-mark" aria-hidden="true">
               <svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             </div>
-            <strong>Map view is not connected yet</strong>
-            <p>Homle has no map provider configured, so job locations cannot be plotted. Your pending offers and confirmed jobs are all listed with their area and travel details on the dashboard and schedule.</p>
-            <div class="hc-gate-actions">
-              <a class="hc-btn" href="/cleaner/dashboard">Open job list</a>
-              <a class="hc-btn-outline" href="/cleaner/schedule">Open schedule</a>
-            </div>
+            <strong>Loading your jobs map</strong>
+            <p data-map-loading-copy>Connecting securely to Google Maps and finding the approximate area of each job.</p>
           </div>
+          <div class="hc-map-controls" data-map-controls hidden>
+            <button class="hc-btn" type="button" data-map-location>Show my location</button>
+            <button class="hc-btn-outline" type="button" data-map-fit>Fit all jobs</button>
+          </div>
+          <p class="hc-map-provider" translate="no">Google Maps</p>
         </div>
 
         <div class="hc-section-head">
           <h3 class="hc-h3">Jobs with a known area</h3>
-          <span class="hc-section-note"><span data-map-count>0</span> plotted when a provider is connected</span>
+          <span class="hc-section-note"><span data-map-count>0</span> approximate job areas plotted</span>
         </div>
         <div class="hc-jobs" data-map-list></div>
         <div class="hc-empty" data-map-empty>No pending or confirmed jobs to place on a map yet.</div>

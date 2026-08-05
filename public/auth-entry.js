@@ -1,6 +1,6 @@
 import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent, saveSelectedCleaner, selectedCleanerFromSearch } from "./account-intent.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
-import { accountReadyPresentation, availableAccountMethodLabel } from "./account-ready-model.js?v=20260723-1";
+import { accountReadyPresentation, availableAccountMethodLabel, unavailableEmailActionPresentation } from "./account-ready-model.js?v=20260805-1";
 import { storedCsrf } from "./session-csrf.js";
 import { accountIntentWorkspaceActivation, accountWorkspaceDestination } from "./workspace-access.js?v=20260728-2";
 
@@ -32,11 +32,13 @@ const socialLinks = [...document.querySelectorAll("[data-social-provider]")];
 const emailToggle = document.querySelector("[data-email-toggle]");
 const accountChoiceDivider = document.querySelector("[data-account-choice-divider]");
 const accountReadyPanel = document.querySelector("[data-account-ready]");
+const unavailableEmailAction = document.querySelector("[data-account-unavailable]");
+const unavailableEmailCopy = document.querySelector("[data-account-unavailable-copy]");
+const unavailableEmailLink = document.querySelector("[data-account-unavailable-action]");
 const accountReadyTitle = document.querySelector("[data-account-ready-title]");
 const accountReadyCopy = document.querySelector("[data-account-ready-copy]");
 const accountReadyLogout = document.querySelector("[data-account-ready-logout]");
 const accountReadyDashboard = document.querySelector("[data-account-ready-dashboard]");
-const pilotActions = document.querySelector("[data-pilot-actions]");
 const accountSideTitle = document.querySelector("[data-account-side-title]");
 const accountSideNote = document.querySelector("[data-account-side-note]");
 const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
@@ -113,6 +115,7 @@ function activateForm(providers) {
   const socialPage = selectedMode.form === "login" || selectedMode.form === "signup";
   const socialReady = socialPage && socialLinks.some((link) => providers[link.dataset.socialProvider] === true);
   const emailReady = providers.emailPassword === true;
+  const unavailableEmailPresentation = unavailableEmailActionPresentation(selectedMode.form, providers, accountIntent);
   const providerFirst = socialReady && emailReady && socialPage;
   for (const link of socialLinks) link.hidden = !socialPage || providers[link.dataset.socialProvider] !== true;
   if (accountIntent) {
@@ -126,6 +129,7 @@ function activateForm(providers) {
   }
   if (accountChoiceDivider) accountChoiceDivider.hidden = !providerFirst || emailFormRevealed;
   if (accountReadyPanel) accountReadyPanel.hidden = selectedMode.form !== "ready";
+  if (unavailableEmailAction) unavailableEmailAction.hidden = !unavailableEmailPresentation;
   for (const form of forms) {
     const capabilityReady = selectedMode.form === "onboarding" || selectedMode.form === "ready" || (selectedMode.form === "facebook-verify" ? providers.facebook === true : providers.emailPassword === true);
     const emailEntryDeferred = providerFirst && form.dataset.accountForm === activeName && !emailFormRevealed;
@@ -161,10 +165,18 @@ function activateForm(providers) {
     title.textContent = "Confirm your Cleaner workspace";
     lead.textContent = "Continue as a Cleaner to build your professional profile, availability and service area.";
   }
+  if (unavailableEmailPresentation) {
+    title.textContent = unavailableEmailPresentation.title;
+    lead.textContent = unavailableEmailPresentation.lead;
+    if (unavailableEmailCopy) unavailableEmailCopy.textContent = unavailableEmailPresentation.copy;
+    if (unavailableEmailLink) {
+      unavailableEmailLink.href = unavailableEmailPresentation.actionHref;
+      unavailableEmailLink.textContent = unavailableEmailPresentation.actionLabel;
+    }
+  }
   if (bookingIntent) setAccountSide("landlord");
   else if (cleanerIntent) setAccountSide("cleaner");
-  if (pilotActions) pilotActions.hidden = selectedMode.form === "ready";
-  if ((selectedMode.form === "verify" || selectedMode.form === "facebook-verify") && !privateToken) showFeedback("This verification link is incomplete or has already been removed.", "error");
+  if ((selectedMode.form === "verify" || selectedMode.form === "facebook-verify") && !privateToken && !unavailableEmailPresentation) showFeedback("This verification link is incomplete or has already been removed.", "error");
 }
 
 function revealEmailForm() {
@@ -313,7 +325,6 @@ async function loadAccountReady() {
   if (accountReadyCopy) accountReadyCopy.textContent = presentation.copy;
   renderAccountAvatar(result.account);
   setAccountSide(cleaner ? "cleaner" : "landlord");
-  if (pilotActions) pilotActions.hidden = true;
   if (accountReadyDashboard) {
     accountReadyDashboard.href = presentation.actionHref;
     accountReadyDashboard.textContent = presentation.actionLabel;

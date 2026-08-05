@@ -234,22 +234,78 @@ const mimeTypes = {
   ".ico": "image/x-icon",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  // Landing page photography and the clip in its "Down to the detail" act.
+  // Without these they fall through to application/octet-stream, which a
+  // <video> will not play at all — the poster stays up and nothing happens.
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".mp4": "video/mp4",
+  ".png": "image/png",
+  ".webp": "image/webp",
   ".svg": "image/svg+xml; charset=utf-8",
+  ".txt": "text/plain; charset=utf-8",
   ".webmanifest": "application/manifest+json; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
   // Vendored web fonts. Without this they fall through to application/octet-stream,
   // which browsers accept for @font-face but report as a console warning.
   ".woff2": "font/woff2"
 };
 
-function setSecurityHeaders(response, requestPath = "") {
+// These public/Landlord assets are content-addressed. Their URLs change when
+// their bytes change, so browsers may safely retain them across later deploys.
+// Keep the original logo and JPEG fallbacks uncached because their stable URLs
+// are still used inside the strictly untouched Cleaner Dashboard boundary.
+const immutableStaticAssets = new Set([
+  "/landing-7fbca0c2.css",
+  "/landing-5da99005.js",
+  "/homle-logo-128-4f82ebad.png",
+  "/homle-logo-192-c8defd4b.png",
+  "/landing/open-plan-living-480-15f06faa.webp",
+  "/landing/open-plan-living-960-bacccd4e.webp",
+  "/landing/open-plan-living-1600-c403e366.webp",
+  "/landing/open-plan-living-2200-f5b34bda.webp",
+  "/landing/open-plan-living-dirty-480-b39d33d1.webp",
+  "/landing/open-plan-living-dirty-960-f5c7de87.webp",
+  "/landing/open-plan-living-dirty-1600-23975b20.webp",
+  "/landing/open-plan-living-dirty-2200-6526a87e.webp",
+  "/landing/angle-1-664cb339.webp",
+  "/landing/angle-2-d071de5c.webp",
+  "/landing/angle-3-6a19ea10.webp",
+  "/landing/angle-4-7f1915b0.webp",
+  "/landing/angle-5-b3d670d8.webp",
+  "/landing/dark-kitchen-480-2dad9656.webp",
+  "/landing/dark-kitchen-960-f761f9b4.webp",
+  "/landing/dark-kitchen-1600-f930f4ce.webp",
+  "/landing/sage-living-480-bdf0e74d.webp",
+  "/landing/sage-living-960-e4022c28.webp",
+  "/landing/sage-living-1600-fed719d6.webp",
+  "/landing/people-backdrop-480-d6fa13df.webp",
+  "/landing/people-backdrop-960-8a9c8f83.webp",
+  "/landing/people-backdrop-1600-2eb86892.webp",
+  "/landing/people-backdrop-2000-8b9c3a29.webp",
+  "/landing/person-marta-320-4852e577.webp",
+  "/landing/person-marta-640-a6f84fb2.webp",
+  "/landing/person-andrei-320-354d4801.webp",
+  "/landing/person-andrei-640-29a2f2dd.webp",
+  "/landing/person-grace-320-8ff237c2.webp",
+  "/landing/person-grace-640-1dd1df0e.webp",
+  "/landing/person-iulia-320-101559af.webp",
+  "/landing/person-iulia-640-9c0a329d.webp",
+  "/landing/cleaning-720-e8b1a7ce.mp4"
+]);
+
+function setSecurityHeaders(response, requestPath = "", cspNonce = "") {
   const paymentPage = false;
   const activeJobPage = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
   const landlordDashboardPage = requestPath === "/landlord/dashboard";
   const journeyPage = requestPath === "/landlord/book";
+  const googleMapPage = requestPath === "/cleaner/jobs-map";
   const privateMediaPage = activeJobPage || landlordDashboardPage || journeyPage;
   const activeJobStorage = privateMediaPage && objectStorageOrigins.length ? ` ${objectStorageOrigins.join(" ")}` : "";
   const trustedAccountAvatars = " https://*.googleusercontent.com https://*.fbcdn.net https://platform-lookaside.fbsbx.com";
-  response.setHeader("Content-Security-Policy", paymentPage
+  response.setHeader("Content-Security-Policy", googleMapPage
+    ? `default-src 'self'; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.googleusercontent.com; style-src 'self' 'nonce-${cspNonce}' https://fonts.googleapis.com; script-src 'nonce-${cspNonce}' 'strict-dynamic' https: 'unsafe-eval' blob:; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; worker-src blob:; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
+    : paymentPage
     ? "default-src 'self'; img-src 'self' data: blob: https://*.stripe.com; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://r.stripe.com https://m.stripe.network; frame-src https://js.stripe.com https://hooks.stripe.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     : privateMediaPage
       ? `default-src 'self'; img-src 'self' data: blob:${activeJobStorage}${trustedAccountAvatars}; style-src 'self'; script-src 'self'; connect-src 'self'${activeJobStorage}; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
@@ -262,7 +318,7 @@ function setSecurityHeaders(response, requestPath = "") {
     ? "camera=(self), microphone=(self), geolocation=()"
     : activeJobPage
       ? "camera=(self), microphone=(), geolocation=(self)"
-      : requestPath === "/tracking-test"
+      : requestPath === "/tracking-test" || googleMapPage
       ? "camera=(), microphone=(), geolocation=(self)"
       : "camera=(), microphone=(), geolocation=()");
 }
@@ -4807,6 +4863,7 @@ async function getAdminConfig(request, response) {
     mediaReady: marketplaceAttachment.mediaReady,
     realtimeReady: marketplaceAttachment.realtimeReady,
     geocodingReady: marketplaceAttachment.geocodingReady,
+    addressLookupReady: marketplaceAttachment.addressLookupReady,
     matchingReady: marketplaceAttachment.matchingReady,
     authenticationReady: accountAttachment.authenticationHttpReady,
     providers: accountAttachment.authenticationCapabilities,
@@ -5339,7 +5396,7 @@ function streamTrackingTest(request, response) {
   }
 }
 
-async function serveFile(requestPath, response) {
+async function serveFile(requestPath, response, cspNonce = "") {
   const routes = {
     "/": "home.html",
     "/login": "account.html",
@@ -5349,6 +5406,7 @@ async function serveFile(requestPath, response) {
     "/reset-password": "account.html",
     "/onboarding": "account.html",
     "/account-ready": "account.html",
+    "/settings": "settings.html",
     "/notifications": "notifications.html",
     "/cleaner/dashboard": "cleaner-dashboard.html",
     "/cleaner/schedule": "cleaner-schedule.html",
@@ -5361,16 +5419,38 @@ async function serveFile(requestPath, response) {
     "/cleaner/identity-verification": "cleaner-registration.html",
     "/cleaner/background-checks": "cleaner-registration.html",
     "/cleaner/work-areas": "cleaner-registration.html",
+    "/cleaner/experience": "cleaner-registration.html",
+    "/cleaner/references": "cleaner-registration.html",
+    "/cleaner/insurance": "cleaner-registration.html",
+    "/cleaner/banking": "cleaner-registration.html",
+    "/cleaner/equipment": "cleaner-registration.html",
+    "/cleaner/documents": "cleaner-documents.html",
+    "/cleaner/training": "cleaner-training.html",
+    "/cleaner/contracts": "cleaner-contracts.html",
+    "/cleaner/messages": "cleaner-messages.html",
+    "/cleaner/notifications": "cleaner-notifications.html",
+    "/cleaner/help-centre": "cleaner-help-centre.html",
+    "/cleaner/support-tickets": "cleaner-support-tickets.html",
+    "/cleaner/report-incident": "cleaner-incident-reports.html",
+    "/cleaner/disputes": "cleaner-disputes.html",
+    "/cleaner/settings": "cleaner-settings.html",
+    "/cleaner/availability": "cleaner-registration.html",
     "/cleaner/sign-off": "cleaner-sign-off.html",
     "/cleaner/profile/preview": "cleaner-public-profile.html",
     "/cleaner/payouts": "cleaner-payouts.html",
     "/landlord/dashboard": "landlord-dashboard.html",
     "/landlord/book": "landlord-journey.html",
+    "/landlord/help": "landlord-help.html",
     "/tracking-test": "tracking-test.html",
     "/opportunity": "opportunity.html",
     "/admin": "admin.html",
     "/admin/cases": "admin-cases.html",
+    "/admin/support": "admin-support.html",
+    "/admin/coverage": "admin-coverage.html",
+    "/admin/funnel": "admin-funnel.html",
     "/admin/payments": "admin-payments.html",
+    "/admin/scan-pricing": "admin-scan-pricing.html",
+    "/admin/scan-operations": "admin-scan-operations.html",
     "/admin/bookings": "admin-bookings.html",
     "/admin/verifications": "admin-verifications.html",
     "/privacy": "privacy.html",
@@ -5389,17 +5469,21 @@ async function serveFile(requestPath, response) {
   try {
     const fileStat = await stat(filePath);
     if (!fileStat.isFile()) return false;
-    const body = await readFile(filePath);
+    let body = await readFile(filePath);
     const extension = path.extname(filePath).toLowerCase();
+    if (requestPath === "/cleaner/jobs-map" && extension === ".html") {
+      body = Buffer.from(body.toString("utf8").replaceAll("__CSP_NONCE__", cspNonce), "utf8");
+    }
     // Everything else is served `no-cache` with no validator, so it comes back
     // in full on every request. That is fine for a 20 KB script and ruinous for
     // the vendored detector, which is several megabytes: uncached it would be
     // re-downloaded every time a Landlord opened the scan, on mobile data. Its
     // contents never change without the path changing, so it is safe to pin.
     const vendored = requestPath.startsWith("/vendor/");
+    const immutablePublicAsset = immutableStaticAssets.has(requestPath);
     response.writeHead(200, {
       "Content-Type": mimeTypes[extension] || "application/octet-stream",
-      "Cache-Control": extension === ".html" ? "no-store" : vendored ? "public, max-age=31536000, immutable" : "no-cache"
+      "Cache-Control": extension === ".html" ? "no-store" : vendored || immutablePublicAsset ? "public, max-age=31536000, immutable" : "no-cache"
     });
     response.end(body);
     return true;
@@ -5410,12 +5494,23 @@ async function serveFile(requestPath, response) {
 
 async function handleHttpRequest(request, response) {
   const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
-  setSecurityHeaders(response, requestUrl.pathname);
+  const cspNonce = randomBytes(18).toString("base64");
+  setSecurityHeaders(response, requestUrl.pathname, cspNonce);
 
   try {
     const canonicalLocation = canonicalPublicLocation(request, requestUrl);
     if (canonicalLocation) {
       response.writeHead(308, { "Location": canonicalLocation, "Cache-Control": "public, max-age=300" });
+      return response.end();
+    }
+    // Browsers, bookmark importers and older home-screen clients still probe
+    // the conventional favicon path even when the current document declares a
+    // PNG icon. Keep that stable path lightweight and point it at the reviewed,
+    // content-addressed Homle artwork instead of filling production logs with
+    // a 404. The short revalidation policy lets a future approved logo replace
+    // the target without leaving a year-long redirect in browser caches.
+    if ((request.method === "GET" || request.method === "HEAD") && requestUrl.pathname === "/favicon.ico") {
+      response.writeHead(308, { "Location": "/homle-logo-128-4f82ebad.png", "Cache-Control": "no-cache" });
       return response.end();
     }
     if ((request.method === "GET" || request.method === "HEAD") && ["/landlord/scan", "/room-scan.html"].includes(requestUrl.pathname)) {
@@ -5444,6 +5539,7 @@ async function handleHttpRequest(request, response) {
           mediaReady: marketplaceAttachment.mediaReady === true,
           realtimeReady: marketplaceAttachment.realtimeReady === true,
           geocodingReady: marketplaceAttachment.geocodingReady === true,
+          addressLookupReady: marketplaceAttachment.addressLookupReady === true,
           matchingReady: marketplaceAttachment.matchingReady === true,
           paymentsReady: marketplaceAttachment.paymentsReady === true,
           // Automatic dispatch is only real when a process is actually running
@@ -5639,7 +5735,7 @@ async function handleHttpRequest(request, response) {
       return json(response, 401, { ok: false, error: "Admin authorisation required." });
     }
     if (request.method === "GET" || request.method === "HEAD") {
-      if (await serveFile(requestUrl.pathname, response)) return;
+      if (await serveFile(requestUrl.pathname, response, cspNonce)) return;
     }
     json(response, 404, { ok: false, error: "Not found." });
   } catch (error) {

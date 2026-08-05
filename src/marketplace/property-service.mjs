@@ -108,6 +108,15 @@ function propertyProjection(record, includeSensitive, dataEncryptionSecret) {
   return result;
 }
 
+function archivedPropertyProjection(record, dataEncryptionSecret) {
+  const archivedAt = new Date(record?.archived_at);
+  if (!Number.isFinite(archivedAt.getTime())) throw new Error("The archived property timestamp could not be verified.");
+  return Object.freeze({
+    ...propertyProjection(record, true, dataEncryptionSecret),
+    archivedAt: archivedAt.toISOString()
+  });
+}
+
 function bookingFromRecord(record) {
   return {
     landlordUserId: record.booking_landlord_user_id,
@@ -124,7 +133,7 @@ function landlordProfileProjection(record) {
 }
 
 export function createPropertyService(repository, options) {
-  if (!repository || typeof repository.getLandlordProfile !== "function" || typeof repository.saveLandlordProfile !== "function" || typeof repository.createProperty !== "function" || typeof repository.updateOwnProperty !== "function" || typeof repository.listOwnProperties !== "function" || typeof repository.getBookingProperty !== "function") throw new TypeError("A complete property repository is required.");
+  if (!repository || typeof repository.getLandlordProfile !== "function" || typeof repository.saveLandlordProfile !== "function" || typeof repository.createProperty !== "function" || typeof repository.updateOwnProperty !== "function" || typeof repository.listOwnProperties !== "function" || typeof repository.listArchivedOwnProperties !== "function" || typeof repository.archiveOwnProperty !== "function" || typeof repository.restoreOwnProperty !== "function" || typeof repository.getBookingProperty !== "function") throw new TypeError("A complete property repository is required.");
   const dataEncryptionSecret = options?.dataEncryptionSecret;
   assertPropertyEncryptionSecret(dataEncryptionSecret);
   const geocoder = options?.geocoder && typeof options.geocoder.geocodePostcode === "function" ? options.geocoder : null;
@@ -161,6 +170,26 @@ export function createPropertyService(repository, options) {
     async listOwnProperties(actor) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required.");
       return (await repository.listOwnProperties(actor)).map((record) => propertyProjection(record, true, dataEncryptionSecret));
+    },
+    async listArchivedOwnProperties(actor) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required.");
+      return (await repository.listArchivedOwnProperties(actor)).map((record) => archivedPropertyProjection(record, dataEncryptionSecret));
+    },
+    async archiveOwnProperty(actor, propertyId) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required.");
+      const selectedPropertyId = uuid(propertyId, "property id");
+      const archived = await repository.archiveOwnProperty(actor, selectedPropertyId);
+      const archivedAt = new Date(archived?.archivedAt);
+      if (archived?.propertyId !== selectedPropertyId || !Number.isFinite(archivedAt.getTime())) throw new Error("The archived property could not be verified.");
+      return Object.freeze({ propertyId: selectedPropertyId, archivedAt: archivedAt.toISOString() });
+    },
+    async restoreOwnProperty(actor, propertyId) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required.");
+      const selectedPropertyId = uuid(propertyId, "property id");
+      const restored = await repository.restoreOwnProperty(actor, selectedPropertyId);
+      const restoredAt = new Date(restored?.restoredAt);
+      if (restored?.propertyId !== selectedPropertyId || !Number.isFinite(restoredAt.getTime())) throw new Error("The restored property could not be verified.");
+      return Object.freeze({ propertyId: selectedPropertyId, restoredAt: restoredAt.toISOString() });
     },
     async getBookingProperty(actor, bookingId) {
       if (!actor?.userId) throw new TypeError("An authenticated account is required.");

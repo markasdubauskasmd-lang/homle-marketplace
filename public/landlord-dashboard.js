@@ -7,8 +7,9 @@ import { maximumRoomPhotos, validatedRoomPhotoSelection } from "./room-photo-sel
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260719-1";
+import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260730-1";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260723-3";
+import { activeBookingChangeRequestFor, supportRequestPage, supportStatusLabels } from "./landlord-help-model.js?v=20260804-1";
 import { storedCsrf } from "./session-csrf.js";
 
 const state = document.querySelector("[data-landlord-state]");
@@ -18,6 +19,7 @@ const signIn = document.querySelector("[data-landlord-sign-in]");
 const workspaceLink = document.querySelector("[data-landlord-workspace-link]");
 const retry = document.querySelector("[data-landlord-retry]");
 const workspace = document.querySelector("[data-landlord-workspace]");
+const privateNavigation = document.querySelectorAll("[data-landlord-private-navigation]");
 const notificationLink = document.querySelector("[data-notification-link]");
 const requestComplete = document.querySelector("[data-request-complete]");
 const requestCompleteLead = document.querySelector("[data-request-complete-lead]");
@@ -39,6 +41,10 @@ const soleProperty = document.querySelector("[data-sole-property]");
 const solePropertyName = document.querySelector("[data-sole-property-name]");
 const propertyFeedback = document.querySelector("[data-property-feedback]");
 const propertyStatus = document.querySelector("[data-property-status]");
+const archivedPropertySection = document.querySelector("[data-archived-properties]");
+const archivedPropertyList = document.querySelector("[data-archived-property-list]");
+const archivedPropertyCount = document.querySelector("[data-archived-property-count]");
+const archivedPropertyStatus = document.querySelector("[data-archived-property-status]");
 const propertyFormTitle = document.querySelector("[data-property-form-title]");
 const requestFeedback = document.querySelector("[data-request-feedback]");
 const requestRecoveryStatus = document.querySelector("[data-request-recovery-status]");
@@ -56,6 +62,12 @@ const requestWithdrawForm = document.querySelector("[data-request-withdraw-form]
 const requestWithdrawFeedback = document.querySelector("[data-request-withdraw-feedback]");
 const requestWithdrawCancel = document.querySelector("[data-request-withdraw-cancel]");
 const requestWithdrawConfirm = document.querySelector("[data-request-withdraw-confirm]");
+const propertyArchiveDialog = document.querySelector("[data-property-archive-dialog]");
+const propertyArchiveForm = document.querySelector("[data-property-archive-form]");
+const propertyArchiveName = document.querySelector("[data-property-archive-name]");
+const propertyArchiveFeedback = document.querySelector("[data-property-archive-feedback]");
+const propertyArchiveCancel = document.querySelector("[data-property-archive-cancel]");
+const propertyArchiveConfirm = document.querySelector("[data-property-archive-confirm]");
 const propertySave = document.querySelector("[data-save-property]");
 const requestSave = document.querySelector("[data-save-request]");
 const speechButton = document.querySelector("[data-speech-toggle]");
@@ -87,8 +99,10 @@ const selectedCleanerEvidence = document.querySelector("[data-landlord-selected-
 const selectedCleanerStatus = document.querySelector("[data-landlord-selected-cleaner-status]");
 const selectedCleanerClear = document.querySelector("[data-landlord-selected-cleaner-clear]");
 let properties = [];
+let archivedProperties = [];
 let requests = [];
 let bookings = [];
+let supportRequests = [];
 let favouriteCleaners = [];
 let landlordProfile = null;
 let recognition = null;
@@ -114,11 +128,15 @@ let landlordProfileDirty = false;
 let editingPropertyId = "";
 let withdrawingRequestId = "";
 let withdrawalPending = false;
+let archivingPropertyId = "";
+let propertyArchivePending = false;
+let restoringPropertyId = "";
 let loading = false;
 let mediaReady = false;
 let pricingReady = false;
 let geocodingReady = false;
 let matchingReady = false;
+let automaticDispatchReady = false;
 let requestRecoveryChecked = false;
 let requestRecoveryTimer = null;
 let invitationStream = null;
@@ -209,6 +227,7 @@ function showState(title, copy, { kind = "info", allowSignIn = false, allowRetry
     workspaceLink.textContent = `Open ${workspaceLabel} dashboard`;
   }
   notificationLink.hidden = true;
+  for (const item of privateNavigation) item.hidden = true;
   workspace.hidden = true;
   requestComplete.hidden = true;
 }
@@ -719,7 +738,11 @@ function renderProperties() {
     edit.type = "button";
     edit.setAttribute("aria-label", `${property.accessInstructions ? "Edit access and details for" : "Add access details for"} ${property.name || "saved property"}`);
     edit.addEventListener("click", () => openPropertyEditor(property));
-    actions.append(edit);
+    const archive = element("button", "button button-outline landlord-property-archive", "Archive property");
+    archive.type = "button";
+    archive.setAttribute("aria-label", `Archive ${property.name || "saved property"}`);
+    archive.addEventListener("click", () => openPropertyArchive(property));
+    actions.append(edit, archive);
     card.append(heading, facts, details, actions);
     propertyList.append(card);
     const option = element("option", "", property.name || "Saved property");
@@ -741,6 +764,118 @@ function renderProperties() {
     ? "Your room scan can be saved to the selected private property."
     : "Start speaking now. Add a property before saving the request; your unfinished walkthrough stays in this tab.";
   document.querySelector("[data-property-count]").textContent = String(properties.length);
+}
+
+function renderArchivedProperties() {
+  archivedPropertyList.replaceChildren();
+  archivedPropertyCount.textContent = String(archivedProperties.length);
+  archivedPropertySection.hidden = archivedProperties.length === 0;
+  for (const property of archivedProperties) {
+    const card = element("article", "landlord-property-card");
+    const heading = element("div", "landlord-property-card-heading");
+    const title = element("div");
+    title.append(
+      element("span", "landlord-private-pill", "Archived"),
+      element("h3", "", property.name || "Saved property"),
+      element("p", "", exactAddress(property))
+    );
+    heading.append(title, element("strong", "", String(property.propertyType || "Property").replace(/-/g, " ")));
+    const facts = element("dl", "landlord-property-facts");
+    facts.append(
+      propertyFact("Archived", property.archivedAt ? formatBookingMoment(property.archivedAt) : "Date unavailable"),
+      propertyFact("Saved tasks", Array.isArray(property.savedChecklist) ? property.savedChecklist.length : 0)
+    );
+    const actions = element("div", "landlord-property-actions");
+    const restore = element("button", "button button-outline", restoringPropertyId === property.propertyId ? "Restoring…" : "Restore property");
+    restore.type = "button";
+    restore.disabled = Boolean(restoringPropertyId);
+    restore.setAttribute("aria-label", `Restore ${property.name || "saved property"} for new cleaning requests`);
+    restore.addEventListener("click", () => restoreProperty(property));
+    actions.append(restore);
+    card.append(heading, facts, actions);
+    archivedPropertyList.append(card);
+  }
+}
+
+async function restoreProperty(property) {
+  if (!property?.propertyId || restoringPropertyId) return;
+  archivedPropertyStatus.hidden = true;
+  const csrf = await recoverCsrf(archivedPropertyStatus, "restoring this property");
+  if (!csrf) return;
+  restoringPropertyId = property.propertyId;
+  renderArchivedProperties();
+  try {
+    const result = await requestJson(`/api/marketplace/properties/${encodeURIComponent(property.propertyId)}/restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: "{}"
+    });
+    if (result.restoredProperty?.propertyId !== property.propertyId) throw new Error("Homle could not verify which property was restored.");
+    archivedProperties = archivedProperties.filter((item) => item.propertyId !== property.propertyId);
+    const { archivedAt: _archivedAt, ...activeProperty } = property;
+    properties.push(activeProperty);
+    properties.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    restoringPropertyId = "";
+    renderProperties();
+    renderArchivedProperties();
+    showFeedback(propertyStatus, `${property.name || "Property"} restored and available for new cleaning requests.`, "success");
+    propertyStatus.focus({ preventScroll: true });
+  } catch (error) {
+    restoringPropertyId = "";
+    renderArchivedProperties();
+    showFeedback(archivedPropertyStatus, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot restore this property. Sign in again." : error.message);
+    archivedPropertyStatus.focus({ preventScroll: true });
+  }
+}
+
+function openPropertyArchive(property) {
+  if (!property?.propertyId || propertyArchivePending) return;
+  if (editingPropertyId === property.propertyId && propertyDirty && !window.confirm("Discard the unsaved property changes and continue to the archive confirmation?")) return;
+  if (editingPropertyId === property.propertyId) {
+    propertyForm.hidden = true;
+    propertyForm.reset();
+    editingPropertyId = "";
+    propertyDirty = false;
+  }
+  archivingPropertyId = property.propertyId;
+  propertyArchiveName.textContent = property.name || "this property";
+  propertyArchiveFeedback.hidden = true;
+  propertyArchiveDialog.showModal();
+}
+
+async function archiveProperty(event) {
+  event.preventDefault();
+  if (!archivingPropertyId || propertyArchivePending) return;
+  const property = properties.find((item) => item.propertyId === archivingPropertyId);
+  if (!property) return propertyArchiveDialog.close();
+  const csrf = await recoverCsrf(propertyArchiveFeedback, "archiving this property");
+  if (!csrf) return;
+  propertyArchivePending = true;
+  propertyArchiveCancel.disabled = true;
+  setPending(propertyArchiveConfirm, true, "Archiving…");
+  try {
+    const result = await requestJson(`/api/marketplace/properties/${encodeURIComponent(archivingPropertyId)}/archive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: "{}"
+    });
+    if (result.archivedProperty?.propertyId !== archivingPropertyId) throw new Error("Homle could not verify which property was archived.");
+    properties = properties.filter((item) => item.propertyId !== archivingPropertyId);
+    archivedProperties.unshift({ ...property, archivedAt: result.archivedProperty.archivedAt });
+    archivingPropertyId = "";
+    propertyArchiveDialog.close();
+    renderProperties();
+    renderArchivedProperties();
+    showFeedback(propertyStatus, `${property.name || "Property"} archived. Completed and cancelled booking history is unchanged.`, "success");
+    propertyStatus.focus({ preventScroll: true });
+  } catch (error) {
+    showFeedback(propertyArchiveFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot archive this property. Sign in again." : error.message);
+    propertyArchiveFeedback.focus({ preventScroll: true });
+  } finally {
+    propertyArchivePending = false;
+    propertyArchiveCancel.disabled = false;
+    setPending(propertyArchiveConfirm, false, "Archive property");
+  }
 }
 
 function applySuggestedCleaningType() {
@@ -1128,7 +1263,9 @@ function requestScanPanel(request) {
     auto.type = "checkbox";
     auto.name = "automaticDispatch";
     const automaticMaximumPricePence = automaticMaximumPrice(request);
-    autoLabel.append(auto, element("span", "", automaticMaximumPricePence == null
+    autoLabel.append(auto, element("span", "", !automaticDispatchReady
+      ? "Automatic matching is temporarily unavailable. Submit the reviewed request and it will stay safely open for Homle review; no Cleaner is contacted automatically."
+      : automaticMaximumPricePence == null
       ? "Automatic matching needs a maximum booking total. Keep this request open and choose a Cleaner directly, or create a new request with a maximum."
       : `After submission, invite the best eligible profitable match only when the exact total is ${formatBookingMoney(automaticMaximumPricePence)} or less. No booking exists until a Cleaner accepts.`));
     const preferredLabel = element("label", "checkbox landlord-preferred-cleaner");
@@ -1144,12 +1281,13 @@ function requestScanPanel(request) {
     attempts.disabled = true;
     for (const value of [1, 2, 3, 4, 5]) { const option = element("option", "", String(value)); option.value = String(value); if (value === 3) option.selected = true; attempts.append(option); }
     attemptsLabel.append(attempts);
-    auto.addEventListener("change", () => { attempts.disabled = !auto.checked; });
+    auto.addEventListener("change", () => { attempts.disabled = !automaticDispatchReady || !auto.checked; });
     const submit = element("button", "button", "Submit cleaning request");
     submit.type = "submit";
     for (const control of [confirm, preview, submit]) control.disabled = !mediaReady;
-    for (const control of [auto, preferred, attempts]) control.disabled = !mediaReady || !matchingReady || control === attempts;
-    if (automaticMaximumPricePence == null || !matchingReady) auto.disabled = true;
+    preferred.disabled = !mediaReady || !matchingReady;
+    auto.disabled = !mediaReady || !automaticDispatchReady || automaticMaximumPricePence == null;
+    attempts.disabled = true;
     if (!mediaReady) submit.textContent = "Room photos required before submission";
     submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerReady ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
     submitForm.addEventListener("submit", async (event) => {
@@ -1157,6 +1295,7 @@ function requestScanPanel(request) {
       feedback.hidden = true;
       if (!submitForm.reportValidity()) return;
       if (!(requestScans.get(request.requestId)?.photos?.length > 0)) return showFeedback(feedback, "Upload and finish at least one current room photo before submission.");
+      if (auto.checked && !automaticDispatchReady) return showFeedback(feedback, "Automatic matching is temporarily unavailable. Leave it off and submit the request for Homle review.");
       if (auto.checked && !(await approveAutomaticDispatchPrice(automaticMaximumPricePence, Number(attempts.value)))) return;
       setPending(submit, true, "Submitting reviewed scan…");
       const csrf = await recoverCsrf(feedback, "submitting this cleaning request");
@@ -1241,7 +1380,14 @@ function renderRequests() {
       dispatchPanel.dataset.dispatchRequestId = request.requestId;
       const dispatchFeedback = element("p", "form-feedback");
       dispatchFeedback.hidden = true;
-      if (uncertainDispatchRequests.has(request.requestId)) {
+      if (!automaticDispatchReady) {
+        dispatchPanel.append(
+          element("strong", "", "Automatic matching is temporarily paused"),
+          element("p", "", dispatchAction.kind === "waiting"
+            ? "Your matching authorization remains saved, but no background invitation is running. The request stays open for Homle review and no Cleaner is contacted automatically."
+            : "This request stays safely open for Homle review. No Cleaner is contacted automatically while the background matching service is unavailable.")
+        );
+      } else if (uncertainDispatchRequests.has(request.requestId)) {
         dispatchPanel.append(element("strong", "", "Check whether matching was authorised"), element("p", "", "The last connection ended before Homle could confirm the result. Refresh the saved request before authorising anything again."));
         const refresh = element("button", "button button-outline", "Refresh matching status");
         refresh.type = "button";
@@ -1286,6 +1432,7 @@ function renderRequests() {
 
 async function authorizeNextCleaner(requestId, attemptLimit, button, feedback) {
   feedback.hidden = true;
+  if (!automaticDispatchReady) return showFeedback(feedback, "Automatic matching is temporarily unavailable. This request remains safely open for Homle review; no Cleaner was contacted.");
   const request = requests.find((item) => item.requestId === requestId);
   const approvedMaximumPricePence = automaticMaximumPrice(request);
   if (approvedMaximumPricePence == null) return showFeedback(feedback, "This request has no approved maximum total. Choose a Cleaner directly or create a new request with a maximum.");
@@ -1492,6 +1639,7 @@ function renderBookingCard(booking) {
     facts.append(wrapper);
   }
   const actions = element("div", "booking-summary-actions");
+  const activeChangeRequest = activeBookingChangeRequestFor(supportRequests, booking.bookingId);
   if (booking.paymentStepAvailable) {
     const payment = element("a", "button", "Authorize booking total");
     payment.href = "/landlord/dashboard";
@@ -1502,7 +1650,19 @@ function renderBookingCard(booking) {
     link.href = `/bookings/${booking.bookingId}`;
     actions.append(link);
   }
+  if (booking.status === "confirmed" && Date.parse(booking.scheduledStartAt) > Date.now()) {
+    const change = element("a", "button button-outline", activeChangeRequest ? "View change request" : "Request a change");
+    change.href = `/landlord/help?bookingId=${encodeURIComponent(booking.bookingId)}${activeChangeRequest ? "#support-history" : ""}`;
+    actions.append(change);
+  }
   card.append(heading, facts, element("p", "booking-money-boundary", bookingSummaryMoneyBoundary(booking, "landlord")));
+  if (activeChangeRequest) {
+    const action = activeChangeRequest.bookingChangeKind === "cancel" ? "Cancellation requested" : "Reschedule requested";
+    const proposed = activeChangeRequest.bookingChangeKind === "reschedule" && activeChangeRequest.proposedStartAt
+      ? ` Preferred time: ${formatBookingMoment(activeChangeRequest.proposedStartAt)}.`
+      : "";
+    card.append(element("p", "landlord-request-boundary", `${action} · ${supportStatusLabels[activeChangeRequest.status]}.${proposed} This booking, Cleaner commitment and payment remain unchanged until Homle confirms the outcome.`));
+  }
   if (booking.status === "pending-cleaner-acceptance") {
     const deadline = bookingInvitationDeadlineState(booking);
     const boundary = element("p", "landlord-waiting-deadline");
@@ -1744,25 +1904,30 @@ async function loadWorkspace() {
     document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
     renderAccountAvatar(account);
     state.hidden = true;
+    for (const item of privateNavigation) item.hidden = false;
     notificationLink.hidden = false;
     workspace.hidden = false;
     workspace.setAttribute("aria-busy", "true");
     loadStatus.hidden = true;
 
-    const [profileResult, propertyResult, requestResult, bookingResult, healthResult] = await Promise.allSettled([
+    const [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult] = await Promise.allSettled([
       requestJson("/api/marketplace/landlord/profile"),
       requestJson("/api/marketplace/properties"),
+      requestJson("/api/marketplace/properties/archived"),
       requestJson("/api/marketplace/cleaning-requests"),
       requestJson("/api/marketplace/bookings?limit=50"),
+      requestJson("/api/marketplace/landlord/support-requests?limit=25&offset=0"),
       requestJson("/api/health")
     ]);
-    const results = [profileResult, propertyResult, requestResult, bookingResult, healthResult];
+    const results = [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult];
     const failures = results.filter((result) => result.status === "rejected");
     const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
     if (authorizationFailure) throw authorizationFailure.reason;
     if (propertyResult.status === "fulfilled") properties = Array.isArray(propertyResult.value.properties) ? propertyResult.value.properties : [];
+    if (archivedPropertyResult.status === "fulfilled") archivedProperties = Array.isArray(archivedPropertyResult.value.properties) ? archivedPropertyResult.value.properties : [];
     if (requestResult.status === "fulfilled") requests = Array.isArray(requestResult.value.cleaningRequests) ? requestResult.value.cleaningRequests : [];
     if (bookingResult.status === "fulfilled") bookings = Array.isArray(bookingResult.value.bookings) ? bookingResult.value.bookings : [];
+    supportRequests = supportResult.status === "fulfilled" ? [...supportRequestPage(supportResult.value).supportRequests] : [];
     landlordProfile = profileResult.status === "fulfilled" ? (profileResult.value.profile || { organisationName: null, biography: "" }) : { organisationName: null, biography: "" };
     landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";
     landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
@@ -1770,15 +1935,17 @@ async function loadWorkspace() {
     const capabilities = landlordMarketplaceCapabilityState({
       mediaReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.mediaReady === true,
       pricingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.matchingReady === true,
-      geocodingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.geocodingReady === true
+      geocodingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.geocodingReady === true,
+      automaticDispatchReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.automaticDispatchReady === true
     });
-    ({ mediaReady, pricingReady, geocodingReady, matchingReady } = capabilities);
+    ({ mediaReady, pricingReady, geocodingReady, matchingReady, automaticDispatchReady } = capabilities);
     mediaReadiness.hidden = capabilities.notice === null;
     if (capabilities.notice) {
       capabilityTitle.textContent = capabilities.notice.title;
       capabilityCopy.textContent = capabilities.notice.copy;
     }
     renderProperties();
+    renderArchivedProperties();
     restoreWorkingRequest();
     renderRequests();
     renderBookings();
@@ -2030,7 +2197,20 @@ async function requestAssistedSummary() {
     renderTaskPreview();
     requestDirty = true;
     scheduleWorkingRequestRecovery();
-    speechStatus.textContent = `${tasks.length} room ${tasks.length === 1 ? "task" : "tasks"} understood from your walkthrough. Review every bullet before confirming.`;
+    // Restrictions and safety warnings are called out by name rather than left
+    // to blend into the checklist. "Do not move the paperwork" and "mind the
+    // loose stair" are not work to do, and a Landlord who cannot see that they
+    // were understood as restrictions has no way to check that they were.
+    const structured = Array.isArray(result?.instructions) ? result.instructions : [];
+    const guardCounts = ["restriction", "safety"]
+      .map((kind) => ({ kind, count: structured.filter((entry) => entry?.kind === kind).length }))
+      .filter((entry) => entry.count);
+    const guardNote = guardCounts
+      .map((entry) => `${entry.count} ${entry.kind === "safety"
+        ? `safety ${entry.count === 1 ? "warning" : "warnings"}`
+        : `do-not ${entry.count === 1 ? "instruction" : "instructions"}`}`)
+      .join(" and ");
+    speechStatus.textContent = `${tasks.length} room ${tasks.length === 1 ? "task" : "tasks"} understood from your walkthrough${guardNote ? `, including ${guardNote}` : ""}. Review every bullet before confirming.`;
   } catch (error) {
     // A 503 means no provider is configured on this deployment; stop asking for
     // the rest of the session rather than retrying on every pause.
@@ -2180,6 +2360,14 @@ requestWithdrawDialog.addEventListener("close", () => {
   withdrawingRequestId = "";
   requestWithdrawForm.reset();
   requestWithdrawFeedback.hidden = true;
+});
+propertyArchiveForm.addEventListener("submit", archiveProperty);
+propertyArchiveCancel.addEventListener("click", () => { if (!propertyArchivePending) propertyArchiveDialog.close(); });
+propertyArchiveDialog.addEventListener("cancel", (event) => { if (propertyArchivePending) event.preventDefault(); });
+propertyArchiveDialog.addEventListener("close", () => {
+  if (propertyArchivePending) return;
+  archivingPropertyId = "";
+  propertyArchiveFeedback.hidden = true;
 });
 landlordSectionToggles.forEach((button) => button.addEventListener("click", () => toggleLandlordSection(button)));
 retry.addEventListener("click", loadWorkspace);

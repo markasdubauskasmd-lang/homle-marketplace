@@ -35,11 +35,14 @@ function environmentEntry(key) {
   return match?.[1] || "";
 }
 
-for (const key of ["PILOT_INTAKE_ENABLED", "MARKETPLACE_ENABLED", "PUBLIC_MARKETPLACE_APPROVED", "LEGAL_BUSINESS_READY", "INSURANCE_READY", "CLEANER_SUPPLY_READY", "PRICING_POLICY_APPROVED", "CUSTOMER_SUPPORT_READY", "CUSTOMER_TERMS_READY", "MARKETPLACE_WORKER_ENABLED", "WORKER_EMAIL_ENABLED", "WORKER_MEDIA_ENABLED", "WORKER_AUTOMATIC_DISPATCH_ENABLED", "PAYMENTS_ENABLED", "PUBLIC_PAYMENTS_APPROVED", "PAYMENT_ACCOUNT_VERIFIED", "REFUND_PROCESS_READY"]) {
+for (const key of ["PILOT_INTAKE_ENABLED", "PUBLIC_MARKETPLACE_APPROVED", "LEGAL_BUSINESS_READY", "INSURANCE_READY", "CLEANER_SUPPLY_READY", "PRICING_POLICY_APPROVED", "CUSTOMER_SUPPORT_READY", "CUSTOMER_TERMS_READY", "MARKETPLACE_WORKER_ENABLED", "WORKER_EMAIL_ENABLED", "WORKER_MEDIA_ENABLED", "WORKER_AUTOMATIC_DISPATCH_ENABLED", "PAYMENTS_ENABLED", "PUBLIC_PAYMENTS_APPROVED", "PAYMENT_ACCOUNT_VERIFIED", "REFUND_PROCESS_READY"]) {
   assert.equal(environmentEntry(key), "value: \"false\"", `${key} must be explicitly false in the preview Blueprint.`);
 }
+for (const key of ["MARKETPLACE_ENABLED", "MAP_PROVIDER", "GEOCODING_PROVIDER", "ADDRESS_LOOKUP_PROVIDER", "ETA_PROVIDER"]) {
+  assert.equal(environmentEntry(key), "sync: false", `${key} must preserve the existing Render service value during Blueprint sync.`);
+}
 assert.equal(environmentEntry("AUTHENTICATION_ENABLED"), 'value: "true"', "Approved staging accounts must be able to create and access private profiles in the preview.");
-assert.equal(environmentEntry("APP_ORIGIN"), 'value: "https://homle-marketplace-preview.onrender.com"', "APP_ORIGIN must match the assigned HTTPS preview origin without a manual secret step.");
+assert.equal(environmentEntry("APP_ORIGIN"), 'value: "https://homlle.com"', "APP_ORIGIN must match the connected canonical HTTPS domain without a manual secret step.");
 assert.equal(environmentEntry("RENDER_STAGING_BOOTSTRAP_ENABLED"), 'value: "true"', "The staging database bootstrap must require an explicit deployment flag.");
 assert.equal(environmentEntry("RENDER_STAGING_BASELINE_MIGRATION_COUNT"), 'value: "45"', "The existing staging schema must establish its one-time locked migration baseline before applying upgrades.");
 assert.equal(environmentEntry("STAGING_ACCOUNTS_ONLY"), 'value: "true"', "The public preview must deny all account creation until approved email fingerprints are added privately.");
@@ -54,10 +57,11 @@ assert.equal(environmentEntry("TRUST_PROXY_PROVIDER"), "value: \"render\"", "Ren
 assert.equal(environmentEntry("TRUSTED_PROXY_CIDRS"), "value: \"\"", "Generic trusted proxy networks must remain blank in Render mode.");
 assert.equal(environmentEntry("MARKETPLACE_ADAPTER_MODULE"), "value: \"homle:render-log-monitoring\"", "The free preview must have privacy-minimal operational monitoring prepared before marketplace activation.");
 assert.equal(environmentEntry("RENDER_LOG_MONITORING_ACKNOWLEDGED"), "value: \"true\"", "Authentication requires the owner-confirmed restricted Render log-access boundary.");
+for (const key of ["GOOGLE_MAPS_BROWSER_API_KEY", "GOOGLE_MAPS_SERVER_API_KEY"]) assert.equal(environmentEntry(key), "", `${key} must not be requested while Google Maps is inactive.`);
 
 for (const secret of ["DATABASE_URL", "REALTIME_DATABASE_URL", "SMTP_URL", "GOOGLE_CLIENT_SECRET", "FACEBOOK_APP_SECRET", "STRIPE_SECRET_KEY", "OBJECT_STORAGE_SECRET_ACCESS_KEY"]) {
   assert.equal(environmentEntry(secret), "", `Preview Blueprint unexpectedly provisions ${secret}.`);
 }
 assert.match(blueprint, /^\s+- key: DATABASE_BOOTSTRAP_URL\s*\r?\n\s+fromDatabase:\s*\r?\n\s+name: homle-marketplace-staging-db\s*\r?\n\s+property: connectionString\s*$/m, "The guarded bootstrap does not use Render's private database connection reference.");
 
-console.log("Render Blueprint tests passed: one free Docker web service plus one isolated free PostgreSQL 16 staging database, guarded one-time schema bootstrap, no worker/disk/domain, generated secrets and all public marketplace/payment capabilities closed.");
+console.log("Render Blueprint tests passed: one free Docker web service plus one isolated free PostgreSQL 16 staging database, guarded one-time schema bootstrap, operator-owned staging activation/providers, no worker/disk/domain, generated secrets and all public marketplace/payment capabilities closed.");

@@ -21,24 +21,24 @@ export const onboardingSteps = [
     derive: (d) => d.profile?.backgroundCheckStatus === "verified" },
   { key: "business", title: "Business details", icon: "brief", sidebar: true, href: "/cleaner/business-details", derive: null },
   { key: "tax", title: "Tax & self-employment", icon: "folder", sidebar: false, href: "", derive: null },
-  { key: "experience", title: "Cleaning experience", icon: "star", sidebar: true, href: "/cleaner/registration",
+  { key: "experience", title: "Cleaning experience", icon: "star", sidebar: true, href: "/cleaner/experience",
     derive: (d) => Number.isFinite(d.profile?.yearsExperience) },
-  { key: "references", title: "References", icon: "users", sidebar: true, href: "", derive: null },
-  { key: "insurance", title: "Insurance", icon: "umb", sidebar: true, href: "", derive: null },
-  { key: "banking", title: "Banking & payments", icon: "card", sidebar: false, href: "/cleaner/payouts",
+  { key: "references", title: "References", icon: "users", sidebar: true, href: "/cleaner/references", derive: null },
+  { key: "insurance", title: "Insurance", icon: "umb", sidebar: true, href: "/cleaner/insurance", derive: null },
+  { key: "banking", title: "Banking & payments", icon: "card", sidebar: true, href: "/cleaner/banking",
     derive: (d) => d.payoutState === "ready" },
-  { key: "equipment", title: "Equipment", icon: "box", sidebar: false, href: "/cleaner/registration",
+  { key: "equipment", title: "Equipment", icon: "box", sidebar: true, href: "/cleaner/equipment",
     derive: (d) => (d.profile?.equipmentSupplied?.length || 0) + (d.profile?.productsSupplied?.length || 0) > 0 },
   { key: "transport", title: "Transport", icon: "truck", sidebar: false, href: "", derive: null },
-  { key: "availability", title: "Availability", icon: "cal", sidebar: false, href: "/cleaner/dashboard",
+  { key: "availability", title: "Availability", icon: "cal", sidebar: true, href: "/cleaner/availability",
     derive: (d) => (d.availabilityCount || 0) > 0 },
   { key: "areas", title: "Work areas", icon: "pin", sidebar: true, href: "/cleaner/work-areas",
     derive: (d) => (d.profile?.serviceAreas?.length || 0) > 0 },
   { key: "languages", title: "Languages", icon: "lang", sidebar: false, href: "/cleaner/registration",
     derive: (d) => (d.profile?.languages?.length || 0) > 0 },
   { key: "skills", title: "Skills", icon: "spark", sidebar: false, href: "", derive: null },
-  { key: "training", title: "Training & certificates", icon: "award", sidebar: false, href: "", derive: null },
-  { key: "compliance", title: "Compliance & declarations", icon: "pen", sidebar: false, href: "", derive: null }
+  { key: "training", title: "Training & certificates", icon: "award", sidebar: false, href: "/cleaner/training", derive: null },
+  { key: "compliance", title: "Compliance & declarations", icon: "pen", sidebar: false, href: "/cleaner/contracts", derive: null }
 ];
 
 /*
@@ -58,21 +58,27 @@ export const onboardingNav = [
   { label: "Identity Verification", icon: "id", step: "identity", href: "/cleaner/identity-verification" },
   { label: "Background Checks", icon: "shield", step: "dbs", href: "/cleaner/background-checks" },
   { label: "Work Areas", icon: "pin", step: "areas", href: "/cleaner/work-areas" },
-  { label: "Experience", icon: "star", step: "experience", href: "/cleaner/registration" },
-  { label: "References", icon: "users", step: "references", href: "" },
-  { label: "Insurance", icon: "umb", step: "insurance", href: "" },
-  { label: "Banking", icon: "card", step: "banking", href: "/cleaner/payouts" },
-  { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/dashboard" },
-  { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/registration" },
-  { label: "Documents", icon: "folder", step: "", href: "" },
-  { label: "Training", icon: "award", step: "training", href: "" },
-  { label: "Contracts", icon: "pen", step: "compliance", href: "" }
+  { label: "Experience", icon: "star", step: "experience", href: "/cleaner/experience" },
+  { label: "References", icon: "users", step: "references", href: "/cleaner/references" },
+  { label: "Insurance", icon: "umb", step: "insurance", href: "/cleaner/insurance" },
+  { label: "Banking", icon: "card", step: "banking", href: "/cleaner/banking" },
+  { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/availability" },
+  { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/equipment" },
+  { label: "Documents", icon: "folder", step: "", href: "/cleaner/documents" },
+  { label: "Training", icon: "award", step: "training", href: "/cleaner/training" },
+  { label: "Contracts", icon: "pen", step: "compliance", href: "/cleaner/contracts" }
 ];
 
 export const accountNav = [
-  { label: "Messages", icon: "chat", href: "/notifications", notificationHook: true },
-  { label: "Public profile", icon: "id", href: "/cleaner/profile/preview" },
-  { label: "Dashboard", icon: "dash", href: "/cleaner/dashboard" }
+  { label: "My Profile", icon: "user", href: "/cleaner/profile/preview" },
+  { label: "Messages", icon: "chat", href: "/cleaner/messages", notificationHook: true },
+  { label: "Notifications", icon: "bell", href: "/cleaner/notifications", notificationHook: true },
+  { label: "Help Centre", icon: "help", href: "/cleaner/help-centre" },
+  { label: "Support Tickets", icon: "chat", href: "/cleaner/support-tickets" },
+  { label: "Report an Incident", icon: "shield", href: "/cleaner/report-incident" },
+  { label: "My Disputes", icon: "shield", href: "/cleaner/disputes" },
+  { label: "Settings", icon: "gear", href: "/cleaner/settings" },
+  { label: "Logout", icon: "logout", action: "logout" }
 ];
 
 // Icon paths transcribed from the design's ICONS table.
@@ -96,6 +102,8 @@ export const onboardingIcons = {
   bell: "M6 16v-5a6 6 0 1 1 12 0v5l2 3H4zM10 19a2 2 0 0 0 4 0",
   gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1",
   chat: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
+  help: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9a2.7 2.7 0 1 1 4.1 2.3c-1 .7-1.6 1.1-1.6 2.2M12 17h.01",
+  logout: "M10 4H5v16h5M14 8l4 4-4 4M18 12H9",
   truck: "M2 7h12v9H2zM14 10h4l3 3v3h-7zM6 19a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6zM17 19a1.8 1.8 0 1 0 0-3.6 1.8 1.8 0 0 0 0 3.6z",
   pound: "M15 5.5A4 4 0 0 0 9 9v6c0 2-.8 3-2.5 4H17M7 12h6",
   lang: "M4 5h9M8.5 3v2M11 5c-1 4-4 7-7 9M6 8c1.5 3 4 5.5 7 6.5M13 20l4-9 4 9M14.5 17h5",
@@ -103,11 +111,19 @@ export const onboardingIcons = {
 };
 
 export function onboardingProgress(data) {
+  const source = data && typeof data === "object" ? data : {};
+  const persisted = new Map((Array.isArray(source.onboardingSections) ? source.onboardingSections : [])
+    .filter((section) => section && typeof section.section === "string")
+    .map((section) => [section.section, section]));
   const steps = onboardingSteps.map((step) => ({
     ...step,
-    // A step Homle cannot record is reported as outstanding, never as done.
-    done: typeof step.derive === "function" ? step.derive(data) === true : false,
-    tracked: typeof step.derive === "function"
+    // Identity and DBS completion remains verification-authority only. Other
+    // sections can complete from either their established model or a submitted
+    // encrypted onboarding record.
+    done: typeof step.derive === "function" && step.derive(source) === true
+      ? true
+      : !["identity", "dbs"].includes(step.key) && ["submitted", "verified"].includes(persisted.get(step.key)?.status),
+    tracked: true
   }));
   const done = steps.filter((step) => step.done).length;
   return {

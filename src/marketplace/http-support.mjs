@@ -5,6 +5,11 @@ export const maximumWebhookBodyBytes = 1024 * 1024;
 // One captured room photograph, base64-encoded inside a JSON body. Bounded well
 // below the webhook allowance and used only by the room-reading route.
 export const maximumRoomPhotoBodyBytes = 900 * 1024;
+// The structured scan carries no image data — 20 rooms, 200 objects, and a
+// bounded note and evidence string each. It exceeds the 64 KB default only
+// because a full property with long room notes can, and it stays far below the
+// photo allowance because nothing here is ever a picture.
+export const maximumRoomScanBodyBytes = 256 * 1024;
 
 export function sendJson(response, statusCode, body, headers = {}) {
   response.writeHead(statusCode, {

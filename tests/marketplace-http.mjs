@@ -24,8 +24,8 @@ function response() {
     headers: {},
     body: "",
     writeHead(statusCode, headers) { this.statusCode = statusCode; this.headers = headers; },
-    end(body = "") { this.body = String(body); },
-    parsed() { return JSON.parse(this.body); }
+    end(body = "") { this.body = body; },
+    parsed() { return JSON.parse(String(this.body)); }
   };
 }
 
@@ -33,7 +33,8 @@ async function dispatch(router, method, url, options) {
   const selectedRequest = request(method, url, options);
   const selectedResponse = response();
   const handled = await router.handle(selectedRequest, selectedResponse, new URL(url, "http://127.0.0.1:4173"));
-  return { handled, request: selectedRequest, response: selectedResponse, body: selectedResponse.parsed() };
+  const isJson = String(selectedResponse.headers?.["Content-Type"] || "").includes("application/json");
+  return { handled, request: selectedRequest, response: selectedResponse, body: isJson ? selectedResponse.parsed() : selectedResponse.body };
 }
 
 const sessionSecret = "marketplace-http-session-secret-over-thirty-two-characters";
@@ -101,7 +102,10 @@ const propertyService = {
   async saveLandlordProfile(actor, input) { calls.push({ kind: "landlord-save", actor, input }); return { organisationName: input.organisationName || null, biography: input.biography || "" }; },
   async createProperty(actor, input) { calls.push({ kind: "property-create", actor, input }); return { propertyId: "44444444-4444-4444-8444-444444444444", name: input.name }; },
   async updateOwnProperty(actor, input) { calls.push({ kind: "property-update", actor, input }); return { propertyId: input.id, name: input.name }; },
+  async archiveOwnProperty(actor, propertyId) { calls.push({ kind: "property-archive", actor, propertyId }); return { propertyId, archivedAt: "2026-07-30T21:30:00.000Z" }; },
+  async restoreOwnProperty(actor, propertyId) { calls.push({ kind: "property-restore", actor, propertyId }); return { propertyId, restoredAt: "2026-07-30T22:00:00.000Z" }; },
   async listOwnProperties(actor) { calls.push({ kind: "property-list", actor }); return []; },
+  async listArchivedOwnProperties(actor) { calls.push({ kind: "property-archived-list", actor }); return [{ propertyId: "44444444-4444-4444-8444-444444444444", name: "Archived flat", archivedAt: "2026-07-30T21:30:00.000Z" }]; },
   async getBookingProperty(actor, bookingId) { calls.push({ kind: "booking-property", actor, bookingId }); if (actor.userId === "33333333-3333-4333-8333-333333333333") throw new AccountHttpError(403, "forbidden", "Booking property access is forbidden."); return { propertyId: "44444444-4444-4444-8444-444444444444", accessInstructions: "Protected" }; }
 };
 const cleaningRequestService = {
@@ -176,6 +180,24 @@ const disputeService = {
   async listForAdministrator(actor, input) { calls.push({ kind: "dispute-list", actor, input }); return { disputes: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; },
   async review(actor, disputeId, input) { calls.push({ kind: "dispute-review", actor, disputeId, input }); return { disputeId, bookingId: "55555555-5555-4555-8555-555555555555", category: "quality", description: "The agreed cleaning scope was not completed.", status: input.status, resolutionNote: input.resolutionNote || null, resolutionOutcome: input.resolutionOutcome || null, createdAt: "2026-07-15T19:05:00.000Z", resolvedAt: input.status === "resolved" ? "2026-07-15T20:00:00.000Z" : null }; }
 };
+const supportRequestService = {
+  async create(actor, input) {
+    calls.push({ kind: "support-create", actor, input });
+    return { supportRequestId: "abababab-abab-4bab-8bab-abababababab", category: input.category, subject: input.category === "booking-change" ? "Request to reschedule confirmed booking" : input.subject, description: input.description, status: "open", resolutionSummary: null, bookingId: input.bookingId || null, bookingChangeKind: input.bookingChangeKind || null, proposedStartAt: input.proposedStartAt || null, createdAt: "2026-07-15T19:06:00.000Z", updatedAt: "2026-07-15T19:06:00.000Z", resolvedAt: null };
+  },
+  async listOwn(actor, input) {
+    calls.push({ kind: "support-list-own", actor, input });
+    return { supportRequests: [], limit: Number(input.limit) || 25, offset: Number(input.offset) || 0 };
+  },
+  async listForAdministrator(actor, input) {
+    calls.push({ kind: "support-list-admin", actor, input });
+    return { supportRequests: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 };
+  },
+  async review(actor, supportRequestId, input) {
+    calls.push({ kind: "support-review", actor, supportRequestId, input });
+    return { supportRequestId, category: "room-scan", subject: "Room scan did not save", description: "The room scan stopped before the checklist appeared.", status: input.status, resolutionSummary: input.resolutionSummary || null, createdAt: "2026-07-15T19:06:00.000Z", updatedAt: "2026-07-15T20:00:00.000Z", resolvedAt: input.status === "resolved" ? "2026-07-15T20:00:00.000Z" : null };
+  }
+};
 const privacyRequestService = {
   async list(actor) { calls.push({ kind: "privacy-list", actor }); return [{ requestId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", requestType: "export", status: "requested", createdAt: "2026-07-16T14:30:00.000Z", verifiedAt: null, completedAt: null }]; },
   async request(actor, input) { calls.push({ kind: "privacy-request", actor, input }); return { requestId: input.requestId, requestType: input.requestType, status: "requested", createdAt: "2026-07-16T14:30:00.000Z", verifiedAt: null, completedAt: null, created: true }; }
@@ -211,6 +233,27 @@ const cleanerPayoutService = {
   async refreshStatus(actor) { calls.push({ kind: "payout-refresh", actor }); return { status: "action-required", ready: false, detailsSubmitted: true, payoutsEnabled: false, remainingRequirements: 1, updatedAt: "2026-07-16T17:00:00.000Z" }; },
   async beginOnboarding(actor) { calls.push({ kind: "payout-onboarding", actor }); return { status: "action-required", ready: false, detailsSubmitted: false, payoutsEnabled: false, remainingRequirements: 3, updatedAt: null, onboardingUrl: "https://connect.stripe.com/setup/c/test", expiresAt: "2026-07-16T17:05:00.000Z" }; }
 };
+const cleanerOnboardingService = {
+  async listOwnSections(actor) { calls.push({ kind: "onboarding-list", actor }); return []; },
+  async getOwnSection(actor, section) { calls.push({ kind: "onboarding-get", actor, section }); return null; },
+  async saveOwnSection(actor, section, input) { calls.push({ kind: "onboarding-save", actor, section, input }); return { section, status: input.status || "draft", data: input.data || {}, schemaVersion: 1, completedAt: null, updatedAt: "2026-08-01T10:00:00.000Z" }; }
+};
+const storedProfilePhoto = Buffer.from("sanitized-profile-photo");
+const cleanerProfilePhotoService = {
+  async getOwnPhoto(actor) { calls.push({ kind: "profile-photo-get", actor }); return { bytes: storedProfilePhoto, mimeType: "image/jpeg", byteSize: storedProfilePhoto.length, width: 320, height: 320, updatedAt: "2026-08-04T10:00:00.000Z" }; },
+  async saveOwnPhoto(actor, input) { calls.push({ kind: "profile-photo-save", actor, input }); return { mimeType: "image/jpeg", byteSize: 1234, width: 320, height: 320, updatedAt: "2026-08-04T10:00:00.000Z" }; }
+};
+const addressLookup = {
+  async searchAddresses(query, sessionToken) {
+    calls.push({ kind: "address-search", query, sessionToken });
+    return { suggestions: [{ id: "ChIJ12345678", address: "10 Example Road, Wallington, SM6 7LQ" }] };
+  },
+  async resolveAddress(id, sessionToken) {
+    calls.push({ kind: "address-resolve", id, sessionToken });
+    return { postcode: "SM6 7LQ", houseNumber: "10", street: "Example Road", town: "Wallington", county: "Greater London", country: "United Kingdom" };
+  }
+};
+const mapsClientConfig = { provider: "google-maps", apiKey: "browser-key", mapId: null, region: "GB", language: "en-GB" };
 let unexpectedError;
 let rateLimitedScope = "";
 let limiterFailure = null;
@@ -230,7 +273,42 @@ const administratorVerificationService = {
   async list(actor, input) { calls.push({ kind: "administrator-verification-list", actor, input }); return { cleaners: [], limit: Number(input.limit) || 50, offset: Number(input.offset) || 0 }; },
   async set(actor, cleanerId, input) { calls.push({ kind: "administrator-verification-set", actor, cleanerId, input }); return { cleanerId, identityCheckStatus: input.identityCheckStatus || "pending", backgroundCheckStatus: input.backgroundCheckStatus || "not-checked" }; }
 };
-const dependencies = { security, cleanerProfileService, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, administratorBookingService, administratorVerificationService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const administratorCoverageService = {
+  async get(actor, input) {
+    calls.push({ kind: "administrator-coverage-get", actor, input });
+    return {
+      windowDays: Number(input.windowDays) || 30,
+      generatedAt: "2026-07-30T20:00:00.000Z",
+      matchingMode: "marketplace",
+      privacyScope: "Outward-postcode aggregates only.",
+      summary: { submittedRequestCount: 0, openUnmatchedRequestCount: 0, expiredUnmatchedRequestCount: 0, zeroMatchRequestCount: 0, atRiskRequestCount: 0, areaCount: 0, gapAreaCount: 0, activeListedCleanerCount: 0, oldestUnmatchedHours: 0 },
+      areas: []
+    };
+  }
+};
+const administratorFunnelService = {
+  async get(actor, input) {
+    calls.push({ kind: "administrator-funnel-get", actor, input });
+    return {
+      windowDays: Number(input.windowDays) || 30,
+      generatedAt: "2026-08-04T12:00:00.000Z",
+      cohortStartAt: "2026-07-05T12:00:00.000Z",
+      cohortEndAt: "2026-08-03T12:00:00.000Z",
+      maturityHours: 24,
+      privacyScope: "Aggregate stage counts only.",
+      cohortPolicy: "Each lane is an independent cohort.",
+      onboarding: { accountCount: 0, profileCount: 0, propertyCount: 0 },
+      requestJourney: { requestCount: 0, scanCount: 0, submittedCount: 0, bookingCount: 0, completedCount: 0, reviewCount: 0 },
+      payments: { bookingCount: 0, paymentRecordCount: 0, authorizedCount: 0, capturedCount: 0, refundedCount: 0 }
+    };
+  }
+};
+const scanGroundTruthService = {
+  async getQueue(actor, limit) { calls.push({ kind: "truth-queue", actor, limit }); return []; },
+  async recordVerdict(actor, objectId, input) { calls.push({ kind: "truth-record", actor, objectId, input }); return { groundTruthId: "t", objectId, ...input }; },
+  async getReport(actor) { calls.push({ kind: "truth-report", actor }); return { labelledTotal: 0 }; }
+};
+const dependencies = { security, scanGroundTruthService, cleanerProfileService, cleanerOnboardingService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -302,6 +380,10 @@ assert(await noPaymentRouter.handle(request("GET", bookingPaymentUrl), absentBoo
 const adminPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments?status=actionable&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
 const adminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings?view=attention&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
 const landlordAdminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings", { headers: { cookie: authHeaders.cookie } });
+const adminCoverage = await dispatch(router, "GET", "/api/marketplace/admin/coverage?windowDays=90", { headers: { cookie: administratorAuthHeaders.cookie } });
+const landlordAdminCoverage = await dispatch(router, "GET", "/api/marketplace/admin/coverage", { headers: { cookie: authHeaders.cookie } });
+const adminFunnel = await dispatch(router, "GET", "/api/marketplace/admin/funnel?windowDays=90", { headers: { cookie: administratorAuthHeaders.cookie } });
+const landlordAdminFunnel = await dispatch(router, "GET", "/api/marketplace/admin/funnel", { headers: { cookie: authHeaders.cookie } });
 const adminMatchingReadiness = await dispatch(router, "GET", "/api/marketplace/admin/cleaning-requests/66666666-6666-4666-8666-666666666666/matching-readiness", { headers: { cookie: administratorAuthHeaders.cookie } });
 const landlordAdminMatchingReadiness = await dispatch(router, "GET", "/api/marketplace/admin/cleaning-requests/66666666-6666-4666-8666-666666666666/matching-readiness", { headers: { cookie: authHeaders.cookie } });
 const relatedPaymentQueue = await dispatch(router, "GET", `/api/marketplace/admin/payments?bookingId=${paymentBookingId}`, { headers: { cookie: administratorAuthHeaders.cookie } });
@@ -312,6 +394,8 @@ const capturedPayment = await dispatch(router, "POST", "/api/marketplace/admin/p
 const refundedPayment = await dispatch(router, "POST", "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/refund", { headers: administratorAuthHeaders, body: { idempotencyKey: "admin_refund_retry_key_1234567890123", amountPence: 1500, destinationAccountId: "acct_browser_attack" } });
 assert(adminPaymentQueue.response.statusCode === 200 && adminPaymentQueue.body.testMode === true && calls.find((call) => call.kind === "payment-admin-list")?.input.status === "actionable" && landlordPaymentQueue.response.statusCode === 403 && missingAdminPaymentCsrf.response.statusCode === 403, "Administrator payment queue lost role isolation, exact filters, test-mode proof or CSRF protection.");
 assert(adminBookingQueue.response.statusCode === 200 && landlordAdminBookingQueue.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-booking-list")?.input.view === "attention", "Administrator booking operations lost role isolation or its exact view filter.");
+assert(adminCoverage.response.statusCode === 200 && adminCoverage.body.windowDays === 90 && landlordAdminCoverage.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-coverage-get")?.actor.roles.includes("administrator"), "Administrator coverage lost its role isolation or exact reporting window.");
+assert(adminFunnel.response.statusCode === 200 && adminFunnel.body.windowDays === 90 && landlordAdminFunnel.response.statusCode === 403 && calls.find((call) => call.kind === "administrator-funnel-get")?.actor.roles.includes("administrator"), "Administrator funnel lost its role isolation or exact reporting window.");
 
 // Administrator cleaner-verification queue and status setting are administrator-only and CSRF-protected.
 const adminVerificationQueue = await dispatch(router, "GET", "/api/marketplace/admin/cleaner-verifications?view=awaiting&limit=25", { headers: { cookie: administratorAuthHeaders.cookie } });
@@ -383,6 +467,12 @@ const privacyList = await dispatch(router, "GET", "/api/marketplace/privacy-requ
 const missingPrivacyCsrf = await dispatch(router, "POST", "/api/marketplace/privacy-requests", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { requestId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", requestType: "deletion" } });
 const privacyRequest = await dispatch(router, "POST", "/api/marketplace/privacy-requests", { headers: authHeaders, body: { requestId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", requestType: "deletion" } });
 assert(privacyList.response.statusCode === 200 && privacyList.body.privacyRequests[0].requestType === "export" && missingPrivacyCsrf.response.statusCode === 403 && privacyRequest.response.statusCode === 201 && privacyRequest.body.privacyRequest.requestType === "deletion" && calls.slice(-2).map((call) => call.kind).join(",") === "privacy-list,privacy-request" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Privacy request routes lost account ownership, CSRF protection or safe request projection.");
+const supportList = await dispatch(router, "GET", "/api/marketplace/landlord/support-requests?limit=25&offset=0", { headers: { cookie: authHeaders.cookie } });
+const missingSupportCsrf = await dispatch(router, "POST", "/api/marketplace/landlord/support-requests", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { clientRequestId: "acacacac-acac-4cac-8cac-acacacacacac", category: "room-scan", subject: "Room scan did not save", description: "The scan stopped before a checklist appeared.", confirmNoSensitiveData: true } });
+const supportCreated = await dispatch(router, "POST", "/api/marketplace/landlord/support-requests", { headers: authHeaders, body: { clientRequestId: "acacacac-acac-4cac-8cac-acacacacacac", category: "room-scan", subject: "Room scan did not save", description: "The scan stopped before a checklist appeared.", confirmNoSensitiveData: true } });
+assert(supportList.response.statusCode === 200 && missingSupportCsrf.response.statusCode === 403 && supportCreated.response.statusCode === 201 && supportCreated.body.supportRequest.status === "open" && calls.slice(-2).map((call) => call.kind).join(",") === "support-list-own,support-create" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Landlord support routes lost role isolation, CSRF protection, pagination or current-account binding.");
+const bookingChangeCreated = await dispatch(router, "POST", "/api/marketplace/landlord/support-requests", { headers: authHeaders, body: { clientRequestId: "adadadad-adad-4dad-8dad-adadadadadad", category: "booking-change", bookingId: "55555555-5555-4555-8555-555555555555", bookingChangeKind: "reschedule", proposedStartAt: "2026-08-12T09:00:00.000Z", description: "Please move the confirmed visit to this proposed morning because the property will be available then.", confirmNoSensitiveData: true } });
+assert(bookingChangeCreated.response.statusCode === 201 && bookingChangeCreated.body.supportRequest.bookingChangeKind === "reschedule" && calls.at(-1).input.bookingId === "55555555-5555-4555-8555-555555555555", "The authenticated Landlord booking-change intake lost its booking-bound structured payload.");
 const bookingList = await dispatch(router, "GET", "/api/marketplace/bookings?limit=25", { headers: { cookie: authHeaders.cookie } });
 assert(bookingList.response.statusCode === 200 && bookingList.body.bookings[0].pricePerspective === "customer-total" && calls.at(-1).kind === "booking-list" && calls.at(-1).input.limit === "25" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Participant booking summaries lost account authorization, bounded pagination or role-specific price projection.");
 const unauthenticatedBookingList = await dispatch(router, "GET", "/api/marketplace/bookings");
@@ -395,6 +485,31 @@ const availabilityCreated = await dispatch(router, "POST", "/api/marketplace/cle
 const availabilityWithdrawn = await dispatch(router, "DELETE", "/api/marketplace/cleaner/availability/44444444-4444-4444-8444-444444444444", { headers: cleanerAuthHeaders });
 const landlordAvailability = await dispatch(router, "GET", "/api/marketplace/cleaner/availability", { headers: { cookie: authHeaders.cookie } });
 assert(availabilityList.response.statusCode === 200 && availabilityList.body.availability.length === 1 && missingAvailabilityCsrf.response.statusCode === 403 && availabilityCreated.response.statusCode === 201 && availabilityWithdrawn.response.statusCode === 200 && availabilityWithdrawn.body.availability.status === "withdrawn" && landlordAvailability.response.statusCode === 403 && calls.slice(-3).map((call) => call.kind).join(",") === "availability-list,availability-create,availability-withdraw", "Cleaner availability routes lost account ownership, role isolation, CSRF protection or exact-window lifecycle.");
+const onboardingList = await dispatch(router, "GET", "/api/marketplace/cleaner/onboarding", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const onboardingSection = await dispatch(router, "GET", "/api/marketplace/cleaner/onboarding/personal", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const missingOnboardingCsrf = await dispatch(router, "PUT", "/api/marketplace/cleaner/onboarding/personal", { headers: { cookie: cleanerAuthHeaders.cookie, origin: cleanerAuthHeaders.origin, "content-type": cleanerAuthHeaders["content-type"] }, body: { status: "draft", data: { firstName: "Ras" } } });
+const onboardingSaved = await dispatch(router, "PUT", "/api/marketplace/cleaner/onboarding/personal", { headers: cleanerAuthHeaders, body: { status: "submitted", data: { firstName: "Ras" } } });
+const landlordOnboarding = await dispatch(router, "GET", "/api/marketplace/cleaner/onboarding", { headers: { cookie: authHeaders.cookie } });
+assert(onboardingList.response.statusCode === 200 && Array.isArray(onboardingList.body.sections) && onboardingSection.response.statusCode === 200 && onboardingSection.body.section === null && missingOnboardingCsrf.response.statusCode === 403 && onboardingSaved.response.statusCode === 200 && onboardingSaved.body.section.data.firstName === "Ras" && landlordOnboarding.response.statusCode === 403 && calls.slice(-3).map((call) => call.kind).join(",") === "onboarding-list,onboarding-get,onboarding-save", "Cleaner onboarding routes lost owner role isolation, CSRF protection or exact saved data.");
+const photoUploadHeaders = { ...cleanerAuthHeaders, "content-type": "image/png" };
+const missingProfilePhotoCsrf = await dispatch(router, "PUT", "/api/marketplace/cleaner/profile-photo", { headers: { cookie: cleanerAuthHeaders.cookie, origin: cleanerAuthHeaders.origin, "content-type": "image/png" }, body: Buffer.from("source-photo") });
+const landlordProfilePhoto = await dispatch(router, "PUT", "/api/marketplace/cleaner/profile-photo", { headers: { ...authHeaders, "content-type": "image/png" }, body: Buffer.from("source-photo") });
+const profilePhotoSaved = await dispatch(router, "PUT", "/api/marketplace/cleaner/profile-photo", { headers: photoUploadHeaders, body: Buffer.from("source-photo") });
+const profilePhotoRead = await dispatch(router, "GET", "/api/marketplace/cleaner/profile-photo", { headers: { cookie: cleanerAuthHeaders.cookie } });
+assert(missingProfilePhotoCsrf.response.statusCode === 403 && landlordProfilePhoto.response.statusCode === 403 && profilePhotoSaved.response.statusCode === 200 && profilePhotoSaved.body.photo.mimeType === "image/jpeg" && profilePhotoRead.response.statusCode === 200 && profilePhotoRead.response.headers["Content-Type"] === "image/jpeg" && Buffer.compare(profilePhotoRead.body, storedProfilePhoto) === 0 && Buffer.compare(calls.findLast((call) => call.kind === "profile-photo-save").input.bytes, Buffer.from("source-photo")) === 0, "Cleaner profile photo routes lost role isolation, CSRF protection, exact binary upload or private image delivery.");
+const addressSessionToken = "9f35fdc8-e349-4bd2-b30f-f90dd3aa77cc";
+const missingAddressLookupCsrf = await dispatch(router, "POST", "/api/marketplace/cleaner/address-lookup", { headers: { cookie: cleanerAuthHeaders.cookie, origin: cleanerAuthHeaders.origin, "content-type": cleanerAuthHeaders["content-type"] }, body: { query: "10 Example Road", sessionToken: addressSessionToken } });
+const landlordAddressLookup = await dispatch(router, "POST", "/api/marketplace/cleaner/address-lookup", { headers: authHeaders, body: { query: "10 Example Road", sessionToken: addressSessionToken } });
+const addressSuggestions = await dispatch(router, "POST", "/api/marketplace/cleaner/address-lookup", { headers: cleanerAuthHeaders, body: { query: "10 Example Road", sessionToken: addressSessionToken } });
+const selectedAddress = await dispatch(router, "POST", "/api/marketplace/cleaner/address-lookup/resolve", { headers: cleanerAuthHeaders, body: { id: "ChIJ12345678", sessionToken: addressSessionToken } });
+assert(missingAddressLookupCsrf.response.statusCode === 403 && landlordAddressLookup.response.statusCode === 403 && addressSuggestions.response.statusCode === 200 && addressSuggestions.body.suggestions[0].id === "ChIJ12345678" && selectedAddress.response.statusCode === 200 && selectedAddress.body.address.street === "Example Road" && calls.findLast((call) => call.kind === "address-search")?.query === "10 Example Road" && calls.findLast((call) => call.kind === "address-resolve")?.id === "ChIJ12345678", "Cleaner address lookup lost CSRF, role isolation, session-scoped search, selection resolution or safe address details.");
+assert(calls.filter((call) => call.kind === "rate-limit" && call.input.scope === "marketplace-cleaner:address-lookup").length === 2, "Metered Google address calls did not use the shared lookup allowance.");
+const mapConfig = await dispatch(router, "GET", "/api/marketplace/maps/config", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const landlordMapConfig = await dispatch(router, "GET", "/api/marketplace/maps/config", { headers: { cookie: authHeaders.cookie } });
+assert(mapConfig.response.statusCode === 200 && mapConfig.body.maps.apiKey === "browser-key" && !JSON.stringify(mapConfig.body).includes("server-key") && landlordMapConfig.response.statusCode === 403, "Google Maps browser configuration lost Cleaner isolation or exposed a server credential.");
+const noAddressLookupRouter = createMarketplaceHttpRouter({ ...dependencies, addressLookup: null }, { clientKey: () => trustedClientKey });
+const unavailableAddressLookup = await dispatch(noAddressLookupRouter, "POST", "/api/marketplace/cleaner/address-lookup", { headers: cleanerAuthHeaders, body: { query: "10 Example Road", sessionToken: addressSessionToken } });
+assert(unavailableAddressLookup.response.statusCode === 503 && unavailableAddressLookup.body.code === "address-lookup-not-configured", "An unconfigured address provider did not fail with a truthful safe response.");
 const wrongOrigin = await dispatch(router, "POST", "/api/marketplace/properties", { headers: { ...authHeaders, origin: "https://attacker.example" }, body: { name: "Attempt" } });
 assert(wrongOrigin.response.statusCode === 403 && wrongOrigin.body.code === "origin-rejected", "Property mutation accepted a cross-origin request.");
 const missingCsrf = await dispatch(router, "POST", "/api/marketplace/properties", { headers: { ...authHeaders, "x-csrf-token": "" }, body: { name: "Attempt" } });
@@ -402,6 +517,10 @@ assert(missingCsrf.response.statusCode === 403 && missingCsrf.body.code === "csr
 
 const ownerList = await dispatch(router, "GET", "/api/marketplace/properties", { headers: { cookie: authHeaders.cookie } });
 assert(ownerList.response.statusCode === 200 && calls.at(-1).kind === "property-list" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Property listing did not use the authenticated landlord identity.");
+const archivedOwnerList = await dispatch(router, "GET", "/api/marketplace/properties/archived", { headers: { cookie: authHeaders.cookie } });
+const cleanerArchivedList = await dispatch(router, "GET", "/api/marketplace/properties/archived", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const unsupportedArchivedListMethod = await dispatch(router, "POST", "/api/marketplace/properties/archived", { headers: authHeaders, body: {} });
+assert(archivedOwnerList.response.statusCode === 200 && archivedOwnerList.body.properties[0].archivedAt === "2026-07-30T21:30:00.000Z" && calls.at(-1).kind === "property-archived-list" && calls.at(-1).actor.userId === sessions.landlord.user_id && cleanerArchivedList.response.statusCode === 403 && unsupportedArchivedListMethod.response.statusCode === 405 && unsupportedArchivedListMethod.response.headers.Allow === "GET", "Archived property listing lost owner isolation, Landlord role protection or method safety.");
 const notificationList = await dispatch(router, "GET", "/api/marketplace/notifications?limit=15", { headers: { cookie: authHeaders.cookie } });
 const notificationId = "77777777-7777-4777-8777-777777777777";
 const notificationRead = await dispatch(router, "POST", `/api/marketplace/notifications/${notificationId}/read`, { headers: authHeaders, body: {} });
@@ -418,6 +537,16 @@ assert(created.response.statusCode === 201 && calls.at(-1).actor.userId === sess
 const propertyId = "44444444-4444-4444-8444-444444444444";
 const updated = await dispatch(router, "PUT", `/api/marketplace/properties/${propertyId}`, { headers: authHeaders, body: { id: "99999999-9999-4999-8999-999999999999", name: "Updated" } });
 assert(updated.response.statusCode === 200 && calls.at(-1).input.id === propertyId, "Property update trusted a body property ID instead of the protected route resource.");
+const missingArchiveCsrf = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/archive`, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: {} });
+const cleanerArchive = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/archive`, { headers: cleanerAuthHeaders, body: {} });
+const unsupportedArchiveMethod = await dispatch(router, "DELETE", `/api/marketplace/properties/${propertyId}/archive`, { headers: authHeaders });
+const archived = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/archive`, { headers: authHeaders, body: {} });
+assert(missingArchiveCsrf.response.statusCode === 403 && cleanerArchive.response.statusCode === 403 && unsupportedArchiveMethod.response.statusCode === 405 && unsupportedArchiveMethod.response.headers.Allow === "POST" && archived.response.statusCode === 200 && archived.body.archivedProperty.propertyId === propertyId && calls.at(-1).kind === "property-archive" && calls.at(-1).actor.userId === sessions.landlord.user_id && calls.at(-1).propertyId === propertyId, "Property archiving lost CSRF protection, Landlord role isolation, method safety or route-resource binding.");
+const missingRestoreCsrf = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/restore`, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: {} });
+const cleanerRestore = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/restore`, { headers: cleanerAuthHeaders, body: {} });
+const unsupportedRestoreMethod = await dispatch(router, "DELETE", `/api/marketplace/properties/${propertyId}/restore`, { headers: authHeaders });
+const restored = await dispatch(router, "POST", `/api/marketplace/properties/${propertyId}/restore`, { headers: authHeaders, body: {} });
+assert(missingRestoreCsrf.response.statusCode === 403 && cleanerRestore.response.statusCode === 403 && unsupportedRestoreMethod.response.statusCode === 405 && unsupportedRestoreMethod.response.headers.Allow === "POST" && restored.response.statusCode === 200 && restored.body.restoredProperty.propertyId === propertyId && calls.at(-1).kind === "property-restore" && calls.at(-1).actor.userId === sessions.landlord.user_id && calls.at(-1).propertyId === propertyId, "Property restoration lost CSRF protection, Landlord role isolation, method safety or route-resource binding.");
 const requestCreated = await dispatch(router, "POST", "/api/marketplace/cleaning-requests", { headers: authHeaders, body: { propertyId, landlordUserId: "33333333-3333-4333-8333-333333333333" } });
 const requestList = await dispatch(router, "GET", "/api/marketplace/cleaning-requests", { headers: { cookie: authHeaders.cookie } });
 assert(requestCreated.response.statusCode === 201 && requestCreated.body.cleaningRequest.status === "draft" && calls.at(-2).kind === "request-create" && calls.at(-2).actor.userId === sessions.landlord.user_id && requestList.response.statusCode === 200 && calls.at(-1).kind === "request-list", "Account cleaning-request routes did not bind private-draft creation/listing to the authenticated Landlord.");
@@ -505,6 +634,8 @@ const cleanerPropertyWrite = await dispatch(router, "POST", "/api/marketplace/pr
 assert(cleanerPropertyWrite.response.statusCode === 403 && cleanerPropertyWrite.body.code === "role-rejected", "A Cleaner entered the Landlord-only property route.");
 const participantDisputeQueue = await dispatch(router, "GET", "/api/marketplace/admin/disputes", { headers: { cookie: authHeaders.cookie } });
 assert(participantDisputeQueue.response.statusCode === 403 && participantDisputeQueue.body.code === "role-rejected", "A booking participant entered the Administrator case queue.");
+const participantSupportQueue = await dispatch(router, "GET", "/api/marketplace/admin/support-requests", { headers: { cookie: authHeaders.cookie } });
+assert(participantSupportQueue.response.statusCode === 403 && participantSupportQueue.body.code === "role-rejected", "A booking participant entered the Administrator Landlord-support queue.");
 sessions.landlord = { ...sessions.landlord, user_id: "33333333-3333-4333-8333-333333333333", selected_role: "administrator", roles: ["administrator"] };
 const moderatedReview = await dispatch(router, "POST", "/api/marketplace/admin/reviews/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/moderation", { headers: authHeaders, body: { decision: "approved" } });
 assert(moderatedReview.response.statusCode === 200 && calls.at(-1).kind === "review-moderate" && calls.at(-1).actor.roles.includes("administrator"), "Administrator review moderation route lost role or CSRF binding.");
@@ -513,6 +644,10 @@ const missingDisputeCsrf = await dispatch(router, "PATCH", "/api/marketplace/adm
 const reviewedDispute = await dispatch(router, "PATCH", "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { headers: authHeaders, body: { status: "resolved", resolutionNote: "The evidence was reviewed and the booking has been cancelled.", resolutionOutcome: "cancelled", policyVersion: "tideway-case-response-v1", evidenceReviewed: true, sensitiveDataMinimised: true, noExternalActionConfirmed: true } });
 assert(missingDisputeCsrf.response.statusCode === 403 && missingDisputeCsrf.body.code === "csrf-rejected", "Administrator case mutation accepted a missing CSRF token.");
 assert(disputeQueue.response.statusCode === 200 && calls.at(-2).kind === "dispute-list" && calls.at(-2).input.status === "open" && reviewedDispute.response.statusCode === 200 && reviewedDispute.body.dispute.resolutionOutcome === "cancelled" && calls.at(-1).kind === "dispute-review" && calls.at(-1).actor.roles.includes("administrator"), "Administrator booking-case queue or audited resolution route lost its role, query or CSRF boundary.");
+const supportQueue = await dispatch(router, "GET", "/api/marketplace/admin/support-requests?status=open&category=room-scan&limit=50", { headers: { cookie: authHeaders.cookie } });
+const missingSupportReviewCsrf = await dispatch(router, "PATCH", "/api/marketplace/admin/support-requests/abababab-abab-4bab-8bab-abababababab", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { status: "reviewing" } });
+const supportReviewed = await dispatch(router, "PATCH", "/api/marketplace/admin/support-requests/abababab-abab-4bab-8bab-abababababab", { headers: authHeaders, body: { status: "resolved", resolutionSummary: "Refresh the dashboard and open the saved draft before scanning again.", privacyConfirmed: true, noExternalActionConfirmed: true } });
+assert(supportQueue.response.statusCode === 200 && missingSupportReviewCsrf.response.statusCode === 403 && supportReviewed.response.statusCode === 200 && supportReviewed.body.supportRequest.status === "resolved" && calls.slice(-2).map((call) => call.kind).join(",") === "support-list-admin,support-review" && calls.at(-2).input.category === "room-scan" && calls.at(-1).actor.roles.includes("administrator"), "Administrator support queue lost its exact role, filter, CSRF or private-response boundary.");
 sessions.landlord = { ...sessions.landlord, user_id: "11111111-1111-4111-8111-111111111111", selected_role: "landlord", roles: ["landlord"] };
 
 const invalidJson = await dispatch(router, "POST", "/api/marketplace/properties", { headers: authHeaders, body: "{" });
@@ -546,7 +681,7 @@ const baseEnvironment = {
 const pool = { async connect() { throw new Error("Runtime composition must not connect eagerly."); } };
 const runtimeAbuseControl = { rateLimiter: { async consume() { return { allowed: true }; } }, clientKey: () => "test-client" };
 const runtime = createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl });
-assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.geocodingReady === false && runtime.matchingReady === false && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.disputeService && runtime.disputeRepository && runtime.privacyRequestService && runtime.privacyRequestRepository && runtime.cleanerPayoutRepository && runtime.cleanerPayoutService === null && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews, disputes, privacy requests, payout repository and HTTP layers or safely keep incomplete provider delivery detached.");
+assert(runtime.router && runtime.security && runtime.propertyService && runtime.cleanerProfileService && runtime.cleaningRequestService && runtime.bookingWorkflowService && runtime.bookingRepository && runtime.matchingService && runtime.matchingRepository && runtime.geocodingReady === false && runtime.matchingReady === false && runtime.journeyService && runtime.journeyRepository && runtime.progressService && runtime.progressRepository && runtime.mediaService && runtime.mediaRepository && runtime.messageService && runtime.messageRepository && runtime.realtimeService && runtime.realtimeRepository && runtime.realtimeSignalSource && runtime.notificationService && runtime.notificationRepository && runtime.reviewService && runtime.reviewRepository && runtime.disputeService && runtime.disputeRepository && runtime.supportRequestService && runtime.supportRequestRepository && runtime.administratorCoverageService && runtime.administratorCoverageRepository && runtime.administratorFunnelService && runtime.administratorFunnelRepository && runtime.privacyRequestService && runtime.privacyRequestRepository && runtime.cleanerPayoutRepository && runtime.cleanerPayoutService === null && runtime.identityService && runtime.credentialService && runtime.accountSessionService && runtime.authenticationRouter === null && runtime.authenticationHttpReady === false && Object.isFrozen(runtime), "Marketplace runtime did not compose the existing database, security, account, profile, property, request, matching, booking, journey, progress, media, messaging, realtime, notifications, reviews, disputes, Landlord support, aggregate coverage, aggregate funnel, privacy requests, payout repository and HTTP layers or safely keep incomplete provider delivery detached.");
 let unconfiguredEmailRejected = false;
 assert(runtime.requestMediaService && runtime.requestMediaRepository, "Marketplace runtime did not compose private cleaning-request room media.");
 try { createMarketplaceRuntime(pool, { env: baseEnvironment, ...runtimeAbuseControl, emailDelivery: { send() {} } }); } catch (error) { unconfiguredEmailRejected = error.message.includes("requires one configured HTTPS or SMTP email provider and EMAIL_FROM"); }
@@ -603,5 +738,53 @@ assert(facebookRuntime.facebookLoginReady === true && facebookRuntime.facebookLo
 let missingRuntime = false;
 try { createMarketplaceRuntime(pool, { env: {} }); } catch (error) { missingRuntime = error.message.includes("DATABASE_URL") && error.message.includes("SESSION_SECRET") && error.message.includes("DATA_ENCRYPTION_KEY"); }
 assert(missingRuntime, "Marketplace runtime did not fail closed without its database/session/encryption configuration.");
+
+/* ── Measuring from a photo: pure arithmetic, nothing stored, no image ── */
+
+// The endpoint receives two pixel spans and answers with the server-owned
+// tolerance maths. 85.6mm over 200px is 0.428mm/px; a 4000px span is 1712mm,
+// and the band is the 12% same-plane floor because the arithmetic came out
+// tighter than the physics allows.
+{
+  const measured = await dispatch(router, "POST", "/api/marketplace/landlord/photo-measurement", {
+    headers: authHeaders,
+    body: { reference: "bank-card", referenceAxis: "width", referencePixels: 200, subject: "room-length", spanPixels: 4000 }
+  });
+  assert(measured.response.statusCode === 200, measured.response.body);
+  const measurement = measured.body.measurement;
+  assert(measurement.valueMm === 1712, `The measurement arithmetic changed: ${measurement.valueMm}mm`);
+  assert(measurement.toleranceMm === 205, `The same-plane tolerance floor was lost: ±${measurement.toleranceMm}mm`);
+  assert(measurement.method === "reference-calibrated", "The method label was lost.");
+  assert(measurement.label.includes("±") && measurement.label.toLowerCase().includes("bank card"),
+    `The label no longer states the band and the reference: ${measurement.label}`);
+
+  // Refusals are customer-worded, because they are shown verbatim.
+  const tiny = await dispatch(router, "POST", "/api/marketplace/landlord/photo-measurement", {
+    headers: authHeaders,
+    body: { reference: "bank-card", referencePixels: 8, subject: "room-length", spanPixels: 4000 }
+  });
+  assert(tiny.response.statusCode === 400, `A too-small reference did not refuse: ${tiny.response.statusCode}`);
+  assert(/too small in the picture/i.test(tiny.body.error), `The refusal lost its customer wording: ${tiny.body.error}`);
+
+  // Landlord-only, like every other scan surface.
+  const asCleaner = await dispatch(router, "POST", "/api/marketplace/landlord/photo-measurement", {
+    headers: cleanerAuthHeaders,
+    body: { reference: "bank-card", referencePixels: 200, subject: "room-length", spanPixels: 4000 }
+  });
+  assert(asCleaner.response.statusCode === 403, `A Cleaner measured a customer photo: ${asCleaner.response.statusCode}`);
+}
+
+/* ── Ground truth review is Administrator-only ─────────────────────────── */
+
+{
+  const truthUrl = "/api/marketplace/admin/scan-ground-truth";
+  const asLandlord = await dispatch(router, "GET", truthUrl, { headers: { cookie: authHeaders.cookie } });
+  assert(asLandlord.response.statusCode === 403, `A Landlord read the accuracy review surface: ${asLandlord.response.statusCode}`);
+  const record = await dispatch(router, "PUT", `${truthUrl}/objects/3c000000-0000-4000-8000-000000000042`, {
+    headers: authHeaders,
+    body: { condition: "medium", soiling: ["food-debris"], labelCorrect: true }
+  });
+  assert(record.response.statusCode === 403, `A Landlord recorded ground truth: ${record.response.statusCode}`);
+}
 
 console.log("Marketplace HTTP tests passed: isolated routing, public search, session/role/origin/CSRF protection, owner-bound property mutations, bounded JSON, safe errors and fail-closed runtime composition.");

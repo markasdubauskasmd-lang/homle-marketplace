@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createStraightLineEtaProvider, etaProviderFromEnvironment } from "../src/marketplace/straight-line-eta.mjs";
+import { createGoogleRoutesEtaProvider, createStraightLineEtaProvider, etaProviderFromEnvironment } from "../src/marketplace/straight-line-eta.mjs";
 
 const fixedNow = new Date("2026-07-19T12:00:00.000Z");
 const provider = createStraightLineEtaProvider({ clock: () => fixedNow });
@@ -35,6 +35,22 @@ assert(near.getTime() < far.getTime(), "A farther destination did not produce a 
 assert.ok(etaProviderFromEnvironment({}), "The provider-free estimator was not enabled by default.");
 assert.equal(etaProviderFromEnvironment({ ETA_PROVIDER: "none" }), null);
 assert.throws(() => etaProviderFromEnvironment({ ETA_PROVIDER: "mapbox" }), /straight-line/);
+assert.throws(() => etaProviderFromEnvironment({ ETA_PROVIDER: "google-maps" }), /server API key/);
+
+// Google Routes computes a traffic-aware road ETA with the key held server-side.
+{
+  const calls = [];
+  const routes = createGoogleRoutesEtaProvider({ apiKey: "server-key", clock: () => fixedNow, fetch: async (url, init) => {
+    calls.push({ url, init });
+    return { status: 200, async text() { return JSON.stringify({ routes: [{ duration: "900s", distanceMeters: 5200 }] }); } };
+  } });
+  const routeEta = await routes.estimateArrival({ origin, destination });
+  assert.equal(routeEta.toISOString(), "2026-07-19T12:15:00.000Z");
+  assert.equal(calls[0].url, "https://routes.googleapis.com/directions/v2:computeRoutes");
+  assert.equal(calls[0].init.headers["X-Goog-Api-Key"], "server-key");
+  assert.equal(calls[0].init.headers["X-Goog-FieldMask"], "routes.duration,routes.distanceMeters");
+  assert.equal(JSON.parse(calls[0].init.body).routingPreference, "TRAFFIC_AWARE");
+}
 
 // Bounded configuration falls back to safe defaults on out-of-range values.
 const misconfigured = createStraightLineEtaProvider({ speedKmh: 900, bufferMinutes: -5, minimumMinutes: 0, routeFactor: 9, clock: () => fixedNow });

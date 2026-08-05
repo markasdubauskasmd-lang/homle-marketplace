@@ -1,5 +1,8 @@
-import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes } from "./http-support.mjs";
+import { scanRates } from "./scan-telemetry.mjs";
+import { measureFromReference, measurementLabel, referenceScale } from "./room-measurement.mjs";
+import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
+import { cleanerProfilePhotoMimeTypes, maximumCleanerProfilePhotoBytes } from "./cleaner-profile-photo.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
@@ -11,6 +14,14 @@ const requestAutomaticDispatchPath = new RegExp(`^/api/marketplace/cleaning-requ
 const requestSubmissionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/submit$`);
 const requestWithdrawalPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/withdraw$`);
 const requestScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/scan$`);
+// The structured scan lives beside the photo metadata rather than replacing
+// it: `/scan` reports which private images exist, `/room-scan` reports what
+// was actually seen in them.
+const requestRoomScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan$`);
+const requestRoomScanObjectPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan/objects/(${uuidPattern})$`);
+const requestRoomScanMeasurementPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/room-scan/rooms/(${uuidPattern})/measurements$`);
+const scanGroundTruthObjectPath = new RegExp(`^/api/marketplace/admin/scan-ground-truth/objects/(${uuidPattern})$`);
+const requestVoiceInstructionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/voice-instructions$`);
 const requestPhotoIntentPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/intents$`);
 const requestPhotoCompletionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/complete$`);
 const requestPhotoAccessPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/photos/(${uuidPattern})/access$`);
@@ -35,9 +46,14 @@ const bookingEventsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern}
 const requestEventsPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/events$`);
 const notificationReadPath = new RegExp(`^/api/marketplace/notifications/(${uuidPattern})/read$`);
 const propertyPath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})$`);
+const propertyArchivePath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})/archive$`);
+const propertyRestorePath = new RegExp(`^/api/marketplace/properties/(${uuidPattern})/restore$`);
 const cleanerProfilePath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})$`);
 const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
 const cleanerAvailabilityPath = new RegExp(`^/api/marketplace/cleaner/availability/(${uuidPattern})$`);
+const cleanerOnboardingSectionPath = /^\/api\/marketplace\/cleaner\/onboarding\/([a-z-]+)$/;
+const cleanerProfilePhotoPath = "/api/marketplace/cleaner/profile-photo";
+const cleanerAddressResolvePath = "/api/marketplace/cleaner/address-lookup/resolve";
 const favouriteCleanerPath = new RegExp(`^/api/marketplace/landlord/favourite-cleaners/(${uuidPattern})$`);
 const bookingCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/completion$`);
 const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews$`);
@@ -49,6 +65,7 @@ const adminCleanerVerificationPath = new RegExp(`^/api/marketplace/admin/cleaner
 const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
 const bookingDisputePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/dispute$`);
 const adminDisputePath = new RegExp(`^/api/marketplace/admin/disputes/(${uuidPattern})$`);
+const adminSupportRequestPath = new RegExp(`^/api/marketplace/admin/support-requests/(${uuidPattern})$`);
 const apiPrefix = "/api/marketplace/";
 
 function queryFilters(url) {
@@ -82,8 +99,25 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const security = dependencies?.security;
   const properties = dependencies?.propertyService;
   const cleaners = dependencies?.cleanerProfileService;
+  const cleanerOnboarding = dependencies?.cleanerOnboardingService;
+  const cleanerProfilePhotos = dependencies?.cleanerProfilePhotoService;
+  const addressLookup = dependencies?.addressLookup || null;
+  const mapsClientConfig = dependencies?.mapsClientConfig || null;
   const favouriteCleaners = dependencies?.favouriteCleanerService;
   const cleaningRequests = dependencies?.cleaningRequestService;
+  const scans = dependencies?.scanService;
+  const scanPricing = dependencies?.scanPricingService;
+  const scanGroundTruth = dependencies?.scanGroundTruthService || null;
+  const scanTelemetry = dependencies?.scanTelemetry || null;
+  // Guarded at every call site. Telemetry observes the scanner; it is never a
+  // reason a request fails.
+  // Returns whether the event was actually counted, so the ingest route below can
+  // tell a client that a name it sent was rejected rather than letting it believe
+  // it is being measured.
+  const observeScan = (metric, extra) => {
+    try { return scanTelemetry?.record(metric, extra) === true; }
+    catch { return false; }
+  };
   const bookings = dependencies?.bookingWorkflowService;
   const matching = dependencies?.matchingService;
   const journeys = dependencies?.journeyService;
@@ -98,15 +132,20 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const notifications = dependencies?.notificationService;
   const reviews = dependencies?.reviewService;
   const disputes = dependencies?.disputeService;
+  const supportRequests = dependencies?.supportRequestService;
   const administratorBookings = dependencies?.administratorBookingService;
   const administratorVerification = dependencies?.administratorVerificationService;
+  const administratorCoverage = dependencies?.administratorCoverageService;
+  const administratorFunnel = dependencies?.administratorFunnelService;
   const privacyRequests = dependencies?.privacyRequestService;
   const payments = dependencies?.paymentService || null;
   const cleanerPayouts = dependencies?.cleanerPayoutService || null;
   const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
-  if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
+  if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.listArchivedOwnProperties !== "function" || typeof properties.archiveOwnProperty !== "function" || typeof properties.restoreOwnProperty !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "getPublicProfile", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof cleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaner profile service.");
+  if (!cleanerOnboarding || !["listOwnSections", "getOwnSection", "saveOwnSection"].every((method) => typeof cleanerOnboarding[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner onboarding service.");
+  if (!cleanerProfilePhotos || !["getOwnPhoto", "saveOwnPhoto"].every((method) => typeof cleanerProfilePhotos[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner profile photo service.");
   if (!favouriteCleaners || !["listOwn", "setOwn"].every((method) => typeof favouriteCleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the favourite-Cleaner service.");
   if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.previewInvitation !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
@@ -120,7 +159,10 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
   if (!disputes || !["open", "getForBooking", "listForAdministrator", "review"].every((method) => typeof disputes[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-case service.");
+  if (!supportRequests || !["create", "listOwn", "listForAdministrator", "review"].every((method) => typeof supportRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the Landlord support-request service.");
   if (!administratorBookings || typeof administratorBookings.list !== "function") throw new TypeError("Marketplace HTTP routes require the Administrator booking operations service.");
+  if (!administratorCoverage || typeof administratorCoverage.get !== "function") throw new TypeError("Marketplace HTTP routes require the Administrator coverage-report service.");
+  if (!administratorFunnel || typeof administratorFunnel.get !== "function") throw new TypeError("Marketplace HTTP routes require the Administrator funnel-report service.");
   if (!privacyRequests || !["list", "request"].every((method) => typeof privacyRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account privacy-request service.");
   if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration", "listForAdministrator", "capture", "cancel", "refund", "transfer"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
   if (cleanerPayouts && !["getStatus", "refreshStatus", "beginOnboarding"].every((method) => typeof cleanerPayouts[method] === "function")) throw new TypeError("Marketplace Cleaner payout routes require the complete payout service.");
@@ -169,6 +211,20 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { roles: ["administrator"] });
           const page = await administratorBookings.list(context.actor, { view: url.searchParams.get("view"), limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
           sendJson(response, 200, { ok: true, ...page });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/coverage") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const report = await administratorCoverage.get(context.actor, { windowDays: url.searchParams.get("windowDays") });
+          sendJson(response, 200, { ok: true, ...report });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/funnel") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const report = await administratorFunnel.get(context.actor, { windowDays: url.searchParams.get("windowDays") });
+          sendJson(response, 200, { ok: true, ...report });
           return true;
         }
         if (pathname === "/api/marketplace/admin/cleaner-verifications") {
@@ -257,6 +313,36 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, mutation && result.created === true ? 201 : 200, { ok: true, ...(mutation ? { privacyRequest: result } : { privacyRequests: result }) });
           return true;
         }
+        if (pathname === "/api/marketplace/landlord/support-requests") {
+          if (request.method !== "GET" && request.method !== "POST") return methodNotAllowed(response, ["GET", "POST"]), true;
+          const mutation = request.method === "POST";
+          const context = await security.protect(request, { mutation, roles: ["landlord"] });
+          const result = mutation
+            ? await supportRequests.create(context.actor, await readJsonObject(request))
+            : await supportRequests.listOwn(context.actor, { limit: url.searchParams.get("limit"), offset: url.searchParams.get("offset") });
+          sendJson(response, mutation ? 201 : 200, { ok: true, ...(mutation ? { supportRequest: result } : result) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/support-requests") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const result = await supportRequests.listForAdministrator(context.actor, {
+            status: url.searchParams.get("status"),
+            category: url.searchParams.get("category"),
+            limit: url.searchParams.get("limit"),
+            offset: url.searchParams.get("offset")
+          });
+          sendJson(response, 200, { ok: true, ...result });
+          return true;
+        }
+        const selectedAdminSupportRequest = pathname.match(adminSupportRequestPath);
+        if (selectedAdminSupportRequest) {
+          if (request.method !== "PATCH") return methodNotAllowed(response, ["PATCH"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const supportRequest = await supportRequests.review(context.actor, selectedAdminSupportRequest[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, supportRequest });
+          return true;
+        }
         if (pathname === "/api/marketplace/bookings") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { roles: ["cleaner", "landlord"] });
@@ -296,6 +382,68 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation, roles: ["cleaner"] });
           const profile = mutation ? await cleaners.saveOwnProfile(context.actor, await readJsonObject(request)) : await cleaners.getOwnProfile(context.actor);
           sendJson(response, 200, { ok: true, profile });
+          return true;
+        }
+        if (pathname === cleanerProfilePhotoPath) {
+          if (request.method !== "GET" && request.method !== "PUT") return methodNotAllowed(response, ["GET", "PUT"]), true;
+          const mutation = request.method === "PUT";
+          const context = await security.protect(request, { mutation, roles: ["cleaner"] });
+          if (mutation) {
+            const supplied = request.headers?.["content-type"];
+            const mimeType = String(Array.isArray(supplied) ? supplied[0] : supplied || "").split(";", 1)[0].trim().toLowerCase();
+            if (!cleanerProfilePhotoMimeTypes.includes(mimeType)) throw new TypeError("Choose a JPG, PNG or WebP photo.");
+            const photo = await cleanerProfilePhotos.saveOwnPhoto(context.actor, { mimeType, bytes: await readRawBody(request, maximumCleanerProfilePhotoBytes) });
+            sendJson(response, 200, { ok: true, photo });
+          } else {
+            const photo = await cleanerProfilePhotos.getOwnPhoto(context.actor);
+            if (!photo) throw Object.assign(new Error("No profile photo has been uploaded."), { statusCode: 404, code: "profile-photo-not-found" });
+            response.writeHead(200, {
+              "Content-Type": photo.mimeType,
+              "Content-Length": String(photo.bytes.length),
+              "Cache-Control": "private, no-store",
+              "X-Content-Type-Options": "nosniff"
+            });
+            response.end(photo.bytes);
+          }
+          return true;
+        }
+        if (pathname === "/api/marketplace/maps/config") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          await security.protect(request, { roles: ["cleaner"] });
+          if (!mapsClientConfig) throw Object.assign(new Error("Google Maps has not been configured yet."), { statusCode: 503, code: "maps-not-configured" });
+          sendJson(response, 200, { ok: true, maps: mapsClientConfig });
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/address-lookup" || pathname === cleanerAddressResolvePath) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          await security.protect(request, { mutation: true, roles: ["cleaner"] });
+          await limitPublicRead(request, "marketplace-cleaner:address-lookup");
+          if (!addressLookup) throw Object.assign(new Error("Address lookup has not been configured yet. Enter the address manually for now."), { statusCode: 503, code: "address-lookup-not-configured" });
+          const input = await readJsonObject(request);
+          if (pathname === cleanerAddressResolvePath) {
+            const address = await addressLookup.resolveAddress(input.id, input.sessionToken);
+            sendJson(response, 200, { ok: true, address });
+          } else {
+            const result = await addressLookup.searchAddresses(input.query, input.sessionToken);
+            sendJson(response, 200, { ok: true, suggestions: result.suggestions });
+          }
+          return true;
+        }
+        if (pathname === "/api/marketplace/cleaner/onboarding") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, sections: await cleanerOnboarding.listOwnSections(context.actor) });
+          return true;
+        }
+        const selectedCleanerOnboardingSection = pathname.match(cleanerOnboardingSectionPath);
+        if (selectedCleanerOnboardingSection) {
+          if (request.method !== "GET" && request.method !== "PUT") return methodNotAllowed(response, ["GET", "PUT"]), true;
+          const mutation = request.method === "PUT";
+          const context = await security.protect(request, { mutation, roles: ["cleaner"] });
+          const section = mutation
+            ? await cleanerOnboarding.saveOwnSection(context.actor, selectedCleanerOnboardingSection[1], await readJsonObject(request))
+            : await cleanerOnboarding.getOwnSection(context.actor, selectedCleanerOnboardingSection[1]);
+          sendJson(response, 200, { ok: true, section });
           return true;
         }
         if (pathname === "/api/marketplace/cleaner/availability") {
@@ -341,6 +489,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           }
           return methodNotAllowed(response, ["GET", "POST"]), true;
         }
+        if (pathname === "/api/marketplace/properties/archived") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["landlord"] });
+          const records = await properties.listArchivedOwnProperties(context.actor);
+          sendJson(response, 200, { ok: true, properties: records });
+          return true;
+        }
         if (pathname === "/api/marketplace/cleaning-requests") {
           if (request.method === "GET") {
             const context = await security.protect(request, { roles: ["landlord"] });
@@ -371,6 +526,54 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const withdrawal = await cleaningRequests.withdrawOwnRequest(context.actor, selectedRequestWithdrawal[1], await readJsonObject(request));
           sendJson(response, 200, { ok: true, withdrawal });
           return true;
+        }
+        const selectedVoiceInstructions = pathname.match(requestVoiceInstructionPath);
+        if (selectedVoiceInstructions) {
+          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const stored = await scans.recordOwnVoiceInstructions(context.actor, selectedVoiceInstructions[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, ...stored });
+          return true;
+        }
+        const selectedRoomScanMeasurement = pathname.match(requestRoomScanMeasurementPath);
+        if (selectedRoomScanMeasurement) {
+          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const stored = await scans.recordOwnMeasurements(context.actor, selectedRoomScanMeasurement[2], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, ...stored });
+          return true;
+        }
+        const selectedRoomScanObject = pathname.match(requestRoomScanObjectPath);
+        if (selectedRoomScanObject) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const correction = await scans.correctOwnObject(context.actor, selectedRoomScanObject[2], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, correction });
+          return true;
+        }
+        const selectedRoomScan = pathname.match(requestRoomScanPath);
+        if (selectedRoomScan) {
+          if (request.method === "GET") {
+            // Structured scan observations and pricing are a Landlord/Admin
+            // review surface. Cleaner scope continues through the existing,
+            // separately reviewed request-media/checklist projection.
+            const context = await security.protect(request, { roles: ["landlord", "administrator"] });
+            sendJson(response, 200, { ok: true, scan: await scans.getScan(context.actor, selectedRoomScan[1]) });
+            return true;
+          }
+          if (request.method === "PUT") {
+            const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+            const body = await readJsonObject(request, maximumRoomScanBodyBytes);
+            const scan = await scans.recordOwnScan(context.actor, { ...body, cleaningRequestId: selectedRoomScan[1] });
+            sendJson(response, 200, { ok: true, scan });
+            return true;
+          }
+          if (request.method === "DELETE") {
+            const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+            sendJson(response, 200, { ok: true, ...await scans.deleteOwnScan(context.actor, selectedRoomScan[1]) });
+            return true;
+          }
+          return methodNotAllowed(response, ["GET", "PUT", "DELETE"]), true;
         }
         const selectedRequestScan = pathname.match(requestScanPath);
         if (selectedRequestScan) {
@@ -431,6 +634,22 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true });
           const notification = await notifications.markNotificationRead(context.actor, selectedNotificationRead[1]);
           sendJson(response, 200, { ok: true, notification });
+          return true;
+        }
+        const selectedPropertyArchive = pathname.match(propertyArchivePath);
+        if (selectedPropertyArchive) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const archivedProperty = await properties.archiveOwnProperty(context.actor, selectedPropertyArchive[1]);
+          sendJson(response, 200, { ok: true, archivedProperty });
+          return true;
+        }
+        const selectedPropertyRestore = pathname.match(propertyRestorePath);
+        if (selectedPropertyRestore) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const restoredProperty = await properties.restoreOwnProperty(context.actor, selectedPropertyRestore[1]);
+          sendJson(response, 200, { ok: true, restoredProperty });
           return true;
         }
         const selectedProperty = pathname.match(propertyPath);
@@ -593,7 +812,15 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           }
           const body = await readJsonObject(request);
           try {
-            sendJson(response, 200, { ok: true, tasks: await speechSummary.summarise(body?.transcript) });
+            // One provider call, two views of the same reading. `tasks` is
+            // exactly what this route has always returned, so nothing that
+            // consumes it changes. `instructions` classifies each entry, so a
+            // restriction like "do not move the paperwork" can be shown as a
+            // restriction rather than as another line on a to-do list.
+            const detailed = typeof speechSummary.summariseDetailed === "function"
+              ? await speechSummary.summariseDetailed(body?.transcript)
+              : { tasks: await speechSummary.summarise(body?.transcript), instructions: [] };
+            sendJson(response, 200, { ok: true, tasks: detailed.tasks, instructions: detailed.instructions });
           } catch (error) {
             // The provider being unavailable must never block the walkthrough,
             // and its internal error text is never surfaced to the Landlord.
@@ -608,6 +835,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
           await limitPublicRead(request, "marketplace-landlord:room-reading");
           if (!roomVision) {
+            observeScan("scan.reading.unavailable");
             sendJson(response, 503, { ok: false, error: "Assisted room reading is not configured." });
             return true;
           }
@@ -629,8 +857,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             const result = selectedItems.length
               ? await roomVision.readSelectedItems({ image: body?.image, items: selectedItems, roomName: body?.roomName, transcript: body?.transcript })
               : await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript, purpose });
+            observeScan("scan.reading.succeeded", { dimensions: { outcome: "ok" } });
             sendJson(response, 200, { ok: true, ...result });
           } catch (error) {
+            // Bucketed by cause, so a provider outage and a malformed photograph
+            // are distinguishable without recording either.
+            observeScan("scan.reading.failed", {
+              dimensions: { outcome: error?.name === "AbortError" || error?.status === 408 ? "timeout" : "provider-error" }
+            });
             // The scan must never be blocked by the reader being unavailable.
             // Keep photographs and provider messages out of logs, but retain a
             // bounded diagnostic signature so a broken model call is visible.
@@ -640,6 +874,173 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
               type: String(error?.error?.type || error?.type || "").slice(0, 80)
             });
             sendJson(response, 502, { ok: false, error: "This room could not be read automatically." });
+          }
+          return true;
+        }
+        // The rules a customer's estimate was built from. Readable by any
+        // authenticated account on purpose: someone quoted a number is entitled
+        // to see the rates behind it, and the row holds no personal data.
+        if (pathname === "/api/marketplace/pricing/scan-ruleset") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          sendJson(response, 200, { ok: true, ruleset: await scanPricing.getActiveRuleset(context.actor, url.searchParams.get("rulesetId")) });
+          return true;
+        }
+        // Changing these numbers changes what every customer is charged, so it
+        // is Administrator-only, append-only and audited at the database.
+        // How far the shadow estimate is currently missing. Administrator-only and
+        // aggregate-only: an error distribution discloses nothing, a list of
+        // requests and agreed prices is a list of what customers paid.
+        // The browser reports what only it can see: a denied camera, an
+        // unavailable detector, a redaction, an abandoned scan. Every name and
+        // every label is checked against the allowlist in scan-telemetry.mjs
+        // before it is counted, so this cannot become a channel for arbitrary
+        // strings — which is exactly what it would be if it accepted free text.
+        if (pathname === "/api/marketplace/landlord/scan-events") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const body = await readJsonObject(request);
+          const submitted = Array.isArray(body?.events) ? body.events.slice(0, 40) : [];
+          let accepted = 0;
+          for (const event of submitted) {
+            if (observeScan(String(event?.metric || ""), {
+              count: event?.count, durationMs: event?.durationMs, dimensions: event?.dimensions
+            })) accepted += 1;
+          }
+          // The count is returned so a client can tell that an event name it sent
+          // was rejected, rather than silently believing it is being measured.
+          sendJson(response, 200, { ok: true, accepted });
+          return true;
+        }
+        if (pathname === "/api/marketplace/pricing/scan-addons") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          sendJson(response, 200, { ok: true, addons: await scanPricing.listAddons(context.actor) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/pricing/scan-addons") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          sendJson(response, 200, { ok: true, addons: await scanPricing.upsertAddon(context.actor, await readJsonObject(request)) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/scan-retention") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          sendJson(response, 200, { ok: true, policy: await scanPricing.setRetention(context.actor, await readJsonObject(request)) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/scan-telemetry") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          await security.protect(request, { roles: ["administrator"] });
+          if (!scanTelemetry) {
+            sendJson(response, 503, { ok: false, error: "Scan telemetry is not configured." });
+            return true;
+          }
+          const snapshot = scanTelemetry.snapshot();
+          sendJson(response, 200, { ok: true, snapshot, rates: scanRates(snapshot) });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/pricing/scan-shadow-report") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const report = await scanPricing.shadowReport(context.actor, url.searchParams.get("rulesetId"), url.searchParams.get("modelVersion"));
+          sendJson(response, 200, { ok: true, report });
+          return true;
+        }
+        // The scanner's accuracy, measured against reviewed truth. The queue is
+        // what an internal reviewer still has to grade; the report is aggregate
+        // agreement — counts and kappa, never rows about a particular home.
+        if (pathname === "/api/marketplace/admin/scan-ground-truth") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          if (!scanGroundTruth) {
+            sendJson(response, 503, { ok: false, error: "Scan accuracy review is not configured." });
+            return true;
+          }
+          sendJson(response, 200, {
+            ok: true,
+            queue: await scanGroundTruth.getQueue(context.actor, url.searchParams.get("limit")),
+            report: await scanGroundTruth.getReport(context.actor)
+          });
+          return true;
+        }
+        const selectedGroundTruthObject = pathname.match(scanGroundTruthObjectPath);
+        if (selectedGroundTruthObject) {
+          if (request.method !== "PUT") return methodNotAllowed(response, ["PUT"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          if (!scanGroundTruth) {
+            sendJson(response, 503, { ok: false, error: "Scan accuracy review is not configured." });
+            return true;
+          }
+          const truth = await scanGroundTruth.recordVerdict(context.actor, selectedGroundTruthObject[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, truth });
+          return true;
+        }
+        if (pathname === "/api/marketplace/admin/pricing/scan-ruleset") {
+          const context = await security.protect(request, { mutation: request.method !== "GET", roles: ["administrator"] });
+          if (request.method === "GET") {
+            sendJson(response, 200, {
+              ok: true,
+              ruleset: await scanPricing.getActiveRuleset(context.actor, url.searchParams.get("rulesetId")),
+              history: await scanPricing.listRulesets(context.actor, url.searchParams.get("rulesetId"), url.searchParams.get("limit")),
+              // Returned alongside the rates because both are things an operator
+              // adjusts about the same feature, and a second round trip to read
+              // two integers is waste.
+              retention: await scanPricing.getRetention(context.actor)
+            });
+            return true;
+          }
+          if (request.method === "POST") {
+            const body = await readJsonObject(request);
+            sendJson(response, 200, { ok: true, ruleset: await scanPricing.publishRuleset(context.actor, body?.rulesetId, body) });
+            return true;
+          }
+          return methodNotAllowed(response, ["GET", "POST"]), true;
+        }
+        // Assesses a scan the customer is still holding. Stores nothing, so it is
+        // rate-limited against the read allowance rather than treated as a write:
+        // it costs CPU and a rates lookup, and a replayed session should not be
+        // able to spend either without bound.
+        if (pathname === "/api/marketplace/landlord/scan-preview") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          await limitPublicRead(request, "marketplace-landlord:scan-preview");
+          const body = await readJsonObject(request, maximumRoomScanBodyBytes);
+          sendJson(response, 200, { ok: true, scan: await scans.previewScan(context.actor, body) });
+          return true;
+        }
+        // Turns two tapped pixel spans into a measurement with its band. Compute
+        // only — nothing is stored and no image travels; the photo stays on the
+        // phone and only the two line lengths arrive. The maths lives in
+        // room-measurement.mjs, whose single ownership is the reason this
+        // endpoint exists at all: the client must never re-implement the
+        // tolerance arithmetic to show a preview of it.
+        //
+        // Shares the scan-preview allowance on purpose: same feature family,
+        // same cost class (pure arithmetic), and a scan produces a handful of
+        // these against preview's generous budget.
+        if (pathname === "/api/marketplace/landlord/photo-measurement") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          await security.protect(request, { mutation: true, roles: ["landlord"] });
+          await limitPublicRead(request, "marketplace-landlord:scan-preview");
+          const body = await readJsonObject(request);
+          try {
+            const scale = referenceScale({
+              reference: body?.reference,
+              referencePixels: Number(body?.referencePixels),
+              referenceAxis: body?.referenceAxis === "height" ? "height" : "width"
+            });
+            const measurement = measureFromReference({
+              subject: body?.subject,
+              scale,
+              spanPixels: Number(body?.spanPixels)
+            });
+            sendJson(response, 200, { ok: true, measurement: { ...measurement, label: measurementLabel(measurement) } });
+          } catch (error) {
+            // These messages are already written for the customer ("The bank
+            // card is too small in the picture…"), so they are the response.
+            sendJson(response, 400, { ok: false, error: String(error?.message || "That could not be measured.") });
           }
           return true;
         }

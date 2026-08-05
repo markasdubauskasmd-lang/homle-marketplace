@@ -9,11 +9,11 @@ import { postgresIntegrationConfirmation, requiredLifecycleRealtimeKinds, runCon
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const integrationDirectory = path.join(projectRoot, "db", "integration");
 const requiredFiles = [
-  "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "public-cleaner-profile-behaviour.sql", "cleaner-verification-queue-pagination.sql", "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql",
+  "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "public-cleaner-profile-behaviour.sql", "cleaner-verification-queue-pagination.sql", "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "administrator-coverage-behaviour.sql", "administrator-funnel-owner-setup.sql", "administrator-funnel-behaviour.sql", "administrator-funnel-owner-cleanup.sql", "property-archive-behaviour.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "structured-room-scan-behaviour.sql", "scan-pricing-ruleset-behaviour.sql", "scan-estimate-shadow-behaviour.sql", "scan-retention-voice-addon-behaviour.sql", "scan-ground-truth-behaviour.sql", "marketplace-rls-behaviour.sql",
   "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-claim-a.sql", "automatic-dispatch-claim-b.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-invite-b.sql", "automatic-dispatch-first-invite-core.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql",
   "accept-booking-a.sql", "accept-booking-b.sql", "marketplace-post-concurrency.sql",
   "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql",
-  "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql",
+  "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "landlord-support-owner-setup.sql", "landlord-support-behaviour.sql", "landlord-support-owner-cleanup.sql",
   "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
 ];
 const sources = new Map();
@@ -46,6 +46,15 @@ assert.match(sources.get("paid-matching-payout-readiness.sql"), /Provider-verifi
 assert.match(sources.get("paid-matching-payout-readiness.sql"), /Paid matching exposed private payout or banking material/);
 assert.match(sources.get("paid-matching-payout-readiness.sql"), /A Cleaner could inspect the paid-booking payout-readiness boundary/);
 assert.doesNotMatch(sources.get("paid-matching-payout-readiness.sql"), /https?:\/\//, "The paid matching rehearsal must not contact an external payout provider.");
+assert.match(sources.get("administrator-coverage-behaviour.sql"), /A Landlord read the private Administrator coverage report/);
+assert.match(sources.get("administrator-coverage-behaviour.sql"), /Administrator paid-mode coverage did not apply provider-verified payout eligibility/);
+assert.match(sources.get("administrator-coverage-behaviour.sql"), /Administrator coverage exposed an identity, exact property, request, room or media field/);
+assert.match(sources.get("administrator-funnel-behaviour.sql"), /A Landlord read the private Administrator funnel report/);
+assert.match(sources.get("administrator-funnel-behaviour.sql"), /cumulative matured cohorts from authoritative records/);
+assert.match(sources.get("administrator-funnel-behaviour.sql"), /exposed an identity, location, scan, provider or monetary field/);
+assert.match(sources.get("property-archive-behaviour.sql"), /A property with an active cleaning request was archived/);
+assert.match(sources.get("property-archive-behaviour.sql"), /Archiving erased completed booking history/);
+assert.match(sources.get("property-archive-behaviour.sql"), /Property archive audit evidence exposed private property data/);
 assert.match(sources.get("automatic-dispatch-rehearsal-setup.sql"), /configure_automatic_dispatch[\s\S]*true,2::smallint/);
 assert.match(sources.get("automatic-dispatch-first-invite-core.sql"), /get_automatic_dispatch_candidates\([\s\S]*selected_lease,25,false/);
 assert.match(sources.get("automatic-dispatch-requeue.sql"), /get_automatic_dispatch_candidates\([\s\S]*000000000003',25,false/);
@@ -67,6 +76,42 @@ assert.match(sources.get("facebook-data-deletion-behaviour.sql"), /Runtime role 
 assert.match(sources.get("facebook-data-deletion-behaviour.sql"), /Facebook deletion request identifier reuse did not fail closed/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account can read bookings/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Unrelated account can read a private room scan/);
+// The structured scan carries the reading a price will later be built from, so
+// its behaviour script has to prove the three properties that make that reading
+// trustworthy: retries do not duplicate it, an uncertain grade is not invented,
+// and a correction never destroys the detection it corrects.
+assert.match(sources.get("structured-room-scan-behaviour.sql"), /A retried scan duplicated stored rows/);
+assert.match(sources.get("structured-room-scan-behaviour.sql"), /An unknown object condition was stored as a grade/);
+assert.match(sources.get("structured-room-scan-behaviour.sql"), /Removing an object destroyed the record that it was rejected/);
+assert.match(sources.get("structured-room-scan-behaviour.sql"), /An unrelated account read another customer room scan/);
+// Measurements are the part a customer is most likely to be quoted on, so the
+// behaviour script has to prove the two properties that keep them honest: an
+// estimate always carries a band, and a browser cannot claim a sensor reading.
+assert.match(sources.get("structured-room-scan-behaviour.sql"), /An estimated measurement was stored with no tolerance/);
+assert.match(sources.get("structured-room-scan-behaviour.sql"), /A sensor measurement was accepted from a web client/);
+// These rates decide what every customer is charged, so the behaviour script
+// has to prove the history cannot be rewritten and the boundary cannot be
+// crossed by a customer.
+assert.match(sources.get("scan-pricing-ruleset-behaviour.sql"), /A Landlord published a pricing ruleset/);
+assert.match(sources.get("scan-pricing-ruleset-behaviour.sql"), /The superseded ruleset was destroyed rather than retired/);
+assert.match(sources.get("scan-pricing-ruleset-behaviour.sql"), /A published ruleset put a price on specialist review/);
+assert.match(sources.get("scan-pricing-ruleset-behaviour.sql"), /A refused rate change left the deployment with no live ruleset/);
+// The shadow observation is how the estimate earns its way out of shadow mode,
+// so the behaviour script has to prove a proposal is not treated as a reviewed
+// price, that repeated reads do not weight one customer as heavily as a hundred,
+// and that the report returns statistics rather than what customers paid.
+assert.match(sources.get("scan-estimate-shadow-behaviour.sql"), /A pending invitation was compared as though its price were reviewed/);
+assert.match(sources.get("scan-estimate-shadow-behaviour.sql"), /Repeated reads duplicated a shadow observation/);
+assert.match(sources.get("scan-estimate-shadow-behaviour.sql"), /returned identifiable rows rather than statistics/);
+assert.match(sources.get("scan-estimate-shadow-behaviour.sql"), /One booking was reported as a sufficient sample/);
+// Retention deletes a description of somebody's home, spoken instructions are
+// their own words, and an extra is money. The behaviour script has to prove each
+// boundary holds and that deletion takes a scan's contents with it.
+assert.match(sources.get("scan-retention-voice-addon-behaviour.sql"), /The web role can run the scan deletion loop/);
+assert.match(sources.get("scan-retention-voice-addon-behaviour.sql"), /Deleting a scan left its rooms or objects behind/);
+assert.match(sources.get("scan-retention-voice-addon-behaviour.sql"), /A Landlord created a chargeable extra/);
+assert.match(sources.get("scan-retention-voice-addon-behaviour.sql"), /Booked scans were set to be deleted before unbooked ones/);
+assert.match(sources.get("scan-retention-voice-addon-behaviour.sql"), /read another customer''s spoken instructions/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Pending Cleaner scope handoff bypassed separate Landlord photo-preview consent/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Landlord booking summaries lost the shared deadline, response-role isolation or property privacy/);
 assert.match(sources.get("marketplace-rls-behaviour.sql"), /Cleaner booking summaries lost the exact actionable response deadline/);
@@ -92,6 +137,13 @@ assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Runtime role can
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Unrelated account opened a booking dispute/);
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Administrator dispute queue lost its safe case projection/);
 assert.match(sources.get("marketplace-dispute-behaviour.sql"), /Post-completion dispute erased the recorded visit completion evidence/);
+assert.match(sources.get("landlord-support-behaviour.sql"), /A Cleaner opened a Landlord support request/);
+assert.match(sources.get("landlord-support-behaviour.sql"), /An unrelated Landlord read another account support request/);
+assert.match(sources.get("landlord-support-behaviour.sql"), /Administrator support queue lost its minimum-data projection/);
+assert.match(sources.get("landlord-support-behaviour.sql"), /A Landlord stored a property access code in support/);
+assert.match(sources.get("landlord-support-behaviour.sql"), /A booking-change request silently changed the confirmed booking/);
+assert.match(sources.get("landlord-support-behaviour.sql"), /An unrelated Landlord opened a booking-change request/);
+assert.match(sources.get("landlord-support-owner-cleanup.sql"), /A booking-change request silently changed the confirmed booking/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Journey started without a payment authorization/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Stale payment authorization unlocked the journey transition/);
 assert.match(sources.get("marketplace-payment-gate.sql"), /Current payment authorization did not unlock journey start/);
@@ -156,10 +208,10 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, administratorCoverage: true, administratorFunnel: true, propertyArchive: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, landlordSupport: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "public-cleaner-profile-behaviour.sql", "cleaner-verification-queue-pagination.sql",
-  "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
+  "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "administrator-coverage-behaviour.sql", "administrator-funnel-owner-setup.sql", "administrator-funnel-behaviour.sql", "administrator-funnel-owner-cleanup.sql", "property-archive-behaviour.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "structured-room-scan-behaviour.sql", "scan-pricing-ruleset-behaviour.sql", "scan-estimate-shadow-behaviour.sql", "scan-retention-voice-addon-behaviour.sql", "scan-ground-truth-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "landlord-support-owner-setup.sql", "landlord-support-behaviour.sql", "landlord-support-owner-cleanup.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);
 for (const call of calls) {
@@ -168,6 +220,11 @@ for (const call of calls) {
 }
 assert.equal(calls.find((call) => call.file === "deployment-verification.sql").options.env.PGPASSWORD, ownerPassword);
 assert.equal(calls.find((call) => call.file === "marketplace-rls-behaviour.sql").options.env.PGPASSWORD, appPassword);
+assert.equal(calls.find((call) => call.file === "administrator-funnel-behaviour.sql").options.env.PGPASSWORD, appPassword);
+assert.equal(calls.find((call) => call.file === "administrator-funnel-owner-setup.sql").options.env.PGPASSWORD, ownerPassword);
+assert.equal(calls.find((call) => call.file === "administrator-funnel-owner-cleanup.sql").options.env.PGPASSWORD, ownerPassword);
+assert.equal(calls.find((call) => call.file === "landlord-support-owner-setup.sql").options.env.PGPASSWORD, ownerPassword);
+assert.equal(calls.find((call) => call.file === "landlord-support-owner-cleanup.sql").options.env.PGPASSWORD, ownerPassword);
 assert.equal(calls.find((call) => call.file === "automatic-dispatch-requeue.sql").options.env.PGPASSWORD, workerPassword);
 assert.ok(calls.every((call) => !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_OWNER_URL") && !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_APP_URL") && !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_WORKER_URL") && !Object.hasOwn(call.options.env, "SMTP_URL")));
 assert.equal(concurrentBatches.length, 2);

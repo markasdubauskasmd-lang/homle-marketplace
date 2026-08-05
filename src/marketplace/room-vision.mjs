@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { itemConditions, soilingKinds } from "./room-condition-vocabulary.mjs";
 
 // Reads one captured room photo and returns what is actually visible in it:
 // fixtures with their position in the frame, the condition, and the cleaning
@@ -12,6 +13,16 @@ import Anthropic from "@anthropic-ai/sdk";
 const maximumImageBytes = 4 * 1024 * 1024;
 const maximumDetections = 12;
 const maximumTasks = 8;
+
+// Bumped whenever the reading schema or the condition scale changes meaning.
+// A stored scan records it alongside the model id, because "medium" graded
+// under a different scale is not the same observation even from the same model,
+// and comparing the two as if they were would corrupt any accuracy measurement.
+//
+// v2: "clean" changed meaning — it now requires named visual evidence and
+// conditionConfidence ≥ 0.7, with anything less certain reported as 'unknown'.
+// A v1 "clean" and a v2 "clean" are different claims.
+export const readingSchemaVersion = 2;
 
 const readingSchema = Object.freeze({
   type: "object",
@@ -37,7 +48,7 @@ const readingSchema = Object.freeze({
           },
           labelConfidence: { type: "number", description: "0-1, how sure you are that the object label is correct. Judge identity only; do not lower it merely because the surface condition is unclear." },
           conditionConfidence: { type: "number", description: "0-1, how sure you are that the cleaning condition and soiling assessment are correct. Judge visible surface evidence only; below 0.5 needs customer review." },
-          evidence: { type: "string", description: "What you can actually see that supports the condition, e.g. 'white deposits around the tap base'. Empty when clean or unknown." },
+          evidence: { type: "string", description: "What you can actually see that supports the condition, e.g. 'white deposits around the tap base', or for clean 'clear empty basin, no marks'. Empty only when unknown." },
           x: { type: "number", description: "Left edge as a percentage of image width, 0-100." },
           y: { type: "number", description: "Top edge as a percentage of image height, 0-100." },
           width: { type: "number", description: "Width as a percentage of image width." },
@@ -71,6 +82,8 @@ const conditionGuidance = [
   "- food-debris, pet-hair, clutter: loose material sitting on a surface rather than marking it. Clutter is things needing moving, not dirt.",
   "- damage: chips, cracks, missing sealant, torn flooring. Not cleanable, but a cleaner needs to know.",
   "",
+  "Judge each object AS IT IS NOW, including whatever is sitting on or in it. A sink or draining board stacked with used crockery, pans or standing washing-up water is food-debris and clutter at medium or worse — never 'clean', however spotless the metal underneath might be. A worktop buried under packets is clutter. The covering IS the evidence; it is not an obstruction that excuses saying 'clean' past it.",
+  "",
   "The scale, so it means the same thing every time:",
   "- clean: you can see the surface clearly and there is nothing on it. Say 'clean' plainly — most of a well-kept home is clean, and reporting it as 'light' to seem useful is what makes the whole assessment untrustworthy.",
   "- light: visible but thin, would come off with a wipe and a general spray.",
@@ -79,9 +92,10 @@ const conditionGuidance = [
   "- unknown: this photograph cannot show you. Too small in frame, out of focus, in shadow, or you are looking at the wrong face of the object. Use it freely.",
   "",
   "Do not infer condition from the type of object. An oven is not heavy because ovens are usually dirty; a bathroom is not limescaled because bathrooms usually are. Report what THIS photograph shows, and 'unknown' when it shows you nothing.",
-  "State your evidence for anything other than clean or unknown — the specific thing you can see. If you cannot name the evidence, you are guessing, and the condition should be 'unknown'.",
+  "State your evidence for anything other than unknown — the specific thing you can see. That includes 'clean': name what makes it clean ('clear empty basin, no marks around the plughole'), because a clean verdict hides work from the quote if it is wrong, and an unevidenced one cannot be checked. If you cannot name the evidence, you are guessing, and the condition should be 'unknown'.",
   "Score object identity and cleaning condition separately. labelConfidence answers only 'what is this?'; conditionConfidence answers only 'what cleaning state does the visible surface support?'. A clear tap in shadow can have high labelConfidence and low conditionConfidence. Do not let one score stand in for the other.",
   "Set conditionConfidence honestly and low when the relevant surface is small in frame, blurred, dark or partly hidden. An uncertain condition that says so is useful; a confident wrong one changes what a customer is charged.",
+  "'clean' needs MORE certainty than a soiled grade, not the same. A wrong 'medium' gets reviewed by the customer and removed in a tap; a wrong 'clean' is never reviewed, because it says there is nothing to look at. Only report 'clean' with conditionConfidence 0.7 or higher, from a surface you can see clearly, fully and unobstructed. Anything less certain than that is 'unknown', not 'clean'.",
   ""
 ].join("\n");
 
@@ -124,13 +138,11 @@ function boundedText(value, limit) {
 // Anything the model returns outside the enum becomes "" — no assessment — rather
 // than being coerced to a grade. A guess presented as a grade changes what a
 // customer is charged.
-const itemConditions = Object.freeze(["clean", "light", "medium", "heavy"]);
 function itemCondition(value) {
   const supplied = String(value || "").toLowerCase().trim();
   return itemConditions.includes(supplied) ? supplied : "";
 }
 
-const soilingKinds = Object.freeze(["dust", "grease", "limescale", "stain", "mould", "soap-scum", "food-debris", "pet-hair", "damage", "clutter"]);
 function soilingTypes(value) {
   const supplied = Array.isArray(value) ? value : [];
   const kept = [];
@@ -245,7 +257,7 @@ const selectionSchema = Object.freeze({
           },
           labelConfidence: { type: "number", description: "0-1, how sure you are that the item name is correct. Judge identity only." },
           conditionConfidence: { type: "number", description: "0-1, how sure you are that the cleaning condition and soiling assessment are correct. Judge visible surface evidence only; below 0.5 needs customer review." },
-          evidence: { type: "string", description: "What you can actually see that supports the condition, e.g. 'white deposits around the tap base'. Empty when clean or unknown." }
+          evidence: { type: "string", description: "What you can actually see that supports the condition, e.g. 'white deposits around the tap base', or for clean 'clear empty basin, no marks'. Empty only when unknown." }
         },
         required: ["id", "label", "condition", "soiling", "labelConfidence", "conditionConfidence", "evidence"],
         additionalProperties: false
@@ -314,6 +326,55 @@ function selectionReading(payload, allowedIds) {
   return Object.freeze({ condition, items: Object.freeze(items), tasks: Object.freeze(tasks) });
 }
 
+/* ── Room-type inspection focus ─────────────────────────────────────────── */
+
+// What a cleaner is actually judged on, per room type. Without this the reader
+// grades whatever happens to be prominent in frame; a bathroom's verdict then
+// rests on the towels rather than the grout, and the fixtures a job is priced
+// on go unexamined because nothing asked about them.
+//
+// This steers ATTENTION, never conclusions. Every entry ends up governed by the
+// same rule the prompt already states — report what THIS photograph shows, and
+// 'unknown' when it shows nothing — so a checked-but-clean shower screen stays
+// clean and a checked-but-invisible waterline stays unknown. Presuming dirt
+// here would re-create the bias the clean-evidence rules exist to prevent.
+//
+// Matching is deliberately keyword-based on the customer's own room name:
+// "En-suite bathroom", "Downstairs loo" and "Bathroom 2" should all get the
+// bathroom list, and a name matching nothing gets no list rather than a guess.
+const inspectionFocusLists = Object.freeze([
+  {
+    match: /bath|shower|toilet|loo|en-?suite|wc|washroom|cloakroom/i,
+    focus: "the tile grout and silicone sealant lines, the bottom edge and corners of any shower screen or curtain, around the tap bases and plughole, the toilet waterline and behind the seat hinges, and the extractor grille"
+  },
+  {
+    match: /kitchen|kitchenette|utility|scullery|pantry/i,
+    focus: "the hob and the wall or splashback behind it, the extractor hood underside and its grille, the worktop along its back edge and around the sink, inside rim and plughole of the sink, the oven door glass, and the cupboard fronts around their handles"
+  },
+  {
+    match: /bedroom|bed room|nursery|dorm/i,
+    focus: "the skirting boards and the floor along them, under and around the bed where visible, the window sill and its corners, mirror and wardrobe fronts, and the tops of headboards and bedside tables"
+  },
+  {
+    match: /living|lounge|sitting|family room|reception|snug|dining/i,
+    focus: "the skirting boards, the sofa seats and arms and beneath its front edge, the window sills, the television screen and stand for dust, table surfaces for rings and marks, and the floor in traffic paths and corners"
+  },
+  {
+    match: /hall|landing|stair|entrance|porch|corridor/i,
+    focus: "the floor in the traffic path, the skirting boards, the stair treads and their corners, the handrail and banister spindles, and around the door handles and light switches"
+  }
+]);
+
+// Exported for tests and for anything that later wants to show the customer
+// what their room type gets checked for.
+export function inspectionFocus(roomName) {
+  const name = String(roomName || "").trim();
+  if (!name) return "";
+  const entry = inspectionFocusLists.find((candidate) => candidate.match.test(name));
+  if (!entry) return "";
+  return `In this type of room, deliberately look at ${entry.focus}. These are the places a cleaning job is judged on. Grade each only from what this photograph actually shows — a checked place that looks clean is 'clean', and one the photograph cannot show is 'unknown', exactly as for everything else.`;
+}
+
 // Not every model accepts an effort hint — Haiku rejects the parameter with a
 // 400. Sending it regardless would fail every call on the cheapest tier, and
 // the caller would only see a silent fallback with no reason.
@@ -354,6 +415,12 @@ export function createAnthropicRoomVision(options = {}) {
 
   return Object.freeze({
     provider: "anthropic",
+    // Which model answered which read, so a stored scan can name what produced
+    // it. Without this a regression is unattributable: two scans graded
+    // differently by two model tiers are indistinguishable after the fact, and
+    // a rollback has nothing to roll back to.
+    models: Object.freeze({ walking: model, confirmation: confirmationModel }),
+    schemaVersion: readingSchemaVersion,
     // `purpose` decides the tier. A confirmation where the customer tapped nothing
     // still comes through here, which is why the split cannot key off the method:
     // that read sets the price and would silently get the cheap model.
@@ -361,6 +428,9 @@ export function createAnthropicRoomVision(options = {}) {
       const selectedModel = modelFor(purpose);
       const context = [
         `This photograph is of the ${boundedText(roomName, 60) || "room"}.`,
+        // The per-room-type inspection list, so the grade rests on the places a
+        // cleaner is judged on rather than whatever is prominent in frame.
+        inspectionFocus(roomName),
         boundedText(transcript, 1200) ? `The customer said, while walking through: "${boundedText(transcript, 1200)}"` : ""
       ].filter(Boolean).join(" ");
 
@@ -400,6 +470,12 @@ export function createAnthropicRoomVision(options = {}) {
         .join("\n");
       const context = [
         `This photograph is of the ${boundedText(roomName, 60) || "room"}.`,
+        // Same inspection steering as the whole-room read: the confirmation is
+        // the read that sets the price, so it is the last place the reader
+        // should be grading only what happens to be prominent. Null when there
+        // is no list, so the filter below drops it while keeping the deliberate
+        // blank separator line.
+        inspectionFocus(roomName) || null,
         boundedText(transcript, 1200) ? `The customer said, while walking through: "${boundedText(transcript, 1200)}"` : "",
         "",
         "The customer picked out these items:",

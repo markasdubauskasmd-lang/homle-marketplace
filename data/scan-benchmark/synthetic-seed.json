@@ -1,0 +1,1136 @@
+{
+  "dataset": "homle-scan-benchmark-synthetic-seed",
+  "version": 1,
+  "synthetic": true,
+  "warning": "Hand-written fixtures, not real rooms. No figure from this file may be quoted as an accuracy result. Deliberately carries no reviewedTotalPence: a reviewed total is a human's judgement of a real job, and inventing one would measure this project's arithmetic against its own guess. Price error becomes measurable when real reviewed quotes exist.",
+  "cases": [
+    {
+      "caseId": "syn-01-tidy-bedroom",
+      "synthetic": true,
+      "deviceClass": "guided-web",
+      "lighting": "daylight",
+      "propertyType": "flat",
+      "note": "A well-kept room. The scanner must be willing to say 'nothing much here'.",
+      "rooms": [
+        {
+          "roomName": "Bedroom",
+          "condition": "",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "bed-o",
+              "inventoryKey": "bed",
+              "label": "Bed",
+              "quantity": 1,
+              "condition": "clean",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "floor-o",
+              "inventoryKey": "floor",
+              "label": "Floor",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [
+                "dust"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "wardrobe-o",
+              "inventoryKey": "wardrobe",
+              "label": "Wardrobe",
+              "quantity": 1,
+              "condition": "clean",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        }
+      ],
+      "truth": {
+        "complexityLevel": 1,
+        "rooms": [
+          {
+            "roomName": "Bedroom",
+            "objects": [
+              {
+                "inventoryKey": "bed",
+                "condition": "clean"
+              },
+              {
+                "inventoryKey": "floor",
+                "condition": "light"
+              },
+              {
+                "inventoryKey": "wardrobe",
+                "condition": "clean"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "syn-02-lived-in-kitchen",
+      "synthetic": true,
+      "deviceClass": "guided-web",
+      "lighting": "artificial",
+      "propertyType": "house",
+      "rooms": [
+        {
+          "roomName": "Kitchen",
+          "condition": "light",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "hob-o",
+              "inventoryKey": "hob",
+              "label": "Hob",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [
+                "grease"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "worktop-o",
+              "inventoryKey": "worktop",
+              "label": "Worktop",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "sink-o",
+              "inventoryKey": "sink",
+              "label": "Sink",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [
+                "limescale"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "floor-o",
+              "inventoryKey": "floor",
+              "label": "Floor",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        }
+      ],
+      "truth": {
+        "complexityLevel": 2,
+        "rooms": [
+          {
+            "roomName": "Kitchen",
+            "objects": [
+              {
+                "inventoryKey": "hob",
+                "condition": "light"
+              },
+              {
+                "inventoryKey": "worktop",
+                "condition": "light"
+              },
+              {
+                "inventoryKey": "sink",
+                "condition": "medium"
+              },
+              {
+                "inventoryKey": "floor",
+                "condition": "light"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "syn-03-greasy-kitchen",
+      "synthetic": true,
+      "deviceClass": "guided-web",
+      "lighting": "artificial",
+      "propertyType": "house",
+      "rooms": [
+        {
+          "roomName": "Kitchen",
+          "condition": "heavy",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "hob-o",
+              "inventoryKey": "hob",
+              "label": "Hob",
+              "quantity": 1,
+              "condition": "heavy",
+              "soiling": [
+                "grease"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "extractor hood-o",
+              "inventoryKey": "extractor hood",
+              "label": "Extractor hood",
+              "quantity": 1,
+              "condition": "heavy",
+              "soiling": [
+                "grease"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "worktop-o",
+              "inventoryKey": "worktop",
+              "label": "Worktop",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [
+                "grease",
+                "food-debris"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "bin-o",
+              "inventoryKey": "bin",
+              "label": "Bin",
+              "quantity": 1,
+              "condition": "heavy",
+              "soiling": [
+                "food-debris"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "floor-o",
+              "inventoryKey": "floor",
+              "label": "Floor",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [
+                "food-debris"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        }
+      ],
+      "truth": {
+        "complexityLevel": 4,
+        "rooms": [
+          {
+            "roomName": "Kitchen",
+            "objects": [
+              {
+                "inventoryKey": "hob",
+                "condition": "heavy"
+              },
+              {
+                "inventoryKey": "extractor hood",
+                "condition": "heavy"
+              },
+              {
+                "inventoryKey": "worktop",
+                "condition": "medium"
+              },
+              {
+                "inventoryKey": "bin",
+                "condition": "heavy"
+              },
+              {
+                "inventoryKey": "floor",
+                "condition": "medium"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "syn-04-limescaled-bathroom",
+      "synthetic": true,
+      "deviceClass": "guided-web",
+      "lighting": "artificial",
+      "propertyType": "flat",
+      "rooms": [
+        {
+          "roomName": "Bathroom",
+          "condition": "medium",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "shower screen-o",
+              "inventoryKey": "shower screen",
+              "label": "Shower screen",
+              "quantity": 1,
+              "condition": "heavy",
+              "soiling": [
+                "limescale",
+                "soap-scum"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "tap-o",
+              "inventoryKey": "tap",
+              "label": "Tap",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [
+                "limescale"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "toilet-o",
+              "inventoryKey": "toilet",
+              "label": "Toilet",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [
+                "limescale"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "floor-o",
+              "inventoryKey": "floor",
+              "label": "Floor",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        }
+      ],
+      "truth": {
+        "complexityLevel": 3,
+        "rooms": [
+          {
+            "roomName": "Bathroom",
+            "objects": [
+              {
+                "inventoryKey": "shower screen",
+                "condition": "heavy"
+              },
+              {
+                "inventoryKey": "tap",
+                "condition": "medium"
+              },
+              {
+                "inventoryKey": "toilet",
+                "condition": "medium"
+              },
+              {
+                "inventoryKey": "floor",
+                "condition": "light"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "syn-05-mould-specialist",
+      "synthetic": true,
+      "deviceClass": "guided-web",
+      "lighting": "low-light",
+      "propertyType": "flat",
+      "note": "Confirmed mould. The correct answer is a refusal to price, not a high price.",
+      "rooms": [
+        {
+          "roomName": "Bathroom",
+          "condition": "heavy",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "sealant-o",
+              "inventoryKey": "sealant",
+              "label": "Sealant",
+              "quantity": 1,
+              "condition": "heavy",
+              "soiling": [
+                "mould"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.92,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "grout-o",
+              "inventoryKey": "grout",
+              "label": "Grout",
+              "quantity": 1,
+              "condition": "heavy",
+              "soiling": [
+                "mould"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.88,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        }
+      ],
+      "truth": {
+        "complexityLevel": 5,
+        "rooms": [
+          {
+            "roomName": "Bathroom",
+            "objects": [
+              {
+                "inventoryKey": "sealant",
+                "condition": "heavy"
+              },
+              {
+                "inventoryKey": "grout",
+                "condition": "heavy"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "syn-06-whole-flat-heavy",
+      "synthetic": true,
+      "deviceClass": "guided-web",
+      "lighting": "daylight",
+      "propertyType": "flat",
+      "note": "Three rooms each individually heavy. Tests the whole-property escalation.",
+      "rooms": [
+        {
+          "roomName": "Kitchen",
+          "condition": "heavy",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "floor-0-o",
+              "inventoryKey": "floor-0",
+              "label": "Floor",
+              "quantity": 1,
+              "condition": "heavy",
+              "soiling": [
+                "stain"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "surface-0-o",
+              "inventoryKey": "surface-0",
+              "label": "Worktop",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [
+                "grease"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "window-0-o",
+              "inventoryKey": "window-0",
+              "label": "Window",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [
+                "dust"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        },
+        {
+          "roomName": "Bathroom",
+          "condition": "heavy",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "floor-1-o",
+              "inventoryKey": "floor-1",
+              "label": "Floor",
+              "quantity": 1,
+              "condition": "heavy",
+              "soiling": [
+                "stain"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "surface-1-o",
+              "inventoryKey": "surface-1",
+              "label": "Worktop",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [
+                "grease"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "window-1-o",
+              "inventoryKey": "window-1",
+              "label": "Window",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [
+                "dust"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        },
+        {
+          "roomName": "Living room",
+          "condition": "heavy",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "floor-2-o",
+              "inventoryKey": "floor-2",
+              "label": "Floor",
+              "quantity": 1,
+              "condition": "heavy",
+              "soiling": [
+                "stain"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "surface-2-o",
+              "inventoryKey": "surface-2",
+              "label": "Worktop",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [
+                "grease"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "window-2-o",
+              "inventoryKey": "window-2",
+              "label": "Window",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [
+                "dust"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        }
+      ],
+      "truth": {
+        "complexityLevel": 4,
+        "rooms": [
+          {
+            "roomName": "Kitchen",
+            "objects": [
+              {
+                "inventoryKey": "floor-0",
+                "condition": "heavy"
+              },
+              {
+                "inventoryKey": "surface-0",
+                "condition": "medium"
+              },
+              {
+                "inventoryKey": "window-0",
+                "condition": "medium"
+              }
+            ]
+          },
+          {
+            "roomName": "Bathroom",
+            "objects": [
+              {
+                "inventoryKey": "floor-1",
+                "condition": "heavy"
+              },
+              {
+                "inventoryKey": "surface-1",
+                "condition": "medium"
+              },
+              {
+                "inventoryKey": "window-1",
+                "condition": "medium"
+              }
+            ]
+          },
+          {
+            "roomName": "Living room",
+            "objects": [
+              {
+                "inventoryKey": "floor-2",
+                "condition": "heavy"
+              },
+              {
+                "inventoryKey": "surface-2",
+                "condition": "medium"
+              },
+              {
+                "inventoryKey": "window-2",
+                "condition": "medium"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "syn-07-uncertain-low-light",
+      "synthetic": true,
+      "deviceClass": "camera-fallback",
+      "lighting": "low-light",
+      "propertyType": "house",
+      "note": "The reader could not judge. Must produce questions, not a confident grade.",
+      "rooms": [
+        {
+          "roomName": "Living room",
+          "condition": "",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "sofa-o",
+              "inventoryKey": "sofa",
+              "label": "Sofa",
+              "quantity": 1,
+              "condition": "",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.1,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "carpet-o",
+              "inventoryKey": "carpet",
+              "label": "Carpet",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.2,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "table-o",
+              "inventoryKey": "table",
+              "label": "Table",
+              "quantity": 1,
+              "condition": "",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        }
+      ],
+      "truth": {
+        "complexityLevel": 2,
+        "rooms": [
+          {
+            "roomName": "Living room",
+            "objects": [
+              {
+                "inventoryKey": "sofa",
+                "condition": "light"
+              },
+              {
+                "inventoryKey": "carpet",
+                "condition": "medium"
+              },
+              {
+                "inventoryKey": "table",
+                "condition": "light"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "syn-08-measured-kitchen",
+      "synthetic": true,
+      "deviceClass": "guided-web",
+      "lighting": "daylight",
+      "propertyType": "house",
+      "note": "Carries a confirmed floor area, so the size adjustment is exercised.",
+      "rooms": [
+        {
+          "roomName": "Kitchen",
+          "condition": "medium",
+          "note": "",
+          "measurements": [
+            {
+              "subject": "floor-area",
+              "method": "derived",
+              "valueMm": 18000000,
+              "toleranceMm": 4000000,
+              "confidence": "low",
+              "reference": "bank-card"
+            },
+            {
+              "subject": "ceiling-height",
+              "method": "user-confirmed",
+              "valueMm": 2400,
+              "toleranceMm": 0,
+              "confidence": "high",
+              "reference": ""
+            }
+          ],
+          "objects": [
+            {
+              "objectId": "worktop-o",
+              "inventoryKey": "worktop",
+              "label": "Worktop",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [
+                "grease"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "floor-o",
+              "inventoryKey": "floor",
+              "label": "Floor",
+              "quantity": 1,
+              "condition": "medium",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "oven-o",
+              "inventoryKey": "oven",
+              "label": "Oven",
+              "quantity": 1,
+              "condition": "heavy",
+              "soiling": [
+                "grease"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        }
+      ],
+      "truth": {
+        "complexityLevel": 3,
+        "rooms": [
+          {
+            "roomName": "Kitchen",
+            "objects": [
+              {
+                "inventoryKey": "worktop",
+                "condition": "medium"
+              },
+              {
+                "inventoryKey": "floor",
+                "condition": "medium"
+              },
+              {
+                "inventoryKey": "oven",
+                "condition": "heavy"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "syn-09-missed-and-invented",
+      "synthetic": true,
+      "deviceClass": "camera-fallback",
+      "lighting": "artificial",
+      "propertyType": "flat",
+      "note": "The scanner missed a radiator and invented a microwave. Exercises precision and recall against a real failure shape.",
+      "rooms": [
+        {
+          "roomName": "Kitchen",
+          "condition": "light",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "worktop-o",
+              "inventoryKey": "worktop",
+              "label": "Worktop",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "microwave-o",
+              "inventoryKey": "microwave",
+              "label": "Microwave",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "sink-o",
+              "inventoryKey": "sink",
+              "label": "Sink",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        }
+      ],
+      "truth": {
+        "complexityLevel": 2,
+        "rooms": [
+          {
+            "roomName": "Kitchen",
+            "objects": [
+              {
+                "inventoryKey": "worktop",
+                "condition": "light"
+              },
+              {
+                "inventoryKey": "sink",
+                "condition": "light"
+              },
+              {
+                "inventoryKey": "radiator",
+                "condition": "medium"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "syn-10-duplicated-chair",
+      "synthetic": true,
+      "deviceClass": "guided-web",
+      "lighting": "daylight",
+      "propertyType": "house",
+      "note": "Four chair rows where the room holds two. Exercises the duplicate-object rate.",
+      "rooms": [
+        {
+          "roomName": "Dining room",
+          "condition": "light",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "chair-1",
+              "inventoryKey": "chair",
+              "label": "Chair",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "chair-2",
+              "inventoryKey": "chair",
+              "label": "Chair",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "chair-3",
+              "inventoryKey": "chair",
+              "label": "Chair",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "chair-4",
+              "inventoryKey": "chair",
+              "label": "Chair",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            },
+            {
+              "objectId": "table-o",
+              "inventoryKey": "table",
+              "label": "Table",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        }
+      ],
+      "truth": {
+        "complexityLevel": 1,
+        "rooms": [
+          {
+            "roomName": "Dining room",
+            "objects": [
+              {
+                "inventoryKey": "chair",
+                "condition": "light"
+              },
+              {
+                "inventoryKey": "chair",
+                "condition": "light"
+              },
+              {
+                "inventoryKey": "table",
+                "condition": "light"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "syn-11-renamed-tap",
+      "synthetic": true,
+      "deviceClass": "guided-web",
+      "lighting": "artificial",
+      "propertyType": "flat",
+      "note": "The customer renamed 'Tap' to 'Bathroom tap'. A rename must not score as a miss and a false positive.",
+      "rooms": [
+        {
+          "roomName": "Bathroom",
+          "condition": "light",
+          "note": "",
+          "measurements": [],
+          "objects": [
+            {
+              "objectId": "tap-o",
+              "inventoryKey": "tap",
+              "label": "Bathroom tap",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [
+                "limescale"
+              ],
+              "confidenceLabel": 1,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "manual"
+            },
+            {
+              "objectId": "mirror-o",
+              "inventoryKey": "mirror",
+              "label": "Mirror",
+              "quantity": 1,
+              "condition": "light",
+              "soiling": [
+                "dust"
+              ],
+              "confidenceLabel": 0.9,
+              "confidenceCondition": 0.85,
+              "conditionConfirmed": false,
+              "evidence": "",
+              "origin": "vision"
+            }
+          ]
+        }
+      ],
+      "truth": {
+        "complexityLevel": 2,
+        "rooms": [
+          {
+            "roomName": "Bathroom",
+            "objects": [
+              {
+                "inventoryKey": "tap",
+                "condition": "light"
+              },
+              {
+                "inventoryKey": "mirror",
+                "condition": "light"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "expectedTargetMisses": {
+    "duplicateRate": "syn-10-duplicated-chair deliberately reports four chair rows for a room holding two, so the pooled duplicate rate over eleven cases is expected to exceed the 2% target. The metric working is the point; do not tune the model to make this pass."
+  }
+}

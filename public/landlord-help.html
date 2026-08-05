@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Help | Homle</title>
+  <link rel="icon" href="/homle-logo-128-4f82ebad.png" type="image/png">
+  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
+  <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <link rel="stylesheet" href="/landlord-help.css?v=20260730-1">
+  <script type="module" src="/landlord-help.js?v=20260805-1"></script>
+</head>
+<body class="support-page">
+  <a class="skip-link" href="#support-main">Skip to support</a>
+  <header class="support-header"><div class="shell support-nav"><a class="brand" href="/"><img src="/homle-logo-128-4f82ebad.png" alt="" width="42" height="42"><span>Homle</span></a><nav aria-label="Landlord" data-support-private-navigation hidden><a href="/landlord/dashboard">Dashboard</a><a href="/landlord/book">Prepare a clean</a><a aria-current="page" href="/landlord/help">Help</a></nav></div></header>
+  <main id="support-main" class="shell support-main">
+    <section class="support-gate" data-support-gate role="status" aria-live="polite">
+      <strong data-support-gate-title>Checking secure Landlord access…</strong>
+      <p data-support-gate-copy>Your support history opens only inside your Landlord account.</p>
+      <div><a class="button" href="/login?intent=book" data-support-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-support-retry hidden>Try again</button></div>
+    </section>
+    <div data-support-workspace hidden>
+      <header class="support-heading"><div><p class="eyebrow">Private Landlord support</p><h1>How can we help?</h1><p>Describe the problem once. Keep passwords, property access details and payment-card data out of your message.</p></div><a class="button button-outline" href="/landlord/dashboard">Back to dashboard</a></header>
+      <div class="support-layout">
+        <section class="support-card" aria-labelledby="support-form-title">
+          <h2 id="support-form-title">Ask Homle for help</h2>
+          <p>Ask about your account, property or scan, or request a change to a confirmed booking without changing it immediately.</p>
+          <form data-support-form>
+            <label>What do you need help with?
+              <select name="category" required>
+                <option value="">Choose one</option><option value="account-access">Account access</option><option value="property">Property</option><option value="room-scan">Room scan</option><option value="booking-preparation">Preparing a booking</option><option value="booking-change">Change or cancel a confirmed booking</option><option value="other">Something else</option>
+              </select>
+            </label>
+            <div data-support-generic-fields>
+              <label>Short subject<input name="subject" minlength="10" maxlength="120" required autocomplete="off" placeholder="For example: Room scan did not save"></label>
+            </div>
+            <div class="support-booking-change" data-support-booking-change hidden>
+              <label>Confirmed booking<select name="bookingId" data-support-booking><option value="">Choose a booking</option></select></label>
+              <label>What would you like to request?<select name="bookingChangeKind" data-support-change-kind><option value="">Choose one</option><option value="reschedule">Move it to another time</option><option value="cancel">Cancel this booking</option></select></label>
+              <div data-support-proposed-time hidden><label>Preferred new date and time<input name="proposedStartLocal" type="datetime-local"></label></div>
+              <p class="support-boundary">Your current booking, Cleaner commitment and payment stay unchanged until Homle confirms the outcome in this account.</p>
+            </div>
+            <label>What happened?<textarea name="description" rows="7" minlength="20" maxlength="2000" required placeholder="Tell us what you were doing and what you expected to happen."></textarea><small>Do not include door or alarm codes, passwords, card numbers, API keys or secret keys.</small></label>
+            <label class="checkbox"><input type="checkbox" name="confirmNoSensitiveData" required><span>I removed passwords, property access codes, payment-card data and secret keys.</span></label>
+            <div class="support-feedback" data-support-form-feedback role="alert" tabindex="-1" hidden></div>
+            <button class="button" type="submit" data-support-submit>Send support request</button>
+          </form>
+        </section>
+        <section class="support-card" aria-labelledby="support-history-title" id="support-history">
+          <div class="support-card-heading"><div><h2 id="support-history-title">Your requests</h2><p>Answers stay private in this Landlord account.</p></div><button class="text-button" type="button" data-support-refresh>Refresh</button></div>
+          <div class="support-list" data-support-list aria-live="polite" aria-busy="true"></div>
+          <div class="support-empty" data-support-empty hidden><strong>No support requests yet.</strong><p>When you send one, its status and Homle’s answer will appear here.</p></div>
+        </section>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

@@ -40,6 +40,7 @@ assert.equal(disabled.router, null);
 assert.equal(disabled.paymentsReady, false);
 assert.equal(disabled.matchingReady, false);
 assert.equal(disabled.geocodingReady, false);
+assert.equal(disabled.addressLookupReady, false);
 assert.equal(disabled.realtimeReady, false);
 assert.equal(adapterLoaded, false);
 assert.ok(Object.values(disabled.authenticationCapabilities).filter((value) => value === true).length === 0);
@@ -160,6 +161,7 @@ const attachment = await createMarketplaceAttachment({
       googleOidcReady: true,
       facebookLoginReady: true,
       geocodingReady: true,
+      addressLookupReady: true,
       speechSummaryReady: true,
       roomVisionReady: true,
       matchingReady: true
@@ -188,6 +190,7 @@ assert.equal(attachment.emailReady, true);
 assert.equal(attachment.mediaReady, true);
 assert.equal(attachment.realtimeReady, true);
 assert.equal(attachment.geocodingReady, true);
+assert.equal(attachment.addressLookupReady, true);
 assert.equal(attachment.speechSummaryReady, true);
 assert.equal(attachment.roomVisionReady, true);
 assert.equal(attachment.matchingReady, true);

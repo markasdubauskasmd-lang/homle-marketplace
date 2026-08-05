@@ -12,10 +12,10 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-4">
-  <script src="/cleaner-performance.js?v=20260728-1" type="module"></script>
-  <script src="/account-menu.js?v=20260718-3" type="module"></script>
-  <script src="/notification-badge.js?v=20260726-2" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
+  <script src="/cleaner-performance.js?v=20260729-2" type="module"></script>
+  <script src="/account-menu.js?v=20260729-1" type="module"></script>
+  <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
 <body class="cleaner-workspace-page">
   <a class="hc-skip" href="#cleaner-performance-main">Skip to Performance</a>
@@ -84,12 +84,12 @@
           <div data-onboarding-nav></div>
         </details>
 
-        <details class="hc-nav-group" data-account-group>
+        <details class="hc-nav-group" data-account-group open>
           <summary class="hc-nav-group-summary">
             <span class="hc-nav-group-label">ACCOUNT</span>
             <span class="hc-nav-chevron" aria-hidden="true">▾</span>
           </summary>
-          <div>
+          <div data-account-nav>
             <a class="hc-nav-item" href="/cleaner/dashboard">
               <span class="hc-nav-label">Availability</span>
             </a>
@@ -107,6 +107,7 @@
               <span class="hc-nav-label">Public directory</span>
             </a>
           </div>
+          <small class="hc-account-nav-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small>
         </details>
       </nav>
 

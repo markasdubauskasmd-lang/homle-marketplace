@@ -23,7 +23,9 @@ import {
   checkoutMode,
   checkoutCopy
 } from "./landlord-journey-model.js?v=journey7";
-import { openRoomScan } from "./room-scan-overlay.js";
+import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
+import { applyCorrection, scanReview } from "./scan-review-render.js";
+import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
 import { requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
 import { isUkPostcode } from "./contact-validation.js";
 
@@ -91,6 +93,27 @@ const state = {
   signedIn: false,
   properties: [],
   scanPhotos: [],
+  // The structured reading — per-object condition, soiling, confidence and
+  // evidence — held in memory only, exactly like the photographs beside it.
+  // saveDraft() serialises `state.draft` into sessionStorage, and a description
+  // of the inside of someone's home does not belong there before the
+  // authenticated private draft exists to receive it.
+  scanRooms: [],
+  scanDeviceClass: "unknown",
+  // Stable across retries so a save that timed out and is tried again is
+  // absorbed by the server rather than recorded twice.
+  scanSessionId: "",
+  // Held apart from the scan itself. The scan keeps what was DETECTED so the
+  // server stores the original reading; corrections are replayed against it
+  // afterwards, which is what makes the original survive as a training label
+  // rather than being overwritten by the truth the customer asserted.
+  scanCorrections: [],
+  scanReview: null,
+  scanInstructions: [],
+  // Measurements taken from the room photos at review time. Held in memory like
+  // the photos they were measured from, and stored against the saved scan at
+  // confirm — the same deferred-persist pattern as corrections and instructions.
+  scanMeasurements: [],
   draft: {
     postcode: "",
     outward: "",
@@ -213,6 +236,10 @@ function adoptScan() {
   state.draft.rooms = Array.isArray(scan?.rooms) ? scan.rooms : [];
   state.draft.guideTime = typeof scan?.guideTime === "string" ? scan.guideTime : "";
   state.scanPhotos = [];
+  state.scanRooms = [];
+  state.scanCorrections = [];
+  state.scanMeasurements = [];
+  state.scanReview = null;
   state.draft.durationMinutes = suggestedDurationMinutes(tasks);
   state.step = "results";
   return true;
@@ -344,6 +371,12 @@ el.scanLink.addEventListener("click", async () => {
     state.draft.rooms = Array.isArray(result.rooms) ? result.rooms : [];
     state.draft.guideTime = typeof result.guideTime === "string" ? result.guideTime : "";
     state.scanPhotos = Array.isArray(result.photos) ? result.photos : [];
+    state.scanRooms = Array.isArray(result.rooms) ? result.rooms : [];
+    state.scanDeviceClass = typeof result.deviceClass === "string" ? result.deviceClass : "unknown";
+    state.scanCorrections = [];
+    state.scanMeasurements = [];
+    state.scanReview = null;
+    refreshScanReview();
     state.draft.durationMinutes = suggestedDurationMinutes(state.draft.tasks);
     saveDraft();
     show("results");
@@ -674,6 +707,594 @@ async function createOrRecoverRequest(csrf, propertyId) {
   }
 }
 
+// Saves what the scan actually saw, against the private draft that now exists
+// to hold it.
+//
+// Deliberately best-effort. This is an observation record: it explains a scan,
+// and from Phase 6 it will inform a price, but a booking must not fail because
+// a description of a worktop could not be stored. A failure leaves the reading
+// in memory, keeps the journey moving, and is reported rather than swallowed —
+// silent loss here is the exact failure this whole change exists to end.
+
+/* ── The review step: what the scan found, and what it is unsure of ─────── */
+
+const reviewHost = el.review || document.querySelector("[data-review]");
+const reviewElement = (selector) => document.querySelector(selector);
+
+function textNode(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+// Every value below is written with textContent. A customer-entered object name
+// rendered as markup would make the one screen they are asked to correct into an
+// injection surface.
+function renderReviewLevel(review) {
+  reviewElement("[data-review-level-label]").textContent = review.levelLabel;
+  reviewElement("[data-review-level-scale]").textContent = review.levelScale;
+  reviewElement("[data-review-explanation]").textContent = review.explanation;
+  const provisional = reviewElement("[data-review-provisional]");
+  provisional.textContent = review.provisional;
+  provisional.hidden = !review.provisional;
+}
+
+function renderReviewPrice(review) {
+  const host = reviewElement("[data-review-estimate]");
+  const refusal = reviewElement("[data-review-refusal]");
+  if (!review.price) {
+    host.hidden = true;
+    refusal.hidden = !review.refusal;
+    reviewElement("[data-review-refusal-reason]").textContent = review.refusal;
+    return;
+  }
+  refusal.hidden = true;
+  host.hidden = false;
+  reviewElement("[data-review-price]").textContent = review.price.total;
+  reviewElement("[data-review-price-range]").textContent = review.price.range;
+  reviewElement("[data-review-rates]").textContent = review.ratesNote;
+  const breakdown = reviewElement("[data-review-breakdown]");
+  breakdown.replaceChildren(...review.price.lines.map((line) => {
+    const row = textNode("li", "scan-review-line");
+    row.append(textNode("span", "", line.label), textNode("b", "", line.amount));
+    return row;
+  }));
+}
+
+function renderReviewQuestions(review) {
+  const host = reviewElement("[data-review-questions]");
+  const list = reviewElement("[data-review-question-list]");
+  list.replaceChildren(...review.questions.map((question) => {
+    const row = textNode("li", "scan-review-question");
+    row.append(textNode("p", "", question.question));
+    return row;
+  }));
+  host.hidden = review.questions.length === 0;
+}
+
+// A correction control per object, and only for the things a person can actually
+// judge about their own home. Nothing here offers to edit a confidence score.
+function objectControls(roomName, object) {
+  const row = textNode("div", "scan-review-object");
+  const head = textNode("div", "scan-review-object-head");
+  head.append(textNode("b", "", object.displayLabel), textNode("span", "scan-review-state", object.state));
+  row.append(head);
+  if (object.detail) row.append(textNode("p", "scan-review-detail", object.detail));
+  // The action the finding leads to — "Descale the tap" — so the review answers
+  // "what will be done about it", not only "what was seen". Comes from the
+  // deterministic mapping in scan-review-render, never from the model.
+  if (object.recommendation) row.append(textNode("p", "scan-review-action", object.recommendation));
+
+  const actions = textNode("div", "scan-review-object-actions");
+
+  const rename = textNode("button", "scan-review-edit");
+  rename.type = "button";
+  rename.textContent = "Rename";
+  rename.addEventListener("click", () => {
+    const value = window.prompt(`What is this? (currently "${object.label}")`, object.label);
+    if (value === null) return;
+    const trimmed = value.trim().slice(0, 40);
+    if (!trimmed) return toast("An object needs a name.");
+    correctScanObject(roomName, object.inventoryKey, "label", trimmed);
+  });
+  actions.append(rename);
+
+  // The grade a customer sets is evidence, so the options are the same scale the
+  // reader uses — including "cannot tell", because a customer saying they cannot
+  // tell either is more honest than the grade that was there.
+  const grade = document.createElement("select");
+  grade.className = "scan-review-grade";
+  grade.setAttribute("aria-label", `How dirty is the ${object.label}?`);
+  for (const [value, label] of [["", "Cannot tell"], ["clean", "Clean"], ["light", "Light"], ["medium", "Needs attention"], ["heavy", "Heavily soiled"]]) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    if (value === object.condition) option.selected = true;
+    grade.append(option);
+  }
+  grade.addEventListener("change", () => correctScanObject(roomName, object.inventoryKey, "condition", grade.value));
+  actions.append(grade);
+
+  const remove = textNode("button", "scan-review-remove");
+  remove.type = "button";
+  remove.textContent = "Not here";
+  remove.addEventListener("click", () => correctScanObject(roomName, object.inventoryKey, "removed", ""));
+  actions.append(remove);
+
+  row.append(actions);
+  return row;
+}
+
+function renderReviewRooms(review) {
+  const host = reviewElement("[data-review-room-list]");
+  host.replaceChildren(...review.rooms.map((room) => {
+    const block = textNode("section", "scan-review-room");
+    block.append(textNode("h4", "scan-review-room-name", room.roomName));
+    for (const measurement of room.measurements) block.append(textNode("p", "hint", measurement));
+    // Measurements taken in this session, not yet stored. Each states its band —
+    // the label came from the server's own arithmetic — and can be discarded.
+    for (const entry of pendingMeasurements(room.roomName)) {
+      const row = textNode("p", "hint scan-measure-pending", entry.label);
+      const discard = textNode("button", "scan-review-remove", "Remove");
+      discard.type = "button";
+      discard.addEventListener("click", () => {
+        state.scanMeasurements = state.scanMeasurements.filter((kept) => kept !== entry);
+        renderReview();
+      });
+      row.append(" ", discard);
+      block.append(row);
+    }
+    // Only offered while this tab still holds the room's photo — measuring
+    // needs the pixels, and they are deliberately never persisted.
+    if (photoForRoom(room.roomName)) {
+      const measureButton = textNode("button", "scan-review-edit scan-measure-open", "Measure from the photo");
+      measureButton.type = "button";
+      measureButton.addEventListener("click", () => openMeasure(room.roomName));
+      block.append(measureButton);
+    }
+    if (!room.objects.length) block.append(textNode("p", "hint", "Nothing was picked out in this room."));
+    for (const object of room.objects) block.append(objectControls(room.roomName, object));
+    return block;
+  }));
+}
+
+/* ── Measuring from the room photo ──────────────────────────────────────── */
+
+// Two taps across a known-size object, two taps across the thing being
+// measured. The geometry validation is room-measure-model.js and the tolerance
+// arithmetic is the server's — this code only collects taps and shows answers,
+// so it can never quietly compute a different number than the one stored.
+
+const measureUi = {
+  host: $("[data-measure]"), room: $("[data-measure-room]"), instruction: $("[data-measure-instruction]"),
+  problem: $("[data-measure-problem]"), stage: $("[data-measure-stage]"), photo: $("[data-measure-photo]"),
+  lines: $("[data-measure-lines]"), refs: $("[data-measure-refs]"), subjects: $("[data-measure-subjects]"),
+  confirm: $("[data-measure-confirm]"), confirmText: $("[data-measure-confirm-text]"),
+  keep: $("[data-measure-keep]"), typeReal: $("[data-measure-type]"), retry: $("[data-measure-retry]"),
+  undo: $("[data-measure-undo]"), close: $("[data-measure-close]")
+};
+let measureState = null;
+let measurePreviousFocus = null;
+
+const roomKeyOf = (name) => String(name || "").trim().toLowerCase();
+
+function photoForRoom(roomName) {
+  const key = roomKeyOf(roomName);
+  return state.scanPhotos.find((photo) => roomKeyOf(photo.roomName) === key)?.dataUrl || "";
+}
+
+function pendingMeasurements(roomName) {
+  const key = roomKeyOf(roomName);
+  return state.scanMeasurements.filter((entry) => roomKeyOf(entry.roomName) === key);
+}
+
+function openMeasure(roomName) {
+  if (!measureUi.host) return;
+  const photo = photoForRoom(roomName);
+  if (!photo) return;
+  measureState = { roomName, reference: "", referenceTaps: [], subject: "", subjectTaps: [], result: null };
+  measurePreviousFocus = document.activeElement;
+  measureUi.room.textContent = roomName;
+  measureUi.photo.src = photo;
+  measureUi.host.hidden = false;
+  renderMeasure();
+  measureUi.close.focus({ preventScroll: true });
+}
+
+function closeMeasure() {
+  if (!measureUi.host || measureUi.host.hidden) return;
+  measureUi.host.hidden = true;
+  measureUi.photo.removeAttribute("src");
+  measureState = null;
+  renderReview();
+  if (measurePreviousFocus instanceof HTMLElement) measurePreviousFocus.focus({ preventScroll: true });
+}
+
+function measureLine(taps) {
+  return taps.length === 2 ? { from: taps[0], to: taps[1] } : null;
+}
+
+function currentMeasureStep() {
+  return measurementStep({
+    reference: measureState.reference,
+    referenceLine: measureLine(measureState.referenceTaps),
+    subject: measureState.subject,
+    subjectLine: measureLine(measureState.subjectTaps)
+  });
+}
+
+function measureChip(label, hint, pressed, onPick) {
+  const chip = textNode("button", `scan-measure-chip${pressed ? " picked" : ""}`, label);
+  chip.type = "button";
+  if (hint) chip.title = hint;
+  chip.setAttribute("aria-pressed", String(pressed));
+  chip.addEventListener("click", onPick);
+  return chip;
+}
+
+function renderMeasure() {
+  if (!measureState) return;
+  const step = currentMeasureStep();
+  // A too-short or wrong-way-round line is cleared so the next taps start the
+  // line afresh — leaving one stale tap behind would pair it with the next.
+  if (step.problem) {
+    if (step.stage === "reference-line") measureState.referenceTaps = [];
+    if (step.stage === "subject-line") measureState.subjectTaps = [];
+  }
+  measureUi.problem.textContent = step.problem || "";
+  measureUi.problem.hidden = !step.problem;
+  measureUi.instruction.textContent = step.instruction || "";
+  measureUi.refs.hidden = !(step.stage === "reference" || step.stage === "reference-line");
+  measureUi.subjects.hidden = !(step.stage === "subject" || step.stage === "subject-line");
+  measureUi.confirm.hidden = step.stage !== "ready" || !measureState.result;
+  measureUi.undo.hidden = !(measureState.referenceTaps.length || measureState.subjectTaps.length);
+  measureUi.refs.replaceChildren(...offeredReferences.map((entry) => measureChip(
+    entry.label, entry.hint, measureState.reference === entry.reference,
+    () => { measureState.reference = entry.reference; measureState.referenceTaps = []; renderMeasure(); }
+  )));
+  measureUi.subjects.replaceChildren(...measurableSubjects.map((entry) => measureChip(
+    entry.label, "", measureState.subject === entry.subject,
+    () => { measureState.subject = entry.subject; measureState.subjectTaps = []; measureState.result = null; renderMeasure(); }
+  )));
+  drawMeasureLines();
+  if (step.stage === "ready" && !measureState.result) void computeMeasurement(step);
+}
+
+function drawMeasureLines() {
+  const image = measureUi.photo;
+  const svg = measureUi.lines;
+  if (!image.naturalWidth) { svg.replaceChildren(); return; }
+  svg.setAttribute("viewBox", `0 0 ${image.naturalWidth} ${image.naturalHeight}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  const marks = [];
+  const strokeWidth = Math.max(2, Math.round(image.naturalWidth / 320));
+  const draw = (taps, colour) => {
+    for (const tap of taps) {
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("cx", tap.x); dot.setAttribute("cy", tap.y);
+      dot.setAttribute("r", strokeWidth * 3); dot.setAttribute("fill", colour);
+      marks.push(dot);
+    }
+    if (taps.length === 2) {
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", taps[0].x); line.setAttribute("y1", taps[0].y);
+      line.setAttribute("x2", taps[1].x); line.setAttribute("y2", taps[1].y);
+      line.setAttribute("stroke", colour); line.setAttribute("stroke-width", strokeWidth);
+      marks.push(line);
+    }
+  };
+  draw(measureState.referenceTaps, "#2ED47A");
+  draw(measureState.subjectTaps, "#F0A830");
+  svg.replaceChildren(...marks);
+}
+
+function onMeasureTap(event) {
+  if (!measureState) return;
+  const image = measureUi.photo;
+  const rect = image.getBoundingClientRect();
+  if (!rect.width || !rect.height || !image.naturalWidth) return;
+  // Taps are stored in the photo's own pixel space, so the spans sent to the
+  // server are independent of how large the photo is displayed.
+  const x = ((event.clientX - rect.left) / rect.width) * image.naturalWidth;
+  const y = ((event.clientY - rect.top) / rect.height) * image.naturalHeight;
+  if (x < 0 || y < 0 || x > image.naturalWidth || y > image.naturalHeight) return;
+  const step = currentMeasureStep();
+  if (step.stage === "reference-line" && measureState.referenceTaps.length < 2) measureState.referenceTaps.push({ x, y });
+  else if (step.stage === "subject-line" && measureState.subjectTaps.length < 2) measureState.subjectTaps.push({ x, y });
+  else return;
+  renderMeasure();
+}
+
+function undoMeasureTap() {
+  if (!measureState) return;
+  measureState.result = null;
+  if (measureState.subjectTaps.length) measureState.subjectTaps.pop();
+  else if (measureState.referenceTaps.length) measureState.referenceTaps.pop();
+  renderMeasure();
+}
+
+async function computeMeasurement(step) {
+  measureUi.instruction.textContent = "Working it out…";
+  try {
+    const result = await requestJson("/api/marketplace/landlord/photo-measurement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": await recoverCsrf() },
+      body: JSON.stringify({
+        reference: step.reference, referenceAxis: step.referenceAxis,
+        referencePixels: step.referencePixels, subject: step.subject, spanPixels: step.spanPixels
+      })
+    });
+    if (!measureState) return;
+    measureState.result = result.measurement;
+    measureUi.confirmText.textContent = measurementConfirmation({ ...result.measurement, usable: result.measurement.usable !== false });
+    measureUi.keep.hidden = result.measurement.usable === false;
+    renderMeasure();
+  } catch (error) {
+    if (!measureState) return;
+    // The server's refusals are customer-worded ("too small in the picture…").
+    measureState.subjectTaps = [];
+    measureUi.problem.textContent = String(error?.message || "That could not be measured. Try again.");
+    measureUi.problem.hidden = false;
+  }
+}
+
+function keepMeasurement(entry) {
+  const key = roomKeyOf(measureState.roomName);
+  state.scanMeasurements = [
+    ...state.scanMeasurements.filter((kept) => !(roomKeyOf(kept.roomName) === key && kept.subject === entry.subject)),
+    { roomName: measureState.roomName, ...entry }
+  ];
+  toast(`${measureState.roomName}: measurement kept. It stays an estimate until you confirm.`);
+  // Back to "what else shall we measure" with the same reference line, which is
+  // still valid for this photo.
+  measureState.subject = "";
+  measureState.subjectTaps = [];
+  measureState.result = null;
+  renderMeasure();
+}
+
+const measureSubjectWords = Object.freeze({ "room-length": "Length", "room-width": "Width", "ceiling-height": "Ceiling height" });
+
+function typeMeasurement() {
+  if (!measureState?.subject) return;
+  const answer = window.prompt("What is the real size, in metres? For example 3.4");
+  if (answer === null) return;
+  const metres = Number(String(answer).replace(",", "."));
+  if (!Number.isFinite(metres) || metres <= 0 || metres > 100) return toast("Enter the size in metres, for example 3.4");
+  const valueMm = Math.round(metres * 1000);
+  keepMeasurement({
+    subject: measureState.subject, method: "user-confirmed", valueMm,
+    // The band is settled server-side for typed figures; the label here only
+    // has to be honest about whose figure it is.
+    label: `${measureSubjectWords[measureState.subject] || measureState.subject} ${(valueMm / 1000).toFixed(2)}m — your own figure`
+  });
+}
+
+if (measureUi.host) {
+  measureUi.stage.addEventListener("click", onMeasureTap);
+  measureUi.keep.addEventListener("click", () => { if (measureState?.result) keepMeasurement(measureState.result); });
+  measureUi.typeReal.addEventListener("click", typeMeasurement);
+  measureUi.retry.addEventListener("click", () => {
+    if (!measureState) return;
+    measureState.referenceTaps = [];
+    measureState.subjectTaps = [];
+    measureState.subject = "";
+    measureState.result = null;
+    renderMeasure();
+  });
+  measureUi.undo.addEventListener("click", undoMeasureTap);
+  measureUi.close.addEventListener("click", closeMeasure);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !measureUi.host.hidden) closeMeasure();
+  });
+}
+
+function renderReview() {
+  if (!reviewHost) return;
+  const review = state.scanReview;
+  if (!review?.assessed) {
+    reviewHost.hidden = true;
+    return;
+  }
+  reviewHost.hidden = false;
+  renderReviewLevel(review);
+  renderReviewPrice(review);
+  renderReviewQuestions(review);
+  renderReviewRooms(review);
+}
+
+// Asks the server to assess the scan the customer is still holding.
+//
+// Deliberately silent on failure. The review panel is additional information;
+// the checklist below it is what the booking has always run on, and losing the
+// assessment must not cost the customer their scan.
+async function refreshScanReview() {
+  if (!reviewHost || !state.scanRooms.length) return;
+  const rooms = correctedScanRooms();
+  try {
+    const result = await requestJson("/api/marketplace/landlord/scan-preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": await recoverCsrf() },
+      body: JSON.stringify({
+        deviceClass: state.scanDeviceClass || "unknown",
+        rooms: rooms.map((room) => ({
+          roomName: room.name, condition: room.condition || "", note: room.note || "",
+          objects: Array.isArray(room.objects) ? room.objects : []
+        }))
+      })
+    });
+    state.scanReview = scanReview(result.scan);
+    renderReview();
+  } catch (error) {
+    // A rate-limited or unavailable assessment leaves the panel as it was.
+    if (!state.scanReview) reviewHost.hidden = true;
+  }
+}
+
+// What the customer currently sees: the detected scan with their corrections
+// applied on top. The stored scan stays the detected one.
+function correctedScanRooms() {
+  let rooms = state.scanRooms;
+  for (const correction of state.scanCorrections) {
+    rooms = applyCorrection(rooms, correction).rooms;
+  }
+  return rooms;
+}
+
+function correctScanObject(roomName, inventoryKey, field, value) {
+  const { corrections } = applyCorrection(correctedScanRooms(), { roomName, inventoryKey, field, value });
+  if (!corrections.length) return;
+  state.scanCorrections.push({ roomName, inventoryKey, field, value, originalValue: corrections[0].originalValue });
+  refreshScanReview();
+}
+
+
+// Sends each customer correction against the object the server actually stored.
+//
+// Matched by identity key rather than position, because the server orders objects
+// by its own ids and a positional match would correct the wrong thing. Individual
+// failures are skipped rather than aborting the rest: losing one training label is
+// better than losing them all, and none of this may fail the booking.
+async function replayScanCorrections(csrf, requestId, savedScan) {
+  if (!state.scanCorrections.length || !savedScan?.rooms) return;
+  const objectIdFor = new Map();
+  for (const room of savedScan.rooms) {
+    for (const object of room.objects || []) {
+      objectIdFor.set(`${room.roomName}\u0000${object.inventoryKey}`, object.objectId);
+    }
+  }
+  for (const correction of state.scanCorrections) {
+    const objectId = objectIdFor.get(`${correction.roomName}\u0000${correction.inventoryKey}`);
+    if (!objectId) continue;
+    try {
+      await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/room-scan/objects/${encodeURIComponent(objectId)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({
+          field: correction.field,
+          value: correction.field === "quantity" ? Number(correction.value) : correction.value,
+          // Consent is a separate, explicit choice the customer has not been
+          // asked for here, so it stays false. The correction is still recorded
+          // for the audit trail; it simply may not train anything.
+          trainingConsent: false
+        })
+      });
+    } catch { /* one lost label, not a lost booking */ }
+  }
+}
+
+
+// Stores the classified spoken instructions against the request.
+//
+// Separate from the checklist on purpose. A restriction stored as a task is an
+// operational hazard, and the checklist text is where that mistake would be
+// impossible to undo — so the classification travels in its own shape and the
+// cleaner's do-not-touch panel reads it from here.
+async function saveVoiceInstructions(csrf, requestId) {
+  const instructions = Array.isArray(state.scanInstructions) ? state.scanInstructions : [];
+  if (!instructions.length) return false;
+  try {
+    await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/voice-instructions`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ instructions })
+    });
+    return true;
+  } catch (error) {
+    console.warn("[room-scan] spoken instructions could not be saved", {
+      code: String(error?.code || "unknown").slice(0, 40)
+    });
+    return false;
+  }
+}
+
+// Stores the measurements taken at review time against the rooms the server
+// actually created. Matched by room name like the corrections replay above, and
+// individually non-fatal for the same reason: a lost measurement is a wider
+// price band, never a lost booking.
+async function saveScanMeasurements(csrf, requestId, savedScan) {
+  if (!state.scanMeasurements.length || !savedScan?.rooms) return;
+  const scanIdFor = new Map(savedScan.rooms.map((room) => [roomKeyOf(room.roomName), room.roomScanId]));
+  const byRoom = new Map();
+  for (const entry of state.scanMeasurements) {
+    const roomScanId = scanIdFor.get(roomKeyOf(entry.roomName));
+    if (!roomScanId) continue;
+    if (!byRoom.has(roomScanId)) byRoom.set(roomScanId, []);
+    byRoom.get(roomScanId).push({
+      subject: entry.subject, method: entry.method, valueMm: entry.valueMm,
+      toleranceMm: entry.toleranceMm, confidence: entry.confidence, reference: entry.reference || ""
+    });
+  }
+  for (const [roomScanId, measurements] of byRoom) {
+    try {
+      await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/room-scan/rooms/${encodeURIComponent(roomScanId)}/measurements`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({ measurements })
+      });
+    } catch { /* one lost measurement set, not a lost booking */ }
+  }
+}
+
+async function saveStructuredScan(csrf, requestId) {
+  const rooms = state.scanRooms
+    .filter((room) => room && String(room.name || "").trim())
+    .map((room) => ({
+      roomName: room.name,
+      condition: room.condition || "",
+      note: room.note || "",
+      objects: Array.isArray(room.objects) ? room.objects : []
+    }));
+  if (!rooms.length) return false;
+  if (!state.scanSessionId) state.scanSessionId = randomId();
+  try {
+    const saved = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/room-scan`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({
+        sessionId: state.scanSessionId,
+        deviceClass: state.scanDeviceClass || "unknown",
+        capturedAt: new Date().toISOString(),
+        rooms
+      })
+    });
+    // Replayed after the scan is stored, not folded into it. The saved scan holds
+    // what was DETECTED; each correction is then applied through its own endpoint
+    // so the database keeps the original value beside the corrected one. Folding
+    // them in first would have overwritten the most valuable label in the
+    // product with the answer.
+    await replayScanCorrections(csrf, requestId, saved?.scan);
+    await saveVoiceInstructions(csrf, requestId);
+    await saveScanMeasurements(csrf, requestId, saved?.scan);
+    return true;
+  } catch (error) {
+    console.warn("[room-scan] the structured reading could not be saved", {
+      code: String(error?.code || "unknown").slice(0, 40),
+      status: Number.isInteger(error?.statusCode) ? error.statusCode : null
+    });
+    return false;
+  }
+}
+
+// Retries a failed save a small number of times before giving up.
+//
+// The scan is idempotent by session id, so a retry after a response that never
+// arrived is absorbed rather than duplicated — which is what makes retrying safe
+// here at all. Bounded and short: this runs while the customer is waiting at
+// checkout, and a scan is worth a few seconds of patience, not a minute of it.
+//
+// Only worth retrying a failure that might pass next time. A 4xx means the
+// server understood and refused, and retrying it just wastes the wait.
+async function saveStructuredScanWithRetry(csrf, requestId, attempts = 3) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    if (await saveStructuredScan(csrf, requestId)) return true;
+    if (attempt === attempts) break;
+    await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+  }
+  return false;
+}
+
 async function uploadRoomPhotos(csrf, requestId) {
   const existing = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/scan`);
   const attachedRooms = new Set((existing.scan?.photos || []).map((photo) => String(photo.roomName || "").trim().toLowerCase()));
@@ -842,6 +1463,20 @@ async function confirmJourney() {
     const propertyId = await createOrRecoverProperty(csrf);
     el.checkoutState.textContent = "Saving the private request…";
     const request = await createOrRecoverRequest(csrf, propertyId);
+    // Before the photo upload and the submission, because the recording
+    // function accepts a scan only while the request is still a draft — after
+    // submission the scope is frozen and a Cleaner may already have accepted
+    // work against it.
+    // Retried, because a scan lost to one dropped response is a scan lost for
+    // good: it lives only in this tab's memory and is deliberately never written
+    // to browser storage.
+    const scanSaved = await saveStructuredScanWithRetry(csrf, request.requestId);
+    if (!scanSaved && state.scanRooms.length) {
+      // Said rather than swallowed. The booking still proceeds on the reviewed
+      // checklist, which is what it has always run on, but the customer is not
+      // told everything worked when part of it did not.
+      el.checkoutState.textContent = "Your checklist is saved. The detailed room findings could not be, so your cleaner will work from the checklist alone.";
+    }
     let submitted = false;
     let invitation = { invited: false, reason: "" };
     if (state.capabilities.mediaReady && state.scanPhotos.length) {
@@ -862,6 +1497,10 @@ async function confirmJourney() {
     state.draft.requestId = "";
     state.draft.propertyDraftId = "";
     state.scanPhotos = [];
+    state.scanRooms = [];
+    state.scanCorrections = [];
+    state.scanMeasurements = [];
+    state.scanReview = null;
     el.doneTitle.textContent = invitation.invited ? "Your Cleaner has been invited." : submitted ? "Your request is ready for matching." : "Your private draft is saved.";
     el.doneBody.textContent = invitation.reason || (submitted
       ? "The reviewed room photos and checklist are saved. A booking exists only after an eligible Cleaner accepts the exact time, work and price. No payment was taken."
@@ -987,3 +1626,14 @@ if (await openAuthenticatedJourney()) {
   show(state.step);
   if (cameFromScan) toast("Your scan is here. Check the checklist before continuing.");
 }
+
+// The scanner's object detector weighs several megabytes, and until now the
+// download only began once the scan overlay opened — the "getting the object
+// finder ready" wait every field trial has sat through. Warm it from idle time
+// instead, once the journey itself has finished rendering, so opening the
+// scanner finds the model already local. Idle callback first so the booking
+// journey never queues behind the fetch; the timeout fallback covers browsers
+// without requestIdleCallback.
+const warmScanner = () => { warmRoomScanDetector(); };
+if (typeof requestIdleCallback === "function") requestIdleCallback(warmScanner, { timeout: 4000 });
+else setTimeout(warmScanner, 2500);

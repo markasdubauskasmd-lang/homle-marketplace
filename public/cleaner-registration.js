@@ -1,10 +1,16 @@
-import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260728-7";
-import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260728-1";
-import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260728-1";
+import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-9";
+import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260729-6";
+import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260804-3";
 import { setupBusinessDetails } from "./cleaner-business-details.js?v=20260728-1";
 import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=20260728-1";
 import { setupBackgroundChecks } from "./cleaner-background-checks.js?v=20260728-1";
 import { setupWorkAreas } from "./cleaner-work-areas.js?v=20260728-1";
+import { setupExperience } from "./cleaner-experience.js?v=20260728-1";
+import { setupReferences } from "./cleaner-references.js?v=20260729-1";
+import { setupInsurance } from "./cleaner-insurance.js?v=20260729-2";
+import { setupBanking } from "./cleaner-banking.js?v=20260729-1";
+import { setupEquipment } from "./cleaner-equipment.js?v=20260729-1";
+import { setupAvailability } from "./cleaner-availability.js?v=20260729-1";
 
 function stepIcon(name) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -44,10 +50,35 @@ createCleanerPage("reg", async (context) => {
     await setupWorkAreas(context);
     return;
   }
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  if (location.pathname === "/cleaner/experience") {
+    await setupExperience(context);
+    return;
+  }
+  if (location.pathname === "/cleaner/references") {
+    await setupReferences(context);
+    return;
+  }
+  if (location.pathname === "/cleaner/insurance") {
+    await setupInsurance(context);
+    return;
+  }
+  if (location.pathname === "/cleaner/banking") {
+    await setupBanking(context);
+    return;
+  }
+  if (location.pathname === "/cleaner/equipment") {
+    await setupEquipment(context);
+    return;
+  }
+  if (location.pathname === "/cleaner/availability") {
+    await setupAvailability(context);
+    return;
+  }
+  const [profileResult, availabilityResult, payoutResult, onboardingResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    requestJson("/api/marketplace/cleaner/onboarding")
   ]);
   const profile = profileResult.status === "fulfilled" && profileResult.value.profile ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability.length : 0;
@@ -57,7 +88,8 @@ createCleanerPage("reg", async (context) => {
     account: { displayName: document.querySelector("[data-account-name]")?.textContent, email: true },
     profile,
     payoutState,
-    availabilityCount
+    availabilityCount,
+    onboardingSections: onboardingResult.status === "fulfilled" && Array.isArray(onboardingResult.value.sections) ? onboardingResult.value.sections : []
   });
 
   setText("[data-reg-percent]", `${progress.percent}%`);

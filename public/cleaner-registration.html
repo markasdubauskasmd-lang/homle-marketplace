@@ -12,10 +12,10 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260728-9">
-  <script src="/cleaner-registration.js?v=20260728-6" type="module"></script>
-  <script src="/account-menu.js?v=20260718-3" type="module"></script>
-  <script src="/notification-badge.js?v=20260726-2" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260804-2">
+  <script src="/cleaner-registration.js?v=20260804-3" type="module"></script>
+  <script src="/account-menu.js?v=20260729-1" type="module"></script>
+  <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
 <body class="cleaner-workspace-page">
   <a class="hc-skip" href="#cleaner-registration-main">Skip to Complete registration</a>
@@ -84,12 +84,12 @@
           <div data-onboarding-nav></div>
         </details>
 
-        <details class="hc-nav-group" data-account-group>
+        <details class="hc-nav-group" data-account-group open>
           <summary class="hc-nav-group-summary">
             <span class="hc-nav-group-label">ACCOUNT</span>
             <span class="hc-nav-chevron" aria-hidden="true">▾</span>
           </summary>
-          <div>
+          <div data-account-nav>
             <a class="hc-nav-item" href="/cleaner/dashboard">
               <span class="hc-nav-label">Availability</span>
             </a>
@@ -107,6 +107,7 @@
               <span class="hc-nav-label">Public directory</span>
             </a>
           </div>
+          <small class="hc-account-nav-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small>
         </details>
       </nav>
 
@@ -184,10 +185,10 @@
         </div>
         <!--
           One card per step from the design's own STEPS/TITLES tables. Steps Homle can
-          record link to the screen that edits them; the rest are marked as not open yet
-          rather than linking nowhere. Collecting right to work, tax, insurance, references
-          and the signed declarations needs document capture and a vetting provider, neither
-          of which exists in this codebase.
+          record link to the screen that edits them. Design-matched reference and insurance
+          screens remain explicitly outstanding until their secure storage and verification
+          services exist; unsupported steps are marked as not open yet rather than linking
+          nowhere.
         -->
         <div class="hc-reg-list" data-reg-steps></div>
         </div>
@@ -209,6 +210,66 @@
                 <span>Complete registration</span>
                 <strong>Step 4 of 19 &mdash; Background checks (DBS)</strong>
                 <div class="hc-business-progress-track hc-background-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="4"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-experience-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 7 of 19 &mdash; Cleaning experience</strong>
+                <div class="hc-business-progress-track hc-experience-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="7"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-references-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 8 of 19 &mdash; References</strong>
+                <div class="hc-business-progress-track hc-references-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="8"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-insurance-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 9 of 19 &mdash; Insurance</strong>
+                <div class="hc-business-progress-track hc-insurance-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="9"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-banking-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 10 of 19 &mdash; Banking &amp; payments</strong>
+                <div class="hc-business-progress-track hc-banking-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="10"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-equipment-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 11 of 19 &mdash; Equipment</strong>
+                <div class="hc-business-progress-track hc-equipment-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="11"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-availability-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 13 of 19 &mdash; Availability</strong>
+                <div class="hc-business-progress-track hc-availability-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="19" aria-valuenow="13"><span></span></div>
               </div>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
             </header>
@@ -292,8 +353,7 @@
                 <fieldset class="hc-personal-section">
                   <legend>Address</legend>
                   <div class="hc-personal-address-top">
-                    <label><span>Postcode <b aria-hidden="true">*</b></span><input name="postcode" autocomplete="postal-code" maxlength="10" required><small>Used for distances &amp; job matching</small></label>
-                    <button class="hc-personal-lookup" type="button" data-address-lookup>Look up address</button>
+                    <label><span>Postcode <b aria-hidden="true">*</b></span><input name="postcode" autocomplete="postal-code" maxlength="10" required><small>Used for distances and job matching.</small></label>
                     <label><span>House number <b aria-hidden="true">*</b></span><input name="houseNumber" autocomplete="address-line1" maxlength="40" required></label>
                     <label><span>Street <b aria-hidden="true">*</b></span><input name="street" autocomplete="address-line2" maxlength="120" required></label>
                   </div>
@@ -308,14 +368,50 @@
                     <input class="hc-personal-toggle-input" name="livedUnderFiveYears" type="checkbox">
                     <span class="hc-personal-toggle" aria-hidden="true"></span>
                   </label>
+
+                  <section class="hc-previous-addresses" data-previous-addresses hidden aria-labelledby="previous-addresses-title">
+                    <div class="hc-previous-addresses-head">
+                      <span><strong id="previous-addresses-title">Previous addresses</strong><small>Add every previous address needed to cover your last five years.</small></span>
+                      <button class="hc-previous-address-add" data-add-previous-address type="button">+ Add another address</button>
+                    </div>
+                    <div class="hc-previous-address-list" data-previous-address-list></div>
+                  </section>
+
+                  <template data-previous-address-template>
+                    <fieldset class="hc-previous-address" data-previous-address>
+                      <div class="hc-previous-address-title">
+                        <legend>Previous address <span data-previous-address-number></span></legend>
+                        <button class="hc-previous-address-remove" data-remove-previous-address type="button">Remove</button>
+                      </div>
+                      <div class="hc-personal-address-top">
+                        <label><span>Postcode <b aria-hidden="true">*</b></span><input data-previous-field="postcode" autocomplete="off" maxlength="10" required></label>
+                        <label><span>House number <b aria-hidden="true">*</b></span><input data-previous-field="houseNumber" autocomplete="off" maxlength="40" required></label>
+                        <label><span>Street <b aria-hidden="true">*</b></span><input data-previous-field="street" autocomplete="off" maxlength="120" required></label>
+                      </div>
+                      <div class="hc-personal-grid hc-personal-grid-three">
+                        <label><span>Town <b aria-hidden="true">*</b></span><input data-previous-field="town" autocomplete="off" maxlength="100" required></label>
+                        <label><span>County</span><input data-previous-field="county" autocomplete="off" maxlength="100"></label>
+                        <label><span>Country <b aria-hidden="true">*</b></span><select data-previous-field="country" autocomplete="off" required><option value="United Kingdom">United Kingdom</option><option>Ireland</option><option>Other</option></select></label>
+                      </div>
+                      <div class="hc-personal-grid hc-personal-grid-three hc-previous-address-dates">
+                        <label><span>Month moved in <b aria-hidden="true">*</b></span><select data-previous-field="fromMonth" required><option value="">Select month</option><option value="01">January</option><option value="02">February</option><option value="03">March</option><option value="04">April</option><option value="05">May</option><option value="06">June</option><option value="07">July</option><option value="08">August</option><option value="09">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option></select></label>
+                        <label><span>Year moved in <b aria-hidden="true">*</b></span><input data-previous-field="fromYear" type="number" inputmode="numeric" min="1900" max="2100" step="1" placeholder="YYYY" required></label>
+                        <label><span>Number of years lived there <b aria-hidden="true">*</b></span><input data-previous-field="yearsLived" type="number" inputmode="numeric" min="0" max="100" step="0.1" placeholder="e.g. 2" required></label>
+                      </div>
+                    </fieldset>
+                  </template>
                 </fieldset>
 
                 <fieldset class="hc-personal-section">
                   <legend>Profile photo</legend>
                   <div class="hc-personal-photo">
-                    <span class="hc-personal-photo-check" aria-hidden="true">✓</span>
-                    <span><strong data-personal-photo-title>Profile photo from your verified sign-in</strong><small data-personal-photo-copy>Homle uses the verified account photo when one is available.</small></span>
-                    <span class="hc-personal-photo-action">Connected</span>
+                    <span class="hc-personal-photo-preview-wrap" aria-hidden="true">
+                      <img class="hc-personal-photo-preview" data-personal-photo-preview alt="" hidden>
+                      <span class="hc-personal-photo-placeholder" data-personal-photo-placeholder>+</span>
+                    </span>
+                    <span class="hc-personal-photo-copy"><strong data-personal-photo-title>Add a clear photo of yourself</strong><small data-personal-photo-copy>JPG, PNG or WebP, up to 5 MB. Homle resizes the photo and removes its metadata before private storage.</small><small data-personal-photo-status role="status" aria-live="polite">No photo uploaded yet.</small></span>
+                    <input data-personal-photo-input type="file" accept="image/jpeg,image/png,image/webp" hidden>
+                    <button class="hc-personal-photo-button" data-personal-photo-button type="button">Upload photo</button>
                   </div>
                 </fieldset>
 
@@ -467,6 +563,417 @@
                 <div class="hc-business-actions">
                   <a class="hc-business-quiet-button" href="/cleaner/identity-verification">&larr; Back</a>
                   <p data-background-save-status role="status" aria-live="polite">Sensitive DBS documents and details are not stored in this browser.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-experience-card" data-experience hidden aria-labelledby="cleaner-experience-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-experience-title">Cleaning experience</h1>
+                <p>What you’re great at. Specialisms drive which jobs we offer you first.</p>
+              </header>
+
+              <form class="hc-experience-form" data-experience-form>
+                <fieldset class="hc-experience-section">
+                  <legend>Experience</legend>
+                  <div class="hc-experience-years">
+                    <label><span>Years of experience</span>
+                      <select name="yearsExperience" required>
+                        <option value="">Choose</option>
+                        <option value="0">Less than 1 year</option>
+                        <option value="1">1&ndash;2 years</option>
+                        <option value="3">3&ndash;5 years</option>
+                        <option value="6">6&ndash;10 years</option>
+                        <option value="11">10+ years</option>
+                      </select>
+                    </label>
+                    <p>Tick every specialism you’re confident in. Connected services can be saved now; training evidence can be added later.</p>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-experience-section">
+                  <legend>Specialisms &mdash; tick all that apply</legend>
+                  <p class="hc-sr-only" id="experience-availability-note">Unavailable specialisms are shown to preserve the registration design, but cannot be selected until secure support is connected.</p>
+                  <div class="hc-experience-specialisms" aria-describedby="experience-availability-note">
+                    <label><input type="checkbox" data-experience-service="regular-domestic"><span>Domestic</span></label>
+                    <label><input type="checkbox" data-experience-service="communal-areas"><span>Commercial</span></label>
+                    <label><input type="checkbox" data-experience-service="rental-turnovers"><span>Holiday lets</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Airbnb</span></label>
+                    <label><input type="checkbox" data-experience-service="deep-cleans"><span>Deep cleaning</span></label>
+                    <label><input type="checkbox" data-experience-service="end-of-tenancy"><span>End of tenancy</span></label>
+                    <label><input type="checkbox" data-experience-service="workplaces"><span>Office cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Builders cleans</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Carpet cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Oven cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Window cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Biohazard cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>School cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Medical cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Care home cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Hotel cleaning</span></label>
+                    <label class="is-unavailable"><input type="checkbox" disabled><span>Other</span></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-experience-section hc-experience-preview-section" disabled aria-describedby="experience-history-note">
+                  <legend>Employment history &mdash; most recent role</legend>
+                  <p class="hc-sr-only" id="experience-history-note">Secure employment-history storage is being connected. These fields are shown in place but do not accept or store information yet.</p>
+                  <div class="hc-experience-history">
+                    <label><span>Company</span><input name="company" autocomplete="organization"></label>
+                    <label><span>Start date</span><input name="employmentStart" type="month"></label>
+                    <label><span>End date</span><input name="employmentEnd" type="month"></label>
+                    <label><span>Reason for leaving</span><input name="reasonForLeaving" maxlength="160"></label>
+                  </div>
+                  <div class="hc-experience-add">
+                    <span>Add more</span>
+                    <button type="button" disabled>+ Add another role</button>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-experience-section hc-experience-preview-section" disabled aria-describedby="experience-files-note">
+                  <legend>CV &amp; certificates</legend>
+                  <p class="hc-sr-only" id="experience-files-note">Secure certificate storage is being connected. No files are accepted or stored on this page yet.</p>
+                  <div class="hc-experience-documents">
+                    <label>
+                      <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>CV</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-experience-upload-action">Choose file</span>
+                      <input type="file" name="cv" accept="application/pdf,image/jpeg,image/png" disabled>
+                    </label>
+                    <label>
+                      <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Cleaning certificates</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-experience-upload-action">Choose file</span>
+                      <input type="file" name="cleaningCertificates" accept="application/pdf,image/jpeg,image/png" disabled>
+                    </label>
+                    <label>
+                      <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>COSHH certificate</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-experience-upload-action">Choose file</span>
+                      <input type="file" name="coshhCertificate" accept="application/pdf,image/jpeg,image/png" disabled>
+                    </label>
+                    <label>
+                      <span class="hc-experience-upload-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Health &amp; safety certificate</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-experience-upload-action">Choose file</span>
+                      <input type="file" name="healthSafetyCertificate" accept="application/pdf,image/jpeg,image/png" disabled>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/business-details">&larr; Back</a>
+                  <p data-experience-save-status role="status" aria-live="polite">Years of experience and connected specialisms are saved securely when you continue.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-references-card" data-references hidden aria-labelledby="cleaner-references-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-references-title">References</h1>
+                <p>Two references minimum &mdash; recent managers or regular clients work best.</p>
+              </header>
+
+              <form class="hc-references-form" data-references-form>
+                <fieldset class="hc-references-section">
+                  <legend>Reference 1</legend>
+                  <div class="hc-references-primary-grid">
+                    <label><span>Name <b aria-hidden="true">*</b></span><input name="reference1Name" autocomplete="off" maxlength="120" required></label>
+                    <label><span>Company</span><input name="reference1Company" autocomplete="off" maxlength="120"></label>
+                    <label><span>Job title</span><input name="reference1JobTitle" autocomplete="off" maxlength="120"></label>
+                  </div>
+                  <div class="hc-references-contact-grid">
+                    <label><span>Phone <b aria-hidden="true">*</b></span><input name="reference1Phone" type="tel" autocomplete="off" inputmode="tel" maxlength="30" required></label>
+                    <label><span>Email <b aria-hidden="true">*</b></span><input name="reference1Email" type="email" autocomplete="off" maxlength="254" required></label>
+                    <label><span>Relationship</span><select name="reference1Relationship"><option value="">Select</option><option>Manager</option><option>Client</option><option>Colleague</option><option>Other</option></select></label>
+                    <label><span>Years known</span><select name="reference1YearsKnown"><option value="">Select</option><option>Less than 1 year</option><option>1&ndash;2 years</option><option>3&ndash;5 years</option><option>6&ndash;10 years</option><option>10+ years</option></select></label>
+                  </div>
+                  <button class="hc-references-email-button" type="button" data-reference-email>Email this referee a request</button>
+                </fieldset>
+
+                <fieldset class="hc-references-section">
+                  <legend>Reference 2</legend>
+                  <div class="hc-references-primary-grid">
+                    <label><span>Name <b aria-hidden="true">*</b></span><input name="reference2Name" autocomplete="off" maxlength="120" required></label>
+                    <label><span>Company</span><input name="reference2Company" autocomplete="off" maxlength="120"></label>
+                    <label><span>Job title</span><input name="reference2JobTitle" autocomplete="off" maxlength="120"></label>
+                  </div>
+                  <div class="hc-references-contact-grid">
+                    <label><span>Phone <b aria-hidden="true">*</b></span><input name="reference2Phone" type="tel" autocomplete="off" inputmode="tel" maxlength="30" required></label>
+                    <label><span>Email <b aria-hidden="true">*</b></span><input name="reference2Email" type="email" autocomplete="off" maxlength="254" required></label>
+                    <label><span>Relationship</span><select name="reference2Relationship"><option value="">Select</option><option>Manager</option><option>Client</option><option>Colleague</option><option>Other</option></select></label>
+                    <label><span>Years known</span><select name="reference2YearsKnown"><option value="">Select</option><option>Less than 1 year</option><option>1&ndash;2 years</option><option>3&ndash;5 years</option><option>6&ndash;10 years</option><option>10+ years</option></select></label>
+                  </div>
+                  <button class="hc-references-email-button" type="button" data-reference-email>Email this referee a request</button>
+                </fieldset>
+
+                <fieldset class="hc-references-section">
+                  <legend>Letters</legend>
+                  <div class="hc-references-letters">
+                    <label class="hc-references-document">
+                      <span class="hc-references-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Reference letters (optional)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-references-document-action">Choose file</span>
+                      <input type="file" name="referenceLetters" accept="application/pdf,image/jpeg,image/png" data-references-file>
+                    </label>
+                    <p class="hc-references-status-note">Reference confirmation appears here only after Homle securely records a referee response. No confirmation is recorded yet.</p>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/experience">&larr; Back</a>
+                  <p data-references-save-status role="status" aria-live="polite">Referee contact details are not stored in this browser or sent anywhere.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-insurance-card" data-insurance hidden aria-labelledby="cleaner-insurance-title">
+              <p class="hc-insurance-status" role="status">No verified policy is stored yet. Secure insurance storage and expiry reminders are being connected.</p>
+              <header class="hc-personal-head">
+                <h1 id="cleaner-insurance-title">Insurance</h1>
+                <p>Public liability cover is required before your first job.</p>
+              </header>
+
+              <form class="hc-insurance-form" data-insurance-form>
+                <fieldset class="hc-insurance-section">
+                  <legend>Policies</legend>
+                  <div class="hc-insurance-policies">
+                    <label class="hc-insurance-document">
+                      <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Public liability policy</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-insurance-document-action">Choose file</span>
+                      <input type="file" name="publicLiabilityPolicy" accept="application/pdf,image/jpeg,image/png" data-insurance-file>
+                    </label>
+                    <label class="hc-insurance-document">
+                      <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Professional indemnity (optional)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-insurance-document-action">Choose file</span>
+                      <input type="file" name="professionalIndemnityPolicy" accept="application/pdf,image/jpeg,image/png" data-insurance-file>
+                    </label>
+                    <label class="hc-insurance-document">
+                      <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Employers&rsquo; liability (if you employ staff)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-insurance-document-action">Choose file</span>
+                      <input type="file" name="employersLiabilityPolicy" accept="application/pdf,image/jpeg,image/png" data-insurance-file>
+                    </label>
+                    <p class="hc-insurance-cover-note"><strong>Need cover?</strong> Homle does not currently connect to or endorse an insurance provider. Arrange appropriate cover independently before accepting work.</p>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-insurance-section">
+                  <legend>Policy details</legend>
+                  <div class="hc-insurance-details">
+                    <label><span>Policy number <b aria-hidden="true">*</b></span><input name="policyNumber" autocomplete="off" spellcheck="false" maxlength="80" required></label>
+                    <label><span>Provider <b aria-hidden="true">*</b></span><input name="policyProvider" autocomplete="organization" maxlength="120" required></label>
+                    <label><span>Expiry date <b aria-hidden="true">*</b></span><input name="policyExpiry" type="date" autocomplete="off" required></label>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/references">&larr; Back</a>
+                  <p data-insurance-save-status role="status" aria-live="polite">Policy details and documents are not stored in this browser or sent anywhere.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-banking-card" data-banking hidden aria-labelledby="cleaner-banking-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-banking-title">Banking &amp; payments</h1>
+                <p>Where your earnings land. Stripe securely collects payout details, and Homle never receives or displays your full bank details.</p>
+              </header>
+
+              <form class="hc-banking-form" data-banking-form>
+                <fieldset class="hc-banking-section">
+                  <legend>Account</legend>
+                  <div class="hc-banking-account hc-banking-account-primary">
+                    <label><span>Account holder name <b aria-hidden="true">*</b></span><input name="accountHolderName" autocomplete="name" readonly data-banking-holder></label>
+                    <label><span>Bank name</span><input name="bankName" value="Managed securely by Stripe" disabled></label>
+                  </div>
+                  <div class="hc-banking-account hc-banking-account-secondary">
+                    <label><span>Sort code <b aria-hidden="true">*</b></span><input name="sortCode" value="Entered with Stripe" disabled></label>
+                    <label><span>Account number <b aria-hidden="true">*</b></span><input name="accountNumber" value="Entered with Stripe" disabled></label>
+                    <label><span>IBAN (optional)</span><input name="iban" value="Entered with Stripe" disabled></label>
+                  </div>
+                  <p class="hc-banking-security-note" data-banking-provider-status role="status">Checking your secure payout setup&hellip;</p>
+                </fieldset>
+
+                <fieldset class="hc-banking-section">
+                  <legend>Payment preference</legend>
+                  <p class="hc-banking-question">How often would you like to be paid?</p>
+                  <div class="hc-banking-frequency" aria-label="Payment preference">
+                    <label><input type="radio" name="paymentFrequency" value="weekly"><span>Weekly</span></label>
+                    <label><input type="radio" name="paymentFrequency" value="fortnightly"><span>Fortnightly</span></label>
+                    <label><input type="radio" name="paymentFrequency" value="monthly"><span>Monthly</span></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-banking-section">
+                  <legend>Invoices</legend>
+                  <div class="hc-banking-invoices">
+                    <label class="hc-banking-document">
+                      <span class="hc-banking-document-icon" aria-hidden="true">&uarr;</span>
+                      <span><strong>Invoice template (optional)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span class="hc-banking-document-action">Choose file</span>
+                      <input type="file" name="invoiceTemplate" accept="application/pdf,image/jpeg,image/png" data-banking-file>
+                    </label>
+                    <p class="hc-banking-payout-note">Stripe controls payout timing. The preference and invoice template on this page are not saved yet.</p>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/insurance">&larr; Back</a>
+                  <p data-banking-save-status role="status" aria-live="polite">No bank details are collected by this page.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-equipment-card" data-equipment hidden aria-labelledby="cleaner-equipment-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-equipment-title">Equipment</h1>
+                <p>What kit you bring. Jobs are matched to what you have.</p>
+              </header>
+
+              <form class="hc-equipment-form" data-equipment-form>
+                <fieldset class="hc-equipment-section">
+                  <legend>Your kit</legend>
+                  <label class="hc-equipment-own">
+                    <strong>Do you provide your own cleaning equipment?</strong>
+                    <span class="hc-equipment-toggle"><span data-equipment-own-copy>No</span><input type="checkbox" name="ownEquipment" data-equipment-own><i aria-hidden="true"></i></span>
+                  </label>
+                </fieldset>
+
+                <fieldset class="hc-equipment-section">
+                  <legend>Tick what you have</legend>
+                  <div class="hc-equipment-grid" data-equipment-grid>
+                    <label><input type="checkbox" name="kitItem" value="Vacuum" data-equipment-item data-equipment-kind="equipment"><span>Vacuum</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Steam cleaner" data-equipment-item data-equipment-kind="equipment"><span>Steam cleaner</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Mop &amp; bucket" data-equipment-item data-equipment-kind="equipment"><span>Mop &amp; bucket</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Cleaning chemicals" data-equipment-item data-equipment-kind="product"><span>Cleaning chemicals</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Carpet cleaner" data-equipment-item data-equipment-kind="equipment"><span>Carpet cleaner</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Pressure washer" data-equipment-item data-equipment-kind="equipment"><span>Pressure washer</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Ladder" data-equipment-item data-equipment-kind="equipment"><span>Ladder</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Vehicle" data-equipment-item data-equipment-kind="equipment"><span>Vehicle</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Eco-friendly products" data-equipment-item data-equipment-kind="product"><span>Eco-friendly products</span></label>
+                    <label><input type="checkbox" name="kitItem" value="PPE" data-equipment-item data-equipment-kind="equipment"><span>PPE</span></label>
+                    <label><input type="checkbox" name="kitItem" value="Other" data-equipment-item data-equipment-kind="other"><span>Other</span></label>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/banking">&larr; Back</a>
+                  <p data-equipment-save-status role="status" aria-live="polite">Loading your saved equipment and products&hellip;</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
+            <section class="hc-personal-card hc-availability-card" data-availability hidden aria-labelledby="cleaner-availability-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-availability-title">Availability</h1>
+                <p>Tap the slots you can work. Clients book within these windows, and you can change the preview at any time.</p>
+              </header>
+
+              <form class="hc-availability-form" data-availability-form>
+                <fieldset class="hc-availability-section hc-availability-week-section">
+                  <legend class="hc-sr-only">Weekly availability preview</legend>
+                  <div class="hc-availability-week">
+                    <table class="hc-availability-table">
+                      <caption class="hc-sr-only">Preview of weekly working slots</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col"></th>
+                          <th scope="col">Mon</th>
+                          <th scope="col">Tue</th>
+                          <th scope="col">Wed</th>
+                          <th scope="col">Thu</th>
+                          <th scope="col">Fri</th>
+                          <th scope="col">Sat</th>
+                          <th scope="col">Sun</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <th scope="row">Morning</th>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="mon-morning" data-availability-slot><span><span class="hc-sr-only">Monday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="tue-morning" data-availability-slot><span><span class="hc-sr-only">Tuesday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="wed-morning" data-availability-slot><span><span class="hc-sr-only">Wednesday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="thu-morning" data-availability-slot><span><span class="hc-sr-only">Thursday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="fri-morning" data-availability-slot><span><span class="hc-sr-only">Friday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sat-morning" data-availability-slot><span><span class="hc-sr-only">Saturday morning</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sun-morning" data-availability-slot><span><span class="hc-sr-only">Sunday morning</span></span></label></td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Afternoon</th>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="mon-afternoon" data-availability-slot><span><span class="hc-sr-only">Monday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="tue-afternoon" data-availability-slot><span><span class="hc-sr-only">Tuesday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="wed-afternoon" data-availability-slot><span><span class="hc-sr-only">Wednesday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="thu-afternoon" data-availability-slot><span><span class="hc-sr-only">Thursday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="fri-afternoon" data-availability-slot><span><span class="hc-sr-only">Friday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sat-afternoon" data-availability-slot><span><span class="hc-sr-only">Saturday afternoon</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sun-afternoon" data-availability-slot><span><span class="hc-sr-only">Sunday afternoon</span></span></label></td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Evening</th>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="mon-evening" data-availability-slot><span><span class="hc-sr-only">Monday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="tue-evening" data-availability-slot><span><span class="hc-sr-only">Tuesday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="wed-evening" data-availability-slot><span><span class="hc-sr-only">Wednesday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="thu-evening" data-availability-slot><span><span class="hc-sr-only">Thursday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="fri-evening" data-availability-slot><span><span class="hc-sr-only">Friday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sat-evening" data-availability-slot><span><span class="hc-sr-only">Saturday evening</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sun-evening" data-availability-slot><span><span class="hc-sr-only">Sunday evening</span></span></label></td>
+                        </tr>
+                        <tr>
+                          <th scope="row">Night</th>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="mon-night" data-availability-slot><span><span class="hc-sr-only">Monday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="tue-night" data-availability-slot><span><span class="hc-sr-only">Tuesday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="wed-night" data-availability-slot><span><span class="hc-sr-only">Wednesday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="thu-night" data-availability-slot><span><span class="hc-sr-only">Thursday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="fri-night" data-availability-slot><span><span class="hc-sr-only">Friday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sat-night" data-availability-slot><span><span class="hc-sr-only">Saturday night</span></span></label></td>
+                          <td><label><input type="checkbox" name="availabilitySlot" value="sun-night" data-availability-slot><span><span class="hc-sr-only">Sunday night</span></span></label></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p class="hc-availability-preview-note">Selected slots stay on this open page. Existing confirmed dated windows are not changed.</p>
+                </fieldset>
+
+                <fieldset class="hc-availability-section">
+                  <legend>Limits</legend>
+                  <div class="hc-availability-hours">
+                    <label for="cleaner-maximum-hours">Maximum hours per week</label>
+                    <output for="cleaner-maximum-hours" data-availability-hours>0 hours</output>
+                    <input id="cleaner-maximum-hours" type="range" name="maximumHours" min="0" max="60" step="1" value="0">
+                  </div>
+                  <div class="hc-availability-limits">
+                    <label class="hc-availability-holiday">
+                      <span><strong>Holiday mode &mdash; pause all new job offers</strong></span>
+                      <span class="hc-availability-toggle"><span>No</span><input type="checkbox" name="holidayMode"><i aria-hidden="true"></i></span>
+                    </label>
+                    <label class="hc-availability-date"><span>Unavailable date</span><input type="date" name="unavailableDate"><small>We will not offer jobs on this preview date.</small></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-availability-section">
+                  <legend>Preferred jobs</legend>
+                  <div class="hc-availability-jobs">
+                    <label><input type="checkbox" name="preferredJob" value="regular-weekly" data-availability-job><span>Regular weekly cleans</span></label>
+                    <label><input type="checkbox" name="preferredJob" value="one-off-deep" data-availability-job><span>One-off deep cleans</span></label>
+                    <label><input type="checkbox" name="preferredJob" value="end-of-tenancy" data-availability-job><span>End of tenancy</span></label>
+                    <label><input type="checkbox" name="preferredJob" value="airbnb-turnovers" data-availability-job><span>Airbnb turnovers</span></label>
+                    <label><input type="checkbox" name="preferredJob" value="office-contracts" data-availability-job><span>Office contracts</span></label>
+                    <label><input type="checkbox" name="preferredJob" value="short-notice-cover" data-availability-job><span>Short-notice cover</span></label>
+                  </div>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/banking">&larr; Back</a>
+                  <p data-availability-save-status role="status" aria-live="polite">Checking your confirmed future availability&hellip;</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>
               </form>

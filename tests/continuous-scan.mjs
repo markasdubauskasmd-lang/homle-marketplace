@@ -7,7 +7,8 @@ import {
   roomCoverageProgress, rosterSummary, scanSummary, shouldCaptureKeyframe,
   signatureDistance, walkingReadIsBlocked, conditionReviewAdvice, conditionTag, movementAdvice,
   objectFramingAdvice, savedDetectionFromInventoryItem, usableLiveBoxes,
-  signatureChangeSpread, movementSpreadThreshold
+  signatureChangeSpread, movementSpreadThreshold,
+  conditionNeedsReview, cleanConditionReviewThreshold, recommendedAction
 } from "../public/room-scan-model.js";
 
 // The scan used to be one shutter press per room, so whatever was not in that one
@@ -511,10 +512,15 @@ assert.match(styles, /\.scan-progress-meter\[data-level="4"\] i\{[^}]*scaleX\(1\
 // and a timeout can arrive after the provider has already been billed.
 const keyframeBody = overlay.slice(overlay.indexOf("function maybeReadKeyframe"), overlay.indexOf("function inventoryFor"));
 assert.doesNotMatch(keyframeBody, /capturedCount = Math\.max\(0, /, "A failed keyframe read refunds its attempt, which lets a failing room retry without bound.");
-assert.match(overlay, /async function maybeReadKeyframe\(video\)[\s\S]*await encodeCanvasJpeg\(canvas, 0\.72\)/, "Walking frames are not encoded asynchronously, so automatic reads can still pause the live camera.");
-assert.doesNotMatch(keyframeBody, /canvas\.toDataURL\("image\/jpeg", 0\.72\)/, "The walking path still performs synchronous JPEG compression on the camera thread.");
+assert.match(overlay, /async function maybeReadKeyframe\(video\)[\s\S]*await encodeCanvasJpeg\(canvas, 0\.80\)/, "Walking frames are not encoded asynchronously, so automatic reads can still pause the live camera.");
+assert.doesNotMatch(keyframeBody, /canvas\.toDataURL\("image\/jpeg"/, "The walking path still performs synchronous JPEG compression on the camera thread.");
+// The walking read's grades are what the live list shows and what survives into
+// the saved room, and condition is fine texture — residue film, limescale
+// speckle. 1024px/0.72 destroyed that evidence before the model saw it, which is
+// how a visibly dirty sink could be graded "clean" mid-walk.
+assert.match(keyframeBody, /1280 \/ Math\.max\(sourceRect\.sWidth, sourceRect\.sHeight\)/, "The walking frame was reduced below the size condition evidence survives at.");
 assert.ok(
-  keyframeBody.indexOf("state.keyframeActiveRooms.add(roomKey)") < keyframeBody.indexOf("await encodeCanvasJpeg(canvas, 0.72)"),
+  keyframeBody.indexOf("state.keyframeActiveRooms.add(roomKey)") < keyframeBody.indexOf("await encodeCanvasJpeg(canvas, 0.80)"),
   "The room is reserved only after asynchronous encoding, so consecutive video callbacks can encode and send the same view twice."
 );
 assert.ok(
@@ -592,18 +598,36 @@ for (const grade of ["heavy", "medium", "light", "clean"]) {
   assert.ok(styles.includes(`.det-box[data-grade="${grade}"]`), `No glow state exists for a ${grade} object, so its verdict is invisible on the object itself.`);
 }
 
+/* ── The sweep line: visible reading, never claimed reading ── */
+
+// A thin line sweeps inside each glow while a walking read is in flight — the
+// sixth field report's own suggestion. Two rules keep it honest and cheap: the
+// class comes only from real read state (an animation claiming analysis that
+// is not happening is the "0 items found" contradiction in reverse), and the
+// animation is transform-only because it plays over a live camera feed.
+assert.ok(styles.includes("[data-detection-layer].is-reading .det-box.show::before"), "The reading sweep line has no presentation.");
+assert.match(styles, /@keyframes scanSweepLine\{from\{transform:translateY\(0\)\}to\{transform:translateY\([^)]+\)\}\}/, "The sweep animates something other than transform, repainting a live camera feed every frame.");
+assert.ok(/prefers-reduced-motion[\s\S]{0,400}\.is-reading \.det-box\.show::before\{content:none;animation:none\}/.test(styles), "The sweep ignores reduced-motion.");
+assert.match(overlay, /el\.detections\.classList\.toggle\("is-reading", currentRoomBusy && !state\.frozen\)/, "The sweep is not gated on genuine in-flight reading, so it would claim analysis that is not happening.");
+
 /* ── "Slow down" is said when it helps, and only then ── */
 
 // Sustained sweeping is the one problem the quality pass cannot see: a swept
 // frame can be bright and, at an instant, sharp. But the tracker loses its
 // locks and the keyframe picker (rightly) refuses to spend a read, so a whole
 // room can be walked with nothing found and no explanation.
-assert.ok(movementAdvice([0.2, 0.2]), "Two consecutive fast samples — a deliberate sweep — produced no guidance.");
-assert.equal(movementAdvice([0.01, 0.2]), null, "A single fast sample triggered the hint. That is just the customer turning to the next wall, which the scan exists to encourage.");
-assert.equal(movementAdvice([0.2, 0.01]), null, "The hint persists after the phone has settled.");
+//
+// THREE consecutive fast samples, since the sixth field report. At two, a turn
+// to the next wall plus its settling frame fired the hint on nearly every wall
+// change — "constantly says I am moving too fast". The paid reads never relied
+// on this nag: capture separately demands stillness and measured sharpness.
+assert.ok(movementAdvice([0.2, 0.2, 0.2]), "A genuinely sustained sweep produced no guidance.");
+assert.equal(movementAdvice([0.2, 0.2]), null, "Two fast samples fired the hint — a turn plus its settling frame nagged on nearly every wall change, the sixth field report exactly.");
+assert.equal(movementAdvice([0.01, 0.2, 0.2]), null, "An interrupted streak triggered the hint.");
+assert.equal(movementAdvice([0.2, 0.2, 0.01]), null, "The hint persists after the phone has settled.");
 assert.equal(movementAdvice([]), null, "No samples produced advice.");
 assert.equal(movementAdvice([0.2]), null, "One sample is not a streak.");
-assert.equal(movementAdvice([NaN, 0.5, 0.5]) === null, false, "Garbage samples poisoned real ones.");
+assert.equal(movementAdvice([NaN, 0.5, 0.5, 0.5]) === null, false, "Garbage samples poisoned real ones.");
 
 // Once the free on-device tracker has held an object steadily, its geometry can
 // tell the customer that every visible item is too small for reliable condition
@@ -630,7 +654,10 @@ assert.match(
 );
 assert.match(
   overlay,
-  /const framingMessage = objectFramingAdvice\(state\.tracks\)\?\.message \|\| ""[\s\S]{0,220}framingMessage !== state\.framingMessage[\s\S]{0,180}renderDetectorState\(\)/,
+  // The advice object is now kept (its kind feeds the zoom assist's streak);
+  // the guarded properties are unchanged: framing derives from the stable
+  // tracks, and the guidance DOM is only rewritten when its meaning changes.
+  /const framingAdvice = objectFramingAdvice\(state\.tracks\);[\s\S]{0,400}framingMessage !== state\.framingMessage[\s\S]{0,180}renderDetectorState\(\)/,
   "Small-object framing is not derived from stable live tracks, or rewrites the guidance DOM on every inference frame."
 );
 assert.match(
@@ -720,10 +747,12 @@ assert.ok(fanDistance >= keyframeDefaults.sceneChangeThreshold, `The fan fixture
 assert.ok(fanSpread < movementSpreadThreshold, `The fan flicker reads as widespread (${fanSpread.toFixed(2)}), so spread cannot discriminate it.`);
 assert.ok(panSpread >= movementSpreadThreshold, `A genuine pan reads as localized (${panSpread.toFixed(2)}), so spread would silence real movement guidance.`);
 
-// The hint: fans no, pan yes.
-assert.equal(movementAdvice([fanDistance, fanDistance], { spreads: [fanSpread, fanSpread] }), null, "A customer standing still in front of colour-cycling fans is still told to slow down.");
-assert.ok(movementAdvice([panDistance, panDistance], { spreads: [panSpread, panSpread] }), "A genuine sustained pan no longer earns the hint at all — the fix over-corrected.");
-assert.equal(movementAdvice([panDistance, panDistance], { spreads: [panSpread, null] }), null, "A sample with no comparable signatures was treated as proven camera motion.");
+// The hint: fans no, pan yes. (Three samples each — the post-sixth-report
+// streak — so what is being tested is the spread discrimination, not the
+// streak length.)
+assert.equal(movementAdvice([fanDistance, fanDistance, fanDistance], { spreads: [fanSpread, fanSpread, fanSpread] }), null, "A customer standing still in front of colour-cycling fans is still told to slow down.");
+assert.ok(movementAdvice([panDistance, panDistance, panDistance], { spreads: [panSpread, panSpread, panSpread] }), "A genuine sustained pan no longer earns the hint at all — the fix over-corrected.");
+assert.equal(movementAdvice([panDistance, panDistance, panDistance], { spreads: [panSpread, panSpread, null] }), null, "A sample with no comparable signatures was treated as proven camera motion.");
 
 // Stillness stays strict — spread may only ever REFUSE a spend, never authorise
 // one. Review proved why with a case this fixture now pins: a door edge crossing
@@ -745,3 +774,51 @@ assert.ok(!shouldCaptureKeyframe({ signature: fanCycle(1), previousSignature: fa
 assert.ok(shouldCaptureKeyframe({ signature: pannedRoom, previousSignature: pannedRoom, lastReadSignature: steadyRoom, now: 100000, lastCaptureAt: 0, capturedCount: 1, busy: false }), "The spread test now also blocks genuinely new views, which would stop the walk finding anything.");
 
 console.log("Scene-motion tests passed: colour-cycling lighting no longer reads as a moving camera — the hint stays quiet, the first read is not held hostage, and the flicker can no longer spend a paid read on a covered wall — while a genuine pan still earns the hint and a genuine new view still pays for its read.");
+
+/* ── "Clean" is the verdict nobody checks ── */
+
+// The two grading errors are not symmetric. A wrong "medium" is reviewed by the
+// customer and removed in a tap; a wrong "clean" says there is nothing to look
+// at, so it is never reviewed and quietly under-scopes the job. That asymmetry
+// is why "clean" carries a higher review threshold — and why a dirty sink once
+// shipped as "Sink CLEAN": graded clean at middling confidence, displayed as
+// settled.
+assert.ok(conditionNeedsReview({ label: "Sink", condition: "clean", conditionConfidence: 0.6 }), "A middling-confidence 'clean' was presented as settled. This is the exact verdict that hid a visibly dirty sink.");
+assert.ok(!conditionNeedsReview({ label: "Sink", condition: "clean", conditionConfidence: 0.85 }), "A clearly evidenced clean was flagged for review, which would nag about every genuinely clean surface in a well-kept home.");
+assert.ok(!conditionNeedsReview({ label: "Hob", condition: "medium", conditionConfidence: 0.6 }), "A soiled grade above its own threshold was flagged, applying the clean bar to verdicts the customer already reviews.");
+assert.ok(conditionNeedsReview({ label: "Hob", condition: "medium", conditionConfidence: 0.4 }), "A soiled grade below the review threshold was presented as a finding.");
+// A grade carrying no confidence at all is not settled evidence. The old guard
+// (`confidence !== null && …`) let an unscored machine verdict skip review.
+assert.ok(conditionNeedsReview({ label: "Wall", condition: "clean" }), "A grade with no confidence at all was treated as settled.");
+// The customer's own confirmation ends the question at any confidence.
+assert.ok(!conditionNeedsReview({ label: "Sink", condition: "clean", conditionConfidence: 0.2, conditionConfirmed: true }), "The scanner keeps questioning a condition the customer explicitly confirmed.");
+assert.ok(cleanConditionReviewThreshold > 0.5, "The clean threshold no longer sits above the soiled one, so the asymmetry this section exists to pin is gone.");
+// And the on-screen advice counts an unsure clean among the things to confirm.
+assert.ok(conditionReviewAdvice([{ label: "Sink", condition: "clean", conditionConfidence: 0.6 }]), "The guidance line stays silent about an unsure 'clean', so nobody is asked to check the one verdict nobody rechecks on their own.");
+
+/* ── Paid reads require measured sharpness ── */
+
+// The nag threshold (detail < 4.5 says "hold still") and the spend threshold are
+// different decisions: a frame at detail 5 is worth correcting, not worth paying
+// to grade — marginal softness is precisely where residue film and limescale
+// speckle dissolve and a model reports "clean" over a soiled surface.
+const sharpBase = { signature: [0.5], previousSignature: [0.5], lastReadSignature: null, now: 100000, lastCaptureAt: 0, capturedCount: 0, busy: false };
+assert.ok(!shouldCaptureKeyframe({ ...sharpBase, detail: 5.0 }), "A marginally soft frame — sharp enough to escape the 'hold still' nag — was still spent on a paid condition read.");
+assert.ok(shouldCaptureKeyframe({ ...sharpBase, detail: 6.2 }), "A sharp frame was refused, so the detail gate blocks the reads it exists to protect.");
+assert.ok(shouldCaptureKeyframe({ ...sharpBase, detail: null }), "A host with no quality sample lost automatic reading entirely instead of keeping today's behaviour.");
+assert.ok(shouldCaptureKeyframe({ ...sharpBase }), "Omitting detail (older callers, test hosts) changed the decision.");
+assert.ok(keyframeDefaults.minimumDetail > 4.5, "The spend threshold no longer sits above the advice threshold, so frames the Landlord is being told to fix can still be billed.");
+
+/* ── The recommended action is owned, not generated ── */
+
+// Deterministic mapping from what was seen to what will be done. The model
+// observes; these rules decide — the same line the pricing work drew.
+assert.equal(recommendedAction({ label: "Tap", condition: "medium", soiling: ["limescale"] }), "Descale the tap", "Limescale on a tap did not produce the one action a cleaner would actually take.");
+assert.equal(recommendedAction({ label: "Extractor hood", condition: "heavy", soiling: ["grease"] }), "Degrease the extractor hood — heavy build-up, allow soaking time", "Heavy build-up did not change how the action is described.");
+assert.match(recommendedAction({ label: "Shower screen", condition: "medium", soiling: ["soap-scum", "dust"] }), /soap scum/i, "The kind needing specific treatment did not outrank the one a general clean covers.");
+assert.equal(recommendedAction({ label: "Sink", condition: "clean", soiling: [] }), "", "A clean object was given a cleaning action — a task the photograph never justified.");
+assert.equal(recommendedAction({ label: "Sink", condition: "", soiling: [] }), "", "An unassessed object was given a cleaning action.");
+assert.equal(recommendedAction({ label: "Worktop", condition: "medium", soiling: [] }), "Give the worktop a thorough clean", "A graded object with no named soiling got no fallback action.");
+assert.match(recommendedAction({ label: "Bath panel", condition: "medium", soiling: ["damage"] }), /not cleanable/, "Damage was turned into a cleaning task instead of a note for the report.");
+
+console.log("Condition-review and recommendation tests passed: an unsure 'clean' is a question rather than a finding, unscored grades are never settled, paid reads require measured sharpness above the nag threshold, and every recommendation comes from the owned mapping rather than model output.");

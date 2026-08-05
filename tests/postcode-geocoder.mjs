@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { createPostcodesIoGeocoder, geocoderFromEnvironment } from "../src/marketplace/postcode-geocoder.mjs";
+import "./address-lookup.mjs";
+import { createGoogleMapsGeocoder, createPostcodesIoGeocoder, geocoderFromEnvironment } from "../src/marketplace/postcode-geocoder.mjs";
 
 function jsonResponse(status, body) {
   return { status, async text() { return JSON.stringify(body); } };
@@ -60,6 +61,23 @@ assert.equal(geocoderFromEnvironment({}), null);
 assert.equal(geocoderFromEnvironment({ GEOCODING_PROVIDER: "none" }), null);
 assert.throws(() => geocoderFromEnvironment({ GEOCODING_PROVIDER: "mapbox" }), /postcodes-io/);
 assert.ok(geocoderFromEnvironment({ GEOCODING_PROVIDER: "postcodes-io" }, { fetch: async () => jsonResponse(200, { status: 200, result: {} }) }));
+assert.throws(() => geocoderFromEnvironment({ GEOCODING_PROVIDER: "google-maps" }), /server API key/);
+assert.ok(geocoderFromEnvironment({ GEOCODING_PROVIDER: "google-maps", GOOGLE_MAPS_SERVER_API_KEY: "server-key" }, { fetch: async () => jsonResponse(200, {}) }));
+
+// Google Geocoding keeps the server key off the response and safely projects coordinates.
+{
+  const calls = [];
+  const geocoder = createGoogleMapsGeocoder({ apiKey: "server-key", fetch: async (url, init) => {
+    calls.push({ url, init });
+    return jsonResponse(200, { status: "OK", results: [{ geometry: { location: { lat: 51.501009, lng: -0.141588 } } }] });
+  } });
+  assert.deepEqual(await geocoder.geocodePostcode("SW1A 1AA"), { latitude: 51.501009, longitude: -0.141588 });
+  const url = new URL(calls[0].url);
+  assert.equal(url.origin, "https://maps.googleapis.com");
+  assert.equal(url.searchParams.get("components"), "postal_code:SW1A1AA|country:GB");
+  assert.equal(url.searchParams.get("key"), "server-key");
+  assert.equal(calls[0].init.redirect, "error");
+}
 
 // Falls back to the platform fetch when none is supplied; only errors when no fetch exists at all.
 assert.ok(createPostcodesIoGeocoder({}), "Geocoder did not fall back to the platform fetch.");

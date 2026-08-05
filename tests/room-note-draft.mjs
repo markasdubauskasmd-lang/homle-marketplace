@@ -121,7 +121,16 @@ const [overlay, legacyEntry, journey, dashboard] = await Promise.all([
   readFile(new URL("../public/landlord-journey.js", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8")
 ]);
-assert(!overlay.includes("localStorage"), "The scan overlay reaches for localStorage, which outlives the tab.");
+// Sharpened from a blanket ban when the spoken-guidance preference arrived:
+// what must not outlive the tab is scan CONTENT. A named on/off setting may
+// live in localStorage; notes, photos and rosters may not — room-scan-ui.mjs
+// holds the matching allowlist assertion on the write sites themselves.
+{
+  const localStorageUses = [...overlay.matchAll(/localStorage\.(?:getItem|setItem|removeItem)\(([^)]*)\)/g)].map((match) => match[1]);
+  assert(localStorageUses.length > 0 === overlay.includes("spokenGuidancePreferenceKey")
+    && localStorageUses.every((args) => args.includes("spokenGuidancePreferenceKey")),
+    `The scan overlay reaches for localStorage beyond the named guidance preference: ${localStorageUses.join(" | ")}`);
+}
 // The overlay stores exactly one thing itself — the CSRF token — and everything
 // about the scan goes through the guarded module above. Any other direct write is
 // how a photograph or a roster would quietly end up in storage.
