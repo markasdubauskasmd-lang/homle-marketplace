@@ -2,6 +2,7 @@ import { bookingSummaryBuckets, bookingSummaryStatusLabels, formatBookingMoney }
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260729-6";
+import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260805-2";
 
 const gate = document.querySelector("[data-schedule-gate]");
 const gateTitle = document.querySelector("[data-schedule-gate-title]");
@@ -15,6 +16,8 @@ const grid = document.querySelector("[data-week-grid]");
 const upcomingList = document.querySelector("[data-upcoming-list]");
 const upcomingEmpty = document.querySelector("[data-upcoming-empty]");
 const weekLabel = document.querySelector("[data-week-label]");
+const timeOffForm = document.querySelector("[data-schedule-time-off-form]");
+const timeOffStatus = document.querySelector("[data-schedule-time-off-status]");
 
 const dayFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short" });
 const dayNumFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", day: "numeric" });
@@ -25,6 +28,7 @@ const londonKeyFormat = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Lon
 let bookings = [];
 let weekOffset = 0;
 let loading = false;
+let savedAvailabilityData = {};
 
 function browserOffline() {
   return typeof navigator === "object" && navigator !== null && navigator.onLine === false;
@@ -56,13 +60,13 @@ function showGate(title, copy, { allowSignIn = false, allowRetry = false } = {})
   view.hidden = true;
 }
 
-async function requestJson(path) {
+async function requestJson(path, options = {}) {
   if (browserOffline()) throw Object.assign(new Error("You are offline."), { code: "browser-offline" });
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 30_000);
   let response;
   try {
-    response = await fetch(path, { headers: { accept: "application/json" }, credentials: "same-origin", cache: "no-store", signal: controller.signal });
+    response = await fetch(path, { ...options, headers: { accept: "application/json", ...(options.headers || {}) }, credentials: "same-origin", cache: "no-store", signal: controller.signal });
   } finally {
     window.clearTimeout(timer);
   }
@@ -203,6 +207,28 @@ function renderAll() {
   document.querySelector("[data-week-pending]").textContent = String(buckets.pending.length);
 }
 
+async function saveTimeOff(event) {
+  event.preventDefault();
+  if (!(timeOffForm instanceof HTMLFormElement) || !timeOffForm.reportValidity()) return;
+  const submit = timeOffForm.querySelector('button[type="submit"]');
+  if (submit instanceof HTMLButtonElement) submit.disabled = true;
+  if (timeOffStatus) timeOffStatus.textContent = "Saving your holiday settings securely…";
+  const preservedAvailability = { ...savedAvailabilityData };
+  delete preservedAvailability.holidayMode;
+  delete preservedAvailability.unavailableDate;
+  try {
+    const saved = await saveOnboardingForm(requestJson, "availability", timeOffForm, { extra: preservedAvailability });
+    savedAvailabilityData = saved?.data || {};
+    if (timeOffStatus) timeOffStatus.textContent = "Holiday mode and unavailable date saved.";
+    showFeedback("Your time-off settings have been saved.");
+  } catch (error) {
+    if (timeOffStatus) timeOffStatus.textContent = "Your holiday settings were not saved. Try again.";
+    showFeedback(error.message || "Your time-off settings could not be saved.", "error");
+  } finally {
+    if (submit instanceof HTMLButtonElement) submit.disabled = false;
+  }
+}
+
 async function loadSchedule() {
   if (loading) return;
   loading = true;
@@ -219,8 +245,15 @@ async function loadSchedule() {
     gate.hidden = true;
     view.hidden = false;
 
-    const bookingResult = await requestJson("/api/marketplace/bookings?limit=50");
+    const [bookingResult, availabilitySection] = await Promise.all([
+      requestJson("/api/marketplace/bookings?limit=50"),
+      loadOnboardingForm(requestJson, "availability", timeOffForm).catch(() => null)
+    ]);
     bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
+    savedAvailabilityData = availabilitySection?.data || {};
+    if (timeOffStatus) timeOffStatus.textContent = availabilitySection
+      ? "Holiday mode and unavailable dates are saved separately from confirmed jobs."
+      : "Saved holiday settings could not be loaded. Refresh before making changes.";
     const payoutLink = document.querySelector("[data-cleaner-payout-link]");
     if (payoutLink) payoutLink.hidden = false;
     renderAll();
@@ -237,6 +270,7 @@ async function loadSchedule() {
 
 document.querySelector("[data-week-prev]").addEventListener("click", () => { weekOffset -= 1; renderAll(); });
 document.querySelector("[data-week-next]").addEventListener("click", () => { weekOffset += 1; renderAll(); });
+timeOffForm?.addEventListener("submit", saveTimeOff);
 retry.addEventListener("click", loadSchedule);
 window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", () => {

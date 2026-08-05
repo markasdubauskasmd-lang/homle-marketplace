@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
-  <script src="/cleaner-schedule.js?v=20260729-2" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260805-1">
+  <script src="/cleaner-schedule.js?v=20260805-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -189,6 +189,30 @@
           <div class="hc-week">
             <div class="hc-week-grid" data-week-grid></div>
           </div>
+
+          <section class="hc-schedule-time-off" aria-labelledby="schedule-time-off-title">
+            <div class="hc-schedule-time-off-head">
+              <div>
+                <span class="hc-schedule-time-off-kicker">AVAILABILITY CONTROL</span>
+                <h2 id="schedule-time-off-title">Holiday mode &amp; time off</h2>
+                <p>Pause new job offers or record a date when you cannot work. Confirmed jobs are not cancelled.</p>
+              </div>
+              <a href="/cleaner/availability">Edit weekly hours</a>
+            </div>
+            <form class="hc-schedule-time-off-form" data-schedule-time-off-form>
+              <div class="hc-availability-limits">
+                <label class="hc-availability-holiday">
+                  <span><strong>Holiday mode &mdash; pause all new job offers</strong></span>
+                  <span class="hc-availability-toggle"><span>No</span><input type="checkbox" name="holidayMode"><i aria-hidden="true"></i></span>
+                </label>
+                <label class="hc-availability-date"><span>Unavailable date</span><input type="date" name="unavailableDate"><small>Homle will not offer new jobs on this date.</small></label>
+              </div>
+              <div class="hc-schedule-time-off-actions">
+                <p data-schedule-time-off-status role="status" aria-live="polite">Loading your saved holiday settings&hellip;</p>
+                <button class="hc-btn" type="submit">Save time off</button>
+              </div>
+            </form>
+          </section>
 
           <div class="hc-upcoming">
             <div class="hc-upcoming-empty" data-upcoming-empty>Nothing booked yet — accept a pending job from your <a href="/cleaner/dashboard">dashboard</a> to build your schedule.</div>
