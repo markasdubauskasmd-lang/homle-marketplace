@@ -90,7 +90,7 @@ function hydrateExperience(form, currentProfile) {
 }
 
 export async function setupExperience({ account, showFeedback, requestJson }) {
-  document.title = "Cleaning experience | Homle";
+  document.title = "Skills and Experience | Homle";
   const overview = document.querySelector("[data-registration-overview]");
   const layout = document.querySelector("[data-personal-details]");
   const cards = [
@@ -129,7 +129,7 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
   if (!profile) {
-    showFeedback("Cleaning experience could not be loaded. Nothing was changed.", "error");
+    showFeedback("Skills and Experience could not be loaded. Nothing was changed.", "error");
     return;
   }
   hydrateExperience(form, profile);
@@ -156,10 +156,10 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
       });
       profile = result.profile;
       hydrateExperience(form, profile);
-      showFeedback("Cleaning experience and connected specialisms saved.", "success");
+      showFeedback("Skills and Experience saved with your connected specialisms.", "success");
       location.assign("/cleaner/registration");
     } catch (error) {
-      showFeedback(error.message || "Cleaning experience could not be saved.", "error");
+      showFeedback(error.message || "Skills and Experience could not be saved.", "error");
     } finally {
       if (submit instanceof HTMLButtonElement) submit.disabled = false;
     }
