@@ -6,8 +6,10 @@ const draftKey = "homle-cleaner-personal-details-draft-v1";
 const draftLifetimeMs = 8 * 60 * 60 * 1000;
 const maximumProfilePhotoBytes = 5 * 1024 * 1024;
 const maximumPreparedPhotoDimension = 1280;
-const photoUploadTimeoutMs = 30_000;
+const photoWakeTimeoutMs = 90_000;
+const photoUploadTimeoutMs = 90_000;
 const acceptedProfilePhotoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const transientWakeStatuses = new Set([502, 503, 504]);
 const previousAddressFieldNames = Object.freeze(["postcode", "houseNumber", "street", "town", "county", "country", "fromMonth", "fromYear", "yearsLived"]);
 const requiredPreviousAddressFields = Object.freeze(previousAddressFieldNames.filter((name) => name !== "county"));
 
@@ -28,6 +30,43 @@ function canvasJpeg(canvas) {
       else reject(new Error("Homle could not prepare this photo. Try a different image."));
     }, "image/jpeg", 0.82);
   });
+}
+
+function shortDelay(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+async function wakeProfilePhotoStorage() {
+  const deadline = Date.now() + photoWakeTimeoutMs;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error("Secure photo storage took too long to wake. Try again.");
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), remaining);
+    try {
+      const response = await fetch("/api/health", {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal: controller.signal
+      });
+      if (response.ok) return;
+      if (attempt === 0 && transientWakeStatuses.has(response.status)) {
+        await shortDelay(1_200);
+        continue;
+      }
+      throw new Error("Secure photo storage is temporarily unavailable. Try again.");
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("Secure photo storage took too long to wake. Try again.");
+      if (attempt === 0) {
+        await shortDelay(1_200);
+        continue;
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
 }
 
 async function prepareProfilePhoto(file) {
@@ -265,6 +304,9 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
     let uploadTimeout = 0;
     try {
       const preparedPhoto = await prepareProfilePhoto(file);
+      photoButton.textContent = "Waking secure storage…";
+      if (photoStatus) photoStatus.textContent = "Getting secure photo storage ready. This can take up to a minute on the free service…";
+      await wakeProfilePhotoStorage();
       photoButton.textContent = "Uploading…";
       if (photoStatus) photoStatus.textContent = "Securely saving your photo…";
       uploadTimeout = window.setTimeout(() => controller.abort(), photoUploadTimeoutMs);
