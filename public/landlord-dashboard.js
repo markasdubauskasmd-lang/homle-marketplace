@@ -587,7 +587,7 @@ async function refreshSelectedCleanerProfile() {
  * dashboard used until now, so saved links and any open tab keep working.
  */
 function workspaceTabFromLocation() {
-  const path = /^\/landlord\/(properties|requests|account)\/?$/.exec(location.pathname);
+  const path = /^\/landlord\/(properties|requests|account|payments)\/?$/.exec(location.pathname);
   if (path) return path[1];
   const hash = /^#landlord-(properties|requests|account)$/.exec(location.hash);
   return hash?.[1] || "";
@@ -614,7 +614,7 @@ function setRequestBuilderExpanded(expanded) {
 }
 
 function selectWorkspaceTab(name, { historyMode = "" } = {}) {
-  const selected = ["properties", "requests", "account"].includes(name) ? name : "properties";
+  const selected = ["properties", "requests", "account", "payments"].includes(name) ? name : "properties";
   document.querySelectorAll('[data-landlord-panel]:not([data-landlord-panel="requests"])').forEach((panel) => {
     panel.hidden = selected === "requests" ? panel.dataset.landlordPanel !== "properties" : panel.dataset.landlordPanel !== selected;
   });
@@ -1770,6 +1770,7 @@ function renderBookings() {
   updateUpcomingRevealCount();
   document.querySelector("[data-landlord-history-reveal-count]").textContent = String(historySummary.completedCleanCount);
   renderLandlordHistory(historySummary);
+  renderLandlordPayments(bookings);
   syncInvitationStream();
 }
 
@@ -1795,6 +1796,57 @@ function updateUpcomingRevealCount() {
   const buckets = bookingSummaryBuckets(bookings, "landlord");
   const bookingCount = buckets.active.length + buckets.upcoming.length + buckets.waiting.length;
   document.querySelector("[data-landlord-booking-reveal-count]").textContent = String(visibleRequestCount + bookingCount);
+}
+
+/**
+ * Payment status for every priced booking.
+ *
+ * Deliberately status, not receipts. There is no receipt URL, invoice URL,
+ * charge id or payment intent exposed to a Landlord anywhere in this system,
+ * and bookingSummaryMoneyBoundary already states in several places that these
+ * totals are not proof of a charge. Rendering them as a receipt-shaped document
+ * would create something a Landlord could reasonably treat as proof of payment
+ * in a dispute. Real receipts belong to the payment provider.
+ *
+ * So every row reuses the same wording the booking cards already use, rather
+ * than inventing a more confident phrasing for the same underlying data.
+ */
+function renderLandlordPayments(allBookings) {
+  const list = document.querySelector("[data-landlord-payments-list]");
+  const empty = document.querySelector("[data-landlord-payments-empty]");
+  if (!list || !empty) return;
+
+  const priced = (Array.isArray(allBookings) ? allBookings : [])
+    .filter((booking) => Number(booking?.pricePence) > 0)
+    .sort((a, b) => String(b.scheduledStartAt || "").localeCompare(String(a.scheduledStartAt || "")));
+
+  empty.hidden = priced.length > 0;
+  list.replaceChildren(...priced.map((booking) => {
+    const row = element("article", "landlord-payment-row");
+
+    const head = element("div", "landlord-payment-head");
+    head.append(
+      element("strong", "", booking.propertyLabel || booking.propertyArea || "Saved property"),
+      element("span", "landlord-payment-total", formatBookingMoney(booking.pricePence)),
+    );
+
+    const meta = element("p", "landlord-payment-meta", formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt));
+
+    // The authorisation stage in words. Never "paid": nothing here evidences a
+    // completed charge, and saying so would be the whole problem.
+    const stage = booking.paymentAuthorizationReady === true
+      ? { label: "Authorised", kind: "ready" }
+      : booking.paymentStepAvailable === true
+        ? { label: "Awaiting your authorisation", kind: "action" }
+        : { label: "No authorisation needed yet", kind: "idle" };
+    const badge = element("span", `landlord-payment-stage landlord-payment-stage-${stage.kind}`, stage.label);
+
+    const status = element("div", "landlord-payment-status");
+    status.append(badge, element("span", "landlord-payment-booking-state", bookingSummaryStatusLabels[booking.status] || "Booking"));
+
+    row.append(head, meta, status, element("p", "landlord-payment-boundary", bookingSummaryMoneyBoundary(booking, "landlord")));
+    return row;
+  }));
 }
 
 function renderLandlordHistory(summary) {

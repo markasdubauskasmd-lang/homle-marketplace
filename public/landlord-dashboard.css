@@ -1583,3 +1583,55 @@ body.landlord-dashboard-page .pac-basket-lines li.pac-basket-empty::before { dis
 @media (prefers-reduced-motion: reduce) {
   [data-landlord-workspace][aria-busy="true"]::after { animation: none; background: none; }
 }
+
+/* ── Payments panel ───────────────────────────────────────────────────────
+   Payment STATUS, deliberately not receipts. Nothing in this system evidences a
+   completed charge to a Landlord, so nothing here is styled to look like a
+   financial document — no serif totals, no printable card, no document chrome.
+   It reads as a status list, because that is what the data supports. */
+.landlord-payments-intro { margin: 0 0 18px; color: var(--homle-muted, #665f61); }
+.landlord-payments-list { display: grid; gap: 12px; }
+.landlord-payment-row {
+  padding: 16px 18px;
+  border: 1.5px solid var(--homle-line, rgba(11, 9, 10, .12));
+  border-radius: var(--homle-radius-lg, 22px);
+  background: var(--homle-paper, #fff);
+}
+.landlord-payment-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.landlord-payment-total {
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.landlord-payment-meta { margin: 4px 0 12px; font-size: .88rem; color: var(--homle-muted, #665f61); }
+.landlord-payment-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.landlord-payment-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+/* Colour is never the only signal — each stage is spelled out in words. */
+.landlord-payment-stage::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.landlord-payment-stage-ready { color: var(--homle-success, #137738); background: color-mix(in oklch, var(--homle-success, #137738) 10%, white); }
+.landlord-payment-stage-action { color: var(--homle-coral-action, #c8102e); background: color-mix(in oklch, var(--homle-coral-action, #c8102e) 9%, white); }
+.landlord-payment-stage-idle { color: var(--homle-muted, #665f61); background: var(--homle-surface, #fbf9f3); }
+.landlord-payment-booking-state { font-size: .85rem; color: var(--homle-muted, #665f61); }
+.landlord-payment-boundary { margin: 12px 0 0; font-size: .82rem; line-height: 1.5; color: var(--homle-muted, #665f61); }
+.landlord-payments-empty,
+.landlord-payments-note { margin: 16px 0 0; font-size: .85rem; line-height: 1.5; color: var(--homle-muted, #665f61); }
+
+@media (max-width: 560px) {
+  .landlord-payment-head { flex-direction: column; align-items: flex-start; gap: 2px; }
+}
