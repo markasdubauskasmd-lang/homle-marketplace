@@ -300,11 +300,14 @@ function setSecurityHeaders(response, requestPath = "", cspNonce = "") {
   const landlordDashboardPage = requestPath === "/landlord/dashboard";
   const journeyPage = requestPath === "/landlord/book";
   const googleMapPage = requestPath === "/cleaner/jobs-map";
+  const postcodeMapPage = requestPath === "/cleaner/work-areas";
   const privateMediaPage = activeJobPage || landlordDashboardPage || journeyPage;
   const activeJobStorage = privateMediaPage && objectStorageOrigins.length ? ` ${objectStorageOrigins.join(" ")}` : "";
   const trustedAccountAvatars = " https://*.googleusercontent.com https://*.fbcdn.net https://platform-lookaside.fbsbx.com";
   response.setHeader("Content-Security-Policy", googleMapPage
     ? `default-src 'self'; img-src 'self' data: blob: https://*.googleapis.com https://*.gstatic.com https://*.google.com https://*.googleusercontent.com; style-src 'self' 'nonce-${cspNonce}' https://fonts.googleapis.com; script-src 'nonce-${cspNonce}' 'strict-dynamic' https: 'unsafe-eval' blob:; connect-src 'self' https://*.googleapis.com https://*.google.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; worker-src blob:; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`
+    : postcodeMapPage
+    ? "default-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; style-src 'self'; script-src 'self'; connect-src 'self' https://api.postcodes.io; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     : paymentPage
     ? "default-src 'self'; img-src 'self' data: blob: https://*.stripe.com; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://r.stripe.com https://m.stripe.network; frame-src https://js.stripe.com https://hooks.stripe.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     : privateMediaPage
