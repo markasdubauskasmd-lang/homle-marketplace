@@ -1,5 +1,6 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
 import { storedCsrf } from "./session-csrf.js";
+import { hydrateOnboardingDocumentInputs, selectedDocumentCopy, storedDocumentCopy, uploadOnboardingFormDocuments, validateOnboardingDocument } from "./cleaner-onboarding-documents.js?v=20260805-1";
 
 const experienceOptions = [
   { label: "Domestic", serviceCode: "regular-domestic" },
@@ -89,6 +90,15 @@ function hydrateExperience(form, currentProfile) {
   });
 }
 
+function renderExperienceDocument(input, copyText) {
+  const row = input.closest("label");
+  row?.classList.add("is-selected");
+  const copy = row?.querySelector("small");
+  const action = row?.querySelector(".hc-experience-upload-action");
+  if (copy) copy.textContent = copyText;
+  if (action) action.textContent = "Replace";
+}
+
 export async function setupExperience({ account, showFeedback, requestJson }) {
   document.title = "Skills and Experience | Homle";
   const overview = document.querySelector("[data-registration-overview]");
@@ -133,6 +143,23 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
     return;
   }
   hydrateExperience(form, profile);
+  await hydrateOnboardingDocumentInputs(requestJson, "experience", form, "[data-experience-file]", (input, document) => renderExperienceDocument(input, storedDocumentCopy(document))).catch(() => null);
+
+  form.querySelectorAll("[data-experience-file]").forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!(input instanceof HTMLInputElement)) return;
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        validateOnboardingDocument(file);
+        renderExperienceDocument(input, selectedDocumentCopy(file));
+        showFeedback("Document ready. Select Save & continue to store it securely.");
+      } catch (error) {
+        input.value = "";
+        showFeedback(error.message, "error");
+      }
+    });
+  });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -149,6 +176,11 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
     const submit = form.querySelector('button[type="submit"]');
     if (submit instanceof HTMLButtonElement) submit.disabled = true;
     try {
+      const uploaded = await uploadOnboardingFormDocuments(form, "experience", "[data-experience-file]", ({ current, total }) => showFeedback(`Uploading document ${current} of ${total} securely…`));
+      for (const document of uploaded) {
+        const input = form.elements.namedItem(document.documentType);
+        if (input instanceof HTMLInputElement) renderExperienceDocument(input, storedDocumentCopy(document));
+      }
       const result = await requestJson("/api/marketplace/cleaner/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },

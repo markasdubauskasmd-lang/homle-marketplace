@@ -95,7 +95,7 @@
     "test:facebook-data-deletion": "node tests/facebook-data-deletion.mjs",
     "test:facebook-identity": "node tests/facebook-identity-service.mjs",
     "test:auth-http": "node tests/authentication-http.mjs",
-    "test:profiles": "node tests/cleaner-profile.mjs && node tests/cleaner-profile-photo.mjs",
+    "test:profiles": "node tests/cleaner-profile.mjs && node tests/cleaner-profile-photo.mjs && node tests/cleaner-onboarding-document.mjs",
     "test:profile-ui": "node tests/cleaner-profile-ui.mjs",
     "test:landlord-ui": "node tests/landlord-dashboard-ui.mjs",
     "check:landlord-draft": "node --check public/landlord-request-draft.js && node --check tests/landlord-request-draft.mjs",

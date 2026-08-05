@@ -1,5 +1,6 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-import { loadOnboardingForm, onboardingFileMetadata, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { hydrateOnboardingDocumentInputs, storedDocumentCopy, uploadOnboardingFormDocuments } from "./cleaner-onboarding-documents.js?v=20260805-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -42,14 +43,23 @@ function renderBackgroundStatus(profile) {
     return;
   }
   banner.classList.add("is-pending");
-  banner.textContent = "Status: Not started — secure DBS submission is not connected on this preview.";
+  banner.textContent = "Status: Not started — secure DBS document storage is ready for your certificate.";
   const noDbs = document.querySelector('input[name="dbsLevel"][value="none"]');
   if (status === "not-checked" && noDbs instanceof HTMLInputElement) noDbs.checked = true;
 }
 
 function selectedFileCopy(file) {
   const megabytes = Math.max(0.1, file.size / (1024 * 1024)).toFixed(1);
-  return `${file.name} · ${megabytes} MB · selected for this page only`;
+  return `${file.name} · ${megabytes} MB · ready to upload when you save`;
+}
+
+function renderStoredDocument(input, document) {
+  const row = input.closest(".hc-identity-document");
+  row?.classList.add("is-selected");
+  const copy = row?.querySelector("small");
+  const action = row?.querySelector(".hc-identity-document-action");
+  if (copy) copy.textContent = storedDocumentCopy(document);
+  if (action) action.textContent = "Replace";
 }
 
 export async function setupBackgroundChecks({ account, showFeedback, requestJson }) {
@@ -88,6 +98,7 @@ export async function setupBackgroundChecks({ account, showFeedback, requestJson
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
   renderBackgroundStatus(profile);
   await loadOnboardingForm(requestJson, "dbs", form).catch(() => null);
+  await hydrateOnboardingDocumentInputs(requestJson, "dbs", form, "[data-background-file]", renderStoredDocument).catch(() => null);
 
   const fileInput = document.querySelector("[data-background-file]");
   fileInput?.addEventListener("change", () => {
@@ -109,20 +120,22 @@ export async function setupBackgroundChecks({ account, showFeedback, requestJson
     row?.classList.add("is-selected");
     if (copy) copy.textContent = selectedFileCopy(file);
     if (action) action.textContent = "Replace";
-    showFeedback("Certificate selected for this page only. It has not been uploaded or stored.");
+    showFeedback("Certificate ready. Select Save & continue to store it securely.");
   });
 
   form.addEventListener("input", () => {
     const status = document.querySelector("[data-background-save-status]");
-    if (status) status.textContent = "Sensitive DBS details remain only in this open page and are not stored.";
+    if (status) status.textContent = "DBS details and selected documents will be encrypted and stored when you continue.";
   });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!form.reportValidity()) return;
     try {
-      await saveOnboardingForm(requestJson, "dbs", form, { extra: { documentSelections: onboardingFileMetadata(form) } });
-      showFeedback("Background-check details and consent saved securely. Verification status changes only after Homle records the approved result.");
+      const uploaded = await uploadOnboardingFormDocuments(form, "dbs", "[data-background-file]", () => showFeedback("Uploading the DBS certificate securely…"));
+      for (const document of uploaded) renderStoredDocument(fileInput, document);
+      await saveOnboardingForm(requestJson, "dbs", form);
+      showFeedback("Background-check details, consent and selected certificate were stored securely. Verification status changes only after Homle records the approved result.");
     } catch (error) {
       showFeedback(error.message || "Homle could not save your background-check details.", "error");
     }

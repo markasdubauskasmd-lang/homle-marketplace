@@ -3,6 +3,7 @@ import { measureFromReference, measurementLabel, referenceScale } from "./room-m
 import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 import { cleanerProfilePhotoMimeTypes, maximumCleanerProfilePhotoBytes } from "./cleaner-profile-photo.mjs";
+import { cleanerOnboardingDocumentMimeTypes, maximumCleanerOnboardingDocumentBytes } from "./cleaner-onboarding-document.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
@@ -52,6 +53,8 @@ const cleanerProfilePath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern
 const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern})/reviews$`);
 const cleanerAvailabilityPath = new RegExp(`^/api/marketplace/cleaner/availability/(${uuidPattern})$`);
 const cleanerOnboardingSectionPath = /^\/api\/marketplace\/cleaner\/onboarding\/([a-z-]+)$/;
+const cleanerOnboardingDocumentsPath = "/api/marketplace/cleaner/onboarding/documents";
+const cleanerOnboardingDocumentPath = /^\/api\/marketplace\/cleaner\/onboarding\/documents\/([a-z-]+)\/([A-Za-z][A-Za-z0-9]{0,79})$/;
 const cleanerProfilePhotoPath = "/api/marketplace/cleaner/profile-photo";
 const cleanerAddressResolvePath = "/api/marketplace/cleaner/address-lookup/resolve";
 const favouriteCleanerPath = new RegExp(`^/api/marketplace/landlord/favourite-cleaners/(${uuidPattern})$`);
@@ -100,6 +103,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const properties = dependencies?.propertyService;
   const cleaners = dependencies?.cleanerProfileService;
   const cleanerOnboarding = dependencies?.cleanerOnboardingService;
+  const cleanerOnboardingDocuments = dependencies?.cleanerOnboardingDocumentService;
   const cleanerProfilePhotos = dependencies?.cleanerProfilePhotoService;
   const addressLookup = dependencies?.addressLookup || null;
   const mapsClientConfig = dependencies?.mapsClientConfig || null;
@@ -145,6 +149,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.listArchivedOwnProperties !== "function" || typeof properties.archiveOwnProperty !== "function" || typeof properties.restoreOwnProperty !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "getPublicProfile", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof cleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaner profile service.");
   if (!cleanerOnboarding || !["listOwnSections", "getOwnSection", "saveOwnSection"].every((method) => typeof cleanerOnboarding[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner onboarding service.");
+  if (!cleanerOnboardingDocuments || !["listOwnDocuments", "saveOwnDocument", "getOwnDocument", "deleteOwnDocument"].every((method) => typeof cleanerOnboardingDocuments[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner onboarding document service.");
   if (!cleanerProfilePhotos || !["getOwnPhoto", "saveOwnPhoto"].every((method) => typeof cleanerProfilePhotos[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner profile photo service.");
   if (!favouriteCleaners || !["listOwn", "setOwn"].every((method) => typeof favouriteCleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the favourite-Cleaner service.");
   if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
@@ -433,6 +438,48 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { roles: ["cleaner"] });
           sendJson(response, 200, { ok: true, sections: await cleanerOnboarding.listOwnSections(context.actor) });
+          return true;
+        }
+        if (pathname === cleanerOnboardingDocumentsPath) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["cleaner"] });
+          sendJson(response, 200, { ok: true, documents: await cleanerOnboardingDocuments.listOwnDocuments(context.actor, url.searchParams.get("section")) });
+          return true;
+        }
+        const selectedCleanerOnboardingDocument = pathname.match(cleanerOnboardingDocumentPath);
+        if (selectedCleanerOnboardingDocument) {
+          if (!["GET", "PUT", "DELETE"].includes(request.method)) return methodNotAllowed(response, ["GET", "PUT", "DELETE"]), true;
+          const mutation = request.method !== "GET";
+          const context = await security.protect(request, { mutation, roles: ["cleaner"] });
+          const section = selectedCleanerOnboardingDocument[1];
+          const documentType = selectedCleanerOnboardingDocument[2];
+          if (request.method === "PUT") {
+            const supplied = request.headers?.["content-type"];
+            const mimeType = String(Array.isArray(supplied) ? supplied[0] : supplied || "").split(";", 1)[0].trim().toLowerCase();
+            if (!cleanerOnboardingDocumentMimeTypes.includes(mimeType)) throw Object.assign(new Error("Choose a PDF, JPEG or PNG document."), { statusCode: 422, code: "invalid-document-mime-type" });
+            const encodedFilename = String(request.headers?.["x-document-filename"] || "");
+            let filename;
+            try { filename = decodeURIComponent(encodedFilename); } catch { throw Object.assign(new Error("The document filename is invalid."), { statusCode: 422, code: "invalid-document-filename" }); }
+            const document = await cleanerOnboardingDocuments.saveOwnDocument(context.actor, section, documentType, {
+              filename,
+              mimeType,
+              bytes: await readRawBody(request, maximumCleanerOnboardingDocumentBytes)
+            });
+            sendJson(response, 200, { ok: true, document });
+          } else if (request.method === "DELETE") {
+            sendJson(response, 200, { ok: true, document: await cleanerOnboardingDocuments.deleteOwnDocument(context.actor, section, documentType) });
+          } else {
+            const document = await cleanerOnboardingDocuments.getOwnDocument(context.actor, section, documentType);
+            if (!document) throw Object.assign(new Error("No stored document was found."), { statusCode: 404, code: "onboarding-document-not-found" });
+            response.writeHead(200, {
+              "Content-Type": document.mimeType,
+              "Content-Length": String(document.bytes.length),
+              "Content-Disposition": `attachment; filename="document"; filename*=UTF-8''${encodeURIComponent(document.filename)}`,
+              "Cache-Control": "private, no-store",
+              "X-Content-Type-Options": "nosniff"
+            });
+            response.end(document.bytes);
+          }
           return true;
         }
         const selectedCleanerOnboardingSection = pathname.match(cleanerOnboardingSectionPath);

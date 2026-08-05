@@ -40,6 +40,7 @@ DECLARE
   property_restoration_installed boolean := false;
   cleaner_onboarding_records_installed boolean := false;
   cleaner_address_lookup_rate_limit_installed boolean := false;
+  cleaner_document_storage_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables text[] := ARRAY[
@@ -253,6 +254,8 @@ BEGIN
       INTO administrator_funnel_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 88)'
       INTO landlord_booking_changes_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 89)'
+      INTO cleaner_document_storage_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -284,6 +287,7 @@ BEGIN
     property_archiving_installed := to_regprocedure('tideway_private.archive_my_property(uuid)') IS NOT NULL;
     property_restoration_installed := to_regprocedure('tideway_private.restore_my_property(uuid)') IS NOT NULL;
     cleaner_onboarding_records_installed := to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NOT NULL;
+    cleaner_document_storage_installed := to_regprocedure('tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)') IS NOT NULL;
     administrator_funnel_installed := to_regprocedure('tideway_private.get_administrator_funnel_report(integer)') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
@@ -450,6 +454,27 @@ BEGIN
     IF position('has_role(''cleaner'')' IN COALESCE(selected_source,''))=0
        OR position('cleaner-onboarding-section-saved' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Cleaner onboarding persistence lost its Cleaner-only or audit boundary';
+    END IF;
+  END IF;
+  IF cleaner_document_storage_installed THEN
+    app_functions := app_functions || ARRAY[
+      'tideway_private.list_my_cleaner_onboarding_documents(text)',
+      'tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)',
+      'tideway_private.get_my_cleaner_onboarding_document(text,text)',
+      'tideway_private.delete_my_cleaner_onboarding_document(text,text)'
+    ];
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_attribute
+      WHERE attrelid='public.cleaner_onboarding_documents'::regclass
+        AND attname='content_ciphertext' AND atttypid='bytea'::regtype AND NOT attisdropped
+    ) THEN
+      RAISE EXCEPTION 'Cleaner onboarding documents are missing encrypted database byte storage';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)');
+    IF position('has_role(''cleaner'')' IN COALESCE(selected_source,''))=0
+       OR position('cleaner-onboarding-document-saved' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Cleaner document storage lost its Cleaner-only or audit boundary';
     END IF;
   END IF;
 
@@ -1118,7 +1143,8 @@ SELECT json_build_object(
     + CASE WHEN to_regprocedure('tideway_private.get_administrator_funnel_report(integer)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.archive_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.restore_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
-    + CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NULL THEN 0 ELSE 2 END,
+    + CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NULL THEN 0 ELSE 2 END
+    + CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)') IS NULL THEN 0 ELSE 4 END,
   'workerFunctionChecks', 14
 ) AS tideway_deployment_verification;
 
