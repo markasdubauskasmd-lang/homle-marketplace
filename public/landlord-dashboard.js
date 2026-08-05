@@ -613,12 +613,35 @@ function setRequestBuilderExpanded(expanded) {
   }
 }
 
+// The stepped wizard is 23KB that only the Prepare-a-clean panel uses, and it
+// was parsed on every dashboard load — including the far more common visits that
+// only check a booking. It is explicitly progressive enhancement: its own header
+// says the request builder is "a complete, working private draft form on its
+// own" and that this file only PRESENTS it. landlord-dashboard.js references
+// none of the fields it builds, and keeps owning validation, speech, recovery
+// and submit.
+//
+// So it loads when the panel it decorates is first opened. If that load fails —
+// offline, cache miss — the form stays fully usable as the long-hand version it
+// already is, which is the guarantee progressive enhancement was making all
+// along and which a static <script> tag never actually tested.
+let prepareWizardLoad = null;
+function loadPrepareWizard() {
+  if (prepareWizardLoad) return prepareWizardLoad;
+  prepareWizardLoad = import("./landlord-prepare-wizard.js?v=20260723-2").catch((error) => {
+    // Deliberately quiet: the panel below is a working form without this.
+    console.warn("The stepped wizard could not load; the request form remains usable.", error);
+  });
+  return prepareWizardLoad;
+}
+
 function selectWorkspaceTab(name, { historyMode = "" } = {}) {
   const selected = ["properties", "requests", "account", "payments"].includes(name) ? name : "properties";
   document.querySelectorAll('[data-landlord-panel]:not([data-landlord-panel="requests"])').forEach((panel) => {
     panel.hidden = selected === "requests" ? panel.dataset.landlordPanel !== "properties" : panel.dataset.landlordPanel !== selected;
   });
   setRequestBuilderExpanded(selected === "requests");
+  if (selected === "requests") loadPrepareWizard();
   // A real path, not a fragment, so the address bar names where the Landlord
   // is, Back returns to the previous panel, and the link can be shared.
   const url = `/landlord/${selected}`;

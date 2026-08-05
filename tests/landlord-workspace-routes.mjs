@@ -87,4 +87,20 @@ const reducedMotion = styles.slice(styles.lastIndexOf("prefers-reduced-motion"))
 assert(reducedMotion.includes("landlord-workspace") || reducedMotion.includes('[aria-busy="true"]::after'),
   "The loading shimmer ignores prefers-reduced-motion.");
 
+/* ── The stepped wizard stays off the critical path ───────────────────────
+   23KB that only the Prepare-a-clean panel uses was parsed on every dashboard
+   load, including the far more common visits that only check a booking. It is
+   progressive enhancement by its own description — the request builder is a
+   complete working form without it — so it loads when its panel first opens. */
+assert(!markup.includes("landlord-prepare-wizard.js"),
+  "The stepped wizard is back in the initial page load, so every Landlord parses 23KB they may never use.");
+assert(script.includes('import("./landlord-prepare-wizard.js'),
+  "The wizard is neither eagerly loaded nor lazily imported, so the Prepare-a-clean panel would never be enhanced at all.");
+assert(script.includes("if (prepareWizardLoad) return prepareWizardLoad"),
+  "The wizard import is not memoised, so reopening the panel re-imports it.");
+assert(/import\("\.\/landlord-prepare-wizard\.js[^)]*\)\.catch\(/.test(script),
+  "A failed wizard load is unhandled; the panel below is a working form and must survive it.");
+assert(script.includes('if (selected === "requests") loadPrepareWizard()'),
+  "Opening the Prepare-a-clean panel does not trigger the wizard load.");
+
 console.log("Landlord workspace route tests passed: Properties, Requests and Account are served, bookmarkable paths that the first paint and Back both honour, old #landlord-* links still resolve, panel clicks stay in-page, and the workspace shows a reduced-motion-safe loading state instead of empty states standing in for data.");
