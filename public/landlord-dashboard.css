@@ -1536,3 +1536,50 @@ body.landlord-dashboard-page .pac-basket-lines li.pac-basket-empty::before { dis
   .landlord-cleaner-profile-head { flex-direction: column; align-items: flex-start; }
   .landlord-cleaner-profile-body { max-height: 60vh; }
 }
+
+/* ── Loading the workspace ────────────────────────────────────────────────
+   loadWorkspace() already sets aria-busy="true" on the workspace while the
+   seven parallel reads are in flight, and clears it when they resolve. Nothing
+   ever styled it. Every aria-busy rule in the app was for a BUTTON — cursor and
+   opacity while a form submits — so the dashboard itself had no loading state
+   at all: a blank region, then everything at once.
+
+   That is worse than slow. The empty states ("No properties yet") are in the
+   markup from the first paint, so on a slow connection a Landlord who owns six
+   properties is told they own none, until the data lands and contradicts it.
+
+   This fades the region and lays a soft shimmer over it, so the page reads as
+   "still arriving" rather than "empty". Content stays in the DOM and stays
+   readable — this is a progress hint, not a curtain. */
+[data-landlord-workspace][aria-busy="true"] {
+  position: relative;
+  /* Not lower: the empty-state copy underneath must stay legible rather than
+     turning into unreadable grey mush. */
+  opacity: .55;
+  pointer-events: none;
+}
+[data-landlord-workspace][aria-busy="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: var(--homle-radius-lg, 22px);
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in oklch, var(--homle-paper, #fff) 70%, transparent) 45%,
+    transparent 70%
+  );
+  background-size: 220% 100%;
+  animation: landlord-workspace-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes landlord-workspace-shimmer {
+  from { background-position: 130% 0; }
+  to { background-position: -30% 0; }
+}
+
+/* A shimmer is decoration; the state must survive without it. Reduced motion
+   keeps the dimming and drops the animation rather than removing the signal. */
+@media (prefers-reduced-motion: reduce) {
+  [data-landlord-workspace][aria-busy="true"]::after { animation: none; background: none; }
+}

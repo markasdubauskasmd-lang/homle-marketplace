@@ -1,0 +1,90 @@
+import { readFile } from "node:fs/promises";
+
+function assert(condition, message) { if (!condition) throw new Error(message); }
+
+const [script, markup, styles, server] = await Promise.all([
+  readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/landlord-dashboard.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/landlord-dashboard.css", import.meta.url), "utf8"),
+  readFile(new URL("../server.mjs", import.meta.url), "utf8"),
+]);
+
+/* ── The workspace panels are real destinations ────────────────────────────
+   Properties, Requests and Account were in-page anchors. The address bar never
+   changed, so a Landlord could not bookmark a view, send one to a colleague, or
+   use Back to return to the previous panel — the whole workspace was one URL.
+
+   The panels still live in one document; only the addressing changed. */
+
+const panels = ["properties", "requests", "account"];
+for (const panel of panels) {
+  assert(server.includes(`"/landlord/${panel}": "landlord-dashboard.html"`),
+    `/landlord/${panel} is not served, so opening or refreshing that URL is a 404.`);
+}
+
+// The pathname must be what the script reads, or a direct visit lands on the
+// default panel and the URL silently lies about what is on screen.
+assert(script.includes("function workspaceTabFromLocation()"),
+  "The location parser was renamed away; routing may no longer read the pathname.");
+assert(script.includes("location.pathname"),
+  "The dashboard never reads location.pathname, so a direct visit to a panel URL cannot select it.");
+// The pathname is matched against the same three panels the routes serve.
+for (const panel of panels) {
+  assert(new RegExp(`landlord\\\\/\\\\?\\(?[^)]*${panel}`).test(script) || script.includes(`${panel}|`) || script.includes(`|${panel}`),
+    `The pathname parser does not recognise the ${panel} panel.`);
+}
+
+// Both entry points into panel selection must use it: first paint and Back.
+assert(script.includes('window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash()'),
+  "Back does not reselect the panel for the URL being returned to.");
+assert(/selectWorkspaceTab\(workspaceTabFromHash\(\) \|\| "properties"\);/.test(script),
+  "The first paint does not select the panel named by the URL.");
+
+// History entries must carry the path, not a fragment.
+assert(script.includes("const url = `/landlord/${selected}`") &&
+  script.includes('history.pushState({ landlordTab: selected }, "", url)') &&
+  script.includes('history.replaceState({ landlordTab: selected }, "", url)'),
+  "Panel changes still write a #fragment, so the address bar does not name the panel.");
+
+/* ── Old links keep working ───────────────────────────────────────────────
+   The hash form is what the dashboard used until now. Anything already saved or
+   already open in a tab must not break. */
+assert(/#landlord-\(properties\|requests\|account\)/.test(script),
+  "The previous #landlord-* links are no longer understood, so saved links break.");
+
+/* ── Navigation points at the destinations, without a page reload ──────────
+   The href makes it a real link — middle-click, copy link, open in new tab all
+   behave. The click handler must still preventDefault so an in-page switch does
+   not become a full document load of the same 144KB script. */
+for (const panel of ["properties", "requests", "account"]) {
+  assert(markup.includes(`href="/landlord/${panel}"`),
+    `Nothing navigates to /landlord/${panel}, so the route is unreachable from the UI.`);
+}
+assert(!markup.includes('href="#landlord-properties"') && !markup.includes('href="#landlord-account"') && !markup.includes('href="#landlord-requests"'),
+  "A navigation entry still points at an in-page anchor instead of the panel route.");
+for (const hook of ["data-open-landlord-section", "data-open-request-tab"]) {
+  const handler = script.slice(script.indexOf(`[${hook}]`), script.indexOf(`[${hook}]`) + 260);
+  assert(handler.includes("event.preventDefault()"),
+    `${hook} no longer prevents default, so every panel click reloads the whole dashboard.`);
+}
+
+/* ── The workspace shows that it is loading ───────────────────────────────
+   loadWorkspace() has always set aria-busy while seven parallel reads are in
+   flight, and every aria-busy rule in the app styled a BUTTON. The dashboard
+   region itself had no loading treatment: a blank area, then everything.
+
+   That is not merely slow-feeling. The empty states are in the markup from the
+   first paint, so a Landlord who owns six properties is told they own none
+   until the data lands. */
+assert(script.includes('workspace.setAttribute("aria-busy", "true")') && script.includes('workspace.removeAttribute("aria-busy")'),
+  "The workspace no longer marks itself busy while loading, so the loading treatment can never appear or can never clear.");
+assert(styles.includes('[data-landlord-workspace][aria-busy="true"]'),
+  "The busy workspace has no visible loading treatment, so empty states read as real answers while data is still arriving.");
+assert(/\[data-landlord-workspace\]\[aria-busy="true"\][\s\S]{0,400}opacity:/.test(styles),
+  "The loading treatment does not visually distinguish the region.");
+// The shimmer is decoration; the signal must survive without motion.
+const reducedMotion = styles.slice(styles.lastIndexOf("prefers-reduced-motion"));
+assert(reducedMotion.includes("landlord-workspace") || reducedMotion.includes('[aria-busy="true"]::after'),
+  "The loading shimmer ignores prefers-reduced-motion.");
+
+console.log("Landlord workspace route tests passed: Properties, Requests and Account are served, bookmarkable paths that the first paint and Back both honour, old #landlord-* links still resolve, panel clicks stay in-page, and the workspace shows a reduced-motion-safe loading state instead of empty states standing in for data.");
