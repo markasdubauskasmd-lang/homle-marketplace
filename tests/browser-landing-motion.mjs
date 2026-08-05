@@ -63,6 +63,7 @@ const probe = `
       peopleBgSource: document.querySelector('.ci-people-bg').currentSrc,
       personSources: [...document.querySelectorAll('.ci-person img')].map((image) => image.currentSrc),
       videoSource: video.getAttribute('src'),
+      videoDeferredSource: video.dataset.videoSrc,
       videoPoster: video.getAttribute('poster'),
       beat: document.querySelector('[data-beat-title]').textContent,
       items: Number(document.querySelector('[data-beat-items]').textContent),
@@ -101,6 +102,8 @@ try {
   const top = await at("open", 0);
   assert(top.open !== null && top.open < 0.05, `The opening act does not start at zero progress: ${top.open}.`);
   assert(top.launchOn === false, "The launch button is already revealed before the wipe begins.");
+  assert(top.videoSource === null && top.videoDeferredSource === "/landing/cleaning-720-e8b1a7ce.mp4",
+    `The detail clip was not held off the initial desktop load: ${JSON.stringify({ source: top.videoSource, deferred: top.videoDeferredSource })}.`);
 
   const wiping = await at("open", 0.55);
   assert(wiping.open > top.open, `Scrolling does not advance the opening act: ${top.open} -> ${wiping.open}.`);
@@ -161,6 +164,7 @@ try {
   assert(past.personSources.length === 4 && past.personSources.every((source) => /\/landing\/person-[a-z]+-(?:320|640)-[0-9a-f]{8}\.webp$/.test(source)),
     `A capability card downloaded its full JPEG fallback: ${JSON.stringify(past.personSources)}.`);
   assert(past.videoSource === "/landing/cleaning-720-e8b1a7ce.mp4", `The detail act did not retain its reviewed optimized clip: ${past.videoSource}.`);
+  assert(past.videoDeferredSource === past.videoSource, `The active detail clip differs from its reviewed deferred source: ${past.videoDeferredSource}.`);
   assert(past.videoPoster === "/landing/dark-kitchen-1600-f930f4ce.webp", `The clip retained its full JPEG poster: ${past.videoPoster}.`);
 
   /* ── Act 6: the closing button ────────────────────── */
