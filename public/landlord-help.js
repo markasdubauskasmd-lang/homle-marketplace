@@ -5,6 +5,7 @@ import { storedCsrf } from "./session-csrf.js";
 const requestJson = createRequestJson({ failureMessage: "The support request could not be completed." });
 const gate = document.querySelector("[data-support-gate]");
 const workspace = document.querySelector("[data-support-workspace]");
+const privateNavigation = document.querySelector("[data-support-private-navigation]");
 const form = document.querySelector("[data-support-form]");
 const submit = document.querySelector("[data-support-submit]");
 const feedback = document.querySelector("[data-support-form-feedback]");
@@ -15,6 +16,7 @@ let busy = false;
 
 function showGate(title, copy, { signIn = false, retry = false } = {}) {
   gate.hidden = false; workspace.hidden = true;
+  privateNavigation.hidden = true;
   document.querySelector("[data-support-gate-title]").textContent = title;
   document.querySelector("[data-support-gate-copy]").textContent = copy;
   document.querySelector("[data-support-sign-in]").hidden = !signIn;
@@ -102,7 +104,7 @@ async function load() {
   try {
     const account = (await requestJson("/api/marketplace/account")).account;
     if (!account?.roles?.includes("landlord")) return showGate("Landlord account required", "Use the Landlord workspace to ask about a property, room scan or booking preparation.", { signIn: true });
-    gate.hidden = true; workspace.hidden = false;
+    gate.hidden = true; privateNavigation.hidden = false; workspace.hidden = false;
     await loadRequests();
     const bookingsAvailable = await loadConfirmedBookings();
     if (new URLSearchParams(location.search).has("bookingId")) {
