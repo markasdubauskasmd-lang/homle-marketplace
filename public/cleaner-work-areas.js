@@ -70,7 +70,13 @@ function createPostcodeMap({ onAdd, showFeedback }) {
   const state = { latitude: 54.55, longitude: -3.25, zoom: 5 };
   let selectedPostcode = null;
   let pointer = null;
+  let panFrame = 0;
+  let pendingPan = null;
   let requestNumber = 0;
+  let wheelDelta = 0;
+  let wheelTimer = 0;
+  let zoomTimer = 0;
+  let queuedZoom = null;
 
   function setStatus(copy) {
     if (status) status.textContent = copy;
@@ -145,11 +151,16 @@ function createPostcodeMap({ onAdd, showFeedback }) {
       label.setAttribute("aria-label", `Zoom to ${zone.code} postcode area`);
       label.style.transform = `translate(${Math.round(zone.x)}px, ${Math.round(zone.y)}px)`;
       label.addEventListener("click", () => {
-        state.latitude = zone.latitude;
-        state.longitude = zone.longitude;
-        state.zoom = Math.max(8, Math.min(12, state.zoom + 2));
-        renderTiles();
-        setStatus(`${zone.code} postcode area centred. Click a town or street to find the exact outward postcode.`);
+        const nextZoom = Math.max(8, Math.min(12, state.zoom + 2));
+        animateView({
+          latitude: zone.latitude,
+          longitude: zone.longitude,
+          zoom: nextZoom,
+          originX: Math.max(0, Math.min(100, zone.x / width * 100)),
+          originY: Math.max(0, Math.min(100, zone.y / height * 100)),
+          translateX: width / 2 - zone.x,
+          translateY: height / 2 - zone.y
+        }, `${zone.code} postcode area centred. Click a town or street to find the exact outward postcode.`);
       });
       labels.push(label);
     }
@@ -227,16 +238,62 @@ function createPostcodeMap({ onAdd, showFeedback }) {
     );
   }
 
-  function changeZoom(change) {
+  function zoomTarget(change, clientX = null, clientY = null) {
     const next = clampedMapZoom(state.zoom + change);
-    if (next === state.zoom) return;
-    state.zoom = next;
-    renderTiles();
-    setStatus(`Map zoomed to level ${state.zoom}. Click a location to see its nearest postcode.`);
+    if (next === state.zoom) return null;
+    const { width, height, bounds } = mapSize(host);
+    const offsetX = Number.isFinite(clientX) ? clientX - bounds.left - width / 2 : 0;
+    const offsetY = Number.isFinite(clientY) ? clientY - bounds.top - height / 2 : 0;
+    const currentCentre = worldPixelFromCoordinate(state.latitude, state.longitude, state.zoom);
+    const anchor = coordinateFromWorldPixel(currentCentre.x + offsetX, currentCentre.y + offsetY, state.zoom);
+    const nextAnchor = worldPixelFromCoordinate(anchor.latitude, anchor.longitude, next);
+    const nextCentre = coordinateFromWorldPixel(nextAnchor.x - offsetX, nextAnchor.y - offsetY, next);
+    return {
+      latitude: nextCentre.latitude,
+      longitude: nextCentre.longitude,
+      zoom: next,
+      originX: Math.max(0, Math.min(100, (offsetX + width / 2) / width * 100)),
+      originY: Math.max(0, Math.min(100, (offsetY + height / 2) / height * 100)),
+      translateX: 0,
+      translateY: 0
+    };
+  }
+
+  function animateView(target, completionCopy = "") {
+    if (!target) return;
+    if (zoomTimer) {
+      return;
+    }
+    const zoomDifference = target.zoom - state.zoom;
+    host.style.setProperty("--hc-map-zoom-x", `${target.originX}%`);
+    host.style.setProperty("--hc-map-zoom-y", `${target.originY}%`);
+    host.style.setProperty("--hc-map-zoom-scale", String(2 ** zoomDifference));
+    host.style.setProperty("--hc-map-pan-x", `${Math.round(target.translateX || 0)}px`);
+    host.style.setProperty("--hc-map-pan-y", `${Math.round(target.translateY || 0)}px`);
+    host.classList.add("is-zooming");
+    const duration = Math.min(360, 180 + Math.abs(zoomDifference) * 60);
+    zoomTimer = window.setTimeout(() => {
+      Object.assign(state, { latitude: target.latitude, longitude: target.longitude, zoom: target.zoom });
+      host.classList.remove("is-zooming");
+      renderTiles();
+      setStatus(completionCopy || `Map zoomed to level ${state.zoom}. Click a location to see its nearest postcode.`);
+      zoomTimer = 0;
+      const queued = queuedZoom;
+      queuedZoom = null;
+      if (queued) changeZoom(queued.change, queued.clientX, queued.clientY);
+    }, duration);
+  }
+
+  function changeZoom(change, clientX = null, clientY = null) {
+    if (zoomTimer) {
+      queuedZoom = { change, clientX, clientY };
+      return;
+    }
+    animateView(zoomTarget(change, clientX, clientY));
   }
 
   host.addEventListener("pointerdown", (event) => {
-    if (event.target.closest("button, a, article")) return;
+    if (zoomTimer || event.target.closest("button, a, article")) return;
     const centre = worldPixelFromCoordinate(state.latitude, state.longitude, state.zoom);
     pointer = { id: event.pointerId, startX: event.clientX, startY: event.clientY, centreX: centre.x, centreY: centre.y, moved: false };
     host.setPointerCapture?.(event.pointerId);
@@ -247,10 +304,15 @@ function createPostcodeMap({ onAdd, showFeedback }) {
     const deltaX = event.clientX - pointer.startX;
     const deltaY = event.clientY - pointer.startY;
     pointer.moved ||= Math.hypot(deltaX, deltaY) > 5;
-    const coordinate = coordinateFromWorldPixel(pointer.centreX - deltaX, pointer.centreY - deltaY, state.zoom);
-    state.latitude = coordinate.latitude;
-    state.longitude = coordinate.longitude;
-    renderTiles();
+    pendingPan = coordinateFromWorldPixel(pointer.centreX - deltaX, pointer.centreY - deltaY, state.zoom);
+    if (!panFrame) {
+      panFrame = requestAnimationFrame(() => {
+        if (pendingPan) Object.assign(state, pendingPan);
+        pendingPan = null;
+        panFrame = 0;
+        renderTiles();
+      });
+    }
   });
   host.addEventListener("pointerup", (event) => {
     if (!pointer || event.pointerId !== pointer.id) return;
@@ -264,11 +326,20 @@ function createPostcodeMap({ onAdd, showFeedback }) {
   });
   host.addEventListener("pointercancel", () => {
     pointer = null;
+    pendingPan = null;
     host.classList.remove("is-dragging");
   });
   host.addEventListener("wheel", (event) => {
     event.preventDefault();
-    changeZoom(event.deltaY < 0 ? 1 : -1);
+    const multiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? host.clientHeight : 1;
+    wheelDelta += event.deltaY * multiplier;
+    window.clearTimeout(wheelTimer);
+    wheelTimer = window.setTimeout(() => {
+      const direction = wheelDelta < 0 ? 1 : -1;
+      const shouldZoom = Math.abs(wheelDelta) >= 12;
+      wheelDelta = 0;
+      if (shouldZoom) changeZoom(direction, event.clientX, event.clientY);
+    }, 55);
   }, { passive: false });
   host.addEventListener("keydown", (event) => {
     const pan = Math.max(24, 180 / 2 ** Math.max(0, state.zoom - 5));
