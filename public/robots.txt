@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /bookings/
+Disallow: /cleaner/
+Disallow: /landlord/
+Disallow: /login
+Disallow: /signup
+Disallow: /onboarding
+Disallow: /settings
+Disallow: /notifications
+Disallow: /opportunity
+
+Sitemap: https://homlle.com/sitemap.xml
