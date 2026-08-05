@@ -58,3 +58,21 @@ export function availableAccountMethodLabel(providers = {}) {
   if (labels.length === 2) return `${labels[0]} or ${labels[1]}`;
   return `${labels.slice(0, -1).join(", ")} or ${labels.at(-1)}`;
 }
+
+export function unavailableEmailActionPresentation(form, providers = {}, intent = "") {
+  if (providers.emailPassword === true || !["reset", "verify"].includes(form)) return null;
+  const availableMethods = availableAccountMethodLabel({ ...providers, emailPassword: false });
+  const safeIntent = ["book", "work"].includes(intent) ? `?intent=${intent}` : "";
+  const reset = form === "reset";
+  return Object.freeze({
+    title: reset ? "Password reset is unavailable" : "Email verification is unavailable",
+    lead: availableMethods
+      ? `Homle currently uses ${availableMethods} sign-in instead of Homle passwords.`
+      : "Homle password accounts are not available on this deployment.",
+    copy: reset
+      ? "There is no Homle password to reset. Return to the secure sign-in page to continue with an available provider."
+      : "There is no email-password account to verify. Return to the secure sign-in page to continue with an available provider.",
+    actionHref: `/login${safeIntent}`,
+    actionLabel: availableMethods ? `Continue with ${availableMethods}` : "Return to sign in"
+  });
+}
