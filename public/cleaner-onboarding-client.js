@@ -1,4 +1,4 @@
-import { storedCsrf } from "./session-csrf.js";
+import { saveCsrf, storedCsrf } from "./session-csrf.js";
 
 export function onboardingFormData(form) {
   const data = {};
@@ -54,8 +54,12 @@ export async function loadOnboardingForm(requestJson, section, form) {
 }
 
 export async function saveOnboardingForm(requestJson, section, form, { status = "submitted", extra = {} } = {}) {
-  const csrf = storedCsrf();
-  if (!csrf) throw Object.assign(new Error("Your secure editing token is missing. Sign in again before saving."), { statusCode: 401 });
+  let csrf = storedCsrf();
+  if (!csrf) {
+    const session = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (!session.csrfToken || !saveCsrf(session.csrfToken)) throw Object.assign(new Error("Your secure editing token could not be restored. Sign in again before saving."), { statusCode: 401 });
+    csrf = session.csrfToken;
+  }
   const result = await requestJson(`/api/marketplace/cleaner/onboarding/${encodeURIComponent(section)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },

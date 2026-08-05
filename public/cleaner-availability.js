@@ -74,6 +74,9 @@ export async function setupAvailability({ account, showFeedback, requestJson }) 
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount: availabilityCount || 0 }));
 
   const status = form.querySelector("[data-availability-save-status]");
+  const savedAvailabilityData = onboardingResult.status === "fulfilled" && onboardingResult.value?.data
+    ? onboardingResult.value.data
+    : {};
   if (status) {
     status.textContent = onboardingResult.status === "fulfilled"
       ? availabilityStatus(availabilityCount)
@@ -101,7 +104,10 @@ export async function setupAvailability({ account, showFeedback, requestJson }) 
     if (submit instanceof HTMLButtonElement) submit.disabled = true;
     if (status) status.textContent = "Saving your weekly availability securely…";
     try {
-      await saveOnboardingForm(requestJson, "availability", form, { extra: { timeSlotRanges } });
+      const timeOff = {};
+      if ("holidayMode" in savedAvailabilityData) timeOff.holidayMode = savedAvailabilityData.holidayMode;
+      if ("unavailableDate" in savedAvailabilityData) timeOff.unavailableDate = savedAvailabilityData.unavailableDate;
+      await saveOnboardingForm(requestJson, "availability", form, { extra: { timeSlotRanges, ...timeOff } });
       if (status) status.textContent = "Weekly time slots, limits and job preferences saved securely.";
       showFeedback("Your weekly availability has been saved.", "success");
       location.assign("/cleaner/registration");
