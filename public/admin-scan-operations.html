@@ -9,11 +9,12 @@
   <link rel="icon" href="/homle-logo.png" type="image/png">
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <script type="module" src="/admin-private-navigation.js?v=20260805-1"></script>
   <script type="module" src="/admin-scan-operations.js?v=20260729-1"></script>
 </head>
 <body class="booking-dashboard-page admin-payments-page">
   <a class="skip-link" href="#admin-scan-main">Skip to scan operations</a>
-  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator"><a href="/admin/scan-pricing">Scan rates</a><a href="/admin/bookings">Booking operations</a><a href="/admin/cases">Booking cases</a><a href="/admin">Control desk</a></nav></div></header>
+  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator" data-admin-private-navigation hidden><a href="/admin/scan-pricing">Scan rates</a><a href="/admin/bookings">Booking operations</a><a href="/admin/cases">Booking cases</a><a href="/admin">Control desk</a></nav></div></header>
   <main id="admin-scan-main" class="booking-dashboard-shell">
     <section class="booking-dashboard-gate" data-admin-scan-gate>
       <div class="booking-dashboard-gate-icon" aria-hidden="true">◎</div>
@@ -28,7 +29,7 @@
       </div>
     </section>
 
-    <div data-admin-scan-workspace hidden>
+    <div data-admin-private-workspace data-admin-scan-workspace hidden>
       <header class="booking-dashboard-hero">
         <div>
           <p class="eyebrow">Administrator · scan operations</p>

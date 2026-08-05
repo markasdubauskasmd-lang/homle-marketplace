@@ -3,15 +3,16 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
   <title>Cleaner vetting — Homle</title><link rel="icon" href="/homle-logo.png" type="image/png"><link rel="stylesheet" href="/homle-tokens.css?v=20260728-2"><link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <script type="module" src="/admin-private-navigation.js?v=20260805-1"></script>
   <script type="module" src="/admin-verifications.js"></script>
 </head>
 <body class="account-page admin-bookings-page">
   <a class="skip-link" href="#admin-verifications-main">Skip to cleaner vetting</a>
   <p class="network-status" data-network-status role="status" hidden>You are offline. Reconnect before recording a decision.</p>
-  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator"><a href="/admin/bookings">Booking operations</a><a href="/admin/cases">Booking cases</a><a href="/admin">Control desk</a></nav></div></header>
+  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator" data-admin-private-navigation hidden><a href="/admin/bookings">Booking operations</a><a href="/admin/cases">Booking cases</a><a href="/admin">Control desk</a></nav></div></header>
   <main id="admin-verifications-main" class="booking-dashboard-shell">
     <section class="booking-dashboard-gate" data-admin-verifications-gate aria-live="polite"><div><p class="eyebrow">Private trust and safety</p><h1 data-admin-verifications-gate-title>Checking secure Administrator access…</h1><p data-admin-verifications-gate-copy>This page opens only inside an authenticated Homle Administrator account.</p><div class="booking-dashboard-actions"><a class="button" href="/login?next=%2Fadmin%2Fverifications" data-admin-verifications-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-admin-verifications-retry hidden>Try again</button></div></div></section>
-    <div class="booking-dashboard" data-admin-verifications-workspace hidden>
+    <div class="booking-dashboard" data-admin-private-workspace data-admin-verifications-workspace hidden>
       <header class="booking-dashboard-header"><div><p class="eyebrow">Cleaner vetting desk</p><h1>Cleaner verification</h1><p>Record the outcome of each identity and background review. Cleaners can never set these themselves, and every decision here is audit-logged.</p></div><button class="button button-outline" type="button" data-admin-verifications-refresh>Refresh</button></header>
       <aside class="admin-case-policy-banner"><div><p class="eyebrow">Evidence boundary</p><h2>Review documents outside this page, then record the outcome</h2></div><p>This desk stores only the decision and a short evidence note. Do not paste document contents, ID numbers or personal detail into the note.</p></aside>
       <dl class="booking-dashboard-stats"><div><dt>Loaded</dt><dd data-admin-verifications-count>0</dd></div><div><dt>Awaiting review</dt><dd data-admin-verifications-awaiting>0</dd></div><div><dt>Fully verified</dt><dd data-admin-verifications-verified>0</dd></div></dl>

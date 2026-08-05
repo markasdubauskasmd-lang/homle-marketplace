@@ -3,15 +3,16 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
   <title>Booking operations — Homle</title><link rel="icon" href="/homle-logo.png" type="image/png"><link rel="stylesheet" href="/homle-tokens.css?v=20260728-2"><link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <script type="module" src="/admin-private-navigation.js?v=20260805-1"></script>
   <script type="module" src="/admin-bookings.js"></script>
 </head>
 <body class="account-page admin-bookings-page">
   <a class="skip-link" href="#admin-bookings-main">Skip to booking operations</a>
   <p class="network-status" data-network-status role="status" hidden>You are offline. Reconnect before refreshing.</p>
-  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator"><a href="/admin/cases">Booking cases</a><a href="/admin/payments">Test payments</a><a href="/admin/verifications">Cleaner vetting</a><a href="/admin">Control desk</a></nav></div></header>
+  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator" data-admin-private-navigation hidden><a href="/admin/cases">Booking cases</a><a href="/admin/payments">Test payments</a><a href="/admin/verifications">Cleaner vetting</a><a href="/admin">Control desk</a></nav></div></header>
   <main id="admin-bookings-main" class="booking-dashboard-shell">
     <section class="booking-dashboard-gate" data-admin-bookings-gate aria-live="polite"><div><p class="eyebrow">Private marketplace operations</p><h1 data-admin-bookings-gate-title>Checking secure Administrator access…</h1><p data-admin-bookings-gate-copy>This page opens only inside an authenticated Homle Administrator account.</p><div class="booking-dashboard-actions"><a class="button" href="/login?next=%2Fadmin%2Fbookings" data-admin-bookings-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-admin-bookings-retry hidden>Try again</button></div></div></section>
-    <div class="booking-dashboard" data-admin-bookings-workspace hidden>
+    <div class="booking-dashboard" data-admin-private-workspace data-admin-bookings-workspace hidden>
       <header class="booking-dashboard-header"><div><p class="eyebrow">First-booking control lane</p><h1>Booking operations</h1><p>See where each reviewed request or booking is stuck, its frozen planned economics, and the next safe action. No action is taken from this page.</p></div><button class="button button-outline" type="button" data-admin-bookings-refresh>Refresh</button></header>
       <aside class="admin-case-policy-banner"><div><p class="eyebrow">Privacy boundary</p><h2>No names, addresses, access instructions or provider identifiers</h2></div><p>References are shortened on screen. Prices and planned contribution are internal evidence, before central overhead and tax. Use the separate case and test-payment desks for audited decisions.</p></aside>
       <aside class="booking-dashboard-next-action admin-profit-guard" data-admin-profit-guard role="status" aria-live="polite"><div><span class="booking-dashboard-next-icon" aria-hidden="true">£</span><div><strong data-admin-profit-title>Checking frozen profit protection…</strong><p data-admin-profit-copy>No price or payment action is taken from this page.</p></div></div></aside>
