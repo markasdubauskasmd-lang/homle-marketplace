@@ -1188,3 +1188,49 @@ body.landlord-dashboard-page .pac-basket-lines li.pac-basket-empty::before { dis
   color: var(--homle-muted, #665f61);
 }
 .landlord-checklist-changes .text-button { margin-top: 12px; }
+
+/* ── Cleaner profile dialog ───────────────────────────────────────────────
+   Read-only view of who is going to be in the property. Both endpoints behind
+   it already existed; the Landlord side had never called the reviews one. */
+.landlord-cleaner-profile-dialog form { display: grid; gap: 18px; max-width: 520px; }
+.landlord-cleaner-profile-head { display: flex; align-items: center; gap: 16px; }
+.landlord-cleaner-profile-head h2 { margin: 2px 0 4px; }
+.landlord-cleaner-profile-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: var(--homle-coral, #e24947);
+  color: #fff;
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.landlord-cleaner-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.landlord-cleaner-profile-rating { margin: 0; font-size: .88rem; color: var(--homle-muted, #665f61); }
+.landlord-cleaner-profile-body { display: grid; gap: 18px; max-height: 52vh; overflow-y: auto; }
+.landlord-cleaner-profile-section h3 {
+  margin: 0 0 8px;
+  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-size: .95rem;
+  font-weight: 700;
+}
+.landlord-cleaner-profile-section p { margin: 0; font-size: .9rem; line-height: 1.55; }
+.landlord-cleaner-profile-services { margin: 0; padding-left: 20px; font-size: .9rem; line-height: 1.6; }
+.landlord-cleaner-profile-reviews { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.landlord-cleaner-profile-reviews li {
+  padding: 12px 14px;
+  border: 1.5px solid var(--homle-line-soft, rgba(11, 9, 10, .07));
+  border-radius: var(--homle-radius, 16px);
+}
+.landlord-cleaner-profile-reviews strong { font-size: .85rem; }
+.landlord-cleaner-profile-reviews p { margin: 6px 0 0; color: var(--homle-muted, #665f61); }
+.landlord-cleaner-profile-note { font-size: .88rem; color: var(--homle-muted, #665f61); }
+
+@media (max-width: 560px) {
+  .landlord-cleaner-profile-head { flex-direction: column; align-items: flex-start; }
+  .landlord-cleaner-profile-body { max-height: 60vh; }
+}

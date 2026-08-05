@@ -236,6 +236,100 @@ function invalidateScopeReview(message) {
  * they are listed item by item. A pure reorder is stated but not enumerated —
  * it changes nothing about what gets cleaned.
  */
+const cleanerProfileDialog = document.querySelector("[data-cleaner-profile-dialog]");
+const cleanerProfileAvatar = document.querySelector("[data-cleaner-profile-avatar]");
+const cleanerProfileName = document.querySelector("[data-cleaner-profile-name]");
+const cleanerProfileRating = document.querySelector("[data-cleaner-profile-rating]");
+const cleanerProfileBody = document.querySelector("[data-cleaner-profile-body]");
+// Only the newest request's response may paint, so a slow first profile cannot
+// overwrite a second one the Landlord opened while waiting.
+let cleanerProfileRequest = 0;
+
+/**
+ * Show a Cleaner's public profile and their completed-job reviews.
+ *
+ * Both endpoints already existed and were already permission-checked server
+ * side; the Landlord side simply never called them. Read-only by design — every
+ * action stays on the cards behind it, so opening a profile cannot change a
+ * booking.
+ */
+async function openCleanerProfile(cleanerId, fallbackName = "Cleaner") {
+  if (!cleanerProfileDialog || !cleanerId) return;
+  const generation = ++cleanerProfileRequest;
+  cleanerProfileName.textContent = fallbackName;
+  cleanerProfileRating.textContent = "";
+  cleanerProfileAvatar.replaceChildren(document.createTextNode(String(fallbackName).slice(0, 1).toLocaleUpperCase("en-GB")));
+  cleanerProfileBody.replaceChildren(element("p", "", "Loading this Cleaner’s public profile…"));
+  if (typeof cleanerProfileDialog.showModal === "function" && !cleanerProfileDialog.open) cleanerProfileDialog.showModal();
+
+  try {
+    const [profileResult, reviewsResult] = await Promise.all([
+      requestJson(`/api/marketplace/cleaners/${encodeURIComponent(cleanerId)}`),
+      // Reviews are supporting detail: a profile is still worth showing without
+      // them, so a failure here must not blank the whole dialog.
+      requestJson(`/api/marketplace/cleaners/${encodeURIComponent(cleanerId)}/reviews`).catch(() => null),
+    ]);
+    if (generation !== cleanerProfileRequest) return;
+    const cleaner = profileResult?.cleaner;
+    if (!cleaner) throw new Error("This Cleaner’s public profile is not available.");
+
+    cleanerProfileName.textContent = cleaner.displayName || fallbackName;
+    const reviewCount = Number(cleaner.reviewCount) || 0;
+    cleanerProfileRating.textContent = reviewCount > 0
+      ? `${Number(cleaner.averageRating).toFixed(1)} stars from ${reviewCount} completed ${reviewCount === 1 ? "job" : "jobs"}`
+      : "No completed-job reviews yet";
+    if (cleaner.profilePhotoUrl) {
+      const image = element("img");
+      image.src = cleaner.profilePhotoUrl;
+      image.alt = "";
+      image.addEventListener("error", () => {
+        cleanerProfileAvatar.replaceChildren(document.createTextNode(String(cleaner.displayName || fallbackName).slice(0, 1).toLocaleUpperCase("en-GB")));
+      }, { once: true });
+      cleanerProfileAvatar.replaceChildren(image);
+    }
+
+    cleanerProfileBody.replaceChildren();
+    const services = Array.isArray(cleaner.services) ? cleaner.services.filter(Boolean) : [];
+    if (services.length) {
+      const block = element("div", "landlord-cleaner-profile-section");
+      block.append(element("h3", "", "Services offered"));
+      const list = element("ul", "landlord-cleaner-profile-services");
+      services.forEach((service) => list.append(element("li", "", typeof service === "string" ? service : String(service?.name || "Service"))));
+      block.append(list);
+      cleanerProfileBody.append(block);
+    }
+    if (cleaner.bio) {
+      const block = element("div", "landlord-cleaner-profile-section");
+      block.append(element("h3", "", "About"), element("p", "", String(cleaner.bio)));
+      cleanerProfileBody.append(block);
+    }
+
+    const reviews = Array.isArray(reviewsResult?.reviews) ? reviewsResult.reviews : [];
+    const block = element("div", "landlord-cleaner-profile-section");
+    block.append(element("h3", "", "Reviews from completed jobs"));
+    if (!reviewsResult) {
+      block.append(element("p", "landlord-cleaner-profile-note", "Reviews could not be loaded just now. The profile above is current."));
+    } else if (!reviews.length) {
+      block.append(element("p", "landlord-cleaner-profile-note", "No published reviews yet. Ratings appear here once a booking with this Cleaner is completed and reviewed."));
+    } else {
+      const list = element("ul", "landlord-cleaner-profile-reviews");
+      for (const review of reviews.slice(0, 5)) {
+        const item = element("li");
+        const rating = Number(review.rating);
+        item.append(element("strong", "", Number.isFinite(rating) ? `${rating.toFixed(1)} stars` : "Rated"));
+        if (review.comment) item.append(element("p", "", String(review.comment)));
+        list.append(item);
+      }
+      block.append(list);
+      if (reviews.length > 5) block.append(element("p", "landlord-cleaner-profile-note", `Showing the 5 most recent of ${reviews.length} reviews.`));
+    }
+    cleanerProfileBody.append(block);
+  } catch (error) {
+    if (generation !== cleanerProfileRequest) return;
+    cleanerProfileBody.replaceChildren(element("p", "landlord-cleaner-profile-note", error?.message || "This Cleaner’s public profile could not be loaded. No booking was changed."));
+  }
+}
+
 function renderChecklistChanges(lines) {
   if (!checklistChanges) return;
   if (!generatedChecklist.length) {
@@ -1580,10 +1674,13 @@ function renderFavouriteCleaners() {
       try { saveSelectedCleaner(localStorage, cleaner.cleanerId); } catch {}
       location.assign("/landlord/dashboard?start=booking");
     });
+    const view = element("button", "text-button", "View profile");
+    view.type = "button";
+    view.addEventListener("click", () => openCleanerProfile(cleaner.cleanerId, displayName));
     const remove = element("button", "text-button", "Remove");
     remove.type = "button";
     remove.addEventListener("click", () => removeFavouriteCleaner(cleaner.cleanerId, remove));
-    actions.append(request, remove);
+    actions.append(request, view, remove);
     card.append(identity, actions);
     return card;
   }));

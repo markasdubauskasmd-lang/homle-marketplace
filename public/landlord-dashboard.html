@@ -260,6 +260,27 @@
     </div>
   </main>
 
+  <!-- Who is going to be in the property. The Landlord could favourite and invite
+       a Cleaner while only ever seeing a name and a thumbnail; both endpoints
+       behind this already existed and nothing on the Landlord side called the
+       reviews one. Read-only: no action is taken from here. -->
+  <dialog class="active-job-dialog landlord-cleaner-profile-dialog" data-cleaner-profile-dialog aria-labelledby="cleaner-profile-title">
+    <form method="dialog">
+      <div class="landlord-cleaner-profile-head">
+        <span class="landlord-cleaner-profile-avatar" data-cleaner-profile-avatar aria-hidden="true"></span>
+        <div>
+          <p class="eyebrow">Cleaner profile</p>
+          <h2 id="cleaner-profile-title" data-cleaner-profile-name>Cleaner</h2>
+          <p class="landlord-cleaner-profile-rating" data-cleaner-profile-rating></p>
+        </div>
+      </div>
+      <div class="landlord-cleaner-profile-body" data-cleaner-profile-body role="status" aria-live="polite">
+        <p>Loading this Cleaner’s public profile…</p>
+      </div>
+      <div><button class="button button-outline" type="submit" value="close">Close</button></div>
+    </form>
+  </dialog>
+
   <dialog class="active-job-dialog landlord-invitation-quote-dialog" data-invitation-quote-dialog aria-labelledby="invitation-quote-title">
     <form method="dialog">
       <div><p class="eyebrow">One price approval</p><h2 id="invitation-quote-title">Review the exact total</h2><p>Homle calculated this from the reviewed rooms, booked time and the Cleaner’s current service price.</p></div>
