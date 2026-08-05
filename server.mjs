@@ -5445,6 +5445,7 @@ async function serveFile(requestPath, response, cspNonce = "") {
     "/landlord/properties": "landlord-dashboard.html",
     "/landlord/requests": "landlord-dashboard.html",
     "/landlord/account": "landlord-dashboard.html",
+    "/landlord/payments": "landlord-dashboard.html",
     "/landlord/book": "landlord-journey.html",
     "/landlord/help": "landlord-help.html",
     "/tracking-test": "tracking-test.html",
