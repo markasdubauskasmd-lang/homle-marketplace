@@ -37,6 +37,7 @@ for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", 
 /* ── The design is actually wired in ────────────────── */
 
 assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-7fbca0c2.css"') && page.includes('src="/landing-0122ee96.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
+assert(page.includes('<link rel="sitemap" type="application/xml" href="/sitemap.xml">'), "The public landing page does not advertise Homlle's canonical sitemap.");
 assert(!page.includes('/landing.css?') && !page.includes('/landing.js?'), "The landing page regressed to stable code URLs that must be revalidated on every visit.");
 assert(createHash("sha256").update(css).digest("hex") === "7fbca0c227ad5db2480d89cb476b3c9b3bef866ccd02b94a01a397778b5c0f31", "The landing stylesheet changed without receiving a new content-addressed filename.");
 assert(createHash("sha256").update(script).digest("hex") === "0122ee96906f84194dce9f3c3b64c228b6bc988b89763b8ddaafa3f5b9a97e05", "The landing animation script changed without receiving a new content-addressed filename.");
