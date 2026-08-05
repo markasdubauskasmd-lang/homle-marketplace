@@ -2863,10 +2863,6 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   margin-top: 18px;
 }
 
-.hc-business-name[hidden] {
-  display: none;
-}
-
 .hc-business-name > span {
   color: var(--hc-ink);
   font-size: 10.5px;
@@ -2875,6 +2871,10 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 
 .hc-business-name b {
   color: var(--hc-red);
+}
+
+.hc-business-name b[hidden] {
+  display: none;
 }
 
 .hc-business-name input {
