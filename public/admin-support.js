@@ -5,6 +5,7 @@ import { storedCsrf } from "./session-csrf.js";
 const requestJson = createRequestJson({ failureMessage: "The Landlord support action could not be completed." });
 const gate = document.querySelector("[data-admin-support-gate]");
 const workspace = document.querySelector("[data-admin-support-workspace]");
+const privateNavigation = document.querySelector("[data-admin-support-private-navigation]");
 const list = document.querySelector("[data-admin-support-list]");
 const empty = document.querySelector("[data-admin-support-empty]");
 const feedback = document.querySelector("[data-admin-support-feedback]");
@@ -18,6 +19,7 @@ let busy = false;
 
 function showGate(title, copy, { signIn = false, retry = false } = {}) {
   gate.hidden = false; workspace.hidden = true;
+  privateNavigation.hidden = true;
   document.querySelector("[data-admin-support-gate-title]").textContent = title;
   document.querySelector("[data-admin-support-gate-copy]").textContent = copy;
   document.querySelector("[data-admin-support-sign-in]").hidden = !signIn;
@@ -76,7 +78,7 @@ async function load() {
   try {
     const account = (await requestJson("/api/marketplace/account")).account;
     if (!account?.roles?.includes("administrator")) return showGate("Administrator account required", "This account cannot read or answer Landlord support requests.", { signIn: true });
-    gate.hidden = true; workspace.hidden = false; await loadQueue();
+    gate.hidden = true; privateNavigation.hidden = false; workspace.hidden = false; await loadQueue();
   } catch (error) {
     if ([401, 403].includes(error.statusCode)) showGate("Sign in as a Homle Administrator", "Landlord support messages are unavailable to unrelated accounts.", { signIn: true });
     else showGate("Support queue could not be opened", "Try again. No request was changed.", { retry: true });
