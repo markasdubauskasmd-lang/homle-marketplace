@@ -950,7 +950,7 @@
 }
 .hc-nav-group-summary:hover { background: rgba(214, 58, 42, .06); }
 .hc-nav-group-label { font-size: 9.5px; letter-spacing: 2px; color: var(--hc-muted-3); font-weight: 600; }
-.hc-nav-chevron { font-size: 11px; color: var(--hc-muted-3); transition: transform .18s ease; }
+.hc-nav-chevron { font-size: 18px; color: var(--hc-muted-3); transition: transform .18s ease; }
 .hc-nav-group:not([open]) .hc-nav-chevron { transform: rotate(-90deg); }
 
 /* Onboarding sub-items carry a completion tick or an outstanding dot, as in the design. */
