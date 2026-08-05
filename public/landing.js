@@ -94,6 +94,7 @@ class Cinematic {
 
     if (this.detailVideo) {
       this.detailVideoSource = this.detailVideo.dataset.videoSrc || "";
+      this.detailVideoPoster = this.detailVideo.dataset.videoPoster || "";
       this.detailVideo.muted = true;
       this.detailVideo.playbackRate = 0.85;
     }
@@ -105,6 +106,7 @@ class Cinematic {
      data and decoding time on visitors who may never reach it. */
   activateDetailVideo() {
     if (!this.detailVideo || this.detailVideo.getAttribute("src") || !this.detailVideoSource) return;
+    if (this.detailVideoPoster) this.detailVideo.setAttribute("poster", this.detailVideoPoster);
     this.detailVideo.setAttribute("src", this.detailVideoSource);
     this.detailVideo.load();
   }
