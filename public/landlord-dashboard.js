@@ -2169,13 +2169,13 @@ async function createRequestDraft(event) {
     delete cleaningTypeSelect.dataset.selectionSource;
     initialiseRequestDefaults();
     renderTaskPreview();
-    showFeedback(requestFeedback, `Private draft ${result.cleaningRequest.requestId} saved. It was not sent for matching.`, "success");
+    showFeedback(requestFeedback, `Private draft ${result.cleaningRequest.requestId} saved. Add at least one room photo below, then submit it for matching. Checkout opens after a Cleaner accepts the confirmed total.`, "success");
     requestDirty = false;
     setLandlordSectionExpanded(upcomingSectionToggle, true);
     openRequestScan(result.cleaningRequest.requestId);
     requestList.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) { showFeedback(requestFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message); }
-  finally { setPending(requestSave, false, "Save private draft"); }
+  finally { setPending(requestSave, false, "Save and add room photos"); }
 }
 
 function setPending(button, pending, label) {
