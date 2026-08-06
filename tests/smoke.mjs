@@ -381,6 +381,11 @@ try {
   const paymentPage = await fetch(`${base}/booking-payment?bookingId=55555555-5555-4555-8555-555555555555`);
   const paymentPageScript = await fetch(`${base}/booking-payment.js?v=smoke-test`);
   assert(paymentPage.status === 404 && paymentPageScript.status === 404, "Retired payment page or controller remains publicly served.");
+  const landlordCheckout = await fetch(`${base}/landlord/checkout?bookingId=55555555-5555-4555-8555-555555555555`);
+  const landlordCheckoutScript = await fetch(`${base}/landlord-checkout.js?v=smoke-test`);
+  const landlordCheckoutText = await landlordCheckout.text();
+  const landlordCheckoutScriptText = await landlordCheckoutScript.text();
+  assert(landlordCheckout.ok && landlordCheckoutText.includes("Protected booking step") && landlordCheckoutScript.ok && landlordCheckoutScriptText.includes("stripe.confirmPayment"), "Authenticated Landlord checkout page or controller is unavailable.");
   const authProviders = await fetch(`${base}/api/auth/providers`);
   const authProvidersBody = await authProviders.json();
   const serialisedAuthProviders = JSON.stringify(authProvidersBody);

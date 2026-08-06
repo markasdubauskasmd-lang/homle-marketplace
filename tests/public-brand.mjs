@@ -28,6 +28,7 @@ const compactLogoByPage = new Map([
   ["account.html", "/homle-logo-192-c8defd4b.png"],
   ["facebook-data-deletion.html", "/homle-logo-128-4f82ebad.png"],
   ["home.html", "/homle-logo-128-4f82ebad.png"],
+  ["landlord-checkout.html", "/homle-logo-128-4f82ebad.png"],
   ["landlord-dashboard.html", "/homle-logo-128-4f82ebad.png"],
   ["landlord-help.html", "/homle-logo-128-4f82ebad.png"],
   ["landlord-journey.html", "/homle-logo-128-4f82ebad.png"],

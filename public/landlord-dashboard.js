@@ -1682,7 +1682,7 @@ function renderBookingCard(booking) {
   const activeChangeRequest = activeBookingChangeRequestFor(supportRequests, booking.bookingId);
   if (booking.paymentStepAvailable) {
     const payment = element("a", "button", "Authorize booking total");
-    payment.href = "/landlord/dashboard";
+    payment.href = `/landlord/checkout?bookingId=${encodeURIComponent(booking.bookingId)}`;
     actions.append(payment);
   }
   if (booking.activeJobAvailable) {
