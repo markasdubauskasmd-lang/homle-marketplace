@@ -110,7 +110,7 @@ export async function setupAvailability({ account, showFeedback, requestJson }) 
       await saveOnboardingForm(requestJson, "availability", form, { extra: { timeSlotRanges, ...timeOff } });
       if (status) status.textContent = "Weekly time slots, limits and job preferences saved securely.";
       showFeedback("Your weekly availability has been saved.", "success");
-      location.assign("/cleaner/registration");
+      location.assign("/cleaner/onboarding");
     } catch (error) {
       if (status) status.textContent = "Your availability was not saved. Review the message and try again.";
       showFeedback(error.message || "Your availability could not be saved.", "error");

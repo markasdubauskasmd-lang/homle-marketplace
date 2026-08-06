@@ -133,7 +133,7 @@ export function clearSelectedProperty(storage) {
 
 export function accountEntryPath(intent, cleanerId = "") {
   const normalized = normalizeAccountIntent(intent);
-  if (normalized === "work") return "/signup?intent=work";
+  if (normalized === "work") return "/cleaner/onboarding";
   if (normalized !== "book") return "/signup";
   const selected = normalizeSelectedCleaner(cleanerId);
   return selected ? `/signup?${new URLSearchParams({ intent: "book", cleaner: selected })}` : "/signup?intent=book";

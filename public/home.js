@@ -44,8 +44,7 @@ function applyEntryMode(mode) {
     if (!link.hasAttribute("data-entry-label-fixed")) link.textContent = signedInWorkspace?.role === "landlord" ? "Book a clean" : presentation.bookingLabel;
   });
   document.querySelectorAll("[data-cleaner-entry]").forEach((link) => {
-    link.href = signedInWorkspace?.role === "cleaner" ? "/cleaner/dashboard" : presentation.cleanerPath;
-    if (signedInWorkspace?.role === "cleaner" && !link.hasAttribute("data-entry-label-fixed")) link.textContent = "Open Cleaner dashboard";
+    link.href = presentation.cleanerPath;
   });
   document.querySelectorAll("[data-directory-entry]").forEach((link) => { link.href = presentation.directoryPath; });
   document.querySelectorAll("[data-account-entry]").forEach((link) => { link.hidden = Boolean(signedInWorkspace) || !presentation.accountAccess; });

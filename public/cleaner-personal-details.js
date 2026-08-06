@@ -387,7 +387,7 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
       await saveOnboardingForm(requestJson, "personal", form, { extra: formFields(form) });
       storage?.removeItem(draftKey);
       showFeedback("Personal details saved securely to your Homle account.");
-      location.assign("/cleaner/registration");
+      location.assign("/cleaner/onboarding");
     } catch (error) {
       showFeedback(error.message || "Homle could not save your Personal details.", "error");
     }

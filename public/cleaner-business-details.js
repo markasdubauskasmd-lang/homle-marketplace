@@ -161,7 +161,7 @@ export async function setupBusinessDetails({ account, showFeedback, requestJson 
       await saveOnboardingForm(requestJson, "business", form, { extra: draft });
       storage?.removeItem(draftKey);
       showFeedback("Business details saved securely to your Homle account.");
-      location.assign("/cleaner/registration");
+      location.assign("/cleaner/onboarding");
     } catch (error) {
       showFeedback(error.message || "Homle could not save your Business details.", "error");
     }

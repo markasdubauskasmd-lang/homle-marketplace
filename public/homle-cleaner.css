@@ -953,6 +953,24 @@
 .hc-nav-chevron { font-size: 18px; color: var(--hc-muted-3); transition: transform .18s ease; }
 .hc-nav-group:not([open]) .hc-nav-chevron { transform: rotate(-90deg); }
 
+/* Registration is a focused journey. The normal workspace keeps one Onboarding
+   doorway; onboarding pages show only their steps and the return to Dashboard. */
+.cleaner-workspace-page:not(.cleaner-onboarding-page) [data-onboarding-group],
+.cleaner-workspace-page:not(.cleaner-onboarding-page) .hc-nav > .hc-nav-cta {
+  display: none;
+}
+
+.cleaner-onboarding-page .hc-nav > .hc-nav-item,
+.cleaner-onboarding-page .hc-nav > .hc-nav-cta,
+.cleaner-onboarding-page [data-account-group] {
+  display: none;
+}
+
+.cleaner-onboarding-page [data-onboarding-group],
+.cleaner-onboarding-page .hc-onboarding-back {
+  display: block;
+}
+
 /* Onboarding sub-items carry a completion tick or an outstanding dot, as in the design. */
 .hc-nav-sub { font-size: 13px; }
 .hc-nav-tick {

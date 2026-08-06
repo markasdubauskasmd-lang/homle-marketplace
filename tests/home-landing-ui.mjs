@@ -266,7 +266,7 @@ assert(page.includes("scan in progress") && script.includes("Reading floor condi
 
 // Every call to action reaches a route the server actually serves, so no act of
 // the design dead-ends on the in-page anchors it was prototyped against.
-for (const link of ['href="/landlord/book"', 'href="/login"', 'href="/signup?intent=book"', 'href="/signup?intent=work"', 'href="/privacy"', 'href="/terms"']) {
+for (const link of ['href="/landlord/book"', 'href="/login"', 'href="/signup?intent=book"', 'href="/cleaner/onboarding"', 'href="/privacy"', 'href="/terms"']) {
   assert(page.includes(link), `The landing page no longer offers ${link}.`);
 }
 for (const route of ["/landlord/book", "/privacy", "/terms", "/login", "/signup"]) {

@@ -25,7 +25,7 @@ export function accountWorkspaceDestination(account, intent = "", workspaceReady
   const roles = Array.isArray(account?.roles) ? account.roles.filter((role) => workspaceDestinations[role]) : [];
   let destination = "";
   if (intent === "book") destination = roles.includes("landlord") ? "/landlord/book" : "";
-  else if (intent === "work") destination = roles.includes("cleaner") ? workspaceDestinations.cleaner : "";
+  else if (intent === "work") destination = roles.includes("cleaner") ? "/cleaner/onboarding" : "";
   else if (roles.includes(account?.selectedRole)) destination = workspaceDestinations[account.selectedRole] || "";
   return destination && !workspaceReady ? "/account-ready" : destination;
 }

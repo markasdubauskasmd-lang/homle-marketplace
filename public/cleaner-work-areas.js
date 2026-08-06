@@ -637,7 +637,7 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
       }
       renderAreas();
       showFeedback("Your outward postcodes and travel radius were saved for precise matching.", "success");
-      location.assign("/cleaner/registration");
+      location.assign("/cleaner/onboarding");
     } catch (error) {
       showFeedback(error.message || "Work areas could not be saved.", "error");
     } finally {

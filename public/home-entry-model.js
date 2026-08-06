@@ -10,7 +10,7 @@ export function homeEntryPresentation(mode) {
   if (mode === "account") return Object.freeze({
     bookingPath: "/signup?intent=book",
     bookingLabel: "Book a clean",
-    cleanerPath: "/signup?intent=work",
+    cleanerPath: "/cleaner/onboarding",
     directoryPath: "/landlord/dashboard",
     stepCopy: "Sign in and choose your property, date and type of clean.",
     statusCopy: "Creating a request does not confirm a Cleaner or take payment. You review the scope and quote first.",
@@ -19,7 +19,7 @@ export function homeEntryPresentation(mode) {
   if (mode === "authentication") return Object.freeze({
     bookingPath: "/signup?intent=book",
     bookingLabel: "Create Landlord profile",
-    cleanerPath: "/signup?intent=work",
+    cleanerPath: "/cleaner/onboarding",
     directoryPath: "/landlord/dashboard",
     stepCopy: "Create a Landlord profile, then add the property when marketplace testing opens.",
     statusCopy: "Approved testers can create either a Landlord or Cleaner profile. Booking services remain closed until the full marketplace rehearsal passes.",
@@ -28,7 +28,7 @@ export function homeEntryPresentation(mode) {
   return Object.freeze({
     bookingPath: "/signup?intent=book",
     bookingLabel: "Create Landlord profile",
-    cleanerPath: "/signup?intent=work",
+    cleanerPath: "/cleaner/onboarding",
     directoryPath: "/landlord/dashboard",
     stepCopy: "Create your secure account, then manage the whole cleaning journey from your dashboard.",
     statusCopy: "Landlords and Cleaners now use their separate private dashboards.",
