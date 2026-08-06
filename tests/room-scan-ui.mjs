@@ -396,7 +396,20 @@ assert(overlay.includes('const detectorModelUrl = "/vendor/coco-ssd-lite-v1/mode
 for (const path of overlay.match(/"\/vendor\/[^"]+"/g) || []) {
   assert(/\/vendor\/[a-z-]+-(?:v\d+|\d+\.\d+\.\d+)\//.test(path), `A vendored asset is served immutable from an unversioned path and could never be replaced: ${path}`);
 }
-assert(overlay.includes('setBackend("webgl")'), "The detector does not pin the WebGL backend, so it may select one the CSP forbids.");
+// WebGPU first, WebGL as the fallback, and WASM never. The point of the
+// original assertion was not "WebGL specifically" — it was that the backend is
+// chosen explicitly rather than left to the library, which would pick WASM and
+// need `wasm-unsafe-eval`. WebGPU compiles WGSL in the browser and needs no such
+// exemption, so it is allowed under the same policy the check above pins.
+assert(overlay.includes('trySetBackend(runtime, "webgpu")') && overlay.includes('trySetBackend(runtime, "webgl")'), "The detector does not choose its backend explicitly, so it may select one the CSP forbids.");
+assert(!/setBackend\(\s*["'`]wasm/.test(overlay), "The detector selects the WASM backend, which needs the `wasm-unsafe-eval` the policy above refuses.");
+// The fallback has to be reachable: a WebGPU failure must fall through to WebGL
+// rather than throwing. A device with `navigator.gpu` and no working driver is
+// common enough that getting this wrong would take the scanner out entirely.
+assert(/if \(!\(hasWebGpu && await trySetBackend\(runtime, "webgpu"\)\)\) \{\s*\n\s*if \(!\(await trySetBackend\(runtime, "webgl"\)\)\)/.test(overlay), "A failed WebGPU start does not fall back to WebGL, so a device with a broken GPU driver loses the detector entirely.");
+// The WebGPU backend is a third of a megabyte. Fetching it on phones that have
+// no `navigator.gpu` would cost the download and then fall back anyway.
+assert(overlay.includes("hasWebGpu ? [\"/vendor/tfjs-4.22.0/tf-backend-webgpu.min.js\"] : []"), "The WebGPU backend is downloaded unconditionally, including on devices that cannot use it.");
 
 // Running the detector before the consent question is deliberate, and the
 // reason has to survive someone reading this later and 'fixing' it: the model

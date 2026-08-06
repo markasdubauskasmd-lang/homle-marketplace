@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createAnthropicRoomVision, roomVisionFromEnvironment } from "../src/marketplace/room-vision.mjs";
 import { resolveRoomCondition, roomReadingPayload } from "../public/room-scan-model.js";
 
@@ -74,24 +74,53 @@ for (const hostile of [undefined, null, "", "CONFIRMATION", " confirmation", "co
 const route = readFileSync(new URL("../src/marketplace/marketplace-http.mjs", import.meta.url), "utf8");
 assert.match(route, /body\?\.purpose === "confirmation" \? "confirmation" : "walking"/, "The room-reading route passes `purpose` through instead of comparing it to the exact string, so an arbitrary value reaches the model selector.");
 
-/* ── Unset means nothing changes ── */
+/* ── Unset means the split is ON ── */
 
-// The split is opt-in. A deployment that has not chosen a confirmation tier must
-// behave exactly as it did before this existed.
+// The split is opt-out. A deployment that configures nothing gets the stronger
+// tier on the read that sets the price — that read grades soiling, which is fine
+// detail, and it is one call per room against four walking frames.
 {
   const client = recordingClient();
   const vision = createAnthropicRoomVision({ apiKey: "test-key", model: walkingModel, client });
   await vision.readRoom({ image: "data:image/jpeg;base64,AA", roomName: "Kitchen", purpose: "confirmation" });
   await vision.readRoom({ image: "data:image/jpeg;base64,AA", roomName: "Kitchen", purpose: "walking" });
-  assert.deepEqual(client.calls, [walkingModel, walkingModel], "With no confirmation tier configured, reads diverged. Unset must mean today's behaviour exactly.");
+  assert.deepEqual(client.calls, ["claude-sonnet-5", walkingModel], "With no confirmation tier configured, the price-setting read did not get the stronger tier.");
 }
 
-// And the default is still the cheap tier, not whatever the environment omitted.
+// And it is genuinely opt-out, not merely defaulted: naming the walking model
+// explicitly puts both reads back on one tier.
+{
+  const client = recordingClient();
+  const vision = createAnthropicRoomVision({ apiKey: "test-key", model: walkingModel, confirmationModel: walkingModel, client });
+  await vision.readRoom({ image: "data:image/jpeg;base64,AA", roomName: "Kitchen", purpose: "confirmation" });
+  assert.deepEqual(client.calls, [walkingModel], "The confirmation tier cannot be turned off by naming the walking model, so a deployment cannot opt back out of the spend.");
+}
+
+// A blank configuration now selects the dearer tier for the confirmation read.
+// That inverts what this test previously guarded, and it is deliberate: the read
+// that grades soiling is the one the price is calculated from, and grading a
+// dust film or a grease sheen is a resolution problem before it is a reasoning
+// one. It is bounded — one call per room against four walking frames, and the
+// walking frames stay on the cheap tier below.
+//
+// This is the assertion that fails first if someone changes the default back, so
+// the cost of a blank deployment is stated here in one place rather than being
+// discovered on a bill.
 {
   const client = recordingClient();
   const vision = createAnthropicRoomVision({ apiKey: "test-key", client });
   await vision.readRoom({ image: "data:image/jpeg;base64,AA", roomName: "Kitchen", purpose: "confirmation" });
-  assert.deepEqual(client.calls, [walkingModel], `With no models configured at all the reader used ${client.calls[0]}. A blank configuration must never select the dearer tier.`);
+  assert.deepEqual(client.calls, ["claude-sonnet-5"], `With no models configured the confirmation read used ${client.calls[0]}, not the tier that can resolve soiling.`);
+}
+
+// The walking frames are the volume, and they stay cheap. If this ever flips to
+// the dearer tier the per-scan cost multiplies by roughly four, because these
+// are the reads there are four of.
+{
+  const client = recordingClient();
+  const vision = createAnthropicRoomVision({ apiKey: "test-key", client });
+  await vision.readRoom({ image: "data:image/jpeg;base64,AA", roomName: "Kitchen", purpose: "walking" });
+  assert.deepEqual(client.calls, ["claude-haiku-4-5"], `A walking frame used ${client.calls[0]}. These are four-per-room and only their label is kept; they must stay on the cheap tier.`);
 }
 
 assert.equal(roomVisionFromEnvironment({ ANTHROPIC_API_KEY: "" }), null, "A missing key no longer disables the reader.");
@@ -120,4 +149,31 @@ assert.equal(resolveRoomCondition("unknown", "unknown"), "", "Two unknowns produ
 assert.equal(resolveRoomCondition("", ""), "", "Empty input produced a grade.");
 assert.equal(resolveRoomCondition("HEAVY", "light"), "heavy", "Grades are not compared case-insensitively.");
 
-console.log("Room vision model split tests passed: walking frames use the cheap tier and confirmations the configured one, a confirmation with no tapped objects is still a confirmation, no client-supplied purpose can escalate to the dearer model, an unset confirmation tier behaves exactly as before, and the confirmation grade is authoritative except where it could not judge.");
+console.log("Room vision model split tests passed: walking frames use the cheap tier and confirmations the configured one, a confirmation with no tapped objects is still a confirmation, no client-supplied purpose can escalate to the dearer model, an unset confirmation tier puts the price-setting read on the stronger model, and the confirmation grade is authoritative except where it could not judge.");
+
+/* ── The instruction block is cached, and effort follows the read ── */
+
+const visionSource = readFileSync(new URL("../src/marketplace/room-vision.mjs", import.meta.url), "utf8");
+
+// The instruction block is the largest part of every request and is byte-identical
+// on every call. Sending it uncached re-bills the whole prefix per photograph, and
+// a room is five reads.
+assert.match(visionSource, /cache_control: \{ type: "ephemeral" \}/, "The instruction block is sent without cache_control, so the largest and most repeated part of every request is re-billed per photograph.");
+for (const call of ["system: cachedSystem(instructions)", "system: cachedSystem(selectionInstructions)"]) {
+  assert(visionSource.includes(call), `A read still sends its system prompt as a bare string (${call} missing), so cache_control never reaches it.`);
+}
+
+// Caching is silent when it fails: a prefix below the model's minimum is not an
+// error, it just never caches. The probe is what turns that into a number, so it
+// has to keep existing and keep being reachable.
+assert(existsSync(new URL("../tools/room-vision-probe.mjs", import.meta.url)), "tools/room-vision-probe.mjs is gone, so nothing measures whether the cached prefix actually clears the per-model minimum.");
+assert.match(visionSource, /room-vision-probe\.mjs/, "room-vision.mjs no longer points at the probe, so the next reader has no way to find out whether its cache_control does anything.");
+
+// Depth follows the read, not the model. A walking frame is recognition and its
+// coordinates are discarded; the confirmation read is judgement and sets the price.
+assert.match(visionSource, /effort: purpose === "confirmation" \? "high" : "low"/, "Effort is no longer chosen per read, so either the four discarded walking frames are paying for depth or the read that sets the price is not getting it.");
+// Haiku rejects the parameter outright, so the capability gate has to stay.
+assert.match(visionSource, /const supportsEffort = /, "The effort capability gate was removed; sending effort to a model that rejects it 400s every call on that tier.");
+assert.match(visionSource, /opus-\[5-9\]/, "The effort gate does not recognise the current Opus line, so a deployment on it would silently lose the effort hint.");
+
+console.log("Room vision model-split tests passed: price-setting read on the resolving tier, walking frames cheap, prompt caching wired, effort per read.");
