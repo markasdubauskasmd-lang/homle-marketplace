@@ -40,6 +40,14 @@ const helpArticles = [
   {
     question: "What if I need to decline a job I already accepted?",
     answer: "Message the booking participant as soon as possible and use the booking's available support or issue controls. An accepted commitment is not silently removed from this Help Centre."
+  },
+  {
+    question: "What sign-off records",
+    answer: "Job sign-off records every task on the approved room checklist as you complete it, before and after photos stored privately against the booking, any issue you report with its timestamp, and your time on site from arrival through finishing."
+  },
+  {
+    question: "Before you finish",
+    answer: "Every task and unexpected-work decision must be resolved before a job can be finished. The completed checklist and photo set provide evidence if a client later disputes the clean. Added work never changes the frozen price or your agreed pay through this flow; anything extra must be approved by the client first."
   }
 ];
 

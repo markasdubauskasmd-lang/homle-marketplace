@@ -143,7 +143,6 @@ const [
   cleanerContractsScript,
   cleanerJobsMapPage,
   cleanerPerformancePage,
-  cleanerSignOffPage,
   cleanerPublicProfilePage,
   cleanerPublicProfileScript,
   cleanerMessagesPage,
@@ -176,7 +175,6 @@ const [
   readFile(new URL("../public/cleaner-contracts.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-jobs-map.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-performance.html", import.meta.url), "utf8"),
-  readFile(new URL("../public/cleaner-sign-off.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-public-profile.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-public-profile.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-messages.html", import.meta.url), "utf8"),
@@ -196,7 +194,7 @@ const [
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8")
 ]);
 
-const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerSignOffPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage, cleanerIncidentReportsPage, cleanerDisputesPage, cleanerSettingsPage];
+const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage, cleanerIncidentReportsPage, cleanerDisputesPage, cleanerSettingsPage];
 const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
 assert(server.includes('"/cleaner/onboarding": "cleaner-registration.html"'), "The dedicated Cleaner onboarding route is not served.");
 assert(cleanerRegistrationPage.includes('data-cleaner-shell="onboarding"') && cleanerRegistrationPage.includes("cleaner-onboarding-page") && cleanerRegistrationPage.includes("data-reg-create-account"), "The registration journey is not marked as a dedicated onboarding shell with a safe new-account entry.");
@@ -214,7 +212,9 @@ for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(!page.includes("hc-side-foot") && !page.includes("hc-account-menu"), `Cleaner workspace page ${index + 1} still shows the removed sidebar profile card.`);
   assert(page.includes("data-account-group open") && page.includes("data-account-nav") && page.includes("hc-account-nav-status"), `Cleaner workspace page ${index + 1} does not expose the shared open Account navigation or secure Logout recovery state.`);
   assert(!primaryNavigation(page).includes("/landlord/dashboard") && !primaryNavigation(page).includes("Properties"), `Cleaner workspace page ${index + 1} mixes Landlord controls into its primary navigation.`);
+  assert(!primaryNavigation(page).includes("/cleaner/sign-off") && !primaryNavigation(page).includes("Job Sign-off"), `Cleaner workspace page ${index + 1} still exposes the retired Job Sign-off page.`);
 }
+assert(!server.includes('"/cleaner/sign-off"') && !cleanerWorkspacePages.some((page) => page.includes('href="/cleaner/sign-off"')), "The retired Job Sign-off route or navigation link is still present.");
 for (const [label, href] of [
   ["My Profile", "/cleaner/profile/preview"],
   ["Messages", "/cleaner/messages"],
@@ -247,7 +247,7 @@ assert(notificationsScript.includes('workspace.role === "cleaner"') && notificat
 assert(cleanerStyles.includes(".hc-notifications-grid") && cleanerStyles.includes(".hc-notification-row.is-unread") && cleanerStyles.includes(".hc-notification-channels") && cleanerStyles.includes(".hc-channel-switch") && cleanerStyles.includes(".hc-notification-push-empty") && cleanerStyles.includes(".cleaner-notifications-page .hc-side.cleaner-site-header"), "The supplied Notifications card grid, unread rows, switches, push empty state or cream sidebar treatment is missing.");
 assert(server.includes('"/cleaner/help-centre": "cleaner-help-centre.html"') && cleanerOnboardingSteps.includes('label: "Help Centre", icon: "help", href: "/cleaner/help-centre"') && !cleanerOnboardingSteps.includes('label: "Help Centre", icon: "help", href: "/cleaner/help-centre", awaitingDesign: true'), "The Cleaner Help Centre tab is not routed to its completed private page.");
 assert(cleanerHelpCentrePage.includes('class="cleaner-workspace-page cleaner-help-centre-page"') && cleanerHelpCentrePage.includes("Stuck on a step? Answers below, humans one tap away.") && cleanerHelpCentrePage.includes("data-help-search") && cleanerHelpCentrePage.includes("data-help-faq-list") && cleanerHelpCentrePage.includes("Talk to us") && cleanerHelpCentrePage.includes("Request a call back") && cleanerHelpCentrePage.includes("Raise a support ticket"), "The supplied Help Centre heading, search, FAQ card or contact card is missing.");
-assert(cleanerHelpCentreScript.includes('createCleanerPage("help-centre"') && cleanerHelpCentreScript.includes("helpArticles") && (cleanerHelpCentreScript.match(/question:/g) || []).length === 10 && cleanerHelpCentreScript.includes('search.addEventListener("input"') && cleanerHelpCentreScript.includes("replaceChildren") && cleanerHelpCentreScript.includes("Nothing was submitted") && !cleanerHelpCentreScript.includes("innerHTML") && !cleanerHelpCentreScript.includes("localStorage") && !cleanerHelpCentreScript.includes("sessionStorage") && !cleanerHelpCentreScript.includes("fetch("), "The Help Centre is not role-gated, fully searchable, safely rendered or honest about unsupported submissions.");
+assert(cleanerHelpCentreScript.includes('createCleanerPage("help-centre"') && cleanerHelpCentreScript.includes("helpArticles") && (cleanerHelpCentreScript.match(/question:/g) || []).length === 12 && cleanerHelpCentreScript.includes('question: "What sign-off records"') && cleanerHelpCentreScript.includes('question: "Before you finish"') && cleanerHelpCentreScript.includes("before and after photos stored privately against the booking") && cleanerHelpCentreScript.includes("anything extra must be approved by the client first") && cleanerHelpCentreScript.includes('search.addEventListener("input"') && cleanerHelpCentreScript.includes("replaceChildren") && cleanerHelpCentreScript.includes("Nothing was submitted") && !cleanerHelpCentreScript.includes("innerHTML") && !cleanerHelpCentreScript.includes("localStorage") && !cleanerHelpCentreScript.includes("sessionStorage") && !cleanerHelpCentreScript.includes("fetch("), "The Help Centre is not role-gated, fully searchable, safely rendered, missing the moved sign-off guidance or dishonest about unsupported submissions.");
 for (const copiedSample of ["0113 496 0500", "cleaners@homle.uk", "8am – 8pm daily", "Sadie Fletcher"]) {
   assert(!`${cleanerHelpCentrePage}\n${cleanerHelpCentreScript}`.includes(copiedSample), `The Help Centre copied the screenshot's ${copiedSample} sample instead of showing truthful support availability.`);
 }
