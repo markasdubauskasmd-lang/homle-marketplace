@@ -107,7 +107,6 @@ const cleanerWorkspace = new Set([
   "cleaner-reviews",
   "cleaner-schedule",
   "cleaner-settings",
-  "cleaner-sign-off",
   "cleaner-training"
 ]);
 // The public landing page is its own dark cinematic design: it loads neither

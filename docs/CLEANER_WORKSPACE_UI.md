@@ -12,9 +12,9 @@ The Cleaner workspace is rebuilt from the supplied "Cleaner Onboarding Dashboard
 - `/cleaner/jobs-map` — the design's map screen.
 - `/cleaner/performance` — rank card, ladder, criteria tiles and guidance.
 - `/cleaner/registration` — all eighteen onboarding steps as cards.
-- `/cleaner/sign-off` — jobs eligible for completion.
+- Active bookings open their checklist, photos and completion controls directly from the schedule or booking page.
 
-All nine reuse the existing account gate, `dashboardWorkspaceAccess` role boundary and account menu. None introduces a new authentication or authorisation path.
+All listed routes reuse the existing account gate, `dashboardWorkspaceAccess` role boundary and account menu. None introduces a new authentication or authorisation path.
 
 `public/cleaner-page.js` carries what the secondary pages have in common — the gate, the offline banner and a bounded JSON reader — so that behaviour is defined once rather than repeated per page. It deliberately holds no mutating call.
 
@@ -22,7 +22,7 @@ All nine reuse the existing account gate, `dashboardWorkspaceAccess` role bounda
 
 Every page carries the same sidebar, in three parts:
 
-- **Primary** (static markup, twelve entries): Dashboard, My Schedule, Jobs Map, Job Sign-off, Earnings, Reviews, Performance, Complete Registration, then the Continue setup action.
+- **Primary**: Dashboard, My Schedule, Jobs Map, Earnings, Reviews, Performance and Onboarding, followed by the Continue setup action when registration remains incomplete.
 - **ONBOARDING** (rendered by `public/cleaner-sidebar.js`, fourteen entries): Personal Details, Business Details, Identity Verification, Background Checks, Work Areas, Experience, References, Insurance, Banking, Availability, Equipment, Documents, Training, Contracts.
 - **ACCOUNT** (static markup): My Profile, Messages, Public profile, Public directory, Settings.
 
