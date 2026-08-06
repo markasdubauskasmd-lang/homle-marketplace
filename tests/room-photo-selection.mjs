@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  consumeRoomPhotoInputFiles,
   maximumGuidedRoomPhotoPixels,
   maximumRoomPhotoBytes,
   maximumRoomPhotos,
@@ -10,6 +11,15 @@ import {
 import { extractRoomVideoFrames, maximumRoomVideoBytes, maximumRoomVideoFrames, maximumRoomVideoSeconds, roomVideoContactSheetLayout, roomVideoFrameTimes, validatedRoomVideoFile } from "../public/room-video-frames.js";
 
 const photo = (name, type = "image/jpeg", size = 1_000_000) => ({ name, type, size });
+let liveFiles = [photo("live-camera.jpg")];
+const liveInput = {
+  get files() { return liveFiles; },
+  get value() { return "camera-selection"; },
+  set value(selected) { if (selected === "") liveFiles = []; }
+};
+const consumedLiveFiles = consumeRoomPhotoInputFiles(liveInput);
+assert.equal(consumedLiveFiles.length, 1, "Resetting the file input erased the mobile camera selection before upload.");
+assert.equal(liveFiles.length, 0, "The reusable photo input was not reset after its files were safely copied.");
 const batch = validatedRoomPhotoSelection([photo("one.jpg"), photo("two.webp", "image/webp")], { existingPhotoCount: 3 });
 assert.equal(batch.length, 2);
 assert.equal(batch[1].mimeType, "image/webp");
