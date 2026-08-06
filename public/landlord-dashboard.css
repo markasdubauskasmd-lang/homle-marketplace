@@ -932,6 +932,22 @@ body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requ
    expander so the banner behaves like every other disclosure. */
 body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-body { display: none; }
 
+body.landlord-dashboard-page .landlord-request-continuation {
+  width: min(100%, 72rem);
+  margin: 0 auto;
+  padding: clamp(1rem, 2.5vw, 2rem);
+}
+
+body.landlord-dashboard-page .landlord-request-continuation-heading {
+  display: grid;
+  gap: .45rem;
+  margin-bottom: 1rem;
+}
+
+body.landlord-dashboard-page .landlord-request-continuation-heading > * { margin: 0; }
+body.landlord-dashboard-page .landlord-request-continuation .landlord-request-scan { margin-top: 0; border-top: 0; }
+body.landlord-dashboard-page .landlord-request-continuation .landlord-request-scan > summary { display: none; }
+
 /* ══════════════════════════════════════════════════════════════════════════
  * The manual hero — the second front door, and an equal to the scan banner.
  *
