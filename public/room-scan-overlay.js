@@ -265,12 +265,24 @@ const markup = `
 // with a one-year lifetime, so a replacement must arrive at a new URL or
 // browsers that already hold the old one will never ask again. Re-vendoring
 // means a new directory, never an overwrite.
-const detectorScripts = Object.freeze([
-  "/vendor/tfjs-4.22.0/tf-core.min.js",
-  "/vendor/tfjs-4.22.0/tf-converter.min.js",
-  "/vendor/tfjs-4.22.0/tf-backend-webgl.min.js",
-  "/vendor/tfjs-4.22.0/coco-ssd.min.js"
-]);
+// WebGL is always loaded — it is the fallback, and the one backend every phone
+// that can run this screen actually has. The WebGPU backend is a third of a
+// megabyte on its own, so it is only fetched where there is a `navigator.gpu`
+// to use it; a phone without one would pay the download and then fall back
+// anyway.
+function detectorScriptsFor(hasWebGpu) {
+  return [
+    "/vendor/tfjs-4.22.0/tf-core.min.js",
+    "/vendor/tfjs-4.22.0/tf-converter.min.js",
+    "/vendor/tfjs-4.22.0/tf-backend-webgl.min.js",
+    ...(hasWebGpu ? ["/vendor/tfjs-4.22.0/tf-backend-webgpu.min.js"] : []),
+    "/vendor/tfjs-4.22.0/coco-ssd.min.js"
+  ];
+}
+
+export function webGpuAvailable(scope = globalThis) {
+  return Boolean(scope?.navigator?.gpu);
+}
 const detectorModelUrl = "/vendor/coco-ssd-lite-v1/model.json";
 // The detector's own input is a few hundred pixels square, so there is nothing
 // to gain from handing it a full 720p+ camera frame — only a larger texture to
@@ -316,6 +328,24 @@ let detectorLoad = null;
 // shared too. An overlay closed and reopened mid-inference would otherwise have
 // two callers inside `detect()` on the same model at once.
 let detectorBusy = false;
+// Which backend actually won, for the scan record. A device that quietly fell
+// back to WebGL reads identically to one that never had WebGPU unless this is
+// captured at the point the choice is made.
+let detectorBackend = "";
+
+export function activeDetectorBackend() {
+  return detectorBackend;
+}
+
+// A backend that is registered but unusable reports failure two different ways:
+// `setBackend` resolves false, or adapter acquisition throws. Treat both as "no".
+async function trySetBackend(runtime, name) {
+  try {
+    return Boolean(await runtime.setBackend(name));
+  } catch {
+    return false;
+  }
+}
 
 function loadDetectorOnce() {
   if (detectorLoad) return detectorLoad;
@@ -323,15 +353,29 @@ function loadDetectorOnce() {
     // Requested together rather than one after the next. Each tag already sets
     // `async = false`, so the browser still executes them in this order — it just
     // stops waiting for one megabyte to arrive before asking for the next file.
-    await Promise.all(detectorScripts.map(loadDetectorScript));
+    const hasWebGpu = webGpuAvailable();
+    await Promise.all(detectorScriptsFor(hasWebGpu).map(loadDetectorScript));
     const runtime = globalThis.tf;
     const detection = globalThis.cocoSsd;
     if (!runtime || !detection) throw new Error("detector-unavailable");
-    // WebGL only. The WASM backend needs `wasm-unsafe-eval` in the policy, and
-    // weakening the CSP for the whole site to speed up one screen is not a
-    // trade worth making.
-    if (!(await runtime.setBackend("webgl"))) throw new Error("detector-unavailable");
+    // WebGPU first, WebGL second, and never WASM: the WASM backend needs
+    // `wasm-unsafe-eval` in the policy, and weakening the CSP for the whole site
+    // to speed up one screen is not a trade worth making.
+    //
+    // WebGPU needs no such exemption. Its shaders are WGSL compiled by the
+    // browser, not compiled bytecode the page has to be allowed to evaluate, so
+    // it runs under the same `script-src 'self'` that rules WASM out — and it
+    // gets a real compute pipeline instead of expressing every convolution as a
+    // fragment shader over textures, which is why it is worth preferring.
+    //
+    // `setBackend` returns false rather than throwing when a backend is present
+    // but unusable, and requesting a GPU adapter can fail on a device that has
+    // the API and no working driver. Both mean: fall back, do not fail.
+    if (!(hasWebGpu && await trySetBackend(runtime, "webgpu"))) {
+      if (!(await trySetBackend(runtime, "webgl"))) throw new Error("detector-unavailable");
+    }
     await runtime.ready();
+    detectorBackend = runtime.getBackend ? runtime.getBackend() : "";
     // Without `modelUrl` this fetches from storage.googleapis.com, which
     // connect-src blocks — the scan would show no boxes and report no error.
     return await detection.load({ base: "lite_mobilenet_v2", modelUrl: detectorModelUrl });
