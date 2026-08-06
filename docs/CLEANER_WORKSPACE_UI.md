@@ -22,7 +22,7 @@ All listed routes reuse the existing account gate, `dashboardWorkspaceAccess` ro
 
 Every page carries the same sidebar, in three parts:
 
-- **Primary**: Dashboard, My Schedule, Jobs Map, Messages, Earnings, Reviews, Performance and Onboarding, followed by the Continue setup action when registration remains incomplete.
+- **Primary**: Activity, My Schedule, Jobs Map, Messages, Earnings, Reviews, Performance and Onboarding, followed by the Continue setup action when registration remains incomplete.
 - **ONBOARDING** (rendered by `public/cleaner-sidebar.js`, fourteen entries): Personal Details, Business Details, Identity Verification, Background Checks, Work Areas, Experience, References, Insurance, Banking, Availability, Equipment, Documents, Training, Contracts.
 - **ACCOUNT** (rendered by `public/cleaner-sidebar.js`): My Profile, Notifications, Help Centre, Support Tickets, Report an Incident, My Disputes, Settings and Logout.
 

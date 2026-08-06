@@ -213,6 +213,7 @@ for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(page.includes("data-account-group open") && page.includes("data-account-nav") && page.includes("hc-account-nav-status"), `Cleaner workspace page ${index + 1} does not expose the shared open Account navigation or secure Logout recovery state.`);
   assert(!primaryNavigation(page).includes("/landlord/dashboard") && !primaryNavigation(page).includes("Properties"), `Cleaner workspace page ${index + 1} mixes Landlord controls into its primary navigation.`);
   assert(!primaryNavigation(page).includes("/cleaner/sign-off") && !primaryNavigation(page).includes("Job Sign-off"), `Cleaner workspace page ${index + 1} still exposes the retired Job Sign-off page.`);
+  assert(primaryNavigation(page).includes('<span class="hc-nav-label">Activity</span>') && !primaryNavigation(page).includes('<span class="hc-nav-label">Dashboard</span>'), `Cleaner workspace page ${index + 1} does not use the Activity label for the dashboard tab.`);
   assert(primaryNavigation(page).includes('href="/cleaner/messages"') && primaryNavigation(page).includes('data-notification-label="Messages"') && primaryNavigation(page).includes("data-notification-count"), `Cleaner workspace page ${index + 1} does not expose Messages with its unread indicator in the primary navigation.`);
 }
 assert(!server.includes('"/cleaner/sign-off"') && !cleanerWorkspacePages.some((page) => page.includes('href="/cleaner/sign-off"')), "The retired Job Sign-off route or navigation link is still present.");
