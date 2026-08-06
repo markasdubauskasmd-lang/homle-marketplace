@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#d7182a">
+  <title>Stripe test checkout | Homle</title>
+  <link rel="icon" href="/homle-logo.png" type="image/png">
+  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
+  <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <script src="/stripe-sandbox.js?v=20260806-1" type="module"></script>
+</head>
+<body class="booking-payment-page">
+  <a class="skip-link" href="#sandbox-main">Skip to Stripe test checkout</a>
+  <header class="site-header"><div class="shell nav-wrap"><a class="brand" href="/landlord/dashboard" aria-label="Homle Landlord dashboard"><img src="/homle-logo-128-4f82ebad.png" alt="" width="40" height="40"><span>Homle</span></a><nav class="directory-nav" aria-label="Test checkout navigation"><a href="/landlord/dashboard">Landlord dashboard</a></nav></div></header>
+  <main id="sandbox-main" class="booking-payment-main shell">
+    <section class="booking-payment-intro">
+      <div><p class="eyebrow">Independent Stripe test</p><h1>Open the real Stripe payment form now.</h1><p>This checkout is available even when no Cleaner can be matched. It tests Stripe only and does not create or confirm a cleaning booking.</p></div>
+      <span class="booking-payment-mode">Stripe test mode · £0.30 test payment</span>
+    </section>
+    <section class="booking-payment-state" data-sandbox-state data-kind="checking" role="status" aria-live="polite">
+      <span aria-hidden="true">i</span><div><strong data-sandbox-state-title>Preparing Stripe test checkout…</strong><p data-sandbox-state-copy>Checking your authenticated Landlord session and protected test configuration.</p><div class="booking-payment-state-actions"><a class="button" href="/login?intent=book&next=%2Fstripe-sandbox%3Fstart%3D1" data-sandbox-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-sandbox-retry hidden>Try again</button></div></div>
+    </section>
+    <section class="booking-payment-card" data-sandbox-card hidden aria-labelledby="sandbox-title">
+      <div class="booking-payment-summary"><div><p class="eyebrow">Test amount</p><h2 id="sandbox-title">£0.30</h2><p>Independent checkout preview</p></div><div class="booking-payment-status"><span>Mode</span><strong>Stripe test</strong></div></div>
+      <div class="booking-payment-message"><strong>Use Stripe test details</strong><p>Use card number 4242 4242 4242 4242, any future expiry date and any three-digit CVC. No real money moves.</p></div>
+      <form class="booking-payment-form" data-sandbox-form hidden novalidate>
+        <div class="booking-payment-element" data-sandbox-element aria-label="Secure Stripe test payment details"></div>
+        <div class="booking-payment-feedback" data-sandbox-feedback role="alert" hidden></div>
+        <button class="button" type="submit" data-sandbox-submit>Complete £0.30 Stripe test</button>
+        <p class="booking-payment-boundary"><strong>This is separate from marketplace bookings.</strong> It proves that the Stripe form and test keys work without inventing a Cleaner, booking or customer charge.</p>
+      </form>
+      <div class="booking-payment-message" data-sandbox-complete hidden role="status"><strong>Stripe test completed.</strong><p>The test-mode payment succeeded. No Homle booking was created.</p><a class="button" href="/landlord/dashboard">Return to Landlord dashboard</a></div>
+    </section>
+  </main>
+</body>
+</html>

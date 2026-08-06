@@ -56,6 +56,10 @@ const repository = {
 
 const provider = {
   name: "stripe",
+  async createSandboxCheckout(input) {
+    calls.push({ kind: "provider-sandbox-checkout", input });
+    return { id: "pi_test_sandbox", status: "requires-customer-action", clientSecret: "pi_test_sandbox_secret", amountPence: input.amountPence, currency: input.currency };
+  },
   async createAuthorization(input) {
     calls.push({ kind: "provider-authorization", input });
     return { id: "pi_test_private", status: "requires-customer-action", clientSecret: "pi_secret_private", amountPence: input.amountPence, currency: input.currency };
@@ -107,6 +111,17 @@ assert(providerAuthorizationCall.input.amountPence === 12_000 && providerAuthori
 
 await assert.rejects(service.beginAuthorization(cleaner, { bookingId, idempotencyKey: "authorization_retry_key_1234567890" }), (error) => error.code === "payment-role-required");
 await assert.rejects(service.beginAuthorization(landlord, { bookingId, idempotencyKey: "weak" }), /strong payment idempotency key/i);
+
+const sandboxCheckout = await service.beginSandboxCheckout(landlord, { idempotencyKey: "sandbox_checkout_retry_key_1234567890" });
+assert.deepEqual(sandboxCheckout, { status: "requires-customer-action", amountPence: 30, currency: "gbp", requiresCustomerAction: true, clientSecret: "pi_test_sandbox_secret", testMode: true });
+const sandboxCall = calls.find((call) => call.kind === "provider-sandbox-checkout");
+assert.equal(sandboxCall.input.amountPence, 30);
+assert.equal(sandboxCall.input.currency, "gbp");
+assert.match(sandboxCall.input.idempotencyKey, /^homle_sandbox_[0-9a-f]{64}$/);
+assert.match(sandboxCall.input.actorHash, /^[0-9a-f]{64}$/);
+assert(!JSON.stringify(sandboxCall).includes(landlord.userId) && !JSON.stringify(sandboxCall).includes("sandbox_checkout_retry_key"), "Sandbox checkout leaked the account id or raw retry key to Stripe.");
+await assert.rejects(service.beginSandboxCheckout(cleaner, { idempotencyKey: "sandbox_checkout_retry_key_1234567890" }), (error) => error.code === "payment-role-required");
+await assert.rejects(service.beginSandboxCheckout(landlord, { idempotencyKey: "weak" }), /strong payment idempotency key/i);
 
 const captured = await service.capture(administrator, { paymentId, idempotencyKey: "capture_retry_key_123456789012345" });
 const refunded = await service.refund(administrator, { paymentId, amountPence: 2_000, idempotencyKey: "refund_retry_key_1234567890123456" });

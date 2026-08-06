@@ -170,7 +170,7 @@ function normalizedEvent(value, payloadHash) {
 
 export function createPaymentService(repository, provider, options = {}) {
   const requiredRepository = ["getByBooking", "listForAdministrator", "getForAdministratorBooking", "beginAuthorization", "recordAuthorization", "beginCommand", "recordCommand", "reconcileEvent"];
-  const requiredProvider = ["createAuthorization", "retrieveAuthorization", "capture", "cancel", "refund", "transfer", "verifyWebhook"];
+  const requiredProvider = ["createAuthorization", "createSandboxCheckout", "retrieveAuthorization", "capture", "cancel", "refund", "transfer", "verifyWebhook"];
   if (!repository || requiredRepository.some((method) => typeof repository[method] !== "function")) throw new TypeError("A complete payment repository is required.");
   if (!provider || provider.name !== "stripe" || requiredProvider.some((method) => typeof provider[method] !== "function")) throw new TypeError("A complete Stripe payment adapter is required.");
   const publishableKey = String(options.publishableKey || "").trim();
@@ -199,6 +199,27 @@ export function createPaymentService(repository, provider, options = {}) {
     }), prepared);
     const recorded = await repository.recordAuthorization(actor, prepared.paymentId, result);
     return publicPayment(recorded, result.clientSecret);
+  }
+
+  async function beginSandboxCheckout(actor, input) {
+    requireRole(actor, "landlord");
+    keyHash(input?.idempotencyKey);
+    const actorHash = createHash("sha256").update(actor.userId).digest("hex");
+    const idempotencyKey = `homle_sandbox_${createHash("sha256").update(`${actor.userId}:${input.idempotencyKey}`).digest("hex")}`;
+    const result = providerAuthorization(await provider.createSandboxCheckout({
+      idempotencyKey,
+      actorHash,
+      amountPence: 30,
+      currency: "gbp"
+    }), { amountPence: 30, currency: "gbp" });
+    return Object.freeze({
+      status: result.status,
+      amountPence: 30,
+      currency: "gbp",
+      requiresCustomerAction: result.status === "requires-customer-action",
+      clientSecret: result.status === "requires-customer-action" ? result.clientSecret : null,
+      testMode: true
+    });
   }
 
   async function runCommand(actor, kind, input) {
@@ -256,6 +277,7 @@ export function createPaymentService(repository, provider, options = {}) {
       return Object.freeze({ payments: Object.freeze(page.payments.map(administratorPaymentOperation)), limit: boundedInteger(page.limit, 1, 100, limit, "Payment page size"), offset: boundedInteger(page.offset, 0, 10000, offset, "Payment page offset"), testMode: true });
     },
     beginAuthorization,
+    beginSandboxCheckout,
     capture(actor, input) { return runCommand(actor, "capture", input); },
     cancel(actor, input) { return runCommand(actor, "cancel", input); },
     refund(actor, input) { return runCommand(actor, "refund", input); },
