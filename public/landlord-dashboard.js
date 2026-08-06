@@ -26,6 +26,7 @@ const requestCompleteLead = document.querySelector("[data-request-complete-lead]
 const requestCompleteReference = document.querySelector("[data-request-complete-reference]");
 const requestCompleteCounts = document.querySelector("[data-request-complete-counts]");
 const requestCompleteWarning = document.querySelector("[data-request-complete-warning]");
+const requestCompleteNext = document.querySelector("[data-request-complete-next]");
 const propertyForm = document.querySelector("[data-property-form]");
 const requestForm = document.querySelector("[data-request-form]");
 const requestContinuation = document.querySelector("[data-request-continuation]");
@@ -140,6 +141,7 @@ let matchingReady = false;
 let automaticDispatchReady = false;
 let requestRecoveryChecked = false;
 let requestRecoveryTimer = null;
+let completedRequestId = "";
 let invitationStream = null;
 let invitationStreamKey = "";
 let bookingTransitionRefresh = null;
@@ -447,6 +449,8 @@ function showRequestCompletion(submission, { automaticDispatch = false, automati
     : "Your reviewed scan is submitted for matching. No Cleaner has been invited automatically.";
   requestCompleteWarning.textContent = warning;
   requestCompleteWarning.hidden = !warning;
+  completedRequestId = String(submission?.cleaningRequestId || "");
+  requestCompleteNext.textContent = selectedCleanerInvited || automaticDispatch ? "Track Cleaner response" : "Choose Cleaner & exact price";
   state.hidden = true;
   workspace.hidden = true;
   requestComplete.hidden = false;
@@ -1294,6 +1298,7 @@ function requestScanPanel(request) {
             if (signed?.method !== "PUT" || !signed.uploadId || !signed.uploadUrl || !signed.requiredHeaders || Object.keys(signed.requiredHeaders).length !== 4) throw new Error("The secure upload instructions were incomplete.");
             const destination = new URL(signed.uploadUrl);
             if (destination.protocol !== "https:" && !["127.0.0.1", "localhost"].includes(destination.hostname)) throw new Error("The secure upload destination was unsafe.");
+            setPending(upload, true, `Uploading photo ${uploadedCount + 1} of ${queuedCount} (${humanFileSize(candidate.byteSize)})…`);
             const uploadController = new AbortController();
             const uploadTimer = window.setTimeout(() => uploadController.abort(), 120_000);
             try {
@@ -1308,13 +1313,18 @@ function requestScanPanel(request) {
             uploadId = signed.uploadId;
             pendingPhotoCompletions.set(candidate, uploadId);
           }
-          setPending(upload, true, `Verifying photo ${uploadedCount + 1} of ${queuedCount}…`);
+          setPending(upload, true, `Securing photo ${uploadedCount + 1} of ${queuedCount}…`);
           let completed;
+          const verificationHintTimer = window.setTimeout(() => {
+            setPending(upload, true, `Removing metadata and securing photo ${uploadedCount + 1} of ${queuedCount}…`);
+          }, 2_000);
           try {
             completed = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/photos/${encodeURIComponent(uploadId)}/complete`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}" });
           } catch (error) {
             if (["request-photo-upload-expired", "request-photo-upload-not-found", "request-photo-mismatch", "unsafe-request-photo", "request-photo-upload-not-allowed"].includes(error?.code)) pendingPhotoCompletions.delete(candidate);
             throw error;
+          } finally {
+            window.clearTimeout(verificationHintTimer);
           }
           requestScans.set(request.requestId, completed.scan);
           renderScanPhotos(request.requestId, completed.scan, list, count);
@@ -1456,6 +1466,7 @@ function renderRequests() {
   const visibleRequests = requests.filter((request) => request.status !== "cancelled");
   for (const request of visibleRequests) {
     const card = element("article", "landlord-request-card");
+    card.dataset.cleaningRequestId = request.requestId;
     const property = properties.find((item) => item.propertyId === request.propertyId);
     const heading = element("div", "landlord-request-card-heading");
     const title = element("div");
@@ -1513,11 +1524,14 @@ function renderRequests() {
       } else {
         const firstAttempt = dispatchAction.kind === "authorize" && dispatchAction.attemptCount === 0;
         const maximum = automaticMaximumPrice(request);
-        dispatchPanel.append(element("strong", "", firstAttempt ? "Ready to find your Cleaner?" : "Try one more eligible Cleaner?"), element("p", "", maximum == null ? "Automatic matching is unavailable because this submitted request has no approved maximum total. Choose a Cleaner directly or withdraw and create a new request with a maximum." : `This authorises exactly one additional invitation to the best eligible profitable match at no more than ${formatBookingMoney(maximum)}. It is not a booking, no payment is taken, and the Cleaner must still accept.`));
-        const authorize = element("button", "button", firstAttempt ? "Find my Cleaner" : "Try one more Cleaner");
+        const needsExactQuote = maximum == null;
+        dispatchPanel.append(element("strong", "", needsExactQuote ? "Choose the best Cleaner and exact price" : firstAttempt ? "Ready to find your Cleaner?" : "Try one more eligible Cleaner?"), element("p", "", needsExactQuote ? "Homle will check eligible Cleaners now and show the best current Cleaner and exact total for your approval. Nothing is invited or charged until you approve." : `This authorises exactly one additional invitation to the best eligible profitable match at no more than ${formatBookingMoney(maximum)}. It is not a booking, no payment is taken, and the Cleaner must still accept.`));
+        const authorize = element("button", "button", needsExactQuote ? "See best Cleaner & exact price" : firstAttempt ? "Find my Cleaner" : "Try one more Cleaner");
         authorize.type = "button";
-        authorize.disabled = maximum == null;
-        authorize.addEventListener("click", () => authorizeNextCleaner(request.requestId, dispatchAction.attemptLimit, authorize, dispatchFeedback));
+        authorize.disabled = !matchingReady;
+        authorize.addEventListener("click", () => needsExactQuote
+          ? inviteBestEligibleCleaner(request.requestId, authorize, dispatchFeedback)
+          : authorizeNextCleaner(request.requestId, dispatchAction.attemptLimit, authorize, dispatchFeedback));
         dispatchPanel.append(authorize, dispatchFeedback);
       }
       card.append(dispatchPanel);
@@ -1538,6 +1552,53 @@ function renderRequests() {
   const draftCount = visibleRequests.filter((request) => request.status === "draft").length;
   document.querySelector("[data-draft-count]").textContent = String(draftCount);
   updateUpcomingRevealCount();
+}
+
+async function inviteBestEligibleCleaner(requestId, button, feedback) {
+  feedback.hidden = true;
+  if (!matchingReady) return showFeedback(feedback, "Cleaner pricing and distance matching are temporarily unavailable. This request remains safely open and no payment was started.");
+  setPending(button, true, "Finding the best eligible Cleaner…");
+  const csrf = await recoverCsrf(feedback, "choosing a Cleaner");
+  if (!csrf) {
+    setPending(button, false, "See best Cleaner & exact price");
+    return;
+  }
+  let invitationStarted = false;
+  try {
+    const matchResult = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/matches`);
+    const candidate = Array.isArray(matchResult.candidates) ? matchResult.candidates[0] : null;
+    if (!candidate?.cleanerId) throw new Error("No eligible Cleaner is currently available for this exact time, service area and checklist. Your request remains open; try again later or change the timing.");
+    setPending(button, true, "Checking the exact price…");
+    const quoted = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/invitation-quote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ cleanerId: candidate.cleanerId })
+    });
+    const approvedPricePence = Number(quoted.quote?.customerPricePence);
+    if (!(await approveInvitationQuote(quoted.quote, candidate.displayName))) {
+      showFeedback(feedback, "No invitation was sent and no payment was started. The request remains open.");
+      return;
+    }
+    invitationStarted = true;
+    setPending(button, true, "Sending the approved invitation…");
+    const invited = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/invitations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ cleanerId: candidate.cleanerId, approvedCustomerPricePence: approvedPricePence })
+    });
+    if (Number(invited.booking?.customerPricePence) !== approvedPricePence) throw new Error("The saved invitation total could not be verified. Refresh the request before taking another action.");
+    await refreshBookingTransition();
+    setLandlordSectionExpanded(upcomingSectionToggle, true);
+    showFeedback(requestStatus, `${candidate.displayName || "The best eligible Cleaner"} was invited at ${formatBookingMoney(approvedPricePence)}. Stripe checkout opens after they accept the exact total.`, "success");
+  } catch (error) {
+    if (invitationStarted && (error?.code === "request-timeout" || /may have (?:reached Homle|completed)/i.test(error?.message || ""))) {
+      uncertainDispatchRequests.add(requestId);
+      await refreshBookingTransition();
+      showFeedback(requestStatus, "Homle could not verify the final invitation response. The saved booking status was refreshed; do not send another invitation until the result is shown.");
+    } else showFeedback(feedback, error.message);
+  } finally {
+    if (button.isConnected) setPending(button, false, "See best Cleaner & exact price");
+  }
 }
 
 async function authorizeNextCleaner(requestId, attemptLimit, button, feedback) {
@@ -2539,6 +2600,16 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
   resetRequestContinuation();
   requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
+});
+requestCompleteNext.addEventListener("click", () => {
+  requestComplete.hidden = true;
+  workspace.hidden = false;
+  selectWorkspaceTab("requests");
+  setLandlordSectionExpanded(upcomingSectionToggle, true);
+  const requestCard = [...requestList.querySelectorAll("[data-cleaning-request-id]")]
+    .find((card) => card.dataset.cleaningRequestId === completedRequestId);
+  (requestCard || requestList).scrollIntoView({ behavior: "smooth", block: "start" });
+  requestCard?.querySelector(".landlord-dispatch-action .button")?.focus({ preventScroll: true });
 });
 window.addEventListener("beforeunload", (event) => { rememberWorkingRequest(); if (propertyDirty || requestDirty || landlordProfileDirty) event.preventDefault(); });
 window.addEventListener("pagehide", () => { closeInvitationStream(); clearLandlordInvitationDeadlineTimer(); });
