@@ -60,6 +60,7 @@ export function createCleanerPage(key, render) {
   const offline = document.querySelector(`[data-${key}-offline]`);
   const feedback = document.querySelector(`[data-${key}-feedback]`);
   const signIn = document.querySelector(`[data-${key}-sign-in]`);
+  const createAccount = document.querySelector(`[data-${key}-create-account]`);
   const retry = document.querySelector(`[data-${key}-retry]`);
   let loading = false;
 
@@ -78,6 +79,7 @@ export function createCleanerPage(key, render) {
     setText(`[data-${key}-gate-title]`, title);
     setText(`[data-${key}-gate-copy]`, copy);
     if (signIn) signIn.hidden = !allowSignIn;
+    if (createAccount) createAccount.hidden = !allowSignIn;
     if (retry) retry.hidden = !allowRetry;
     if (gate) gate.hidden = false;
     if (view) view.hidden = true;
@@ -91,7 +93,17 @@ export function createCleanerPage(key, render) {
       const accountResult = await requestJson("/api/marketplace/account");
       const account = accountResult.account;
       const access = dashboardWorkspaceAccess(account, "cleaner");
-      if (!access.ready) return showGate("This account has no Cleaner workspace.", "Sign in through Work as a Cleaner to open the professional workspace.", { allowSignIn: true });
+      if (!access.ready) {
+        if (createAccount) {
+          createAccount.href = access.reason === "role-missing" ? "/onboarding?intent=work" : "/login?intent=work";
+          createAccount.textContent = access.reason === "role-missing" ? "Add Cleaner workspace" : "Switch to Cleaner workspace";
+        }
+        return showGate(
+          access.reason === "role-missing" ? "This account has no Cleaner workspace." : "Switch to your Cleaner workspace.",
+          access.reason === "role-missing" ? "Add the Cleaner role to begin onboarding." : "Your Cleaner workspace is already available and stays separate from your other Homle workspace.",
+          { allowSignIn: true }
+        );
+      }
       renderAccountAvatar(account);
       setText("[data-account-name]", account.displayName || "Cleaner");
       if (gate) gate.hidden = true;

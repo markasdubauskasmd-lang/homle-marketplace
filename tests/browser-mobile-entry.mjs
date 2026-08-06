@@ -79,7 +79,7 @@ try {
   }
   assert(entry.bookAccount.href === "/signup?intent=book" && entry.bookAccount.text === "Book cleaning" && entry.bookAccount.height >= 48,
     `The mobile customer role is missing, misrouted or too small: ${JSON.stringify(entry.bookAccount)}.`);
-  assert(entry.cleanerAccount.href === "/signup?intent=work" && entry.cleanerAccount.text === "Work as a cleaner" && entry.cleanerAccount.height >= 48,
+  assert(entry.cleanerAccount.href === "/cleaner/onboarding" && entry.cleanerAccount.text === "Work as a cleaner" && entry.cleanerAccount.height >= 48,
     `The mobile Cleaner role is missing, misrouted or too small: ${JSON.stringify(entry.cleanerAccount)}.`);
   assert(entry.heroSources.length === 2 && entry.heroSources.every((source) => source.endsWith(".webp") && source.includes("-480-")),
     `The 390px landing view downloaded a fallback or oversized hero instead of its 480px WebP pair: ${JSON.stringify(entry.heroSources)}.`);
@@ -176,7 +176,7 @@ try {
   `);
   assert(closing.joinHref === "/signup?intent=book", `The closing call to action does not sign anyone up: ${closing.joinHref}.`);
   assert(closing.joinText === "Create your Homle account", `The closing label was overwritten: "${closing.joinText}".`);
-  assert(closing.cleanerHref === "/signup?intent=work", `Cleaners cannot sign up from the landing page: ${closing.cleanerHref}.`);
+  assert(closing.cleanerHref === "/cleaner/onboarding", `Cleaners cannot open dedicated onboarding from the landing page: ${closing.cleanerHref}.`);
   assert(closing.login.href === "/login" && closing.login.height >= 44,
     `The closing Log in link is missing or too small to tap: ${JSON.stringify(closing.login)}.`);
   assert(closing.footerLinks.length === 5 && closing.footerLinks.every((link) => link.height >= 44),

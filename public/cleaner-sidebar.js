@@ -11,6 +11,43 @@
 
 import { accountNav, onboardingIcons, onboardingNav } from "./cleaner-onboarding-steps.js?v=20260729-10";
 
+function configureCleanerShell() {
+  const nav = document.querySelector(".hc-side .hc-nav");
+  if (!nav) return;
+  const onboardingGroup = nav.querySelector("[data-onboarding-group]");
+  const accountGroup = nav.querySelector("[data-account-group]");
+  const primaryItems = [...nav.children].filter((child) => child.matches(".hc-nav-item, .hc-nav-cta"));
+  const onboardingShell = document.body.dataset.cleanerShell === "onboarding";
+
+  if (!onboardingShell) {
+    onboardingGroup?.remove();
+    const onboardingEntry = primaryItems.find((item) => item.getAttribute("href") === "/cleaner/onboarding");
+    if (onboardingEntry) {
+      onboardingEntry.href = "/cleaner/onboarding";
+      const label = onboardingEntry.querySelector(".hc-nav-label");
+      if (label) label.textContent = "Onboarding";
+    }
+    primaryItems
+      .filter((item) => item.matches(".hc-nav-cta"))
+      .forEach((item) => item.remove());
+    return;
+  }
+
+  primaryItems.forEach((item) => item.remove());
+  accountGroup?.remove();
+  const role = document.querySelector(".hc-brand-role");
+  if (role) role.textContent = "ONBOARDING";
+  const back = document.createElement("a");
+  back.className = "hc-nav-item hc-onboarding-back";
+  back.href = "/cleaner/dashboard";
+  const backLabel = document.createElement("span");
+  backLabel.className = "hc-nav-label";
+  backLabel.textContent = "Back to Cleaner workspace";
+  back.append(icon("dashboard"), backLabel);
+  nav.insertBefore(back, onboardingGroup || nav.firstChild);
+  if (onboardingGroup) onboardingGroup.open = true;
+}
+
 function icon(name) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
   path.setAttribute("d", onboardingIcons[name] || onboardingIcons.folder);
@@ -114,4 +151,5 @@ export function renderCleanerAccountNav() {
 
 // Module scripts run after the page markup is parsed and before the later account/notification
 // controllers, so their event listeners see these shared buttons and hooks on first load.
+configureCleanerShell();
 renderCleanerAccountNav();

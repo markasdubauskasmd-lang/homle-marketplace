@@ -41,7 +41,7 @@ assert.equal(accountIntentFromSearch("?intent=book&intent=book"), "");
 assert.equal(accountIntentFromSearch("?intent=https%3A%2F%2Fattacker.example"), "");
 assert.equal(accountEntryPath("book"), "/signup?intent=book");
 assert.equal(accountEntryPath("book", cleanerId), `/signup?intent=book&cleaner=${cleanerId}`);
-assert.equal(accountEntryPath("work", cleanerId), "/signup?intent=work");
+assert.equal(accountEntryPath("work", cleanerId), "/cleaner/onboarding");
 assert.equal(accountEntryPath("javascript:alert(1)"), "/signup");
 assert.equal(normalizeSelectedCleaner(cleanerId.toUpperCase()), cleanerId);
 assert.equal(normalizeSelectedCleaner("not-a-cleaner"), "");

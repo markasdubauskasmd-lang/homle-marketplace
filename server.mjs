@@ -5412,6 +5412,7 @@ async function serveFile(requestPath, response, cspNonce = "") {
     "/settings": "settings.html",
     "/notifications": "notifications.html",
     "/cleaner/dashboard": "cleaner-dashboard.html",
+    "/cleaner/onboarding": "cleaner-registration.html",
     "/cleaner/schedule": "cleaner-schedule.html",
     "/cleaner/reviews": "cleaner-reviews.html",
     "/cleaner/jobs-map": "cleaner-jobs-map.html",

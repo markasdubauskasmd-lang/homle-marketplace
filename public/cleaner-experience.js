@@ -267,7 +267,7 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
       profile = results[1].profile;
       hydrateExperience(form, profile, results[0]?.data || { serviceType, specialisms, yearsExperience: form.elements.yearsExperience.value }, { serviceType });
       showFeedback(`${serviceType === "beautician" ? "Beautician" : "Cleaner"} Skills and Experience saved securely.`, "success");
-      location.assign("/cleaner/registration");
+      location.assign("/cleaner/onboarding");
     } catch (error) {
       showFeedback(error.message || "Skills and Experience could not be saved.", "error");
     } finally {
