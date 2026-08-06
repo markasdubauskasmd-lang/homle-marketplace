@@ -1,5 +1,5 @@
 import { uuidPattern } from "./validation.mjs";
-const stripeApiVersion = "2026-03-25.dahlia";
+const stripeApiVersion = "2026-06-24.dahlia";
 const testKeyPattern = /^sk_test_[A-Za-z0-9_]{16,200}$/;
 const webhookSecretPattern = /^whsec_[A-Za-z0-9_]{16,200}$/;
 const providerReferencePattern = /^(?:pi|re|tr|ch|acct|evt)_[A-Za-z0-9_]{3,250}$/;
