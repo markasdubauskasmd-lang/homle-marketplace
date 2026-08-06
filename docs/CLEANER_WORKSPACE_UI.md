@@ -22,9 +22,9 @@ All listed routes reuse the existing account gate, `dashboardWorkspaceAccess` ro
 
 Every page carries the same sidebar, in three parts:
 
-- **Primary**: Dashboard, My Schedule, Jobs Map, Earnings, Reviews, Performance and Onboarding, followed by the Continue setup action when registration remains incomplete.
+- **Primary**: Activity, My Schedule, Jobs Map, Messages, Earnings, Reviews, Performance and Onboarding, followed by the Continue setup action when registration remains incomplete.
 - **ONBOARDING** (rendered by `public/cleaner-sidebar.js`, fourteen entries): Personal Details, Business Details, Identity Verification, Background Checks, Work Areas, Experience, References, Insurance, Banking, Availability, Equipment, Documents, Training, Contracts.
-- **ACCOUNT** (static markup): My Profile, Messages, Public profile, Public directory, Settings.
+- **ACCOUNT** (rendered by `public/cleaner-sidebar.js`): My Profile, Notifications, Help Centre, Support Tickets, Report an Incident, My Disputes, Settings and Logout.
 
 Every entry resolves to a real route. The workspace contains no dead links.
 
@@ -34,7 +34,7 @@ An ONBOARDING entry linked to a step key shows that step's completion mark. An e
 
 `cleaner-sidebar.js` renders the group on every page. It must be imported by each page's module: when only the dashboard rendered it, the group appeared empty on the other eight screens. Shared modules are imported at a single `?v=` value throughout — two different values instantiate the model twice and let the sidebar and the progress chips disagree.
 
-The ACCOUNT group stays as static markup because its Messages entry carries the notification hooks that `tests/notification-inbox-ui.mjs` asserts against.
+Messages sits in the primary workspace navigation and keeps its unread-count hooks there. The ACCOUNT group is rendered from `accountNav` so all Cleaner pages share the same account and support destinations.
 
 ## Content-Security-Policy boundary
 

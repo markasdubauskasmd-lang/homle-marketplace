@@ -10,7 +10,6 @@ const retry = document.querySelector("[data-profile-retry]");
 const view = document.querySelector("[data-profile]");
 const offline = document.querySelector("[data-profile-offline]");
 const feedback = document.querySelector("[data-profile-feedback]");
-const bookingPreview = document.querySelector("[data-profile-booking-preview]");
 
 let loading = false;
 
@@ -277,10 +276,6 @@ async function loadProfile() {
 }
 
 retry.addEventListener("click", loadProfile);
-bookingPreview?.addEventListener("click", () => {
-  showFeedback("Client booking preview is not connected yet. Nothing was sent or changed.");
-  feedback.focus();
-});
 window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", () => {
   updateNetworkStatus();
