@@ -4,6 +4,7 @@ const testKeyPattern = /^sk_test_[A-Za-z0-9_]{16,200}$/;
 const webhookSecretPattern = /^whsec_[A-Za-z0-9_]{16,200}$/;
 const providerReferencePattern = /^(?:pi|re|tr|ch|acct|evt)_[A-Za-z0-9_]{3,250}$/;
 const payoutIdempotencyPattern = /^tideway_cleaner_payout_[0-9a-f-]{36}$/;
+const sandboxIdempotencyPattern = /^homle_sandbox_[0-9a-f]{64}$/;
 
 function reference(value, label) {
   if (!providerReferencePattern.test(value || "")) throw new TypeError(`Stripe returned an invalid ${label}.`);
@@ -12,6 +13,11 @@ function reference(value, label) {
 
 function paymentInput(input) {
   if (!input || !uuidPattern.test(input.paymentId || "") || !uuidPattern.test(input.bookingId || "") || !Number.isInteger(input.amountPence) || input.amountPence < 1 || input.amountPence > 10_000_000 || input.currency !== "gbp" || !/^tideway_(?:payment|payment_command)_[0-9a-f-]{36}$/.test(input.idempotencyKey || "")) throw new TypeError("A complete Homle payment request is required.");
+  return input;
+}
+
+function sandboxPaymentInput(input) {
+  if (!input || input.amountPence !== 30 || input.currency !== "gbp" || !sandboxIdempotencyPattern.test(input.idempotencyKey || "") || !/^[0-9a-f]{64}$/.test(input.actorHash || "")) throw new TypeError("A complete Homle sandbox payment request is required.");
   return input;
 }
 
@@ -198,6 +204,19 @@ export async function createStripePaymentProvider(configuration = {}, options = 
         payment_method_types: ["card"],
         transfer_group: selected.transferGroup,
         metadata: metadata(selected)
+      }, { idempotencyKey: selected.idempotencyKey });
+      return authorizationResult(intent);
+    },
+    async createSandboxCheckout(input) {
+      const selected = sandboxPaymentInput(input);
+      const intent = await stripe.paymentIntents.create({
+        amount: selected.amountPence,
+        currency: selected.currency,
+        payment_method_types: ["card"],
+        metadata: {
+          homle_checkout_preview: "true",
+          homle_actor_hash: selected.actorHash
+        }
       }, { idempotencyKey: selected.idempotencyKey });
       return authorizationResult(intent);
     },

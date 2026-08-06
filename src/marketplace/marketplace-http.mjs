@@ -203,6 +203,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, payment: payments.getClientConfiguration(context.actor) });
           return true;
         }
+        if (pathname === "/api/marketplace/payments/sandbox-checkout") {
+          if (!payments) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const payment = await payments.beginSandboxCheckout(context.actor, await readJsonObject(request));
+          sendJson(response, 201, { ok: true, payment });
+          return true;
+        }
         if (pathname === "/api/marketplace/admin/payments") {
           if (!payments) return false;
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;

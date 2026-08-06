@@ -297,7 +297,7 @@ const immutableStaticAssets = new Set([
 function setSecurityHeaders(response, requestPath = "", cspNonce = "") {
   // Stripe is allowed on this one authenticated Landlord route only. Keeping
   // the wider site on the default self-only policy limits third-party code.
-  const paymentPage = requestPath === "/landlord/checkout";
+  const paymentPage = requestPath === "/landlord/checkout" || requestPath === "/stripe-sandbox";
   const activeJobPage = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
   const landlordDashboardPage = requestPath === "/landlord/dashboard";
   const journeyPage = requestPath === "/landlord/book";
@@ -5445,6 +5445,7 @@ async function serveFile(requestPath, response, cspNonce = "") {
     "/cleaner/payouts": "cleaner-payouts.html",
     "/landlord/dashboard": "landlord-dashboard.html",
     "/landlord/checkout": "landlord-checkout.html",
+    "/stripe-sandbox": "stripe-sandbox.html",
     // The Landlord workspace panels are real, bookmarkable destinations rather
     // than in-page anchors. Same document: the script selects the panel from
     // the pathname, so a shared link opens where the sender was.

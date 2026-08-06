@@ -205,6 +205,10 @@ const privacyRequestService = {
 let paymentStarted = false;
 const paymentService = {
   getClientConfiguration(actor) { calls.push({ kind: "payment-config", actor }); return { publishableKey: `pk_test_${"p".repeat(32)}`, testMode: true }; },
+  async beginSandboxCheckout(actor, input) {
+    calls.push({ kind: "payment-sandbox-checkout", actor, input });
+    return { status: "requires-customer-action", amountPence: 30, currency: "gbp", requiresCustomerAction: true, clientSecret: "pi_test_sandbox_secret", testMode: true };
+  },
   async getForBooking(actor, bookingId) {
     calls.push({ kind: "payment-get", actor, bookingId });
     return { paymentId: paymentStarted ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" : null, bookingId, status: paymentStarted ? "authorized" : "not-started", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: false, clientSecret: null };
@@ -370,6 +374,14 @@ const paymentConfiguration = await dispatch(router, "GET", "/api/marketplace/pay
 assert(paymentConfiguration.response.statusCode === 200 && paymentConfiguration.body.payment.publishableKey.startsWith("pk_test_") && paymentConfiguration.body.payment.testMode === true && calls.at(-1).kind === "payment-config", "Authenticated test checkout could not obtain its bounded publishable configuration.");
 const unauthenticatedPaymentConfiguration = await dispatch(router, "GET", "/api/marketplace/payments/config");
 assert(unauthenticatedPaymentConfiguration.response.statusCode === 401, "Payment client configuration was exposed without an authenticated Landlord session.");
+const sandboxCheckoutUrl = "/api/marketplace/payments/sandbox-checkout";
+const unauthenticatedSandboxCheckout = await dispatch(router, "POST", sandboxCheckoutUrl, { body: { idempotencyKey: "sandbox_checkout_retry_key_1234567890" } });
+assert(unauthenticatedSandboxCheckout.response.statusCode === 401, "Standalone Stripe checkout was exposed without an authenticated Landlord session.");
+const missingSandboxCsrf = await dispatch(router, "POST", sandboxCheckoutUrl, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { idempotencyKey: "sandbox_checkout_retry_key_1234567890" } });
+assert(missingSandboxCsrf.response.statusCode === 403, "Standalone Stripe checkout accepted a missing CSRF token.");
+const sandboxCheckout = await dispatch(router, "POST", sandboxCheckoutUrl, { headers: authHeaders, body: { idempotencyKey: "sandbox_checkout_retry_key_1234567890" } });
+const sandboxCheckoutCall = calls.find((call) => call.kind === "payment-sandbox-checkout");
+assert(sandboxCheckout.response.statusCode === 201 && sandboxCheckout.body.payment.amountPence === 30 && sandboxCheckout.body.payment.testMode === true && sandboxCheckout.body.payment.clientSecret === "pi_test_sandbox_secret" && sandboxCheckoutCall.actor.userId === sessions.landlord.user_id, "Authenticated Landlord could not open the exact 30p Stripe test checkout.");
 const unauthenticatedPayment = await dispatch(router, "GET", bookingPaymentUrl);
 assert(unauthenticatedPayment.response.statusCode === 401, "Payment status was visible without an authenticated account.");
 const unstartedPayment = await dispatch(router, "GET", bookingPaymentUrl, { headers: { cookie: authHeaders.cookie } });
@@ -383,6 +395,8 @@ const paymentStatus = await dispatch(router, "GET", bookingPaymentUrl, { headers
 assert(paymentStatus.response.statusCode === 200 && paymentStatus.body.payment.status === "authorized" && !JSON.stringify(paymentStatus.body).includes("pi_test_client_secret") && calls.at(-1).kind === "payment-get", "Landlord payment status exposed customer-action material or missed its owner-bound service.");
 const absentBookingPaymentResponse = response();
 assert(await noPaymentRouter.handle(request("GET", bookingPaymentUrl), absentBookingPaymentResponse, new URL(`http://127.0.0.1:4173${bookingPaymentUrl}`)) === false && absentBookingPaymentResponse.statusCode === null, "Disabled payments exposed a participant payment route.");
+const absentSandboxCheckoutResponse = response();
+assert(await noPaymentRouter.handle(request("POST", sandboxCheckoutUrl), absentSandboxCheckoutResponse, new URL(`http://127.0.0.1:4173${sandboxCheckoutUrl}`)) === false && absentSandboxCheckoutResponse.statusCode === null, "Disabled payments exposed the standalone Stripe checkout route.");
 
 const adminPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments?status=actionable&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
 const adminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings?view=attention&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });

@@ -62,6 +62,20 @@ assert.deepEqual(authorizationCall.input, {
 assert.equal(authorizationCall.options.idempotencyKey, `tideway_payment_${paymentId}`);
 assert(!JSON.stringify(authorizationCall).includes("email") && !Object.hasOwn(authorizationCall.input, "payment_method") && !Object.hasOwn(authorizationCall.input, "payment_method_data"), "Authorization included customer identity or browser-collected card details.");
 
+const sandboxActorHash = "c".repeat(64);
+const sandboxCheckout = await provider.createSandboxCheckout({ amountPence: 30, currency: "gbp", actorHash: sandboxActorHash, idempotencyKey: `homle_sandbox_${"d".repeat(64)}` });
+assert.equal(sandboxCheckout.status, "requires-customer-action");
+const sandboxIntent = calls.filter((call) => call.kind === "intent-create").at(-1);
+assert.deepEqual(sandboxIntent.input, {
+  amount: 30,
+  currency: "gbp",
+  payment_method_types: ["card"],
+  metadata: { homle_checkout_preview: "true", homle_actor_hash: sandboxActorHash }
+});
+assert.equal(sandboxIntent.options.idempotencyKey, `homle_sandbox_${"d".repeat(64)}`);
+assert(!JSON.stringify(sandboxIntent.input).includes("tideway_payment_id") && !JSON.stringify(sandboxIntent.input).includes("tideway_booking_id"), "A standalone sandbox checkout could enter the booking payment ledger.");
+await assert.rejects(provider.createSandboxCheckout({ amountPence: 1, currency: "gbp", actorHash: sandboxActorHash, idempotencyKey: `homle_sandbox_${"e".repeat(64)}` }), /sandbox payment request/i);
+
 const resumed = await provider.retrieveAuthorization({ providerPaymentId: "pi_test_authorization" });
 assert.equal(resumed.status, "requires-customer-action");
 const command = { ...shared, commandId, providerPaymentId: "pi_test_authorization", idempotencyKey: `tideway_payment_command_${commandId}` };

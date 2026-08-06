@@ -1567,7 +1567,7 @@ async function inviteBestEligibleCleaner(requestId, button, feedback) {
   try {
     const matchResult = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/matches`);
     const candidate = Array.isArray(matchResult.candidates) ? matchResult.candidates[0] : null;
-    if (!candidate?.cleanerId) throw new Error("No eligible Cleaner is currently available for this exact time, service area and checklist. Your request remains open; try again later or change the timing.");
+    if (!candidate?.cleanerId) throw Object.assign(new Error("No eligible Cleaner is currently available for this exact time, service area and checklist. Your request remains open; try again later or change the timing."), { code: "no-eligible-cleaner" });
     setPending(button, true, "Checking the exact price…");
     const quoted = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/invitation-quote`, {
       method: "POST",
@@ -1595,7 +1595,14 @@ async function inviteBestEligibleCleaner(requestId, button, feedback) {
       uncertainDispatchRequests.add(requestId);
       await refreshBookingTransition();
       showFeedback(requestStatus, "Homle could not verify the final invitation response. The saved booking status was refreshed; do not send another invitation until the result is shown.");
-    } else showFeedback(feedback, error.message);
+    } else {
+      showFeedback(feedback, error.message);
+      if (error?.code === "no-eligible-cleaner") {
+        const sandbox = element("a", "button button-outline", "Open Stripe test checkout");
+        sandbox.href = "/stripe-sandbox?start=1";
+        feedback.append(document.createTextNode(" "), sandbox);
+      }
+    }
   } finally {
     if (button.isConnected) setPending(button, false, "See best Cleaner & exact price");
   }
