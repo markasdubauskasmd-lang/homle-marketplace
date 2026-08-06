@@ -6,7 +6,7 @@ import { coordinateFromWorldPixel, openStreetMapTileUrl, outwardPostcode, postco
 import { postcodeZoneCentres } from "../public/postcode-zone-centres.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
-function primaryNavigation(page) { const start = page.indexOf('<nav class="directory-nav"'); return page.slice(start, page.indexOf("</nav>", start) + 6); }
+function primaryNavigation(page) { const start = page.indexOf('<nav class="hc-nav"'); return page.slice(start, page.indexOf("</nav>", start) + 6); }
 
 const bookingId = "55555555-5555-4555-8555-555555555555";
 const previousCleanerId = "44444444-4444-4444-8444-444444444444";
@@ -213,11 +213,11 @@ for (const [index, page] of cleanerWorkspacePages.entries()) {
   assert(page.includes("data-account-group open") && page.includes("data-account-nav") && page.includes("hc-account-nav-status"), `Cleaner workspace page ${index + 1} does not expose the shared open Account navigation or secure Logout recovery state.`);
   assert(!primaryNavigation(page).includes("/landlord/dashboard") && !primaryNavigation(page).includes("Properties"), `Cleaner workspace page ${index + 1} mixes Landlord controls into its primary navigation.`);
   assert(!primaryNavigation(page).includes("/cleaner/sign-off") && !primaryNavigation(page).includes("Job Sign-off"), `Cleaner workspace page ${index + 1} still exposes the retired Job Sign-off page.`);
+  assert(primaryNavigation(page).includes('href="/cleaner/messages"') && primaryNavigation(page).includes('data-notification-label="Messages"') && primaryNavigation(page).includes("data-notification-count"), `Cleaner workspace page ${index + 1} does not expose Messages with its unread indicator in the primary navigation.`);
 }
 assert(!server.includes('"/cleaner/sign-off"') && !cleanerWorkspacePages.some((page) => page.includes('href="/cleaner/sign-off"')), "The retired Job Sign-off route or navigation link is still present.");
 for (const [label, href] of [
   ["My Profile", "/cleaner/profile/preview"],
-  ["Messages", "/cleaner/messages"],
   ["Notifications", "/cleaner/notifications"],
   ["Help Centre", "/cleaner/help-centre"],
   ["Support Tickets", "/cleaner/support-tickets"],
@@ -229,7 +229,8 @@ for (const [label, href] of [
 }
 assert(cleanerOnboardingSteps.includes('label: "Logout", icon: "logout", action: "logout"') && !cleanerOnboardingSteps.includes("awaitingDesign: true"), "The Account navigation omits secure Logout or still marks a completed screenshot-led page as pending.");
 assert(cleanerSidebar.includes("renderCleanerAccountNav") && cleanerSidebar.includes("accountNav.map") && cleanerSidebar.includes('entry.action === "logout" ? "button" : "a"') && cleanerSidebar.includes("item.dataset.accountSignOut") && cleanerSidebar.includes("item.dataset.notificationLink") && cleanerSidebar.includes("host.replaceChildren") && cleanerSidebar.includes("renderCleanerAccountNav();") && !cleanerSidebar.includes("innerHTML"), "The Account tabs are not centrally, safely or synchronously rendered for account and notification controllers.");
-assert(server.includes('"/cleaner/messages": "cleaner-messages.html"') && cleanerOnboardingSteps.includes('label: "Messages", icon: "chat", href: "/cleaner/messages"'), "The Cleaner Messages tab does not open its dedicated private inbox.");
+assert(server.includes('"/cleaner/messages": "cleaner-messages.html"') && !cleanerOnboardingSteps.includes('label: "Messages", icon: "chat", href: "/cleaner/messages"'), "The Cleaner Messages route is missing or Messages still appears in the Account navigation.");
+assert(primaryNavigation(cleanerMessagesPage).includes('href="/cleaner/messages" aria-current="page"'), "The dedicated Messages page does not highlight its primary Messages tab.");
 assert(notificationsScript.includes('new URLSearchParams(location.search).get("view") === "messages"') && notificationsScript.includes('location.replace("/cleaner/messages")'), "The retired Messages query-string page does not forward safely to the replacement inbox.");
 assert(cleanerMessagesPage.includes('class="cleaner-workspace-page cleaner-messages-page"') && cleanerMessagesPage.includes("Chat with clients and the Homle team.") && cleanerMessagesPage.includes("Auto-translate off") && cleanerMessagesPage.includes("data-message-conversations") && cleanerMessagesPage.includes("data-message-thread") && cleanerMessagesPage.includes("Running 10 minutes late — sorry!") && cleanerMessagesPage.includes("Messages are monitored for safety"), "The supplied Messages heading, two-column inbox, quick replies or safety note is missing.");
 assert(cleanerMessagesScript.includes('createCleanerPage("messages"') && cleanerMessagesScript.includes('requestJson("/api/marketplace/bookings?limit=50")') && cleanerMessagesScript.includes("activeJobMessagingOpen(booking.status)") && cleanerMessagesScript.includes("booking?.counterpartyName") && cleanerMessagesScript.includes("/messages?limit=100") && cleanerMessagesScript.includes("createClientMessageId()") && cleanerMessagesScript.includes('"X-CSRF-Token": csrf') && cleanerMessagesScript.includes("form.reportValidity()") && !cleanerMessagesScript.includes("innerHTML") && !cleanerMessagesScript.includes("localStorage"), "The Messages page is not role-gated, booking-participant-backed, idempotent, CSRF-protected or safely rendered.");
