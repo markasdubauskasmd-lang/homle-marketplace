@@ -966,9 +966,12 @@
   display: none;
 }
 
-.cleaner-onboarding-page [data-onboarding-group],
-.cleaner-onboarding-page .hc-onboarding-back {
+.cleaner-onboarding-page [data-onboarding-group] {
   display: block;
+}
+
+.cleaner-onboarding-page .hc-nav > .hc-onboarding-back {
+  display: flex;
 }
 
 /* Onboarding sub-items carry a completion tick or an outstanding dot, as in the design. */
