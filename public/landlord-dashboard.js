@@ -28,6 +28,7 @@ const requestCompleteCounts = document.querySelector("[data-request-complete-cou
 const requestCompleteWarning = document.querySelector("[data-request-complete-warning]");
 const propertyForm = document.querySelector("[data-property-form]");
 const requestForm = document.querySelector("[data-request-form]");
+const requestContinuation = document.querySelector("[data-request-continuation]");
 const landlordProfileForm = document.querySelector("[data-landlord-profile-form]");
 const landlordProfileFeedback = document.querySelector("[data-landlord-profile-feedback]");
 const landlordProfileSave = document.querySelector("[data-save-landlord-profile]");
@@ -1004,11 +1005,43 @@ function renderScanPhotos(requestId, scan, list, count) {
 }
 
 function openRequestScan(requestId) {
+  const request = requests.find((item) => item.requestId === requestId);
+  if (request?.status === "draft") return showRequestContinuation(request);
   const details = [...requestList.querySelectorAll("[data-request-scan-id]")].find((item) => item.dataset.requestScanId === requestId);
   if (!details) return false;
   details.open = true;
   details.scrollIntoView({ behavior: "smooth", block: "start" });
   details.querySelector('select[name="roomName"]')?.focus({ preventScroll: true });
+  return true;
+}
+
+function resetRequestContinuation() {
+  if (!requestContinuation) return;
+  requestContinuation.replaceChildren();
+  requestContinuation.hidden = true;
+  requestForm.hidden = false;
+}
+
+function showRequestContinuation(request) {
+  if (!requestContinuation || request?.status !== "draft") return false;
+  requestForm.hidden = true;
+  requestFeedback.hidden = true;
+  const heading = element("div", "landlord-request-continuation-heading");
+  heading.append(
+    element("p", "eyebrow", "Draft saved privately · continue here"),
+    element("h3", "", "Add room photos and send for matching"),
+    element("p", "", "Choose the checklist room, add at least one current photo, review the handoff, then submit this same request.")
+  );
+  const scan = requestScanPanel(request);
+  requestContinuation.replaceChildren(heading, scan);
+  requestContinuation.hidden = false;
+  scan.open = true;
+  requestBuilderPanel?.classList.remove("pac-collapsed");
+  requestBuilderPanel?.querySelector("[data-pac-toggle]")?.setAttribute("aria-expanded", "true");
+  queueMicrotask(() => {
+    requestContinuation.scrollIntoView({ behavior: "smooth", block: "start" });
+    scan.querySelector('select[name="roomName"]')?.focus({ preventScroll: true });
+  });
   return true;
 }
 
@@ -1028,12 +1061,22 @@ function requestScanPanel(request) {
   panel.append(intro, count, list);
   let loaded = false;
   let submit = null;
+  let selectedPhotoCount = 0;
+  let choosePhoto = null;
+  let uploadSelectedPhotos = null;
 
   function refreshSubmissionAvailability() {
     if (!submit) return;
     const hasStoredPhoto = requestScans.get(request.requestId)?.photos?.length > 0;
-    submit.disabled = !mediaReady || !hasStoredPhoto;
-    submit.textContent = !mediaReady ? "Room photos required before submission" : hasStoredPhoto ? "Submit cleaning request" : "Upload a room photo to continue";
+    submit.disabled = !mediaReady;
+    submit.type = hasStoredPhoto ? "submit" : "button";
+    submit.textContent = !mediaReady
+      ? "Room photos required before submission"
+      : hasStoredPhoto
+      ? "Submit cleaning request"
+      : selectedPhotoCount
+      ? `Upload ${selectedPhotoCount} selected ${selectedPhotoCount === 1 ? "photo" : "photos"} to continue`
+      : "Choose a room photo to continue";
   }
 
   async function loadScan() {
@@ -1119,6 +1162,8 @@ function requestScanPanel(request) {
     }
     function renderSelection() {
       clearSelectionPreviews();
+      selectedPhotoCount = files.length;
+      refreshSubmissionAvailability();
       if (!files.length) {
         selected.textContent = "No room visuals selected";
         upload.textContent = mediaReady ? "Upload private room photos" : "Secure storage needed to save";
@@ -1217,6 +1262,8 @@ function requestScanPanel(request) {
     videoButton.addEventListener("click", () => videoInput.click());
     window.addEventListener("pagehide", clearSelectionPreviews, { once: true });
     pickerActions.append(cameraButton, videoButton, libraryButton, cameraInput, videoInput, libraryInput);
+    choosePhoto = () => libraryInput.click();
+    uploadSelectedPhotos = () => form.requestSubmit(upload);
     upload.disabled = !mediaReady;
     if (!mediaReady) upload.textContent = "Secure storage needed to save";
     form.append(roomLabel, noteLabel, localMediaBoundary, pickerActions, videoPrivacy, selected, selectionPreview, upload);
@@ -1329,9 +1376,15 @@ function requestScanPanel(request) {
     attempts.disabled = true;
     for (const value of [1, 2, 3, 4, 5]) { const option = element("option", "", String(value)); option.value = String(value); if (value === 3) option.selected = true; attempts.append(option); }
     attemptsLabel.append(attempts);
+    attemptsLabel.hidden = !automaticDispatchReady || automaticMaximumPricePence == null;
     auto.addEventListener("change", () => { attempts.disabled = !automaticDispatchReady || !auto.checked; });
     submit = element("button", "button", "Submit cleaning request");
-    submit.type = "submit";
+    submit.type = "button";
+    submit.addEventListener("click", () => {
+      if (requestScans.get(request.requestId)?.photos?.length > 0 || !mediaReady) return;
+      if (selectedPhotoCount > 0) uploadSelectedPhotos?.();
+      else choosePhoto?.();
+    });
     for (const control of [confirm, preview]) control.disabled = !mediaReady;
     preferred.disabled = !mediaReady || !matchingReady;
     auto.disabled = !mediaReady || !automaticDispatchReady || automaticMaximumPricePence == null;
@@ -1420,7 +1473,16 @@ function renderRequests() {
       ? "Withdrawn — matching is closed and no booking or payment was changed."
       : "This request has entered the account workflow.";
     const boundary = element("p", "landlord-request-boundary", boundaryCopy);
-    card.append(heading, facts, boundary, requestScanPanel(request));
+    card.append(heading, facts, boundary);
+    if (request.status === "draft") {
+      const continueRequest = element("button", "button", "Continue photos and matching");
+      continueRequest.type = "button";
+      continueRequest.addEventListener("click", () => {
+        selectWorkspaceTab("requests", { historyMode: "push" });
+        showRequestContinuation(request);
+      });
+      card.append(continueRequest);
+    } else card.append(requestScanPanel(request));
     const dispatchAction = landlordDispatchAction(request);
     if (dispatchAction.kind !== "none") {
       const dispatchPanel = element("section", "landlord-dispatch-action");
@@ -2177,11 +2239,8 @@ async function createRequestDraft(event) {
     delete cleaningTypeSelect.dataset.selectionSource;
     initialiseRequestDefaults();
     renderTaskPreview();
-    showFeedback(requestFeedback, `Private draft ${result.cleaningRequest.requestId} saved. Add at least one room photo below, then submit it for matching. Checkout opens after a Cleaner accepts the confirmed total.`, "success");
     requestDirty = false;
-    setLandlordSectionExpanded(upcomingSectionToggle, true);
-    openRequestScan(result.cleaningRequest.requestId);
-    requestList.scrollIntoView({ behavior: "smooth", block: "start" });
+    showRequestContinuation(result.cleaningRequest);
   } catch (error) { showFeedback(requestFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message); }
   finally { setPending(requestSave, false, "Save and add room photos"); }
 }
@@ -2394,6 +2453,7 @@ document.querySelectorAll("[data-open-request-tab]").forEach((button) => button.
   // is never auto-started here — the landlord taps "Start speaking" on the
   // walkthrough step when they are ready.
   selectWorkspaceTab("requests", { historyMode: "push" });
+  resetRequestContinuation();
   if (requestBuilderPanel) requestBuilderPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }));
 
@@ -2476,6 +2536,7 @@ document.querySelector("[data-request-complete-another]").addEventListener("clic
   requestComplete.hidden = true;
   workspace.hidden = false;
   selectWorkspaceTab("requests");
+  resetRequestContinuation();
   requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 });

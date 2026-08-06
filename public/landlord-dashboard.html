@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260723-4">
-  <script src="/landlord-dashboard.js?v=20260806-4" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260806-5" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -290,7 +290,7 @@
             </section>
             </div>
             <div class="pac-step" data-wizard-step data-step-title="Add room photos next">
-            <details class="dashboard-optional-fields"><summary>Add budget or recurring preference <span>Optional</span></summary><div><div class="field-row"><label>Frequency<select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select></label><label>Budget (£) <span>(optional)</span><input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01"></label></div><label>Special instructions <span>(optional)</span><textarea name="specialInstructions" rows="3" maxlength="5000"></textarea></label></div></details>
+            <details class="dashboard-optional-fields"><summary>Add matching limit or recurring preference <span>Optional</span></summary><div><div class="field-row"><label>Frequency<select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select></label><label>Maximum booking total (£) <span>(needed for automatic matching)</span><input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01" aria-describedby="automatic-matching-budget-help"></label></div><small id="automatic-matching-budget-help">Set the most you approve Homle to use when finding a Cleaner automatically. Leave it blank only if you will choose a Cleaner yourself.</small><label>Special instructions <span>(optional)</span><textarea name="specialInstructions" rows="3" maxlength="5000"></textarea></label></div></details>
             <button class="button" type="submit" data-save-request>Save and add room photos</button>
             <small class="landlord-draft-boundary"><strong>Next:</strong> add at least one private room photo, then submit for matching. Secure checkout opens only after a Cleaner accepts and Homle confirms the exact total.</small>
             </div>
@@ -310,6 +310,8 @@
             </div>
           </fieldset>
         </form>
+
+        <div class="landlord-request-continuation" data-request-continuation hidden></div>
 
         </div>
         </div>
