@@ -3,7 +3,7 @@ import { checklistChangeReview } from "./checklist-change-review.js";
 import { clearSelectedCleaner, clearSelectedProperty, readSelectedCleaner, readSelectedProperty, saveSelectedCleaner, saveSelectedProperty } from "./account-intent.js?v=20260718-2";
 import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
-import { maximumRoomPhotos, validatedRoomPhotoSelection } from "./room-photo-selection.js";
+import { consumeRoomPhotoInputFiles, maximumRoomPhotos, validatedRoomPhotoSelection } from "./room-photo-selection.js";
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
@@ -1027,6 +1027,14 @@ function requestScanPanel(request) {
   list.hidden = true;
   panel.append(intro, count, list);
   let loaded = false;
+  let submit = null;
+
+  function refreshSubmissionAvailability() {
+    if (!submit) return;
+    const hasStoredPhoto = requestScans.get(request.requestId)?.photos?.length > 0;
+    submit.disabled = !mediaReady || !hasStoredPhoto;
+    submit.textContent = !mediaReady ? "Room photos required before submission" : hasStoredPhoto ? "Submit cleaning request" : "Upload a room photo to continue";
+  }
 
   async function loadScan() {
     if (!mediaReady) {
@@ -1038,6 +1046,7 @@ function requestScanPanel(request) {
       const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/scan`);
       requestScans.set(request.requestId, result.scan);
       renderScanPhotos(request.requestId, result.scan, list, count);
+      refreshSubmissionAvailability();
       loaded = true;
     } catch (error) {
       count.textContent = "Private room scan unavailable";
@@ -1157,9 +1166,8 @@ function requestScanPanel(request) {
     }
     function choose(event) {
       if (uploadPending || videoProcessing) { event.target.value = ""; return; }
-      const candidates = event.target.files;
-      event.target.value = "";
-      if (!candidates?.length) return;
+      const candidates = consumeRoomPhotoInputFiles(event.target);
+      if (!candidates.length) return;
       try {
         const existingPhotoCount = Array.isArray(requestScans.get(request.requestId)?.photos) ? requestScans.get(request.requestId).photos.length : 0;
         files = validatedRoomPhotoSelection(candidates, { existingPhotoCount });
@@ -1176,8 +1184,7 @@ function requestScanPanel(request) {
     libraryInput.addEventListener("change", choose);
     videoInput.addEventListener("change", async (event) => {
       if (uploadPending || videoProcessing) { event.target.value = ""; return; }
-      const candidate = event.target.files?.[0];
-      event.target.value = "";
+      const [candidate] = consumeRoomPhotoInputFiles(event.target);
       if (!candidate) return;
       feedback.hidden = true;
       videoProcessing = true;
@@ -1264,6 +1271,7 @@ function requestScanPanel(request) {
           }
           requestScans.set(request.requestId, completed.scan);
           renderScanPhotos(request.requestId, completed.scan, list, count);
+          refreshSubmissionAvailability();
           pendingPhotoCompletions.delete(candidate);
           files.shift();
           uploadedCount += 1;
@@ -1322,13 +1330,13 @@ function requestScanPanel(request) {
     for (const value of [1, 2, 3, 4, 5]) { const option = element("option", "", String(value)); option.value = String(value); if (value === 3) option.selected = true; attempts.append(option); }
     attemptsLabel.append(attempts);
     auto.addEventListener("change", () => { attempts.disabled = !automaticDispatchReady || !auto.checked; });
-    const submit = element("button", "button", "Submit cleaning request");
+    submit = element("button", "button", "Submit cleaning request");
     submit.type = "submit";
-    for (const control of [confirm, preview, submit]) control.disabled = !mediaReady;
+    for (const control of [confirm, preview]) control.disabled = !mediaReady;
     preferred.disabled = !mediaReady || !matchingReady;
     auto.disabled = !mediaReady || !automaticDispatchReady || automaticMaximumPricePence == null;
     attempts.disabled = true;
-    if (!mediaReady) submit.textContent = "Room photos required before submission";
+    refreshSubmissionAvailability();
     submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerReady ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
     submitForm.addEventListener("submit", async (event) => {
       event.preventDefault();

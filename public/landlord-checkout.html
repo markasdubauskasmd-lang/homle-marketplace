@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <script src="/landlord-checkout.js?v=20260806-1" type="module"></script>
+  <script src="/landlord-checkout.js?v=20260806-2" type="module"></script>
 </head>
 <body class="booking-payment-page">
   <a class="skip-link" href="#payment-main">Skip to booking checkout</a>
@@ -19,7 +19,7 @@
   <main id="payment-main" class="booking-payment-main shell">
     <section class="booking-payment-intro">
       <div><p class="eyebrow">Protected booking step</p><h1>Authorize the agreed cleaning total.</h1><p>Payment details stay inside Stripe's secure element. Homle receives a payment status, never your full card number or security code.</p></div>
-      <span class="booking-payment-mode">Test mode only</span>
+      <span class="booking-payment-mode">Stripe test mode · no real money moves</span>
     </section>
 
     <section class="booking-payment-network" data-payment-network role="status" aria-live="polite" hidden><span aria-hidden="true">!</span><div><strong>You are offline.</strong><p>The last verified total and status remain visible. Homle will not start or repeat a payment action while offline.</p></div></section>
@@ -43,7 +43,7 @@
         <div class="booking-payment-element" data-payment-element aria-label="Secure payment details"></div>
         <div class="booking-payment-feedback" data-payment-feedback role="alert" hidden></div>
         <button class="button" type="submit" data-payment-submit>Authorize booking total</button>
-        <p class="booking-payment-boundary"><strong>This places a temporary authorization only.</strong> Homle permits capture only after the cleaning is completed. This checkout accepts Stripe test keys only until Homle explicitly activates live payments.</p>
+        <p class="booking-payment-boundary"><strong>This is a simulated Stripe test authorization—your card is not charged.</strong> The agreed total remains visible so the complete production checkout can be tested safely. Live Stripe keys are rejected by Homle.</p>
       </form>
 
       <details class="booking-payment-trust"><summary>Why this payment is protected</summary><div class="booking-payment-trust-grid"><div><strong>Server-frozen amount</strong><span>The browser cannot change the accepted booking total.</span></div><div><strong>No card storage</strong><span>Sensitive payment fields are sent directly to Stripe.</span></div><div><strong>Signed status</strong><span>Homle trusts the verified server webhook, not this browser.</span></div></div></details>

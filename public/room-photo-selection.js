@@ -8,6 +8,14 @@ export const maximumRoomPhotoBytes = 15_000_000;
 export const maximumGuidedRoomPhotoPixels = 50_000_000;
 export const maximumGuidedRoomPhotoSide = 16_384;
 
+// FileList is live in major mobile and desktop browsers. Resetting the input
+// before taking a copy can therefore erase the selection the user just made.
+export function consumeRoomPhotoInputFiles(input) {
+  const files = Array.from(input?.files || []);
+  if (input && "value" in input) input.value = "";
+  return files;
+}
+
 function normalizedMimeType(file) {
   const supplied = String(file?.type || "").toLowerCase();
   if (supportedTypes.has(supplied)) return supplied;

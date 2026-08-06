@@ -24,7 +24,9 @@ const [html, script, server, landlordDashboard, retiredPages] = await Promise.al
 
 assert.match(html, /Protected booking step/);
 assert.match(html, /Stripe's secure element/);
-assert.match(html, /temporary authorization only/);
+assert.match(html, /Stripe test mode · no real money moves/);
+assert.match(html, /simulated Stripe test authorization—your card is not charged/);
+assert.match(html, /\/landlord-checkout\.js\?v=20260806-2/);
 assert.match(script, /selectedRole !== "landlord"/);
 assert.match(script, /X-CSRF-Token/);
 assert.match(script, /idempotencyKey: retryKey\(\)/);
