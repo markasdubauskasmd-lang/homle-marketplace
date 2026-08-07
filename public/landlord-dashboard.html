@@ -83,6 +83,10 @@
            the logo. The heading text for each view lives in data-view-title so
            landlord-dashboard.js only has to swap two strings. -->
       <section class="ld-topbar">
+        <!-- The desktop brand lives in the sidebar. On phones that entire
+             sidebar is removed, so this compact mark keeps Homle present
+             without adding a second full-width header or profile control. -->
+        <a class="ld-mobile-brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" alt="" width="38" height="38"></a>
         <div class="ld-topbar-copy">
           <!-- Kept from the previous dashboard. The v2 design has no equivalent,
                but this states that the workspace is authenticated and private,
