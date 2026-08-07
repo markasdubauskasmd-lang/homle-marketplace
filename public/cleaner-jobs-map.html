@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
-  <script nonce="__CSP_NONCE__" src="/cleaner-jobs-map.js?v=20260804-1" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260807-2">
+  <script nonce="__CSP_NONCE__" src="/cleaner-jobs-map.js?v=20260807-2" type="module"></script>
   <script nonce="__CSP_NONCE__" src="/account-menu.js?v=20260729-1" type="module"></script>
   <script nonce="__CSP_NONCE__" src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -135,36 +135,62 @@
             <strong>You are offline.</strong> This page shows the last loaded data and will not refresh until the connection returns.
           </div>
 
-        <div class="hc-page-head">
+        <div class="hc-page-head hc-jobs-map-heading">
           <div>
-            <h1 class="hc-page-title">Jobs map</h1>
-            <p class="hc-page-sub">Every pending offer and confirmed job, plotted around your home base.</p>
+            <span class="hc-eyebrow">AVAILABLE WORK</span>
+            <h1 class="hc-page-title">Jobs near you</h1>
+            <p class="hc-page-sub">Explore available jobs by area, then review the full clean details before deciding.</p>
           </div>
-          <a class="hc-back" href="/cleaner/dashboard">← Job list</a>
+          <a class="hc-back" href="/cleaner/dashboard">← Activity</a>
         </div>
 
-        <div class="hc-map-frame">
-          <div class="hc-map-canvas" data-google-map aria-label="Google map showing the approximate areas of your jobs"></div>
-          <div class="hc-map-empty" data-map-loading>
-            <div class="hc-map-mark" aria-hidden="true">
-              <svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        <div class="hc-feedback hc-jobs-preview-note" data-map-preview role="status" hidden>
+          <strong>Preview examples — not live offers.</strong> These sample jobs show how real available work will be displayed once matching is connected.
+        </div>
+
+        <section class="hc-jobs-map-summary" aria-label="Available jobs summary">
+          <div><strong data-map-count>0</strong><span>available jobs</span></div>
+          <div><strong data-map-area-count>0</strong><span>postcode areas</span></div>
+          <div><strong data-map-highest-pay>—</strong><span>highest clean value</span></div>
+        </section>
+
+        <div class="hc-jobs-map-board">
+          <section class="hc-jobs-map-visual" aria-labelledby="jobs-map-title">
+            <div class="hc-jobs-map-toolbar">
+              <div>
+                <strong id="jobs-map-title" data-map-area-title>Matched area map</strong>
+                <span data-map-area-copy>Loading the postcode areas for your available jobs</span>
+              </div>
+              <div class="hc-jobs-map-zoom" aria-label="Map zoom controls">
+                <button type="button" data-map-zoom-out aria-label="Zoom out">−</button>
+                <span data-map-zoom-level>100%</span>
+                <button type="button" data-map-zoom-in aria-label="Zoom in">+</button>
+                <button type="button" data-map-reset>Fit jobs</button>
+              </div>
             </div>
-            <strong>Loading your jobs map</strong>
-            <p data-map-loading-copy>Connecting securely to Google Maps and finding the approximate area of each job.</p>
-          </div>
-          <div class="hc-map-controls" data-map-controls hidden>
-            <button class="hc-btn" type="button" data-map-location>Show my location</button>
-            <button class="hc-btn-outline" type="button" data-map-fit>Fit all jobs</button>
-          </div>
-          <p class="hc-map-provider" translate="no">Google Maps</p>
-        </div>
+            <div class="hc-jobs-map-viewport" data-map-viewport data-area-map role="application" tabindex="0" aria-label="Interactive street map centred on the postcode areas of available jobs. Drag to move and use plus or minus to zoom.">
+              <div class="hc-jobs-map-tiles" data-map-tiles aria-hidden="true"></div>
+              <div class="hc-jobs-map-pins" data-map-pins></div>
+              <a class="hc-jobs-map-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a>
+            </div>
+            <p class="hc-jobs-map-caption">Select a numbered marker to highlight the matching job. Exact addresses remain private until a booking is confirmed.</p>
+          </section>
 
-        <div class="hc-section-head">
-          <h3 class="hc-h3">Jobs with a known area</h3>
-          <span class="hc-section-note"><span data-map-count>0</span> approximate job areas plotted</span>
+          <section class="hc-jobs-map-results" aria-labelledby="jobs-list-title">
+            <div class="hc-section-head hc-jobs-map-results-head">
+              <div>
+                <span class="hc-eyebrow">MATCHED TO YOUR AREA</span>
+                <h2 class="hc-h3" id="jobs-list-title">Available jobs</h2>
+              </div>
+              <span class="hc-section-note">Nearest and soonest first</span>
+            </div>
+            <div class="hc-jobs-map-list" data-map-list></div>
+            <div class="hc-empty hc-jobs-map-empty-state" data-map-empty>
+              <strong>No available jobs in your selected areas yet.</strong>
+              <span>New offers will appear here with their price, area, clean type, timing and property details.</span>
+            </div>
+          </section>
         </div>
-        <div class="hc-jobs" data-map-list></div>
-        <div class="hc-empty" data-map-empty>No pending or confirmed jobs to place on a map yet.</div>
 
 
           <div class="hc-feedback" data-map-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>

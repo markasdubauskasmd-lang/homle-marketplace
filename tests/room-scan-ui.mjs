@@ -380,10 +380,7 @@ assert(!/https?:\/\//.test(overlay) && !/["'`]\/\/[a-z0-9]/i.test(overlay), "The
 // the second could never fail while the first passed. What actually needs saying is
 // that the policy still names the directive, and still grants it nothing but 'self' —
 // an absent directive would satisfy a bare "does not contain" check just as well.
-const mapPolicyStart = server.indexOf("response.setHeader(\"Content-Security-Policy\", googleMapPage");
-const mapPolicyEnd = server.indexOf("response.setHeader(\"Referrer-Policy\"", mapPolicyStart);
-const nonMapPolicies = `${server.slice(0, mapPolicyStart)}${server.slice(mapPolicyEnd)}`;
-assert(mapPolicyStart >= 0 && !nonMapPolicies.includes("unsafe-eval"), "unsafe-eval escaped the nonce-protected Google Maps page and weakened another Content-Security-Policy.");
+assert(!server.includes("unsafe-eval"), "unsafe-eval weakened a shipped Content-Security-Policy.");
 assert(/script-src\s+'self'/.test(server), "The script-src directive no longer pins scripts to 'self', so the no-eval guarantee above is checking a policy that may not exist.");
 
 // The library's own default is an off-origin model that connect-src blocks

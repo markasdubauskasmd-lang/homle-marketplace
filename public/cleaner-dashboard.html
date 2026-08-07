@@ -223,8 +223,8 @@
 
               <div class="hc-page-head">
                 <div>
-                  <h2 class="hc-page-title" id="activity-schedule-title">My schedule</h2>
-                  <p class="hc-page-sub">Confirmed jobs in green — offers you haven't answered yet are dashed.</p>
+                  <h2 class="hc-page-title" id="activity-schedule-title">Activity schedule</h2>
+                  <p class="hc-page-sub">See selected work by week, then review every clean's price, area, type and property images below.</p>
                 </div>
                 <div class="hc-weeknav">
                   <button class="hc-weeknav-btn" type="button" data-week-prev aria-label="Previous week">←</button>
@@ -284,11 +284,18 @@
                 </form>
               </section>
 
-              <div class="hc-upcoming">
+              <section class="hc-upcoming" aria-labelledby="selected-work-title">
+                <div class="hc-upcoming-head">
+                  <div>
+                    <span class="hc-schedule-time-off-kicker">SELECTED WORK</span>
+                    <h3 id="selected-work-title">Upcoming cleans</h3>
+                    <p>Your confirmed work will appear here in date order.</p>
+                  </div>
+                </div>
                 <div class="hc-upcoming-empty" data-upcoming-empty>Nothing booked yet — accept a pending job from your Activity page to build your schedule.</div>
                 <div data-upcoming-list></div>
                 <div class="hc-upcoming-note">Confirmed jobs stay in Homle. Calendar sync is not available yet.</div>
-              </div>
+              </section>
 
               <div class="hc-feedback" data-schedule-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
             </div>

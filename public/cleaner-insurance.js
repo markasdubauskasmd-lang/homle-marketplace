@@ -38,7 +38,6 @@ export async function setupInsurance({ account, showFeedback, requestJson }) {
     document.querySelector("[data-identity-verification]"),
     document.querySelector("[data-background-checks]"),
     document.querySelector("[data-experience]"),
-    document.querySelector("[data-references]"),
     document.querySelector("[data-work-areas]")
   ];
   const insuranceCard = document.querySelector("[data-insurance]");
@@ -47,7 +46,6 @@ export async function setupInsurance({ account, showFeedback, requestJson }) {
     document.querySelector("[data-identity-topbar]"),
     document.querySelector("[data-background-topbar]"),
     document.querySelector("[data-experience-topbar]"),
-    document.querySelector("[data-references-topbar]"),
     document.querySelector("[data-work-topbar]")
   ];
   const insuranceTopbar = document.querySelector("[data-insurance-topbar]");
