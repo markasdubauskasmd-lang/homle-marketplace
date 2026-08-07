@@ -26,15 +26,6 @@ const serviceLabels = Object.freeze({
   "window-cleaning": "Window cleaning"
 });
 
-const availabilityPeriods = Object.freeze([
-  { label: "Morning", start: 5, end: 12 },
-  { label: "Afternoon", start: 12, end: 17 },
-  { label: "Evening", start: 17, end: 22 },
-  { label: "Night", start: 22, end: 29 }
-]);
-
-const weekdayLabels = Object.freeze(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]);
-
 function browserOffline() {
   return typeof navigator === "object" && navigator !== null && navigator.onLine === false;
 }
@@ -154,37 +145,6 @@ function renderChecklist(profile) {
   }));
 }
 
-function renderAvailability(records) {
-  const host = document.querySelector("[data-profile-availability]");
-  if (!host) return;
-  const active = Array.from({ length: 7 }, () => Array(4).fill(false));
-  for (const record of Array.isArray(records) ? records : []) {
-    if (!record || !["available", "held"].includes(record.status)) continue;
-    const start = new Date(record.startAt);
-    const end = new Date(record.endAt);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) continue;
-    for (let cursor = new Date(start); cursor < end; cursor = new Date(cursor.getTime() + 30 * 60_000)) {
-      const dayIndex = (cursor.getDay() + 6) % 7;
-      const adjustedHour = cursor.getHours() < 5 ? cursor.getHours() + 24 : cursor.getHours();
-      const periodIndex = availabilityPeriods.findIndex((period) => adjustedHour >= period.start && adjustedHour < period.end);
-      if (periodIndex >= 0) active[dayIndex][periodIndex] = true;
-    }
-  }
-  host.replaceChildren(...weekdayLabels.map((label, dayIndex) => {
-    const day = element("div", "hc-pp-availability-day");
-    day.append(element("span", "hc-pp-availability-label", label));
-    const dots = element("span", "hc-pp-availability-dots");
-    for (let periodIndex = 0; periodIndex < availabilityPeriods.length; periodIndex += 1) {
-      const dot = element("span", "hc-pp-availability-dot");
-      dot.dataset.on = String(active[dayIndex][periodIndex]);
-      dot.title = `${label} ${availabilityPeriods[periodIndex].label}: ${active[dayIndex][periodIndex] ? "available" : "not listed"}`;
-      dots.append(dot);
-    }
-    day.append(dots);
-    return day;
-  }));
-}
-
 function renderReviews(profile) {
   const host = document.querySelector("[data-profile-reviews]");
   if (!host) return;
@@ -195,7 +155,7 @@ function renderReviews(profile) {
     : "No reviews yet — new to Homle. Verified reviews appear after completed bookings.";
 }
 
-function renderProfile(account, profile, availability) {
+function renderProfile(account, profile) {
   const name = account.displayName || "Cleaner";
   setText("[data-profile-name]", publicDisplayName(name));
   const avatar = document.querySelector("[data-profile-avatar]");
@@ -231,7 +191,6 @@ function renderProfile(account, profile, availability) {
   }
   renderBadges(profile);
   renderChecklist(profile);
-  renderAvailability(availability);
   renderReviews(profile);
 }
 
@@ -253,16 +212,9 @@ async function loadProfile() {
 
     const profileResult = await requestJson("/api/marketplace/cleaner/profile");
     const profile = profileResult.profile && typeof profileResult.profile === "object" ? profileResult.profile : null;
-    let availability = [];
-    try {
-      const availabilityResult = await requestJson("/api/marketplace/cleaner/availability");
-      availability = Array.isArray(availabilityResult.availability) ? availabilityResult.availability : [];
-    } catch {
-      availability = [];
-    }
     const payoutLink = document.querySelector("[data-cleaner-payout-link]");
     if (payoutLink) payoutLink.hidden = false;
-    renderProfile(account, profile, availability);
+    renderProfile(account, profile);
     renderAccountAvatar(account, profile?.profilePhotoUrl);
     showFeedback(profile ? "" : "Your Cleaner profile has not been created yet. Complete it to see the client-facing preview.", profile ? "info" : "error");
   } catch (error) {

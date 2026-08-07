@@ -5,20 +5,6 @@ const draftKey = "homle-cleaner-business-details-draft-v1";
 const draftLifetimeMs = 8 * 60 * 60 * 1000;
 const serviceTypes = new Set(["cleaner", "beautician"]);
 const businessTypes = new Set(["solo", "business", "limited", "partnership"]);
-const guidance = {
-  cleaner: {
-    solo: "Joining as a solo cleaner — no company paperwork needed. You can switch to a business account later without re-onboarding.",
-    business: "Choose this if you trade as a cleaning business. Add the name clients know you by.",
-    limited: "Choose this if your cleaning services operate through a registered limited company.",
-    partnership: "Choose this if you provide cleaning services with one or more business partners."
-  },
-  beautician: {
-    solo: "Joining as a solo beautician — no company paperwork needed. You can add a beauty business later without re-onboarding.",
-    business: "Choose this if you trade under a beauty or personal-care business name.",
-    limited: "Choose this if your beauty services operate through a registered limited company.",
-    partnership: "Choose this if you provide beauty services with one or more business partners."
-  }
-};
 
 function safeSessionStorage() {
   try {
@@ -73,8 +59,6 @@ function businessDraft(form) {
 }
 
 function setBusinessPresentation(form, draft) {
-  const note = document.querySelector("[data-business-guidance]");
-  if (note) note.textContent = guidance[draft.serviceType][draft.businessType];
   const soloLabel = document.querySelector("[data-business-solo-label]");
   const companyLabel = document.querySelector("[data-business-company-label]");
   if (soloLabel) soloLabel.textContent = draft.serviceType === "beautician" ? "Solo beautician" : "Solo cleaner";

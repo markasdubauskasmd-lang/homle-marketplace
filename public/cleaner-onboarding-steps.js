@@ -20,7 +20,6 @@ export const onboardingSteps = [
   { key: "dbs", title: "Background checks (DBS)", icon: "shield", sidebar: true, href: "/cleaner/background-checks",
     derive: (d) => d.profile?.backgroundCheckStatus === "verified" },
   { key: "business", title: "Business details", icon: "brief", sidebar: true, href: "/cleaner/business-details", derive: null },
-  { key: "tax", title: "Tax & self-employment", icon: "folder", sidebar: false, href: "", derive: null },
   { key: "experience", title: "Skills and Experience", icon: "star", sidebar: true, href: "/cleaner/experience",
     derive: (d) => Number.isFinite(d.profile?.yearsExperience) },
   { key: "references", title: "References", icon: "users", sidebar: true, href: "/cleaner/references", derive: null },
@@ -44,7 +43,7 @@ export const onboardingSteps = [
  *
  * This is deliberately a separate list from `onboardingSteps` above, because the design
  * treats them separately: the sidebar uses shorter labels ("Banking", "Contracts"), adds
- * a Documents entry that is not a progress step, and omits Right to work, Tax, Transport
+ * a Documents entry that is not a progress step, and omits Right to work, Transport
  * and Skills, which appear only as progress chips.
  *
  * `step` links an entry to a step key so its tick reflects real completion. An entry with
