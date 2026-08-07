@@ -11,8 +11,8 @@ assert.equal(config.apiKey, "restricted-browser-key-123");
 assert(!Object.hasOwn(config, "serverKey") && !JSON.stringify(config).includes("GOOGLE_MAPS_SERVER_API_KEY"), "The browser map configuration exposed a server credential.");
 assert.equal(mapsClientConfigurationFromEnvironment({ MAP_PROVIDER: "none" }), null);
 
-assert(mapPage.includes("data-google-map") && mapPage.includes("Show my location") && mapPage.includes("Google Maps") && mapPage.includes('__CSP_NONCE__'), "The Cleaner Jobs Map lacks its real map surface, optional GPS control, provider attribution or CSP nonce.");
-assert(mapScript.includes('/api/marketplace/maps/config') && mapScript.includes('importLibrary("maps")') && mapScript.includes('importLibrary("geocoding")') && mapScript.includes("navigator.geolocation.getCurrentPosition") && mapScript.includes("propertyArea"), "The Jobs Map is not driven by protected configuration, Google libraries, user-requested GPS and privacy-safe job areas.");
+assert(mapPage.includes("data-map-pins") && mapPage.includes("data-map-list") && mapPage.includes("Approximate postcode areas only") && !mapPage.includes("data-google-map") && mapPage.includes('__CSP_NONCE__'), "The Cleaner Jobs Map lacks its private map-style jobs board or still mounts Google Maps.");
+assert(mapScript.includes('/api/marketplace/bookings?limit=50') && mapScript.includes('bookingSummaryBuckets(bookings, "cleaner").pending') && mapScript.includes("propertyArea") && !mapScript.includes('/api/marketplace/maps/config') && !mapScript.includes('importLibrary("maps")') && !mapScript.includes("navigator.geolocation"), "The Jobs Map is not driven by private Cleaner offers or still starts dormant Google/GPS code.");
 assert(loader.includes("https://maps.googleapis.com/maps/api/js") && !loader.includes("GOOGLE_MAPS_SERVER_API_KEY"), "The browser loader is not pinned to Google Maps JavaScript or contains a server key name.");
 assert(!registration.includes("data-address-query") && !registration.includes("data-address-lookup") && !personalScript.includes("address-lookup/resolve") && registration.includes('name="postcode"') && registration.includes('name="street"'), "Cleaner onboarding still exposes the removed address lookup or lost manual address entry.");
 assert(server.includes('googleMapPage = requestPath === "/cleaner/jobs-map"') && server.includes("'strict-dynamic'") && server.includes("replaceAll(\"__CSP_NONCE__\", cspNonce)") && server.includes('requestPath === "/tracking-test" || googleMapPage'), "The map page lacks a nonce-protected Google CSP or page-scoped geolocation permission.");
@@ -22,4 +22,4 @@ for (const provider of ["MAP_PROVIDER", "GEOCODING_PROVIDER", "ADDRESS_LOOKUP_PR
 }
 for (const privateKey of ["GOOGLE_MAPS_BROWSER_API_KEY", "GOOGLE_MAPS_SERVER_API_KEY"]) assert(!renderBlueprint.includes(`key: ${privateKey}`), `Render blueprint still requests unused ${privateKey}.`);
 
-console.log("Dormant Google Maps integration tests passed: optional code remains isolated while Render preserves existing-service provider choices without committing key requirements.");
+console.log("Dormant Google Maps integration tests passed: the Jobs Map stays first-party while optional provider code remains isolated and Render does not request keys.");

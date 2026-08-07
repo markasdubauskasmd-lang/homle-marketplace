@@ -141,6 +141,7 @@ const [
   cleanerContractsPage,
   cleanerContractsScript,
   cleanerJobsMapPage,
+  cleanerJobsMapScript,
   cleanerPerformancePage,
   cleanerPublicProfilePage,
   cleanerPublicProfileScript,
@@ -173,6 +174,7 @@ const [
   readFile(new URL("../public/cleaner-contracts.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-contracts.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-jobs-map.html", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-jobs-map.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-performance.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-public-profile.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-public-profile.js", import.meta.url), "utf8"),
@@ -195,6 +197,11 @@ const [
 
 const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage, cleanerIncidentReportsPage, cleanerDisputesPage, cleanerSettingsPage];
 const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
+assert(cleanerJobsMapPage.includes("Jobs near you") && cleanerJobsMapPage.includes("data-map-pins") && cleanerJobsMapPage.includes("data-map-list") && cleanerJobsMapPage.includes("data-map-zoom-in") && cleanerJobsMapPage.includes("data-map-zoom-out") && cleanerJobsMapPage.includes("Exact addresses remain private"), "The Cleaner Jobs Map is missing its map-style area view, full available-job list, zoom controls or privacy boundary.");
+for (const detail of ["Date & time", "Duration", "Property", "Work", "Distance", "Location"]) assert(cleanerJobsMapScript.includes(`detailItem("${detail}"`), `The available-job list does not display ${detail.toLowerCase()}.`);
+assert(cleanerJobsMapScript.includes('requestJson("/api/marketplace/bookings?limit=50")') && cleanerJobsMapScript.includes('bookingSummaryBuckets(bookings, "cleaner").pending') && cleanerJobsMapScript.includes("bookingPhotoUrls") && cleanerJobsMapScript.includes("formatBookingMoney") && cleanerJobsMapScript.includes("formatBookingWindow"), "The Jobs Map is not backed by private Cleaner offers or has lost price, timing and image details.");
+assert(cleanerJobsMapScript.includes("localPreview") && cleanerJobsMapScript.includes("Preview only — no action will be sent") && cleanerJobsMapPage.includes("Preview examples — not live offers") && !cleanerJobsMapScript.includes("innerHTML"), "Local Jobs Map examples can be mistaken for live offers or use unsafe HTML rendering.");
+assert(!cleanerJobsMapPage.includes("data-google-map") && !cleanerJobsMapScript.includes("loadGoogleMaps") && !cleanerJobsMapScript.includes("navigator.geolocation"), "The map-style available-jobs board still starts a disabled third-party map or device-location integration.");
 assert(server.includes('"/cleaner/onboarding": "cleaner-registration.html"'), "The dedicated Cleaner onboarding route is not served.");
 assert(cleanerRegistrationPage.includes('data-cleaner-shell="onboarding"') && cleanerRegistrationPage.includes("cleaner-onboarding-page") && cleanerRegistrationPage.includes("data-reg-create-account"), "The registration journey is not marked as a dedicated onboarding shell with a safe new-account entry.");
 for (const page of [cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage]) {
