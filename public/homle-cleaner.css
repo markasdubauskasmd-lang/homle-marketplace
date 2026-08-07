@@ -3380,6 +3380,8 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   line-height: 1.5;
 }
 
+.hc-business-tax-note { color: var(--hc-red-link); }
+
 .hc-business-actions {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
