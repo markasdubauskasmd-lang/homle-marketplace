@@ -5565,7 +5565,12 @@ async function handleHttpRequest(request, response) {
           // objects appear, nothing errors. Without these two fields the only
           // way to tell the difference is reading server logs.
           speechSummaryReady: marketplaceAttachment.speechSummaryReady === true,
-          roomVisionReady: marketplaceAttachment.roomVisionReady === true
+          roomVisionReady: marketplaceAttachment.roomVisionReady === true,
+          // `roomVisionReady` says a reader is configured; this says which one.
+          // The two reads are deliberately different tiers, and an environment
+          // variable can pin the confirmation read — the one the price is
+          // calculated from — back to the cheap model with no other symptom.
+          roomVisionModels: marketplaceAttachment.roomVisionModels || null
         },
         localDemosEnabled: localDemoEnabled
       });
