@@ -3,6 +3,7 @@ import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1"
 import { saveCsrf, storedCsrf } from "./session-csrf.js";
 
 const serviceTypes = new Set(["cleaner", "beautician"]);
+const transportModes = new Set(["Car", "Van", "Bicycle", "Motorbike or scooter", "Public transport", "Walking", "Other"]);
 const knownEquipment = new Set([
   "Vacuum", "Steam cleaner", "Mop & bucket", "Carpet cleaner", "Pressure washer", "Ladder", "Vehicle", "PPE",
   "Portable treatment bed", "Beauty stool or chair", "Towels and linens", "Sterilisation kit", "LED or UV nail lamp",
@@ -77,10 +78,10 @@ function setEquipmentPresentation(form, suppliedServiceType) {
   const ownQuestion = document.querySelector("[data-equipment-own-question]");
   const legend = document.querySelector("[data-equipment-list-legend]");
   const customInput = form.elements.otherEquipment;
-  if (heading) heading.textContent = beautician ? "Beauty equipment" : "Cleaning equipment";
+  if (heading) heading.textContent = "Equipment & Travel";
   if (intro) intro.textContent = beautician
-    ? "Tell us which beauty kit and products you can bring to appointments."
-    : "Tell us which cleaning kit and products you can bring to jobs.";
+    ? "Tell us which beauty kit you can bring and how you usually travel to appointments."
+    : "Tell us which cleaning kit you can bring and how you usually travel to jobs.";
   if (professionLabel) professionLabel.textContent = beautician ? "Beautician equipment" : "Cleaner equipment";
   if (ownQuestion) ownQuestion.textContent = beautician
     ? "Do you provide your own beauty equipment and products?"
@@ -124,6 +125,10 @@ function hydrateEquipment(form, currentProfile, savedData = {}) {
   });
   const customInput = form.elements.otherEquipment;
   if (customInput instanceof HTMLInputElement) customInput.value = custom.join(", ");
+  const savedTransport = transportModes.has(savedData.primaryTransport) ? savedData.primaryTransport : "";
+  form.querySelectorAll('input[name="primaryTransport"]').forEach((input) => {
+    if (input instanceof HTMLInputElement) input.checked = input.value === savedTransport;
+  });
   setEquipmentPresentation(form, serviceType);
   setKitEnabled(form);
 }
@@ -191,7 +196,7 @@ async function secureCsrf(requestJson) {
 }
 
 export async function setupEquipment({ account, showFeedback, requestJson }) {
-  document.title = "Equipment | Homle";
+  document.title = "Equipment & Travel | Homle";
   const overview = document.querySelector("[data-registration-overview]");
   const layout = document.querySelector("[data-personal-details]");
   const cards = [
@@ -251,7 +256,7 @@ export async function setupEquipment({ account, showFeedback, requestJson }) {
 
   hydrateEquipment(form, profile, equipmentData);
   const status = form.querySelector("[data-equipment-save-status]");
-  if (status) status.textContent = `Saved ${serviceType === "beautician" ? "beauty" : "cleaning"} equipment and products support suitable job matching.`;
+  if (status) status.textContent = `Saved ${serviceType === "beautician" ? "beauty" : "cleaning"} equipment, products and travel details support suitable job matching.`;
 
   form.elements.ownEquipment?.addEventListener("change", () => {
     setKitEnabled(form);
@@ -265,6 +270,11 @@ export async function setupEquipment({ account, showFeedback, requestJson }) {
   });
   form.elements.otherEquipment?.addEventListener("input", () => {
     if (status) status.textContent = "Your equipment changes have not been saved yet.";
+  });
+  form.querySelectorAll('input[name="primaryTransport"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      if (status) status.textContent = "Your equipment and travel changes have not been saved yet.";
+    });
   });
 
   form.addEventListener("submit", async (event) => {
@@ -283,6 +293,12 @@ export async function setupEquipment({ account, showFeedback, requestJson }) {
       return;
     }
     const kit = selectedKit(form);
+    const primaryTransport = String(new FormData(form).get("primaryTransport") || "");
+    if (!transportModes.has(primaryTransport)) {
+      showFeedback("Choose your primary mode of transportation before continuing.", "error");
+      form.querySelector('input[name="primaryTransport"]')?.focus();
+      return;
+    }
     if (form.elements.ownEquipment.checked && kit.equipmentSupplied.length + kit.productsSupplied.length === 0) {
       showFeedback("Choose at least one item you can bring, or switch your own equipment to No.", "error");
       return;
@@ -294,17 +310,17 @@ export async function setupEquipment({ account, showFeedback, requestJson }) {
       const kitsByProfession = storedKits(equipmentData);
       kitsByProfession[serviceType] = kit;
       const results = await Promise.all([
-        saveOnboardingForm(requestJson, "equipment", form, { extra: { serviceType, kitsByProfession } }),
+        saveOnboardingForm(requestJson, "equipment", form, { extra: { serviceType, kitsByProfession, primaryTransport } }),
         requestJson("/api/marketplace/cleaner/profile", {
           method: "PUT",
           headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
           body: JSON.stringify(profileUpdate(profile, kit))
         })
       ]);
-      equipmentData = results[0]?.data || { serviceType, kitsByProfession };
+      equipmentData = results[0]?.data || { serviceType, kitsByProfession, primaryTransport };
       profile = results[1].profile;
       hydrateEquipment(form, profile, equipmentData);
-      showFeedback(`${serviceType === "beautician" ? "Beauty" : "Cleaning"} equipment and products saved.`, "success");
+      showFeedback(`${serviceType === "beautician" ? "Beauty" : "Cleaning"} equipment and primary travel mode saved.`, "success");
       location.assign("/cleaner/availability");
     } catch (error) {
       showFeedback(error.message || "Equipment could not be saved.", "error");

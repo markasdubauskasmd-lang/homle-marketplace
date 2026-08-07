@@ -4548,7 +4548,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* ------------------------------------------------------------- equipment -- */
 
 .hc-equipment-progress-track span {
-  width: 58.824%;
+  width: 60%;
 }
 
 .hc-equipment-card {
@@ -4791,6 +4791,67 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   font-weight: 400;
 }
 
+.hc-equipment-travel-box {
+  padding: 15px;
+  border: 1px solid #dfd0bb;
+  border-radius: 11px;
+  background: #fbf8f2;
+}
+
+.hc-equipment-travel-box > strong {
+  display: block;
+  font-size: 10px;
+}
+
+.hc-equipment-travel-box > strong b { color: var(--hc-red); }
+
+.hc-equipment-travel-box > p {
+  margin: 4px 0 12px;
+  color: var(--hc-muted);
+  font-size: 8.5px;
+}
+
+.hc-equipment-transport-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hc-equipment-transport-grid label { position: relative; }
+
+.hc-equipment-transport-grid input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.hc-equipment-transport-grid span {
+  display: grid;
+  min-height: 40px;
+  place-items: center;
+  padding: 8px;
+  text-align: center;
+  border: 1px solid #e4d7c3;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hc-equipment-transport-grid input:checked + span {
+  color: #ffffff;
+  border-color: var(--hc-red);
+  background: var(--hc-red);
+  box-shadow: 0 6px 14px rgba(198, 42, 26, .18);
+}
+
+.hc-equipment-transport-grid input:focus-visible + span {
+  outline: 2px solid rgba(198, 42, 26, .3);
+  outline-offset: 2px;
+}
+
 .hc-equipment-grid input:focus-visible + span {
   outline: 2px solid rgba(198, 42, 26, .3);
   outline-offset: 2px;
@@ -4803,7 +4864,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* ---------------------------------------------------------- availability -- */
 
 .hc-availability-progress-track span {
-  width: 70.588%;
+  width: 66.667%;
 }
 
 .hc-availability-card {
@@ -5145,7 +5206,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 }
 
 .hc-work-progress-track span {
-  width: 76.471%;
+  width: 73.333%;
 }
 
 .hc-work-card {
@@ -6148,7 +6209,8 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-references-contact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-insurance-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-banking-account-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hc-equipment-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hc-equipment-grid,
+  .hc-equipment-transport-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-availability-jobs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-work-builder { grid-template-columns: 1fr; }
   .hc-work-panel { border-right: 0; border-bottom: 1px solid #e7dccb; }
@@ -6237,7 +6299,8 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-banking-account-secondary,
   .hc-banking-invoices { grid-template-columns: 1fr; }
   .hc-equipment-form { padding-left: 20px; padding-right: 20px; }
-  .hc-equipment-grid { grid-template-columns: 1fr; }
+  .hc-equipment-grid,
+  .hc-equipment-transport-grid { grid-template-columns: 1fr; }
   .hc-availability-form { padding-left: 20px; padding-right: 20px; }
   .hc-availability-limits,
   .hc-availability-jobs { grid-template-columns: 1fr; }
