@@ -38,10 +38,14 @@ const trainingModules = [
 ];
 
 if (trainingModules.length !== 34) throw new Error("The Academy catalogue must contain all 34 modules shown in the supplied design.");
+const activeTrainingModules = trainingModules.filter((module) => module.category === "Required");
+if (activeTrainingModules.length !== 3) throw new Error("The Academy must keep exactly three required modules active for now.");
 
 function renderModule(module, showFeedback) {
   const card = element("article", "hc-academy-card");
   card.dataset.trainingCategory = module.category.toLowerCase();
+  const active = module.category === "Required";
+  card.classList.toggle("is-inactive", !active);
 
   const metadata = element("div", "hc-academy-card-meta");
   metadata.append(
@@ -52,13 +56,17 @@ function renderModule(module, showFeedback) {
   const title = element("h2", "", module.title);
   const description = element("p", "", module.description);
   const actions = element("div", "hc-academy-card-actions");
-  const start = element("button", "", "Start course ↗");
+  const start = element("button", "", active ? "Start course ↗" : "Inactive");
   start.type = "button";
-  start.addEventListener("click", () => {
-    showFeedback(`“${module.title}” is not available yet. Nothing was started, completed or recorded.`, "error");
-    document.querySelector("[data-training-feedback]")?.focus();
-  });
-  actions.append(start, element("small", "", "Course preview"));
+  start.disabled = !active;
+  start.setAttribute("aria-disabled", String(!active));
+  if (active) {
+    start.addEventListener("click", () => {
+      showFeedback(`“${module.title}” is not available yet. Nothing was started, completed or recorded.`, "error");
+      document.querySelector("[data-training-feedback]")?.focus();
+    });
+  }
+  actions.append(start, element("small", "", active ? "Course preview" : "Temporarily inactive"));
   card.append(metadata, title, description, actions);
   return card;
 }
@@ -68,12 +76,10 @@ createCleanerPage("training", async ({ showFeedback }) => {
   const resultStatus = document.querySelector("[data-training-result-status]");
   const filterButtons = [...document.querySelectorAll("[data-training-filter]")];
 
-  function showModules(filter = "all") {
-    const visible = filter === "all"
-      ? trainingModules
-      : trainingModules.filter((module) => module.category.toLowerCase() === filter);
+  function showModules(filter = "required") {
+    const visible = filter === "required" ? activeTrainingModules : [];
     grid?.replaceChildren(...visible.map((module) => renderModule(module, showFeedback)));
-    if (resultStatus) resultStatus.textContent = `${visible.length} ${filter === "all" ? "learning" : filter} modules shown.`;
+    if (resultStatus) resultStatus.textContent = `${visible.length} active required modules shown. Other catalogue modules are temporarily inactive.`;
   }
 
   filterButtons.forEach((button) => {
@@ -93,5 +99,5 @@ createCleanerPage("training", async ({ showFeedback }) => {
     document.querySelector("[data-training-feedback]")?.focus();
   });
 
-  showModules();
+  showModules("required");
 });
