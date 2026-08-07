@@ -23,8 +23,10 @@ function configureCleanerShell() {
     onboardingGroup?.remove();
     const onboardingEntry = primaryItems.find((item) => item.getAttribute("href") === "/cleaner/onboarding");
     const scheduleEntry = primaryItems.find((item) => item.getAttribute("href") === "/cleaner/schedule");
+    const reviewsEntry = primaryItems.find((item) => item.getAttribute("href") === "/cleaner/reviews");
     onboardingEntry?.remove();
     scheduleEntry?.remove();
+    reviewsEntry?.remove();
     primaryItems
       .filter((item) => item.matches(".hc-nav-cta"))
       .forEach((item) => item.remove());
