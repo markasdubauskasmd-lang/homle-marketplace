@@ -16,7 +16,10 @@ const [script, markup, styles, server] = await Promise.all([
 
    The panels still live in one document; only the addressing changed. */
 
-const panels = ["properties", "requests", "account"];
+// Home, Bookings and Messages joined these in the v2 dashboard. They are listed
+// separately because the assertions below about the *default* view changed with
+// them: the dashboard now lands on Home, not Properties.
+const panels = ["properties", "requests", "account", "home", "bookings", "messages"];
 for (const panel of panels) {
   assert(server.includes(`"/landlord/${panel}": "landlord-dashboard.html"`),
     `/landlord/${panel} is not served, so opening or refreshing that URL is a 404.`);
@@ -37,7 +40,7 @@ for (const panel of panels) {
 // Both entry points into panel selection must use it: first paint and Back.
 assert(script.includes('window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash()'),
   "Back does not reselect the panel for the URL being returned to.");
-assert(/selectWorkspaceTab\(workspaceTabFromHash\(\) \|\| "properties"\);/.test(script),
+assert(/selectWorkspaceTab\(workspaceTabFromHash\(\) \|\| "home"\);/.test(script),
   "The first paint does not select the panel named by the URL.");
 
 // History entries must carry the path, not a fragment.
@@ -49,7 +52,7 @@ assert(script.includes("const url = `/landlord/${selected}`") &&
 /* ── Old links keep working ───────────────────────────────────────────────
    The hash form is what the dashboard used until now. Anything already saved or
    already open in a tab must not break. */
-assert(/#landlord-\(properties\|requests\|account\)/.test(script),
+assert(/#landlord-\(properties\|requests\|account/.test(script),
   "The previous #landlord-* links are no longer understood, so saved links break.");
 
 /* ── Navigation points at the destinations, without a page reload ──────────
