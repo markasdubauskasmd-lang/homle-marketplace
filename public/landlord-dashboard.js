@@ -2125,6 +2125,26 @@ async function loadWorkspace() {
   loading = true;
   showState("Checking secure Landlord access…", "Your properties and drafts open only inside an authenticated Landlord session.");
   try {
+    // The workspace data is fetched alongside the access check rather than after
+    // it. None of these depend on the account response — the check decides
+    // whether to RENDER them, not whether they can be asked for — so awaiting it
+    // first cost a whole round trip on the path every Landlord takes.
+    //
+    // A visitor who turns out not to have a Landlord workspace makes these calls
+    // for nothing. That is the trade: one wasted burst on the rare path buys one
+    // fewer round trip on the common one. `allSettled` never rejects, so an
+    // in-flight failure here cannot surface as an unhandled rejection while the
+    // access check is still resolving.
+    const workspaceData = Promise.allSettled([
+      requestJson("/api/marketplace/landlord/profile"),
+      requestJson("/api/marketplace/properties"),
+      requestJson("/api/marketplace/properties/archived"),
+      requestJson("/api/marketplace/cleaning-requests"),
+      requestJson("/api/marketplace/bookings?limit=50"),
+      requestJson("/api/marketplace/landlord/support-requests?limit=25&offset=0"),
+      requestJson("/api/health"),
+      requestJson("/api/marketplace/landlord/favourite-cleaners")
+    ]);
     const accountResult = await requestJson("/api/marketplace/account");
     const account = accountResult.account;
     const access = dashboardWorkspaceAccess(account, "landlord");
@@ -2140,15 +2160,11 @@ async function loadWorkspace() {
     workspace.setAttribute("aria-busy", "true");
     loadStatus.hidden = true;
 
-    const [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult] = await Promise.allSettled([
-      requestJson("/api/marketplace/landlord/profile"),
-      requestJson("/api/marketplace/properties"),
-      requestJson("/api/marketplace/properties/archived"),
-      requestJson("/api/marketplace/cleaning-requests"),
-      requestJson("/api/marketplace/bookings?limit=50"),
-      requestJson("/api/marketplace/landlord/support-requests?limit=25&offset=0"),
-      requestJson("/api/health")
-    ]);
+    const [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult, favouriteResult] = await workspaceData;
+    // Saved Cleaners are excluded from the failure set on purpose: they render
+    // into their own panel with their own message, and a Cleaner directory that
+    // is briefly unavailable must not put the whole workspace into its degraded
+    // state alongside missing properties or requests.
     const results = [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult];
     const failures = results.filter((result) => result.status === "rejected");
     const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
@@ -2179,7 +2195,17 @@ async function loadWorkspace() {
     restoreWorkingRequest();
     renderRequests();
     renderBookings();
-    await refreshFavouriteCleaners();
+    // Already fetched in the burst above; this used to be a third round trip
+    // taken after everything else had finished, for data that depends on none
+    // of it. The shared render path is reused so the empty state and the card
+    // markup stay identical to a later refresh.
+    favouriteCleaners = favouriteResult.status === "fulfilled" && Array.isArray(favouriteResult.value.cleaners) ? favouriteResult.value.cleaners : [];
+    renderFavouriteCleaners();
+    if (favouriteResult.status === "rejected") {
+      const favouriteFeedback = document.querySelector("[data-landlord-favourite-feedback]");
+      favouriteFeedback.textContent = "Saved Cleaners are temporarily unavailable. Your other Landlord records are unaffected.";
+      favouriteFeedback.hidden = false;
+    }
     loadStatus.hidden = failures.length === 0;
     if (location.hash === "#landlord-account-title") selectWorkspaceTab("account");
     continueBookingStart();
