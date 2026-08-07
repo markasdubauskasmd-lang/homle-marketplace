@@ -1,0 +1,1291 @@
+/*
+ * Homle Dashboard v2 — the approved Landlord dashboard composition.
+ *
+ * Loaded after landlord-dashboard.css and scoped, like it, entirely under
+ * `body.landlord-dashboard-page`. It is a separate file rather than another pass
+ * appended to that one because that stylesheet is now three redesigns deep and
+ * its own header no longer describes what the page looks like. This one owns the
+ * v2 shell — sidebar, top bar, Home, Messages, account rows, bottom bar — and
+ * leaves the components underneath it (the request builder, the stepped wizard,
+ * property cards, dialogs, payments) to the file before it, which still
+ * describes them accurately.
+ *
+ * The palette is written as hex, once, at the top. The design was drawn against
+ * homle-tokens.css — same DM Sans, same two-step shadow, a coral within a hair
+ * of --homle-coral — so most of it could read tokens directly. But "match the
+ * approved composition" is the requirement, and quietly rounding #E11B22 to the
+ * nearest token is how the drift homle-tokens.css exists to end starts again.
+ * So: exact values, declared in one place, mapped onto the --ld-* names the
+ * earlier stylesheet already consumes.
+ */
+
+body.landlord-dashboard-page {
+  --ld-canvas: #f7f6f5;        /* the working surface behind the cards */
+  --ld-sidebar: #ffffff;
+  --ld-paper: #ffffff;
+  --ld-ink: #1a1a1a;
+  --ld-ink-soft: #3a3a3a;
+  --ld-muted: #7a7a7a;
+  --ld-dim: #8c8c8c;
+  --ld-faint: #a8a8a8;
+  --ld-coral: #e11b22;
+  --ld-coral-dark: #c4151b;
+  --ld-coral-tint: #fdecec;
+  --ld-line: #efedeb;
+  --ld-border: #e7e4e0;
+  --ld-quiet-border: #e1deda;
+  --ld-success: #2e9e63;
+  --ld-success-ink: #2e7d51;
+  --ld-success-tint: #eaf4ee;
+  --ld-success-rail: #9fd3b8;
+  --ld-success-ring: #cfe6da;
+  --ld-warn-ink: #9a6d14;
+  --ld-warn-tint: #fbf1df;
+  --ld-card-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
+  --ld-sidebar-w: 240px;
+
+  background: var(--ld-canvas);
+  color: var(--ld-ink);
+}
+
+/* v2 sets headings in the body face, not the display face: its weight and tight
+   tracking are DM Sans 700, and Bricolage at these sizes reads noticeably
+   heavier than the approved composition. */
+body.landlord-dashboard-page h1,
+body.landlord-dashboard-page h2,
+body.landlord-dashboard-page h3,
+body.landlord-dashboard-page h4 {
+  font-family: var(--ld-body);
+  color: var(--ld-ink);
+  letter-spacing: -.02em;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .site-header {
+  width: var(--ld-sidebar-w);
+  background: var(--ld-sidebar);
+  border-right: 1px solid var(--ld-line);
+  backdrop-filter: none;
+  box-shadow: none;
+}
+body.landlord-dashboard-page .site-header .shell.nav-wrap { gap: 22px; padding: 22px 16px 20px; }
+body.landlord-dashboard-page .workspace-brand .brand img { width: 38px; height: 38px; border-radius: 11px; box-shadow: none; }
+body.landlord-dashboard-page .workspace-brand-copy strong { font-family: var(--ld-body); font-size: 23px; font-weight: 700; letter-spacing: -.03em; }
+body.landlord-dashboard-page .workspace-brand-copy small { color: var(--ld-dim); font-weight: 600; letter-spacing: .1em; }
+
+body.landlord-dashboard-page .landlord-dashboard-nav { gap: 3px; }
+body.landlord-dashboard-page .landlord-dashboard-nav a {
+  min-height: 0;
+  gap: 13px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #4a4a4a;
+  text-decoration: none;
+}
+/* An earlier pass filled the first nav icon, because that icon was a solid grid.
+   Every v2 icon is a stroked outline, so the fill is cleared here rather than
+   left to silhouette the Home glyph. */
+body.landlord-dashboard-page .landlord-dashboard-nav a svg,
+body.landlord-dashboard-page .landlord-dashboard-nav a:first-child svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+}
+body.landlord-dashboard-page .landlord-dashboard-nav a:hover { background: #f5f4f3; color: var(--ld-ink); }
+body.landlord-dashboard-page .landlord-dashboard-nav a[aria-current="page"] { background: var(--ld-coral-tint); color: var(--ld-coral); }
+
+body.landlord-dashboard-page .site-header .account-menu summary {
+  border: 0;
+  box-shadow: none;
+  border-radius: 12px;
+  padding: 9px 8px;
+  background: transparent;
+}
+body.landlord-dashboard-page .site-header .account-menu summary:hover { background: #f5f4f3; }
+body.landlord-dashboard-page .site-header .account-avatar {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  overflow: hidden;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--ld-ink);
+  color: #fff;
+  box-shadow: 0 0 0 1px var(--ld-border), 0 5px 14px rgba(26, 26, 26, .12);
+  font-family: var(--ld-body);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+body.landlord-dashboard-page .site-header .account-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  object-position: center;
+}
+body.landlord-dashboard-page .site-header .account-summary-copy { flex: 1; }
+body.landlord-dashboard-page .site-header .account-menu summary::after { color: var(--ld-dim); font-size: 12px; }
+
+/* ── Main column ──────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .landlord-dashboard-main {
+  margin-left: var(--ld-sidebar-w);
+  margin-right: 0;
+  width: auto;
+  max-width: none;
+  padding: 26px clamp(24px, 2.4vw, 46px) 40px;
+}
+/* This is an application workspace, not a reading page. The global `.shell`
+   limit and the previous 1000px child cap left almost half of a 1920px screen
+   blank. The sidebar is the only reserved column; dashboard panels use all of
+   the remaining viewport so cards, booking timelines and forms can breathe. */
+body.landlord-dashboard-page .landlord-dashboard-main > * {
+  width: 100%;
+  max-width: none;
+}
+body.landlord-dashboard-page .account-footer { margin-left: var(--ld-sidebar-w); }
+
+/* ── Top bar ──────────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .ld-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 4px;
+}
+body.landlord-dashboard-page .ld-topbar-copy .landlord-secure-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--ld-success-ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+body.landlord-dashboard-page .ld-topbar-copy .landlord-secure-badge span { color: var(--ld-success); font-size: 8px; }
+body.landlord-dashboard-page .ld-topbar-copy h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -.03em;
+}
+body.landlord-dashboard-page .ld-topbar-copy p { margin: 6px 0 0; font-size: 15px; color: var(--ld-muted); }
+body.landlord-dashboard-page .ld-topbar-actions { display: flex; align-items: center; gap: 12px; flex: none; }
+
+/* The bell kept its landlord-notification-link class when it moved out of the
+   sidebar, so these rules are scoped to .ld-topbar and reset the sidebar
+   geometry that class still carries in landlord-dashboard.css. */
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ld-paper);
+  color: var(--ld-ink-soft);
+  box-shadow: var(--ld-card-shadow);
+  transition: transform .15s ease;
+}
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link:hover,
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link:focus-visible {
+  transform: translateY(-1px);
+  background: var(--ld-paper);
+  border: 0;
+  color: var(--ld-coral);
+}
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link svg { width: 19px; height: 19px; }
+/* The visible label is the icon; the text stays for assistive technology. */
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link > span:not([data-notification-count]) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link .notification-nav-count {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 2px solid var(--ld-canvas);
+  background: var(--ld-coral);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+body.landlord-dashboard-page .ld-topbar-avatar {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid var(--ld-paper);
+  border-radius: 999px;
+  background: var(--ld-ink);
+  color: #fff;
+  box-shadow: 0 0 0 1px var(--ld-border), var(--ld-card-shadow);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+body.landlord-dashboard-page .ld-topbar-avatar:hover,
+body.landlord-dashboard-page .ld-topbar-avatar:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 2px var(--ld-coral-tint), 0 7px 18px rgba(26, 26, 26, .14);
+}
+body.landlord-dashboard-page .ld-topbar-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* The old welcome block is now only a carrier for hidden identity hooks. */
+body.landlord-dashboard-page .landlord-dashboard-heading { margin-bottom: 0; gap: 0; }
+
+/* ── Home ─────────────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .ld-home {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  margin-bottom: 0;
+}
+body.landlord-dashboard-page .ld-home-question {
+  margin: 26px 0 14px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+}
+
+body.landlord-dashboard-page .ld-tabs {
+  display: flex;
+  justify-content: center;
+  width: max-content;
+  margin: 0 auto 18px;
+  padding: 5px;
+  background: var(--ld-paper);
+  border-radius: 14px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .ld-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 172px;
+  padding: 11px 0;
+  border: 0;
+  border-bottom: 2.5px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ld-dim);
+  cursor: pointer;
+  transition: color .16s ease, border-color .16s ease;
+}
+body.landlord-dashboard-page .ld-tab[aria-selected="true"] { color: var(--ld-coral); border-bottom-color: var(--ld-coral); }
+
+body.landlord-dashboard-page .ld-start-cards { display: flex; gap: 16px; align-items: stretch; }
+body.landlord-dashboard-page .ld-start-card {
+  flex: 1;
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 18px;
+  background: var(--ld-paper);
+  border-radius: 16px;
+  box-shadow: var(--ld-card-shadow);
+  animation: ld-rise .4s ease both;
+}
+body.landlord-dashboard-page .ld-start-card:last-child { animation-delay: .05s; }
+/* The tab marks which route is in focus; it never hides the other one. */
+body.landlord-dashboard-page .ld-start-card.is-active { outline: 1.5px solid var(--ld-coral); outline-offset: -1.5px; }
+
+body.landlord-dashboard-page .ld-start-art {
+  width: 150px;
+  height: 158px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #f0ebe6;
+  color: var(--ld-coral);
+}
+body.landlord-dashboard-page .ld-start-art svg { width: 86%; height: 86%; }
+body.landlord-dashboard-page .ld-start-art-scan { background: linear-gradient(165deg, #fff3f3, #fbf0ec); }
+body.landlord-dashboard-page .ld-start-art-manual { background: linear-gradient(165deg, #fbf7f2, #f4f1ed); }
+
+body.landlord-dashboard-page .ld-start-body { flex: 1; min-width: 0; }
+body.landlord-dashboard-page .ld-start-body h3 { margin: 0; font-size: 18px; font-weight: 700; }
+body.landlord-dashboard-page .ld-start-body p {
+  margin: 9px 0 18px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ld-muted);
+  text-wrap: pretty;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .ld-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 22px;
+  border: 0;
+  border-radius: 11px;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .16s ease, transform .12s ease, border-color .16s ease;
+}
+body.landlord-dashboard-page .ld-btn:active { transform: scale(.97); }
+body.landlord-dashboard-page .ld-btn-primary { background: var(--ld-coral); color: #fff; box-shadow: none; }
+body.landlord-dashboard-page .ld-btn-primary:hover { background: var(--ld-coral-dark); color: #fff; }
+body.landlord-dashboard-page .ld-btn-ghost {
+  padding: 12px 22px;
+  background: var(--ld-paper);
+  color: var(--ld-coral);
+  border: 1.5px solid var(--ld-coral);
+}
+body.landlord-dashboard-page .ld-btn-ghost:hover { background: var(--ld-coral-tint); color: var(--ld-coral); }
+body.landlord-dashboard-page .ld-btn-quiet {
+  padding: 12px 18px;
+  background: var(--ld-paper);
+  color: var(--ld-ink);
+  border: 1px solid var(--ld-quiet-border);
+  font-size: 14px;
+}
+body.landlord-dashboard-page .ld-btn-quiet:hover { background: var(--ld-canvas); color: var(--ld-ink); }
+
+/* ── Recommended for you (indicative) ─────────────────────────────────────── */
+
+body.landlord-dashboard-page .ld-plans {
+  margin-top: 16px;
+  padding: 20px 22px 18px;
+  background: var(--ld-paper);
+  border-radius: 16px;
+  box-shadow: var(--ld-card-shadow);
+  animation: ld-rise .4s ease .08s both;
+}
+body.landlord-dashboard-page .ld-plans-head { display: flex; align-items: center; gap: 10px; }
+body.landlord-dashboard-page .ld-plans-head h3 { margin: 0; font-size: 16px; font-weight: 700; }
+/* Says out loud what the numbers are, wherever the section is seen. */
+body.landlord-dashboard-page .ld-plans-flag {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--ld-warn-tint);
+  color: var(--ld-warn-ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+body.landlord-dashboard-page .ld-plans-sub { margin: 4px 0 14px; font-size: 13.5px; color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-plan-list { display: flex; flex-direction: column; gap: 10px; }
+body.landlord-dashboard-page .ld-plan {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 13px 15px;
+  background: #fbfaf9;
+  border: 1px solid var(--ld-line);
+  border-radius: 14px;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .16s ease, background .16s ease;
+}
+body.landlord-dashboard-page .ld-plan:hover { border-color: var(--ld-coral); background: var(--ld-paper); }
+body.landlord-dashboard-page .ld-plan:hover .ld-plan-chev { transform: translateX(3px); color: var(--ld-coral); }
+body.landlord-dashboard-page .ld-plan-icon {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+}
+body.landlord-dashboard-page .ld-plan-icon svg { width: 20px; height: 20px; }
+body.landlord-dashboard-page .ld-plan-standard .ld-plan-icon { background: var(--ld-coral-tint); color: var(--ld-coral); }
+body.landlord-dashboard-page .ld-plan-deep .ld-plan-icon { background: var(--ld-warn-tint); color: #c77b1e; }
+body.landlord-dashboard-page .ld-plan-tenancy .ld-plan-icon { background: #e8f0f9; color: #2c6bb0; }
+body.landlord-dashboard-page .ld-plan-copy { flex: 1; min-width: 0; display: grid; }
+body.landlord-dashboard-page .ld-plan-copy strong { font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+body.landlord-dashboard-page .ld-plan-copy small { margin-top: 2px; font-size: 13.5px; color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-plan-price {
+  flex: none;
+  display: grid;
+  justify-items: center;
+  padding: 8px 14px;
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-border);
+  border-radius: 12px;
+}
+body.landlord-dashboard-page .ld-plan-price small { font-size: 11.5px; color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-plan-price strong { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
+body.landlord-dashboard-page .ld-plan-chev {
+  flex: none;
+  color: #b0b0b0;
+  font-size: 15px;
+  transition: transform .16s ease, color .16s ease;
+}
+body.landlord-dashboard-page .ld-plans-note {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--ld-dim);
+}
+body.landlord-dashboard-page .ld-plans-note svg { flex: none; }
+
+/* ── Upcoming cleaning ────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .ld-upcoming {
+  margin-top: 16px;
+  padding: 20px 22px 22px;
+  background: var(--ld-paper);
+  border-radius: 16px;
+  box-shadow: var(--ld-card-shadow);
+  animation: ld-rise .45s ease .14s both;
+}
+body.landlord-dashboard-page .ld-upcoming-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+body.landlord-dashboard-page .ld-upcoming-head h3 { margin: 0; font-size: 16px; font-weight: 700; }
+body.landlord-dashboard-page .ld-status-pill {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--ld-coral-tint);
+  color: var(--ld-coral);
+  font-size: 12px;
+  font-weight: 600;
+}
+body.landlord-dashboard-page .ld-upcoming-body { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+body.landlord-dashboard-page .ld-upcoming-where { flex: none; width: 190px; }
+body.landlord-dashboard-page .ld-upcoming-address { font-size: 15.5px; font-weight: 700; letter-spacing: -.015em; }
+body.landlord-dashboard-page .ld-upcoming-when { margin-top: 3px; font-size: 13px; color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-upcoming-track { flex: 1; min-width: 260px; }
+body.landlord-dashboard-page .ld-upcoming-eta { font-size: 14.5px; font-weight: 600; color: var(--ld-coral); }
+body.landlord-dashboard-page .ld-upcoming-actions { flex: none; }
+
+body.landlord-dashboard-page .ld-steps {
+  display: flex;
+  align-items: flex-start;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+body.landlord-dashboard-page .ld-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+/* Each step draws its own joining rails, so there is no separate line node to
+   keep in step with the dot's state. */
+body.landlord-dashboard-page .ld-step::before,
+body.landlord-dashboard-page .ld-step::after {
+  content: "";
+  position: absolute;
+  top: 13px;
+  height: 1.5px;
+  background: var(--ld-border);
+}
+body.landlord-dashboard-page .ld-step::before { left: 0; right: 50%; }
+body.landlord-dashboard-page .ld-step::after { left: 50%; right: 0; }
+body.landlord-dashboard-page .ld-step:first-child::before,
+body.landlord-dashboard-page .ld-step:last-child::after { background: transparent; }
+body.landlord-dashboard-page .ld-step.is-done::before,
+body.landlord-dashboard-page .ld-step.is-done::after,
+body.landlord-dashboard-page .ld-step.is-now::before { background: var(--ld-success-rail); }
+body.landlord-dashboard-page .ld-step-dot {
+  position: relative;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--ld-paper);
+  border: 1.5px solid var(--ld-border);
+}
+body.landlord-dashboard-page .ld-step.is-done .ld-step-dot { border-color: var(--ld-success-ring); }
+body.landlord-dashboard-page .ld-step.is-done .ld-step-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 10px;
+  height: 6px;
+  border-left: 2px solid var(--ld-success);
+  border-bottom: 2px solid var(--ld-success);
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+body.landlord-dashboard-page .ld-step.is-now .ld-step-dot {
+  background: var(--ld-coral);
+  border-color: var(--ld-coral);
+  animation: ld-pulse 2s infinite;
+}
+body.landlord-dashboard-page .ld-step-label {
+  margin-top: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ld-faint);
+  white-space: nowrap;
+}
+body.landlord-dashboard-page .ld-step.is-done .ld-step-label { color: #4a4a4a; }
+body.landlord-dashboard-page .ld-step.is-now .ld-step-label { color: var(--ld-coral); font-weight: 700; }
+
+body.landlord-dashboard-page .ld-empty {
+  margin-top: 16px;
+  padding: 26px;
+  background: var(--ld-paper);
+  border: 1px dashed #dedad5;
+  border-radius: 16px;
+  text-align: center;
+}
+body.landlord-dashboard-page .ld-empty strong { font-size: 15.5px; font-weight: 700; }
+body.landlord-dashboard-page .ld-empty p { margin: 5px 0 0; font-size: 13.5px; color: var(--ld-dim); }
+
+/* ── Account rows ─────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .ld-acct-rows {
+  display: block;
+  margin-top: 16px;
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+body.landlord-dashboard-page .ld-acct-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 18px;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  transition: background .16s ease;
+}
+body.landlord-dashboard-page .ld-acct-row + .ld-acct-row { border-top: 1px solid #f2f0ee; }
+body.landlord-dashboard-page .ld-acct-row:hover { background: #fbfaf9; }
+body.landlord-dashboard-page .ld-acct-icon {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #f4f2f0;
+  color: #6a6a6a;
+}
+body.landlord-dashboard-page .ld-acct-icon svg { width: 18px; height: 18px; }
+body.landlord-dashboard-page .ld-acct-copy { flex: 1; min-width: 0; display: grid; }
+body.landlord-dashboard-page .ld-acct-copy strong { font-size: 14.5px; font-weight: 600; }
+body.landlord-dashboard-page .ld-acct-copy small { margin-top: 1px; font-size: 12.5px; color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-acct-chev { flex: none; color: #c4c0bb; font-size: 15px; }
+body.landlord-dashboard-page .ld-acct-row-danger .ld-acct-icon { background: var(--ld-coral-tint); color: var(--ld-coral); }
+/* The button carries only its label — account-menu.js overwrites its
+   textContent — so it is stretched over the row to keep the whole strip
+   clickable. See the note beside it in landlord-dashboard.html. */
+body.landlord-dashboard-page .ld-acct-signout {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--ld-coral);
+  text-align: left;
+  cursor: pointer;
+}
+body.landlord-dashboard-page .ld-acct-signout::after { content: ""; position: absolute; inset: 0; }
+body.landlord-dashboard-page .ld-acct-signout:disabled { color: var(--ld-dim); cursor: default; }
+body.landlord-dashboard-page .ld-acct-signout-status { color: var(--ld-coral); }
+
+/* ── Messages (announced placeholder) ─────────────────────────────────────── */
+
+body.landlord-dashboard-page .ld-messages {
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  min-height: 520px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+body.landlord-dashboard-page .ld-messages-list {
+  width: 272px;
+  flex: none;
+  padding: 18px;
+  background: var(--ld-paper);
+  border-radius: 16px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .ld-messages-list-empty { margin: 0; font-size: 13.5px; color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-messages-thread {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--ld-paper);
+  border-radius: 16px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .ld-messages-soon {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 40px 32px;
+  text-align: center;
+}
+body.landlord-dashboard-page .ld-messages-soon-icon {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 6px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--ld-coral-tint);
+  color: var(--ld-coral);
+}
+body.landlord-dashboard-page .ld-messages-soon-icon svg { width: 26px; height: 26px; }
+body.landlord-dashboard-page .ld-messages-soon h2 { margin: 0; font-size: 19px; font-weight: 700; }
+body.landlord-dashboard-page .ld-messages-soon p {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ld-muted);
+}
+body.landlord-dashboard-page .ld-messages-soon-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 14px;
+}
+body.landlord-dashboard-page .ld-messages-composer { flex: none; padding: 14px 18px; border-top: 1px solid #f0edeb; }
+body.landlord-dashboard-page .ld-messages-composer input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px 16px;
+  background: #fbfaf9;
+  border: 1px solid #e5e2de;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ld-dim);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   The remaining views, in the same language
+   ───────────────────────────────────────────────────────────────────────────
+   Properties, Bookings, Payments and Account are rendered by
+   landlord-dashboard.js, so they are matched to the design here by class rather
+   than by rewriting the markup those functions produce. The panel itself stops
+   being a card — the rows and cards inside it carry the elevation, which is how
+   every screen in the design is composed.
+
+   The manual request builder (.pac-*) is deliberately NOT touched. It keeps the
+   presentation it already has.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+body.landlord-dashboard-page .landlord-workspace-panel:not(.ld-home):not(.ld-messages),
+body.landlord-dashboard-page .landlord-booking-section {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  margin-bottom: 0;
+}
+/* The builder keeps its own card. */
+body.landlord-dashboard-page [data-landlord-panel="requests"] {
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-line);
+  box-shadow: var(--ld-card-shadow);
+  margin-top: 16px;
+}
+
+/* :not(.pac-card-head) keeps the manual builder's own banner head untouched. */
+body.landlord-dashboard-page .landlord-panel-heading:not(.pac-card-head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 22px 0 14px;
+}
+body.landlord-dashboard-page .landlord-panel-heading:not(.pac-card-head) h2 { font-size: 16px; font-weight: 700; margin: 0; }
+body.landlord-dashboard-page .landlord-panel-heading .eyebrow,
+body.landlord-dashboard-page .booking-section-heading .eyebrow,
+body.landlord-dashboard-page .landlord-history-heading .eyebrow {
+  margin: 0 0 2px;
+  color: var(--ld-dim);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+body.landlord-dashboard-page .landlord-panel-heading > div > p:not(.eyebrow) { margin: 4px 0 0; font-size: 13.5px; color: var(--ld-dim); }
+
+/* The dashboard's own buttons, brought to the design's shape. The requests panel
+   is excluded throughout: the manual builder keeps its existing controls. */
+body.landlord-dashboard-page .landlord-workspace-panel:not([data-landlord-panel="requests"]) .button,
+body.landlord-dashboard-page .landlord-booking-section .button {
+  border-radius: 11px;
+  padding: 11px 18px;
+  font-family: var(--ld-body);
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--ld-coral);
+  color: #fff;
+  box-shadow: none;
+}
+body.landlord-dashboard-page .landlord-workspace-panel:not([data-landlord-panel="requests"]) .button:hover,
+body.landlord-dashboard-page .landlord-booking-section .button:hover { background: var(--ld-coral-dark); color: #fff; }
+body.landlord-dashboard-page .landlord-workspace-panel:not([data-landlord-panel="requests"]) .button.button-outline,
+body.landlord-dashboard-page .landlord-booking-section .button.button-outline {
+  background: var(--ld-paper);
+  color: var(--ld-ink);
+  border: 1px solid var(--ld-quiet-border);
+}
+body.landlord-dashboard-page .landlord-workspace-panel:not([data-landlord-panel="requests"]) .button.button-outline:hover,
+body.landlord-dashboard-page .landlord-booking-section .button.button-outline:hover { background: var(--ld-canvas); color: var(--ld-ink); }
+body.landlord-dashboard-page .landlord-property-archive {
+  color: var(--ld-coral);
+  border-color: color-mix(in srgb, var(--ld-coral) 40%, transparent);
+}
+
+/* ── Properties ───────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .landlord-property-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+body.landlord-dashboard-page .landlord-property-grid > .landlord-property-card {
+  background: var(--ld-paper);
+  border: 0;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: var(--ld-card-shadow);
+  animation: ld-rise .4s ease both;
+}
+body.landlord-dashboard-page .landlord-property-card-heading { display: flex; gap: 14px; align-items: flex-start; }
+body.landlord-dashboard-page .landlord-property-card-heading h3 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.015em; }
+body.landlord-dashboard-page .landlord-property-card-heading p { margin: 2px 0 0; font-size: 13px; color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-prop-icon {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #f4f1ed;
+  color: #9a9188;
+}
+body.landlord-dashboard-page .ld-prop-icon svg { width: 24px; height: 24px; }
+body.landlord-dashboard-page .ld-prop-main { flex: 1; min-width: 0; }
+body.landlord-dashboard-page .ld-prop-dates { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+body.landlord-dashboard-page .ld-prop-dates > span { font-size: 12.5px; color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-prop-dates strong { color: #4a4a4a; font-weight: 600; }
+body.landlord-dashboard-page .ld-prop-chip {
+  flex: none;
+  align-self: flex-start;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--ld-warn-tint);
+  color: var(--ld-warn-ink);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+body.landlord-dashboard-page .ld-prop-chip-booked { background: var(--ld-success-tint, #eaf4ee); color: var(--ld-success-ink); }
+body.landlord-dashboard-page .ld-prop-rooms { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; }
+body.landlord-dashboard-page .ld-prop-room {
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--ld-canvas);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #6a6a6a;
+}
+body.landlord-dashboard-page .ld-prop-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 150px;
+  padding: 26px;
+  background: transparent;
+  border: 1.5px dashed #dedad5;
+  border-radius: 16px;
+  font-family: inherit;
+  color: var(--ld-dim);
+  cursor: pointer;
+  transition: border-color .16s ease, color .16s ease;
+}
+body.landlord-dashboard-page .ld-prop-add:hover { border-color: var(--ld-coral); color: var(--ld-coral); }
+body.landlord-dashboard-page .ld-prop-add svg { width: 26px; height: 26px; }
+body.landlord-dashboard-page .ld-prop-add-title { font-size: 14px; font-weight: 600; }
+body.landlord-dashboard-page .ld-prop-add-copy { font-size: 12.5px; }
+
+/* Archived properties still render the older fact list. */
+body.landlord-dashboard-page .landlord-property-facts { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; }
+body.landlord-dashboard-page .landlord-property-facts > div {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--ld-canvas);
+}
+body.landlord-dashboard-page .landlord-property-facts dt,
+body.landlord-dashboard-page .landlord-property-facts dd { margin: 0; font-size: 11.5px; font-weight: 600; }
+body.landlord-dashboard-page .landlord-property-facts dt { color: var(--ld-dim); }
+body.landlord-dashboard-page .landlord-property-facts dd { color: #6a6a6a; }
+
+/* The protected details and the rarer access/archive controls. */
+body.landlord-dashboard-page .landlord-property-details { margin-top: 12px; font-size: 13px; }
+body.landlord-dashboard-page .landlord-property-details > summary { color: var(--ld-dim); font-weight: 600; font-size: 12.5px; cursor: pointer; }
+body.landlord-dashboard-page .landlord-property-details > summary:hover { color: var(--ld-coral); }
+body.landlord-dashboard-page .landlord-property-details dl { display: grid; gap: 8px; margin: 12px 0 0; }
+body.landlord-dashboard-page .landlord-property-details dt { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ld-faint); }
+body.landlord-dashboard-page .landlord-property-details dd { margin: 2px 0 0; font-size: 13px; }
+body.landlord-dashboard-page .landlord-property-actions { display: flex; gap: 9px; margin-top: 14px; flex-wrap: wrap; }
+body.landlord-dashboard-page .landlord-property-actions .button { flex: 1; min-width: 120px; justify-content: center; text-align: center; padding: 10px; font-size: 13.5px; }
+
+/* ── Booking rows ─────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .ld-booking-icon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--ld-coral-tint);
+  color: var(--ld-coral);
+}
+body.landlord-dashboard-page .ld-booking-icon svg { width: 21px; height: 21px; }
+body.landlord-dashboard-page .ld-booking-icon-done { background: var(--ld-success-tint, #eaf4ee); color: var(--ld-success); }
+body.landlord-dashboard-page .ld-booking-icon-done svg { width: 16px; height: 16px; }
+body.landlord-dashboard-page .ld-booking-main { flex: 1; min-width: 0; }
+body.landlord-dashboard-page .booking-summary-heading { align-items: center; }
+body.landlord-dashboard-page .ld-booking-main h3 { margin: 0; font-size: 15.5px; font-weight: 700; letter-spacing: -.015em; }
+body.landlord-dashboard-page .ld-booking-main p { margin: 2px 0 0; font-size: 13px; color: var(--ld-dim); }
+body.landlord-dashboard-page .booking-status-pill { flex: none; white-space: nowrap; }
+body.landlord-dashboard-page .booking-money-boundary { margin: 12px 0 0; font-size: 12px; line-height: 1.5; color: var(--ld-faint); }
+
+body.landlord-dashboard-page .landlord-empty-card,
+body.landlord-dashboard-page .booking-dashboard-empty {
+  background: var(--ld-paper);
+  border: 1px dashed #dedad5;
+  border-radius: 16px;
+  box-shadow: none;
+  padding: 26px;
+  text-align: center;
+}
+body.landlord-dashboard-page .landlord-empty-card strong,
+body.landlord-dashboard-page .booking-dashboard-empty strong { font-size: 15.5px; font-weight: 700; }
+body.landlord-dashboard-page .landlord-empty-card p,
+body.landlord-dashboard-page .booking-dashboard-empty p { margin: 5px auto 0; max-width: 52ch; font-size: 13.5px; color: var(--ld-dim); }
+
+/* ── Bookings ─────────────────────────────────────────────────────────────── */
+
+/* The collapsible section headers read as the design's UPCOMING / PAST labels. */
+body.landlord-dashboard-page .landlord-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 22px 0 10px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--ld-faint);
+  font-family: var(--ld-body);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+body.landlord-dashboard-page .landlord-section-toggle:hover { color: var(--ld-ink); }
+body.landlord-dashboard-page .landlord-section-toggle-meta { display: inline-flex; align-items: center; gap: 8px; }
+body.landlord-dashboard-page .landlord-section-toggle-meta > span:first-child {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ld-coral-tint);
+  color: var(--ld-coral);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+body.landlord-dashboard-page .booking-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+body.landlord-dashboard-page .landlord-booking-live { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--ld-dim); }
+
+body.landlord-dashboard-page .booking-dashboard-list,
+body.landlord-dashboard-page .landlord-request-list,
+body.landlord-dashboard-page .landlord-waiting-list { display: flex; flex-direction: column; gap: 10px; }
+body.landlord-dashboard-page .booking-dashboard-list > *,
+body.landlord-dashboard-page .landlord-request-list > *,
+body.landlord-dashboard-page .landlord-waiting-list > * {
+  background: var(--ld-paper);
+  border: 0;
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .booking-summary-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+body.landlord-dashboard-page .booking-summary-heading h3 { margin: 4px 0 0; font-size: 15.5px; font-weight: 700; letter-spacing: -.015em; }
+body.landlord-dashboard-page .booking-summary-heading p { margin: 2px 0 0; font-size: 13px; color: var(--ld-dim); }
+body.landlord-dashboard-page .booking-status-pill {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--ld-coral-tint);
+  color: var(--ld-coral);
+  font-size: 12px;
+  font-weight: 600;
+}
+body.landlord-dashboard-page .booking-summary-price { flex: none; font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
+body.landlord-dashboard-page .booking-summary-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 13px 0 0;
+  border-top: 1px solid #f2f0ee;
+}
+body.landlord-dashboard-page .booking-summary-facts dt { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ld-faint); margin: 0 0 3px; }
+body.landlord-dashboard-page .booking-summary-facts dd { margin: 0; font-size: 13.5px; font-weight: 600; }
+body.landlord-dashboard-page .booking-summary-actions { display: flex; gap: 9px; margin-top: 14px; flex-wrap: wrap; }
+
+body.landlord-dashboard-page .landlord-waiting-section { margin-top: 18px; }
+body.landlord-dashboard-page .booking-history-section {
+  margin-top: 18px;
+  background: var(--ld-paper);
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .booking-history-section > summary { cursor: pointer; font-size: 14.5px; font-weight: 600; }
+body.landlord-dashboard-page .booking-history-section .booking-dashboard-list { margin-top: 14px; }
+body.landlord-dashboard-page .booking-history-section .booking-dashboard-list > * { box-shadow: none; border: 1px solid var(--ld-line); }
+
+body.landlord-dashboard-page .landlord-history-overview { margin-top: 22px; }
+body.landlord-dashboard-page .landlord-history-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+body.landlord-dashboard-page .landlord-history-stats > div {
+  background: var(--ld-paper);
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .landlord-history-stats dt { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--ld-dim); }
+body.landlord-dashboard-page .landlord-history-stats dd { margin: 0; font-family: var(--ld-body); font-size: 24px; font-weight: 700; letter-spacing: -.02em; color: var(--ld-ink); }
+body.landlord-dashboard-page .landlord-history-overview .landlord-previous-cleaners,
+body.landlord-dashboard-page .landlord-history-overview .landlord-favourite-cleaners {
+  background: var(--ld-paper);
+  border: 0;
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: var(--ld-card-shadow);
+  margin-top: 12px;
+}
+
+/* ── Payments ─────────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .landlord-payments-intro { margin: 0 0 14px; font-size: 13.5px; color: var(--ld-dim); }
+body.landlord-dashboard-page .landlord-payments-list { display: flex; flex-direction: column; gap: 10px; }
+body.landlord-dashboard-page .landlord-payment-row {
+  background: var(--ld-paper);
+  border: 0;
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .landlord-payment-total { font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
+
+/* ── Account ──────────────────────────────────────────────────────────────── */
+
+/* :not(.landlord-request-form) — the manual request builder keeps the
+   presentation it already has, so only the profile and property forms are
+   brought into the v2 card language. */
+body.landlord-dashboard-page .landlord-profile-form,
+body.landlord-dashboard-page .landlord-record-form:not(.landlord-request-form) {
+  background: var(--ld-paper);
+  border: 0;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .landlord-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f2f0ee;
+}
+body.landlord-dashboard-page .landlord-profile-identity .role-account-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 999px;
+  background: var(--ld-ink);
+  color: #fff;
+  font-family: var(--ld-body);
+  font-size: 19px;
+  font-weight: 600;
+  border: 0;
+}
+body.landlord-dashboard-page .landlord-profile-identity strong { display: block; font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
+body.landlord-dashboard-page .landlord-profile-identity small { display: block; margin-top: 2px; font-size: 13.5px; color: var(--ld-dim); }
+body.landlord-dashboard-page .landlord-private-pill {
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: var(--ld-coral-tint);
+  color: var(--ld-coral);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── Status and notice cards ──────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .landlord-capability-note,
+body.landlord-dashboard-page .landlord-network-status,
+body.landlord-dashboard-page .dashboard-partial-status,
+body.landlord-dashboard-page .landlord-dashboard-state {
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-line);
+  border-radius: 16px;
+  box-shadow: var(--ld-card-shadow);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+/* ── Mobile bottom navigation ─────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .ld-mobile-nav { display: none; }
+
+/* ── Animation ────────────────────────────────────────────────────────────── */
+
+@keyframes ld-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes ld-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(225, 27, 34, .4); }
+  70% { box-shadow: 0 0 0 10px rgba(225, 27, 34, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(225, 27, 34, 0); }
+}
+@keyframes ld-scanbeam {
+  0%, 100% { transform: translateY(0); opacity: .25; }
+  8% { opacity: 1; }
+  50% { transform: translateY(70px); opacity: 1; }
+  92% { opacity: .25; }
+}
+@keyframes ld-reticle {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
+@keyframes ld-tickpop {
+  0%, 12% { opacity: 0; transform: scale(.5); }
+  22%, 88% { opacity: 1; transform: scale(1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes ld-penmove {
+  0%, 100% { transform: translate(0, 0) rotate(32deg); }
+  50% { transform: translate(-5px, -7px) rotate(32deg); }
+}
+
+body.landlord-dashboard-page .ld-art-beam { animation: ld-scanbeam 3s ease-in-out infinite; }
+body.landlord-dashboard-page .ld-art-reticle { animation: ld-reticle 2.8s ease-in-out infinite; }
+body.landlord-dashboard-page .ld-art-tick { animation: ld-tickpop 3.4s ease-in-out infinite; }
+body.landlord-dashboard-page .ld-art-tick-2 { animation-delay: .5s; }
+body.landlord-dashboard-page .ld-art-tick-3 { animation-delay: 1s; }
+body.landlord-dashboard-page .ld-art-pen {
+  animation: ld-penmove 3.4s ease-in-out infinite;
+  transform-origin: 88px 96px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.landlord-dashboard-page .ld-start-card,
+  body.landlord-dashboard-page .ld-plans,
+  body.landlord-dashboard-page .ld-upcoming,
+  body.landlord-dashboard-page .ld-art-beam,
+  body.landlord-dashboard-page .ld-art-reticle,
+  body.landlord-dashboard-page .ld-art-tick,
+  body.landlord-dashboard-page .ld-art-pen,
+  body.landlord-dashboard-page .ld-step.is-now .ld-step-dot { animation: none; }
+  body.landlord-dashboard-page .ld-topbar .landlord-notification-link,
+  body.landlord-dashboard-page .ld-btn,
+  body.landlord-dashboard-page .ld-plan,
+  body.landlord-dashboard-page .ld-plan-chev { transition: none; }
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 1040px) {
+  body.landlord-dashboard-page .ld-start-cards { flex-direction: column; }
+  body.landlord-dashboard-page .ld-upcoming-actions { width: 100%; }
+  body.landlord-dashboard-page .ld-upcoming-actions .ld-btn { width: 100%; justify-content: center; }
+}
+
+@media (max-width: 900px) {
+  body.landlord-dashboard-page .site-header {
+    position: sticky;
+    inset: 0 auto auto 0;
+    width: 100%;
+    background: var(--ld-paper);
+    border-right: 0;
+    border-bottom: 1px solid var(--ld-line);
+  }
+  /* The sidebar list is replaced by the bottom bar here, so the same five
+     destinations are not presented twice. */
+  body.landlord-dashboard-page .site-header .landlord-dashboard-nav { display: none; }
+  body.landlord-dashboard-page .site-header .shell.nav-wrap {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  /* Desktop reserves a fixed sidebar column. Both the width and offset must be
+     reset here: changing the sidebar into a top bar without clearing the main
+     margin leaves only ~135px of a 390px phone for the entire application. */
+  body.landlord-dashboard-page .landlord-dashboard-main {
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 16px 16px 96px;
+  }
+  body.landlord-dashboard-page .landlord-dashboard-main > * { max-width: none; }
+  body.landlord-dashboard-page .account-footer { margin-left: 0; padding-bottom: 84px; }
+
+  body.landlord-dashboard-page .ld-topbar-copy h1 { font-size: 25px; }
+  body.landlord-dashboard-page .ld-tabs { width: 100%; }
+  body.landlord-dashboard-page .ld-tab { width: auto; flex: 1; }
+  body.landlord-dashboard-page .ld-start-card { gap: 13px; padding: 13px; }
+  body.landlord-dashboard-page .ld-start-art { width: 100px; height: 118px; }
+  body.landlord-dashboard-page .ld-start-body h3 { font-size: 15px; }
+  body.landlord-dashboard-page .ld-start-body p { margin: 6px 0 12px; font-size: 12.5px; }
+  body.landlord-dashboard-page .ld-btn { width: 100%; justify-content: center; padding: 11px; font-size: 13.5px; }
+
+  body.landlord-dashboard-page .ld-upcoming-where { width: 100%; }
+  body.landlord-dashboard-page .ld-upcoming-track { min-width: 0; }
+  body.landlord-dashboard-page .ld-step-label { font-size: 10px; }
+
+  body.landlord-dashboard-page .ld-messages { flex-direction: column; min-height: 0; }
+  body.landlord-dashboard-page .ld-messages-list { width: auto; }
+
+  body.landlord-dashboard-page .ld-mobile-nav {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 40;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    padding: 9px 8px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--ld-paper);
+    border-top: 1px solid var(--ld-line);
+  }
+  body.landlord-dashboard-page .ld-mobile-nav a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 58px;
+    padding: 4px 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: #9a9a9a;
+    text-decoration: none;
+    transition: color .16s ease;
+  }
+  body.landlord-dashboard-page .ld-mobile-nav a svg { width: 21px; height: 21px; }
+  body.landlord-dashboard-page .ld-mobile-nav a[aria-current="page"] { color: var(--ld-coral); }
+  body.landlord-dashboard-page .ld-mobile-nav .ld-mobile-scan { width: 62px; margin: 0 2px -6px; }
+  body.landlord-dashboard-page .ld-mobile-nav .ld-mobile-scan span {
+    width: 58px;
+    height: 58px;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--ld-coral);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(225, 27, 34, .32);
+    animation: ld-pulse 2.6s infinite;
+  }
+  body.landlord-dashboard-page .ld-mobile-nav .ld-mobile-scan svg { width: 25px; height: 25px; }
+}
+
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  body.landlord-dashboard-page .ld-mobile-nav .ld-mobile-scan span { animation: none; }
+}
+
+@media (max-width: 560px) {
+  body.landlord-dashboard-page .ld-steps { margin-top: 16px; }
+  body.landlord-dashboard-page .ld-step-label { font-size: 9.5px; }
+  body.landlord-dashboard-page .ld-plan { flex-wrap: wrap; }
+  body.landlord-dashboard-page .ld-plan-copy { flex-basis: calc(100% - 61px); }
+  body.landlord-dashboard-page .ld-plan-price { margin-left: 61px; }
+}

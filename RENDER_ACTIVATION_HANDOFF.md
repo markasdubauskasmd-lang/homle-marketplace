@@ -1,5 +1,59 @@
 # Render activation handoff
 
+## Open PR #283 — Landlord dashboard v2 design (needs a redeploy, nothing else)
+
+Not yet merged. CI green on `8f00450`. **No migration, no new secret and no
+Render setting is required.** Merge to `main`, then one redeploy publishes it.
+
+`render.yaml` sets `autoDeployTrigger: "off"`, so **merging does not deploy** —
+the redeploy has to be triggered in the Render dashboard.
+
+### What actually changed, in product terms
+
+- **The Landlord dashboard is the approved v2 composition.** Sidebar of five
+  destinations (Home, Properties, Bookings, Messages, Account), a top bar with
+  the greeting, bell and avatar, and a mobile bottom bar below 900px.
+- **Home is new and leads.** Scan and Manual sit as two equal cards with a tab
+  marking which is in focus; then guide prices; then the live booking with a
+  five-step tracker driven by real booking status.
+- **Bookings and Home are real URLs** (`/landlord/bookings`, `/landlord/home`),
+  as Properties, Requests and Account already were.
+- **Properties and Bookings cards were rebuilt**, not just restyled — the render
+  functions emitted a different structure from the design.
+
+### Deliberate decisions — do not "fix" these
+
+- **Messages is an announced placeholder.** There is no thread model, endpoint
+  or store anywhere in this repo. The view is built to the design's shape but
+  says "Messaging is coming soon" and its composer is disabled. Do not make it
+  look live until a messaging API exists; the markup is ready to fill.
+- **The recommended prices are not quotes.** They come from
+  `LD_INDICATIVE_PLANS` in `landlord-dashboard.js`, a labelled constant. There
+  is no landlord-facing pricing endpoint — the only pricing rules that exist
+  price a completed scan, not a catalogue. The section is flagged "Indicative",
+  says "not a quote", and each card links to the scan that produces a real
+  price. Do not wire these to a checkout.
+- **The manual request builder is untouched**, deliberately. The v2 rules
+  exclude it by selector. It did stop appearing collapsed at the foot of every
+  other view, because that put a second "Manual request" banner directly under
+  the Manual card on Home.
+- **The scan still leads.** The Scan card is first and the tab never hides the
+  other card — there is a test asserting exactly that.
+
+### One security fix rides along
+
+`setSecurityHeaders` matched only `/landlord/dashboard`, but five routes serve
+that same document. `/landlord/requests` — where speech capture runs — was being
+sent `microphone=()`, and none of the other routes received the private-media
+CSP. The check now follows the document. Worth a smoke check after deploy:
+speech capture on `/landlord/requests`, and room photos on the dashboard.
+
+### Still outstanding
+
+- `landlord-dashboard.css` still carries the old `.scan-hero` rules, which now
+  style nothing. Left in place rather than deleted in the same change.
+- `emailReady` and `paymentsReady` remain false on the live deployment.
+
 ## Merged 2026-08-05 — Landlord dashboard (needs a redeploy, nothing else)
 
 Five PRs, all merged to `main`, CI green. **No migration, no new secret and no

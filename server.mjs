@@ -294,12 +294,29 @@ const immutableStaticAssets = new Set([
   "/landing/cleaning-720-e8b1a7ce.mp4"
 ]);
 
+/* Kept beside the route table below, which maps each of these to the same file. */
+const landlordDashboardPaths = new Set([
+  "/landlord/dashboard",
+  "/landlord/home",
+  "/landlord/properties",
+  "/landlord/bookings",
+  "/landlord/messages",
+  "/landlord/requests",
+  "/landlord/account",
+  "/landlord/payments"
+]);
+
 function setSecurityHeaders(response, requestPath = "", cspNonce = "") {
   // Stripe is allowed on this one authenticated Landlord route only. Keeping
   // the wider site on the default self-only policy limits third-party code.
   const paymentPage = requestPath === "/landlord/checkout" || requestPath === "/stripe-sandbox";
   const activeJobPage = /^\/bookings\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:\/(?:tracking|cleaning-progress))?\/?$/i.test(requestPath);
-  const landlordDashboardPage = requestPath === "/landlord/dashboard";
+  // Every path that serves landlord-dashboard.html, not just the canonical one.
+  // The dashboard is one document behind several addresses, so the private-media
+  // CSP and the camera/microphone permission have to follow the document rather
+  // than a single URL — /landlord/requests is where speech capture actually runs,
+  // and it was being served `microphone=()` because it is not /landlord/dashboard.
+  const landlordDashboardPage = landlordDashboardPaths.has(requestPath.replace(/\/$/, "") || "/");
   const journeyPage = requestPath === "/landlord/book";
   const postcodeMapPage = requestPath === "/cleaner/work-areas" || requestPath === "/cleaner/jobs-map";
   const privateMediaPage = activeJobPage || landlordDashboardPage || journeyPage;
@@ -5444,7 +5461,10 @@ async function serveFile(requestPath, response, cspNonce = "") {
     // The Landlord workspace panels are real, bookmarkable destinations rather
     // than in-page anchors. Same document: the script selects the panel from
     // the pathname, so a shared link opens where the sender was.
+    "/landlord/home": "landlord-dashboard.html",
     "/landlord/properties": "landlord-dashboard.html",
+    "/landlord/bookings": "landlord-dashboard.html",
+    "/landlord/messages": "landlord-dashboard.html",
     "/landlord/requests": "landlord-dashboard.html",
     "/landlord/account": "landlord-dashboard.html",
     "/landlord/payments": "landlord-dashboard.html",

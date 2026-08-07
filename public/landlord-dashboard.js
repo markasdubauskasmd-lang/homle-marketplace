@@ -592,10 +592,17 @@ async function refreshSelectedCleanerProfile() {
  * dashboard used until now, so saved links and any open tab keep working.
  */
 function workspaceTabFromLocation() {
-  const path = /^\/landlord\/(properties|requests|account|payments)\/?$/.exec(location.pathname);
+  const path = /^\/landlord\/(home|properties|bookings|messages|requests|account|payments)\/?$/.exec(location.pathname);
   if (path) return path[1];
-  const hash = /^#landlord-(properties|requests|account)$/.exec(location.hash);
-  return hash?.[1] || "";
+  // /landlord/dashboard is the canonical entry point and now opens Home, which
+  // is the view the v2 design leads with.
+  if (/^\/landlord\/dashboard\/?$/.test(location.pathname)) return "home";
+  const hash = /^#landlord-(properties|requests|account|bookings)$/.exec(location.hash);
+  if (hash) return hash[1];
+  // The Bookings section kept its original id, so the anchor that used to scroll
+  // to it now selects the view instead of landing on a hidden panel.
+  if (location.hash === "#landlord-bookings") return "bookings";
+  return "";
 }
 
 // Retained under the old name so nothing that calls it has to change.
@@ -609,7 +616,10 @@ if (requestBuilderMount && requestBuilderPanel) requestBuilderMount.replaceWith(
 
 function setRequestBuilderExpanded(expanded) {
   if (!requestBuilderPanel) return;
-  requestBuilderPanel.hidden = false;
+  // The builder is its own view now. It used to sit collapsed at the foot of
+  // every panel, which in the v2 layout would put a second "Manual request"
+  // banner directly under the Manual card on Home offering the same thing.
+  requestBuilderPanel.hidden = !expanded;
   requestBuilderPanel.classList.toggle("pac-collapsed", !expanded);
   const toggle = requestBuilderPanel.querySelector("[data-pac-toggle]");
   if (toggle) {
@@ -640,13 +650,75 @@ function loadPrepareWizard() {
   return prepareWizardLoad;
 }
 
+/**
+ * The title and standfirst for each view, so the top bar says where you are.
+ *
+ * `requests` deliberately reuses the Properties heading: selecting it expands the
+ * builder underneath the Properties panel rather than replacing the view, which
+ * is the behaviour that was already here.
+ */
+const workspaceTabCopy = {
+  home: { title: "Hello, {name}", subtitle: "Let’s keep your property spotless." },
+  properties: { title: "Properties", subtitle: "The locations saved privately to your account." },
+  bookings: { title: "Bookings", subtitle: "Everything upcoming and everything done." },
+  messages: { title: "Messages", subtitle: "Talk to the Cleaner working on your property." },
+  account: { title: "Account", subtitle: "Your details, payments and preferences." },
+  payments: { title: "Payments", subtitle: "What each booking costs, and where its authorisation has reached." },
+  requests: { title: "Properties", subtitle: "The locations saved privately to your account." }
+};
+
+const viewTitle = document.querySelector("[data-view-title]");
+const viewSubtitle = document.querySelector("[data-view-subtitle]");
+
+/**
+ * The Landlord's name lives here, not in the heading.
+ *
+ * Only the Home greeting renders it, and switching to any other view replaces
+ * that heading's contents — so reading the name back out of the DOM would lose
+ * it the first time someone visited Properties and came back.
+ */
+let landlordDisplayName = "Landlord";
+
+function setLandlordDisplayName(name) {
+  landlordDisplayName = name || "Landlord";
+  const named = document.querySelector("[data-landlord-name]");
+  if (named) named.textContent = landlordDisplayName;
+}
+
+function renderWorkspaceHeading(selected) {
+  const copy = workspaceTabCopy[selected] || workspaceTabCopy.home;
+  if (viewSubtitle) viewSubtitle.textContent = copy.subtitle;
+  if (!viewTitle) return;
+  if (copy.title.includes("{name}")) {
+    const [before, after] = copy.title.split("{name}");
+    const holder = element("span", "", landlordDisplayName);
+    holder.setAttribute("data-landlord-name", "");
+    viewTitle.replaceChildren(document.createTextNode(before), holder, document.createTextNode(after));
+  } else {
+    viewTitle.textContent = copy.title;
+  }
+}
+
+function markCurrentNavigation(selected) {
+  // Both navs point at the same destinations, so both are marked from one place.
+  for (const link of document.querySelectorAll(".landlord-dashboard-nav a, .ld-mobile-nav a")) {
+    const section = link.dataset.openLandlordSection;
+    const current = section === selected || (selected === "requests" && section === "properties") || (selected === "payments" && section === "account");
+    if (current) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  }
+}
+
 function selectWorkspaceTab(name, { historyMode = "" } = {}) {
-  const selected = ["properties", "requests", "account", "payments"].includes(name) ? name : "properties";
+  const selected = ["home", "properties", "bookings", "messages", "requests", "account", "payments"].includes(name) ? name : "home";
   document.querySelectorAll('[data-landlord-panel]:not([data-landlord-panel="requests"])').forEach((panel) => {
     panel.hidden = selected === "requests" ? panel.dataset.landlordPanel !== "properties" : panel.dataset.landlordPanel !== selected;
   });
   setRequestBuilderExpanded(selected === "requests");
   if (selected === "requests") loadPrepareWizard();
+  renderWorkspaceHeading(selected);
+  markCurrentNavigation(selected);
+  if (selected === "home") renderHomeView();
   // A real path, not a fragment, so the address bar names where the Landlord
   // is, Back returns to the previous panel, and the link can be shared.
   const url = `/landlord/${selected}`;
@@ -761,24 +833,126 @@ function closePropertyEditor() {
   propertySave.textContent = "Save property privately";
 }
 
+/* Cloned from a <template> in the markup, so no markup is ever parsed here. */
+function cloneIcon(name) {
+  const template = document.querySelector(`[data-ld-icon="${name}"]`);
+  return template ? template.content.cloneNode(true) : document.createDocumentFragment();
+}
+
+const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+
+function formatShortDate(value) {
+  const parsed = Date.parse(value || "");
+  return Number.isNaN(parsed) ? "—" : shortDate.format(new Date(parsed));
+}
+
+/** "2 Bedrooms · 1 Bathroom", falling back to the property type. */
+function propertySubtitle(property) {
+  const parts = [];
+  const bedrooms = Number(property.bedrooms);
+  const bathrooms = Number(property.bathrooms);
+  if (Number.isFinite(bedrooms) && bedrooms > 0) parts.push(`${bedrooms} ${bedrooms === 1 ? "Bedroom" : "Bedrooms"}`);
+  if (Number.isFinite(bathrooms) && bathrooms > 0) parts.push(`${bathrooms} ${bathrooms === 1 ? "Bathroom" : "Bathrooms"}`);
+  if (!parts.length) return String(property.propertyType || "Property").replace(/-/g, " ");
+  return parts.join(" · ");
+}
+
+/**
+ * The room chips.
+ *
+ * A saved checklist already names its rooms, so those are used when present.
+ * Otherwise the bedroom/bathroom counts are described rather than invented —
+ * nothing here claims a room the Landlord has not told Homle about.
+ */
+function propertyRoomLabels(property) {
+  const saved = Array.isArray(property.savedChecklist) ? property.savedChecklist : [];
+  const named = [...new Set(saved.map((task) => String(task?.room || "").trim()).filter(Boolean))];
+  if (named.length) return named.slice(0, 6);
+  const labels = [];
+  const bedrooms = Number(property.bedrooms);
+  const bathrooms = Number(property.bathrooms);
+  if (Number.isFinite(bedrooms) && bedrooms > 0) labels.push(bedrooms === 1 ? "Bedroom" : `${bedrooms} Bedrooms`);
+  if (Number.isFinite(bathrooms) && bathrooms > 0) labels.push(bathrooms === 1 ? "Bathroom" : `${bathrooms} Bathrooms`);
+  return labels;
+}
+
+/**
+ * When this property was last cleaned and what is next.
+ *
+ * Bookings carry propertyName rather than a property id for anything that is
+ * not repeat-eligible, so they are matched by that name. An unmatched property
+ * shows "—" instead of borrowing another property's dates.
+ */
+function propertyCleaningDates(property) {
+  const name = String(property.name || "").trim();
+  const mine = name ? bookings.filter((booking) => String(booking.propertyName || "").trim() === name) : [];
+  const done = mine
+    .filter((booking) => ["completed", "awaiting-review"].includes(booking.status))
+    .sort((a, b) => String(b.scheduledStartAt || "").localeCompare(String(a.scheduledStartAt || "")));
+  const ahead = mine
+    .filter((booking) => ["pending-cleaner-acceptance", "confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress"].includes(booking.status))
+    .sort((a, b) => String(a.scheduledStartAt || "").localeCompare(String(b.scheduledStartAt || "")));
+  return {
+    last: done.length ? formatShortDate(done[0].scheduledStartAt) : "—",
+    next: ahead.length ? formatShortDate(ahead[0].scheduledStartAt) : "—",
+    booked: ahead.length > 0
+  };
+}
+
 function renderProperties() {
   propertyList.replaceChildren();
   propertySelect.replaceChildren(element("option", "", properties.length ? "Choose a property" : "Add a property first"));
   propertySelect.firstElementChild.value = "";
   for (const property of properties) {
+    // The v2 property card: address, what the property is, when it was last
+    // cleaned and what is next, the rooms, then the two things a Landlord
+    // actually does from here. The protected details and the access/archive
+    // controls keep their existing behaviour inside the disclosure below —
+    // they are the rarer actions and the design gives the card to the common
+    // two.
     const card = element("article", "landlord-property-card");
     const heading = element("div", "landlord-property-card-heading");
-    const title = element("div");
-    title.append(element("span", "landlord-private-pill", "Private property"), element("h3", "", property.name || "Saved property"), element("p", "", exactAddress(property)));
-    heading.append(title, element("strong", "", String(property.propertyType || "Property").replace(/-/g, " ")));
-    const facts = element("dl", "landlord-property-facts");
-    facts.append(propertyFact("Bedrooms", property.bedrooms ?? "—"), propertyFact("Bathrooms", property.bathrooms ?? "—"), propertyFact("Size", property.approximateSizeSqM == null ? "Not supplied" : `${property.approximateSizeSqM} m²`), propertyFact("Saved tasks", Array.isArray(property.savedChecklist) ? property.savedChecklist.length : 0));
+    const icon = element("span", "ld-prop-icon");
+    icon.append(cloneIcon("property"));
+    icon.setAttribute("aria-hidden", "true");
+    const title = element("div", "ld-prop-main");
+    title.append(element("h3", "", property.name || "Saved property"), element("p", "", propertySubtitle(property)));
+    const timeline = element("div", "ld-prop-dates");
+    const cleaned = propertyCleaningDates(property);
+    for (const [label, value] of [["Last cleaned", cleaned.last], ["Next", cleaned.next]]) {
+      const item = element("span", "");
+      item.append(document.createTextNode(`${label} `), element("strong", "", value));
+      timeline.append(item);
+    }
+    title.append(timeline);
+    const chip = element("span", `ld-prop-chip${cleaned.booked ? " ld-prop-chip-booked" : ""}`, cleaned.booked ? "Clean booked" : "No clean booked");
+    heading.append(icon, title, chip);
+
+    const rooms = element("div", "ld-prop-rooms");
+    for (const room of propertyRoomLabels(property)) rooms.append(element("span", "ld-prop-room", room));
+
+    const actions = element("div", "landlord-property-actions");
+    const scanAgain = element("a", "button button-outline", "Scan again");
+    scanAgain.href = "/landlord/book";
+    scanAgain.setAttribute("aria-label", `Scan ${property.name || "saved property"} again`);
+    const book = element("button", "button", "Book Clean");
+    book.type = "button";
+    book.setAttribute("aria-label", `Book a clean for ${property.name || "saved property"}`);
+    book.addEventListener("click", () => {
+      saveSelectedProperty(sessionStorage, property.propertyId);
+      selectedPropertyId = property.propertyId;
+      selectWorkspaceTab("requests", { historyMode: "push" });
+      propertySelect.value = property.propertyId;
+      applySuggestedCleaningType();
+    });
+    actions.append(scanAgain, book);
+
     const details = element("details", "landlord-property-details");
     details.append(element("summary", "", "View protected property details"));
     const notes = element("dl");
-    notes.append(propertyFact("Access instructions", property.accessInstructions || "None saved"), propertyFact("Parking", property.parkingInstructions || "None saved"), propertyFact("Cleaning preferences", property.cleaningPreferences || "None saved"), propertyFact("Special notes", property.specialNotes || "None saved"));
+    notes.append(propertyFact("Exact address", exactAddress(property)), propertyFact("Access instructions", property.accessInstructions || "None saved"), propertyFact("Parking", property.parkingInstructions || "None saved"), propertyFact("Cleaning preferences", property.cleaningPreferences || "None saved"), propertyFact("Special notes", property.specialNotes || "None saved"), propertyFact("Size", property.approximateSizeSqM == null ? "Not supplied" : `${property.approximateSizeSqM} m²`), propertyFact("Saved tasks", Array.isArray(property.savedChecklist) ? property.savedChecklist.length : 0));
     details.append(notes);
-    const actions = element("div", "landlord-property-actions");
+    const secondary = element("div", "landlord-property-actions landlord-property-actions-secondary");
     const edit = element("button", "button button-outline", property.accessInstructions ? "Edit access and details" : "Add access details");
     edit.type = "button";
     edit.setAttribute("aria-label", `${property.accessInstructions ? "Edit access and details for" : "Add access details for"} ${property.name || "saved property"}`);
@@ -787,12 +961,23 @@ function renderProperties() {
     archive.type = "button";
     archive.setAttribute("aria-label", `Archive ${property.name || "saved property"}`);
     archive.addEventListener("click", () => openPropertyArchive(property));
-    actions.append(edit, archive);
-    card.append(heading, facts, details, actions);
+    secondary.append(edit, archive);
+    details.append(secondary);
+
+    card.append(heading, rooms, actions, details);
     propertyList.append(card);
     const option = element("option", "", property.name || "Saved property");
     option.value = property.propertyId;
     propertySelect.append(option);
+  }
+  // The design closes the grid with a dashed tile rather than leaving the last
+  // row ragged. It opens the same property editor the heading button does.
+  if (properties.length) {
+    const add = element("button", "ld-prop-add");
+    add.type = "button";
+    add.append(cloneIcon("add"), element("span", "ld-prop-add-title", "Add another property"), element("span", "ld-prop-add-copy", "Scan it once and we remember the rooms"));
+    add.addEventListener("click", () => openPropertyEditor());
+    propertyList.append(add);
   }
   const hasSoleProperty = properties.length === 1;
   propertySelectLabel.hidden = hasSoleProperty;
@@ -1040,6 +1225,9 @@ function showRequestContinuation(request) {
   requestContinuation.replaceChildren(heading, scan);
   requestContinuation.hidden = false;
   scan.open = true;
+  // The continuation is the next step of the request that was just saved, so the
+  // builder is revealed as well as expanded — it is hidden outside its own view.
+  if (requestBuilderPanel) requestBuilderPanel.hidden = false;
   requestBuilderPanel?.classList.remove("pac-collapsed");
   requestBuilderPanel?.querySelector("[data-pac-toggle]")?.setAttribute("aria-expanded", "true");
   queueMicrotask(() => {
@@ -1806,12 +1994,23 @@ function renderBookingCard(booking) {
     card.classList.add("landlord-waiting-card");
     card.dataset.landlordWaitingBookingId = booking.bookingId;
   }
+  // The v2 booking row: the property leads, then one line saying when, who and
+  // how much — the three things the design puts under the address. The status
+  // pill and the price keep their own elements so the existing styling and the
+  // status-agreement test still find them.
+  const settled = ["completed", "awaiting-review", "cancelled", "disputed"].includes(booking.status);
   const heading = element("div", "booking-summary-heading");
-  const title = element("div");
-  title.append(element("span", "booking-status-pill", bookingSummaryStatusLabels[booking.status] || "Booking"), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Saved property"} · ${booking.counterpartyName || "Assigned Cleaner"}`));
-  heading.append(title, element("strong", "booking-summary-price", formatBookingMoney(booking.pricePence)));
+  const icon = element("span", `ld-booking-icon${settled ? " ld-booking-icon-done" : ""}`);
+  icon.append(cloneIcon(settled ? "booking-done" : "booking"));
+  icon.setAttribute("aria-hidden", "true");
+  const title = element("div", "ld-booking-main");
+  // Price is deliberately not repeated here — booking-summary-price carries it.
+  const meta = [formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt), booking.counterpartyName || "Assigned Cleaner"].filter(Boolean).join(" · ");
+  title.append(element("h3", "", booking.propertyName || "Saved property"), element("p", "", meta));
+  heading.append(icon, title, element("span", "booking-status-pill", bookingSummaryStatusLabels[booking.status] || "Booking"), element("strong", "booking-summary-price", formatBookingMoney(booking.pricePence)));
   const facts = element("dl", "booking-summary-facts");
-  for (const [label, value] of [["When", formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)], ["Area", booking.propertyArea || "Saved property area"], [bookingSummaryPriceLabel("landlord"), formatBookingMoney(booking.pricePence)], ["Checklist", `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`]]) {
+  // Cleaning type moved down here when the address took the heading.
+  for (const [label, value] of [["Clean", booking.cleaningType || "Cleaning"], ["When", formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)], ["Area", booking.propertyArea || "Saved property area"], [bookingSummaryPriceLabel("landlord"), formatBookingMoney(booking.pricePence)], ["Checklist", `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`]]) {
     const wrapper = element("div");
     wrapper.append(element("dt", "", label), element("dd", "", value));
     facts.append(wrapper);
@@ -1909,6 +2108,132 @@ function updateLandlordWaitingDeadlines() {
   if (Number.isFinite(nextUpdateMs)) landlordInvitationDeadlineTimer = window.setTimeout(updateLandlordWaitingDeadlines, Math.max(1_000, nextUpdateMs + 250));
 }
 
+/**
+ * Guide prices for the Home view's "Recommended for you" cards.
+ *
+ * THESE ARE NOT QUOTES, and there is deliberately no endpoint behind them.
+ * Homle has no landlord-facing pricing API: the only pricing rules that exist
+ * (/api/marketplace/pricing/scan-ruleset) price a completed room scan, not a
+ * catalogue. A real total is the one a Cleaner accepts against a frozen
+ * checklist, which is the guarantee the whole request flow is built on.
+ *
+ * So they are a labelled constant rather than a fetch pretending to be one, the
+ * section header carries an "Indicative" flag, and every card links to the scan
+ * that produces a real price instead of adding anything to a draft. When a
+ * pricing endpoint exists, replace this array and the markup stays as it is.
+ */
+const LD_INDICATIVE_PLANS = Object.freeze([
+  Object.freeze({ name: "Standard clean", desc: "Living room, kitchen, bathroom", from: "£68", tone: "standard" }),
+  Object.freeze({ name: "Deep clean", desc: "Detailed kitchen and bathroom refresh", from: "£112", tone: "deep" }),
+  Object.freeze({ name: "End of tenancy", desc: "Full property clean", from: "£185", tone: "tenancy" })
+]);
+
+/* Cloned from the <template>s in the markup — see the note beside them. */
+function planArtwork(tone) {
+  const template = document.querySelector(`[data-ld-plan-art="${tone}"]`);
+  return template ? template.content.cloneNode(true) : document.createDocumentFragment();
+}
+
+let indicativePlansRendered = false;
+
+function renderIndicativePlans() {
+  const list = document.querySelector("[data-ld-plans]");
+  if (!list || indicativePlansRendered) return;
+  list.replaceChildren(...LD_INDICATIVE_PLANS.map((plan) => {
+    const row = element("a", `ld-plan ld-plan-${plan.tone}`);
+    row.href = "/landlord/book";
+    const icon = element("span", "ld-plan-icon");
+    icon.append(planArtwork(plan.tone));
+    icon.setAttribute("aria-hidden", "true");
+    const copy = element("span", "ld-plan-copy");
+    copy.append(element("strong", "", plan.name), element("small", "", plan.desc));
+    const price = element("span", "ld-plan-price");
+    price.append(element("small", "", "From"), element("strong", "", plan.from));
+    const chev = element("span", "ld-plan-chev", "›");
+    chev.setAttribute("aria-hidden", "true");
+    row.append(icon, copy, price, chev);
+    // Screen readers get the caveat the badge makes visual, and the destination.
+    row.setAttribute("aria-label", `${plan.name}. Guide price from ${plan.from}, not a quote. Scan your property for an exact price.`);
+    return row;
+  }));
+  indicativePlansRendered = true;
+}
+
+/* Design step order, mapped from the booking statuses that actually exist. */
+const upcomingStepDefinitions = Object.freeze([
+  Object.freeze({ key: "booked", label: "Booked" }),
+  Object.freeze({ key: "matched", label: "Matched" }),
+  Object.freeze({ key: "on-the-way", label: "On the way" }),
+  Object.freeze({ key: "cleaning", label: "Cleaning" }),
+  Object.freeze({ key: "complete", label: "Complete" })
+]);
+
+const upcomingStepByStatus = {
+  "pending-cleaner-acceptance": 0,
+  confirmed: 1,
+  "cleaner-en-route": 2,
+  "cleaner-arrived": 2,
+  "cleaning-in-progress": 3,
+  "awaiting-review": 4,
+  completed: 4
+};
+
+/**
+ * The Home view's "Upcoming cleaning" card.
+ *
+ * Real booking state only — it reads the same `bookings` the Bookings view
+ * lists, through the same buckets, so the two can never disagree. When there is
+ * nothing live it shows the empty card instead, exactly as the design does.
+ */
+function renderUpcomingClean() {
+  const card = document.querySelector("[data-ld-upcoming]");
+  const empty = document.querySelector("[data-ld-upcoming-empty]");
+  if (!card || !empty) return;
+
+  const buckets = bookingSummaryBuckets(bookings, "landlord");
+  const candidates = [...buckets.active, ...buckets.upcoming, ...buckets.waiting];
+  const booking = candidates.slice().sort((a, b) => String(a.scheduledStartAt || "").localeCompare(String(b.scheduledStartAt || "")))[0] || null;
+
+  card.hidden = !booking;
+  empty.hidden = Boolean(booking);
+  if (!booking) return;
+
+  const pill = card.querySelector("[data-ld-upcoming-pill]");
+  if (pill) pill.textContent = bookingSummaryStatusLabels[booking.status] || "Booking";
+
+  const address = card.querySelector("[data-ld-upcoming-address]");
+  if (address) address.textContent = booking.propertyLabel || booking.propertyName || booking.propertyArea || "Saved property";
+
+  const when = card.querySelector("[data-ld-upcoming-when]");
+  if (when) when.textContent = formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt);
+
+  const eta = card.querySelector("[data-ld-upcoming-eta]");
+  if (eta) {
+    const who = booking.counterpartyName ? ` · ${booking.counterpartyName}` : "";
+    eta.textContent = `${bookingSummaryStatusLabels[booking.status] || "Booking"}${who}`;
+  }
+
+  const stepIndex = upcomingStepByStatus[booking.status] ?? 0;
+  const steps = card.querySelector("[data-ld-upcoming-steps]");
+  if (steps) {
+    steps.replaceChildren(...upcomingStepDefinitions.map((step, index) => {
+      const node = element("li", "ld-step");
+      if (index < stepIndex) node.classList.add("is-done");
+      if (index === stepIndex) node.classList.add("is-now");
+      const dot = element("span", "ld-step-dot");
+      dot.setAttribute("aria-hidden", "true");
+      node.append(dot, element("span", "ld-step-label", step.label));
+      if (index === stepIndex) node.setAttribute("aria-current", "step");
+      return node;
+    }));
+  }
+}
+
+function renderHomeView() {
+  renderIndicativePlans();
+  renderUpcomingClean();
+}
+
 function renderBookings() {
   const buckets = bookingSummaryBuckets(bookings, "landlord");
   const historySummary = landlordDashboardSummary(bookings);
@@ -1932,6 +2257,9 @@ function renderBookings() {
   document.querySelector("[data-landlord-history-reveal-count]").textContent = String(historySummary.completedCleanCount);
   renderLandlordHistory(historySummary);
   renderLandlordPayments(bookings);
+  // Home shows the soonest of these same bookings, so it is refreshed from the
+  // one place the booking list is built rather than polling separately.
+  renderUpcomingClean();
   syncInvitationStream();
 }
 
@@ -2131,7 +2459,7 @@ async function loadWorkspace() {
     if (!access.ready) return access.reason === "different-workspace"
       ? showState(`Your ${access.label} workspace is active.`, "Properties, room scans and cleaning requests remain in a separate private Landlord dashboard.", { kind: "authentication", workspaceDestination: access.destination, workspaceLabel: access.label })
       : showState("This account has no Landlord workspace.", "Sign in through Book a clean to create the separate property workspace.", { kind: "authentication", allowSignIn: true });
-    document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
+    setLandlordDisplayName(account.displayName || "Landlord");
     renderAccountAvatar(account);
     state.hidden = true;
     for (const item of privateNavigation) item.hidden = false;
@@ -2501,8 +2829,28 @@ function configureSpeech() {
   speechStatus.textContent = "Speech is available. Your browser may use its own speech-to-text service.";
 }
 
-window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "properties"));
-selectWorkspaceTab(workspaceTabFromHash() || "properties");
+// Home is the landing view in the v2 design, so an address with no view in it
+// opens Home rather than Properties.
+window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "home"));
+selectWorkspaceTab(workspaceTabFromHash() || "home");
+
+/**
+ * Scan / Manual.
+ *
+ * The tab does not hide either card — both stay on screen, as the design has
+ * them, and the tab only marks which route is in focus. Choosing Manual also
+ * warms the stepped wizard, so the builder is ready by the time the card's
+ * button is pressed.
+ */
+const startTabs = [...document.querySelectorAll("[data-ld-tab]")];
+function selectStartTab(name) {
+  const selected = name === "manual" ? "manual" : "scan";
+  for (const tab of startTabs) tab.setAttribute("aria-selected", String(tab.dataset.ldTab === selected));
+  for (const card of document.querySelectorAll("[data-ld-card]")) card.classList.toggle("is-active", card.dataset.ldCard === selected);
+  if (selected === "manual") loadPrepareWizard();
+}
+for (const tab of startTabs) tab.addEventListener("click", () => selectStartTab(tab.dataset.ldTab));
+selectStartTab("scan");
 document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link.addEventListener("click", (event) => {
   event.preventDefault();
   const selected = link.dataset.openLandlordSection;
