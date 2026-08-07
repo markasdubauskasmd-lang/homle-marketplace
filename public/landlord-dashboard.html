@@ -261,6 +261,68 @@
         <!-- Cloned by renderBookingCard(). -->
         <template data-ld-icon="booking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2.5"></rect><path d="M4 10.5h16M8.5 4v4M15.5 4v4"></path></svg></template>
         <template data-ld-icon="booking-done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"></path></svg></template>
+        <template data-ld-icon="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.8 12 4l8 6.8V20h-5.2v-5.2h-5.6V20H4z"></path></svg></template>
+        <template data-ld-icon="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"></path></svg></template>
+
+        <!-- The v2 Bookings view: the next clean in full, the account totals,
+             then the completed work. Everything below is driven by real booking
+             records — see renderNextClean() and renderPastCleans(). The detailed
+             per-booking lists, the Cleaner-decision queue and the payment
+             actions stay in the collapsible sections underneath, because they
+             cover states this view does not show. -->
+        <section class="ld-next" data-ld-next hidden aria-labelledby="ld-next-title">
+          <div class="ld-next-main">
+            <div class="ld-next-eyebrow">
+              <span id="ld-next-title">NEXT CLEAN</span>
+              <span class="ld-status-pill" data-ld-next-pill></span>
+            </div>
+            <div class="ld-next-head">
+              <span class="ld-next-icon" data-ld-next-icon aria-hidden="true"></span>
+              <div class="ld-next-headings">
+                <div class="ld-next-address" data-ld-next-address></div>
+                <div class="ld-next-meta" data-ld-next-meta></div>
+              </div>
+            </div>
+            <div class="ld-next-cleaner" data-ld-next-cleaner hidden>
+              <span class="ld-next-avatar" data-ld-next-initials aria-hidden="true"></span>
+              <div class="ld-next-cleaner-copy">
+                <strong data-ld-next-cleaner-name></strong>
+                <small data-ld-next-cleaner-note></small>
+              </div>
+              <a class="ld-next-message" href="/landlord/messages" data-open-landlord-section="messages">Message</a>
+            </div>
+            <ol class="ld-stages" data-ld-next-stages></ol>
+          </div>
+          <div class="ld-next-plan">
+            <div class="ld-next-plan-head">
+              <span>Cleaning plan</span>
+              <span data-ld-next-plan-count></span>
+            </div>
+            <div class="ld-next-plan-body" data-ld-next-plan-body></div>
+            <div class="ld-next-plan-actions">
+              <a class="ld-btn ld-btn-dark" href="/landlord/bookings" data-ld-next-view>View booking</a>
+              <a class="ld-btn ld-btn-quiet" href="/landlord/help" data-ld-next-change>Request a change</a>
+            </div>
+          </div>
+        </section>
+
+        <div class="ld-empty" data-ld-next-empty hidden>
+          <strong>Nothing booked yet</strong>
+          <p>Scan your property and we’ll create the cleaning plan for you.</p>
+          <a class="ld-btn ld-btn-primary" href="/landlord/book">Start scan</a>
+        </div>
+
+        <div class="ld-book-stats" data-ld-book-stats></div>
+
+        <div class="ld-past-head">
+          <span>PAST CLEANS</span>
+          <span data-ld-past-note></span>
+        </div>
+        <div class="ld-past-grid" data-ld-past-grid></div>
+        <div class="ld-empty" data-ld-past-empty hidden>
+          <strong>No completed cleans yet</strong>
+          <p>Finished cleans appear here with the record of what was done.</p>
+        </div>
         <div id="landlord-booking-content" data-landlord-section-content hidden>
           <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p></div><div class="landlord-booking-live"><span data-landlord-booking-live role="status" aria-live="polite">Checking private booking updates…</span><button class="text-button" type="button" data-landlord-booking-refresh>Refresh booking status</button></div></div>
           <div class="landlord-empty-card" data-request-empty><strong>No requests or upcoming bookings yet.</strong><p>Saved cleaning requests appear here first, then become confirmed bookings only after a Cleaner accepts the frozen time, scope and price.</p></div>
