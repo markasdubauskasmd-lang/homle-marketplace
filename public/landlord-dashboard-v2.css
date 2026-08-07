@@ -147,7 +147,6 @@ body.landlord-dashboard-page .landlord-dashboard-main > * {
   width: 100%;
   max-width: none;
 }
-body.landlord-dashboard-page .account-footer { margin-left: var(--ld-sidebar-w); }
 
 /* ── Top bar ──────────────────────────────────────────────────────────────── */
 
@@ -1205,7 +1204,6 @@ body.landlord-dashboard-page .ld-art-pen {
     padding: 16px 16px 96px;
   }
   body.landlord-dashboard-page .landlord-dashboard-main > * { max-width: none; }
-  body.landlord-dashboard-page .account-footer { margin-left: 0; padding-bottom: 84px; }
 
   body.landlord-dashboard-page .ld-topbar {
     display: grid;
