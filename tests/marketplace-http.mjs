@@ -240,7 +240,9 @@ const cleanerPayoutService = {
 const cleanerOnboardingService = {
   async listOwnSections(actor) { calls.push({ kind: "onboarding-list", actor }); return []; },
   async getOwnSection(actor, section) { calls.push({ kind: "onboarding-get", actor, section }); return null; },
-  async saveOwnSection(actor, section, input) { calls.push({ kind: "onboarding-save", actor, section, input }); return { section, status: input.status || "draft", data: input.data || {}, schemaVersion: 1, completedAt: null, updatedAt: "2026-08-01T10:00:00.000Z" }; }
+  async saveOwnSection(actor, section, input) { calls.push({ kind: "onboarding-save", actor, section, input }); return { section, status: input.status || "draft", data: input.data || {}, schemaVersion: 1, completedAt: null, updatedAt: "2026-08-01T10:00:00.000Z" }; },
+  async getSubmissionReadiness(actor) { calls.push({ kind: "onboarding-submission-get", actor }); return { requiredSections: ["personal"], missingSections: [], ready: true, submitted: false, submittedAt: null }; },
+  async submitOwnApplication(actor, input) { calls.push({ kind: "onboarding-submission-save", actor, input }); return { section: "review", status: "submitted", data: { applicationStatus: "awaiting-review", confirmed: true }, replayed: false }; }
 };
 const storedOnboardingDocument = Buffer.from("%PDF-1.7\nstored-document\n%%EOF");
 const cleanerOnboardingDocumentService = {
@@ -512,6 +514,11 @@ const missingOnboardingCsrf = await dispatch(router, "PUT", "/api/marketplace/cl
 const onboardingSaved = await dispatch(router, "PUT", "/api/marketplace/cleaner/onboarding/personal", { headers: cleanerAuthHeaders, body: { status: "submitted", data: { firstName: "Ras" } } });
 const landlordOnboarding = await dispatch(router, "GET", "/api/marketplace/cleaner/onboarding", { headers: { cookie: authHeaders.cookie } });
 assert(onboardingList.response.statusCode === 200 && Array.isArray(onboardingList.body.sections) && onboardingSection.response.statusCode === 200 && onboardingSection.body.section === null && missingOnboardingCsrf.response.statusCode === 403 && onboardingSaved.response.statusCode === 200 && onboardingSaved.body.section.data.firstName === "Ras" && landlordOnboarding.response.statusCode === 403 && calls.slice(-3).map((call) => call.kind).join(",") === "onboarding-list,onboarding-get,onboarding-save", "Cleaner onboarding routes lost owner role isolation, CSRF protection or exact saved data.");
+
+const submissionReadiness = await dispatch(router, "GET", "/api/marketplace/cleaner/onboarding/submission", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const missingSubmissionCsrf = await dispatch(router, "POST", "/api/marketplace/cleaner/onboarding/submission", { headers: { cookie: cleanerAuthHeaders.cookie, origin: cleanerAuthHeaders.origin, "content-type": cleanerAuthHeaders["content-type"] }, body: { confirmed: true } });
+const onboardingSubmitted = await dispatch(router, "POST", "/api/marketplace/cleaner/onboarding/submission", { headers: cleanerAuthHeaders, body: { confirmed: true } });
+assert(submissionReadiness.response.statusCode === 200 && submissionReadiness.body.submission.ready === true && missingSubmissionCsrf.response.statusCode === 403 && onboardingSubmitted.response.statusCode === 201 && onboardingSubmitted.body.submission.status === "submitted" && calls.slice(-2).map((call) => call.kind).join(",") === "onboarding-submission-get,onboarding-submission-save", "Final Cleaner onboarding submission lost readiness checking, CSRF protection or durable submitted status.");
 const documentHeaders = { ...cleanerAuthHeaders, "content-type": "application/pdf", "x-document-filename": encodeURIComponent("passport.pdf") };
 const onboardingDocuments = await dispatch(router, "GET", "/api/marketplace/cleaner/onboarding/documents?section=identity", { headers: { cookie: cleanerAuthHeaders.cookie } });
 const missingDocumentCsrf = await dispatch(router, "PUT", "/api/marketplace/cleaner/onboarding/documents/identity/passportPhoto", { headers: { cookie: cleanerAuthHeaders.cookie, origin: cleanerAuthHeaders.origin, "content-type": "application/pdf", "x-document-filename": encodeURIComponent("passport.pdf") }, body: storedOnboardingDocument });

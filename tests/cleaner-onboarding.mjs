@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createCleanerOnboardingService, cleanerOnboardingSections, normalizedCleanerOnboardingInput } from "../src/marketplace/cleaner-onboarding.mjs";
+import { cleanerSubmissionReadiness, createCleanerOnboardingService, cleanerOnboardingSections, normalizedCleanerOnboardingInput, requiredCleanerSubmissionSections } from "../src/marketplace/cleaner-onboarding.mjs";
 import { decryptCleanerOnboardingPayload, encryptCleanerOnboardingPayload } from "../src/marketplace/cleaner-onboarding-crypto.mjs";
 import { onboardingProgress } from "../public/cleaner-onboarding-steps.js";
 
@@ -7,7 +7,10 @@ const cleanerId = "11111111-1111-4111-8111-111111111111";
 const actor = Object.freeze({ userId: cleanerId, roles: ["cleaner"] });
 const secret = "cleaner-onboarding-test-secret-that-is-long-enough";
 
-assert.equal(cleanerOnboardingSections.length, 18);
+assert.equal(cleanerOnboardingSections.length, 19);
+assert(cleanerOnboardingSections.includes("review"));
+assert.equal(cleanerSubmissionReadiness([]).ready, false);
+assert.deepEqual(cleanerSubmissionReadiness([]).missingSections, [...requiredCleanerSubmissionSections]);
 assert.deepEqual(normalizedCleanerOnboardingInput("personal", { status: "submitted", data: { firstName: " Ras ", livedUnderFiveYears: true } }), {
   section: "personal", status: "submitted", data: { firstName: "Ras", livedUnderFiveYears: true }, schemaVersion: 1
 });
@@ -61,6 +64,22 @@ assert.deepEqual(savedBusiness.data, { serviceType: "beautician", businessType: 
 assert.deepEqual((await service.getOwnSection(actor, "business")).data, savedBusiness.data);
 const savedRightToWork = await service.saveOwnSection(actor, "rtw", { status: "submitted", data: { britishOrIrishCitizen: "no", shareCode: "W12 345 678", rightToWorkDateOfBirth: "1990-01-02", rightToWorkConsent: true } });
 assert.deepEqual((await service.getOwnSection(actor, "rtw")).data, savedRightToWork.data);
+await assert.rejects(() => service.submitOwnApplication(actor, { confirmed: false }), /Confirm/);
+await assert.rejects(() => service.submitOwnApplication(actor, { confirmed: true }), (error) => error.code === "onboarding-incomplete" && error.missingSections.includes("identity"));
+for (const section of requiredCleanerSubmissionSections) {
+  if (!records.has(section)) await service.saveOwnSection(actor, section, { status: "submitted", data: { recorded: true } });
+}
+const readiness = await service.getSubmissionReadiness(actor);
+assert.equal(readiness.ready, true);
+assert.equal(readiness.submitted, false);
+const submission = await service.submitOwnApplication(actor, { confirmed: true });
+assert.equal(submission.section, "review");
+assert.equal(submission.status, "submitted");
+assert.equal(submission.data.applicationStatus, "awaiting-review");
+assert.equal(submission.data.confirmed, true);
+assert.equal(Number.isNaN(Date.parse(submission.data.submittedAt)), false);
+assert.equal((await service.getSubmissionReadiness(actor)).submitted, true);
+assert.equal((await service.submitOwnApplication(actor, { confirmed: true })).replayed, true);
 await assert.rejects(() => service.listOwnSections({ userId: cleanerId, roles: ["landlord"] }), /Cleaner account/);
 
 console.log("Cleaner onboarding encryption, validation and persistence service passed.");

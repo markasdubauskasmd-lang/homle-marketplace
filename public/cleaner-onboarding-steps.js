@@ -31,8 +31,13 @@ export const onboardingSteps = [
     derive: (d) => (d.profile?.serviceAreas?.length || 0) > 0 },
   { key: "skills", title: "Skills", icon: "spark", sidebar: false, href: "", derive: null },
   { key: "training", title: "Training & certificates", icon: "award", sidebar: false, href: "/cleaner/training", derive: null },
-  { key: "compliance", title: "Compliance & declarations", icon: "pen", sidebar: false, href: "/cleaner/contracts", derive: null }
+  { key: "compliance", title: "Compliance & declarations", icon: "pen", sidebar: false, href: "/cleaner/contracts", derive: null },
+  { key: "review", title: "Review & submit", icon: "reg", sidebar: true, href: "/cleaner/review-submit", derive: null }
 ];
+
+export const requiredOnboardingSubmissionKeys = Object.freeze([
+  "personal", "business", "banking", "identity", "rtw", "dbs", "experience", "insurance", "equipment", "areas"
+]);
 
 /*
  * The design's ONBOARDING and ACCOUNT sidebar groups.
@@ -59,7 +64,8 @@ export const onboardingNav = [
   { label: "Equipment & Travel", icon: "box", step: "equipment", href: "/cleaner/equipment" },
   { label: "Documents", icon: "folder", step: "", href: "/cleaner/documents" },
   { label: "Training", icon: "award", step: "training", href: "/cleaner/training" },
-  { label: "Contracts", icon: "pen", step: "compliance", href: "/cleaner/contracts" }
+  { label: "Contracts", icon: "pen", step: "compliance", href: "/cleaner/contracts" },
+  { label: "Review & Submit", icon: "reg", step: "review", href: "/cleaner/review-submit" }
 ];
 
 export const accountNav = [
@@ -131,6 +137,7 @@ export function onboardingProgress(data) {
 // about the profile rather than a separate application-state machine, which does not exist.
 export function applicationStatusLabel(data, progress) {
   if (data.profile?.isPublic === true) return "Approved";
+  if (progress.steps.some((step) => step.key === "review" && step.done)) return "Submitted";
   if (progress.percent === 100) return "Submitted";
   if (progress.doneCount === 0) return "Draft";
   return "Draft";

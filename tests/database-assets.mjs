@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 91);
-  assert.equal(repositoryResult.migrations.at(-1), "091_booking_summary_verification_markers.sql");
+  assert.equal(repositoryResult.migrations.length, 92);
+  assert.equal(repositoryResult.migrations.at(-1), "092_cleaner_onboarding_final_submission.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
@@ -78,6 +78,7 @@ try {
   assert(t71Payment(deploymentVerifier) && t71Directory(deploymentVerifier), "Migration-71 verification must prove the Administrator payment page and the unauthenticated Cleaner directory both have an index that their query shape can actually use.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 72\)'/, "Deployment verification must detect account notification real-time signals dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 73\)'/, "Deployment verification must detect the structured room-scan migration dynamically.");
+  assert(deploymentVerifier.includes("Cleaner onboarding final review submission is not an allowed encrypted section") && deploymentVerifier.includes("position('review' IN pg_get_constraintdef(oid))>0"), "Deployment verification must prove the encrypted onboarding table accepts the final review submission record.");
   // The structured scan's only participant boundary is the SECURITY DEFINER
   // projection. A deployment that grants the runtime role direct table access
   // has no boundary left, so the check has to run on every deployment rather

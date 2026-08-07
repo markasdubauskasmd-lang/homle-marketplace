@@ -456,6 +456,15 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'Cleaner onboarding payloads are missing encrypted byte storage or expose plaintext JSON';
     END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid='public.cleaner_onboarding_sections'::regclass
+        AND conname='cleaner_onboarding_sections_section_code_check'
+        AND contype='c'
+        AND position('review' IN pg_get_constraintdef(oid))>0
+    ) THEN
+      RAISE EXCEPTION 'Cleaner onboarding final review submission is not an allowed encrypted section';
+    END IF;
     SELECT procedure.prosrc INTO selected_source
     FROM pg_proc procedure
     WHERE procedure.oid=to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)');

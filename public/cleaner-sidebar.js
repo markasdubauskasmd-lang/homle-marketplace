@@ -37,14 +37,6 @@ function configureCleanerShell() {
   accountGroup?.remove();
   const role = document.querySelector(".hc-brand-role");
   if (role) role.textContent = "ONBOARDING";
-  const back = document.createElement("a");
-  back.className = "hc-nav-item hc-onboarding-back";
-  back.href = "/cleaner/dashboard";
-  const backLabel = document.createElement("span");
-  backLabel.className = "hc-nav-label";
-  backLabel.textContent = "Back to Cleaner workspace";
-  back.append(icon("dashboard"), backLabel);
-  nav.insertBefore(back, onboardingGroup || nav.firstChild);
   if (onboardingGroup) onboardingGroup.open = true;
 }
 
