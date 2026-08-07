@@ -905,6 +905,31 @@ body.landlord-dashboard-page .landlord-property-actions .button { flex: 1; min-w
 
 /* ── Bookings: next clean ─────────────────────────────────────────────────── */
 
+body.landlord-dashboard-page .ld-booking-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 22px;
+  margin-bottom: 16px;
+  background: var(--ld-paper);
+  border-radius: 18px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .ld-booking-entry .eyebrow {
+  margin: 0 0 4px;
+  color: var(--ld-coral);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+body.landlord-dashboard-page .ld-booking-entry h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.025em; }
+body.landlord-dashboard-page .ld-booking-entry p:last-child { margin: 5px 0 0; color: var(--ld-dim); font-size: 13px; }
+body.landlord-dashboard-page .ld-booking-entry-actions { display: flex; gap: 10px; flex: none; }
+body.landlord-dashboard-page .ld-booking-entry-actions .ld-btn { justify-content: center; min-width: 146px; }
+body.landlord-dashboard-page .ld-booking-entry-actions svg { width: 17px; height: 17px; flex: none; }
+
 body.landlord-dashboard-page .ld-next {
   display: flex;
   gap: 26px;
@@ -1503,6 +1528,9 @@ body.landlord-dashboard-page .ld-art-pen {
   body.landlord-dashboard-page .ld-start-body h3 { font-size: 15px; }
   body.landlord-dashboard-page .ld-start-body p { margin: 6px 0 12px; font-size: 12.5px; }
   body.landlord-dashboard-page .ld-btn { width: 100%; justify-content: center; padding: 11px; font-size: 13.5px; }
+  body.landlord-dashboard-page .ld-booking-entry { align-items: stretch; flex-direction: column; gap: 16px; padding: 18px; }
+  body.landlord-dashboard-page .ld-booking-entry-actions { width: 100%; }
+  body.landlord-dashboard-page .ld-booking-entry-actions .ld-btn { flex: 1; min-width: 0; }
 
   body.landlord-dashboard-page .ld-upcoming-where { width: 100%; }
   body.landlord-dashboard-page .ld-upcoming-track { min-width: 0; }
@@ -1557,6 +1585,7 @@ body.landlord-dashboard-page .ld-art-pen {
 }
 
 @media (max-width: 560px) {
+  body.landlord-dashboard-page .ld-booking-entry-actions { flex-direction: column; }
   body.landlord-dashboard-page .ld-steps { margin-top: 16px; }
   body.landlord-dashboard-page .ld-step-label { font-size: 9.5px; }
   body.landlord-dashboard-page .ld-plan { flex-wrap: wrap; }
