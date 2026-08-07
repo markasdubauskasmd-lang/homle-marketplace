@@ -29,7 +29,7 @@ const workspaces = [
   },
   {
     page: "public/cleaner-dashboard.html",
-    scripts: ["public/cleaner-dashboard.js", "public/cleaner-sidebar.js", "public/account-menu.js", "public/notification-badge.js"],
+    scripts: ["public/cleaner-dashboard.js", "public/cleaner-schedule.js", "public/cleaner-sidebar.js", "public/account-menu.js", "public/notification-badge.js"],
   },
 ];
 
