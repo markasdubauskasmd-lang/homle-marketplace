@@ -1191,14 +1191,33 @@ body.landlord-dashboard-page .ld-art-pen {
 
 @media (max-width: 900px) {
   body.landlord-dashboard-page .site-header {
+    position: sticky;
+    inset: 0 auto auto 0;
+    width: 100%;
     background: var(--ld-paper);
+    border-right: 0;
     border-bottom: 1px solid var(--ld-line);
   }
   /* The sidebar list is replaced by the bottom bar here, so the same five
      destinations are not presented twice. */
   body.landlord-dashboard-page .site-header .landlord-dashboard-nav { display: none; }
-  body.landlord-dashboard-page .site-header .shell.nav-wrap { padding: 12px 16px; gap: 12px; }
-  body.landlord-dashboard-page .landlord-dashboard-main { padding: 16px 16px 96px; }
+  body.landlord-dashboard-page .site-header .shell.nav-wrap {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  /* Desktop reserves a fixed sidebar column. Both the width and offset must be
+     reset here: changing the sidebar into a top bar without clearing the main
+     margin leaves only ~135px of a 390px phone for the entire application. */
+  body.landlord-dashboard-page .landlord-dashboard-main {
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+    padding: 16px 16px 96px;
+  }
   body.landlord-dashboard-page .landlord-dashboard-main > * { max-width: none; }
   body.landlord-dashboard-page .account-footer { margin-left: 0; padding-bottom: 84px; }
 
