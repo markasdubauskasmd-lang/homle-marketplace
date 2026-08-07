@@ -5437,6 +5437,7 @@ async function serveFile(requestPath, response, cspNonce = "") {
     "/cleaner/personal-details": "cleaner-registration.html",
     "/cleaner/business-details": "cleaner-registration.html",
     "/cleaner/identity-verification": "cleaner-registration.html",
+    "/cleaner/right-to-work": "cleaner-registration.html",
     "/cleaner/background-checks": "cleaner-registration.html",
     "/cleaner/work-areas": "cleaner-registration.html",
     "/cleaner/experience": "cleaner-registration.html",

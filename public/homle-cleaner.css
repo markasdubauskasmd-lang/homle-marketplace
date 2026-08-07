@@ -3437,6 +3437,10 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   width: 23.529%;
 }
 
+.hc-rtw-progress-track span {
+  width: 35.714%;
+}
+
 .hc-background-progress-track span {
   width: 35.294%;
 }
@@ -3589,6 +3593,103 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 .hc-identity-document:focus-within {
   outline: 2px solid var(--hc-red);
   outline-offset: 2px;
+}
+
+/* --------------------------------------------------------- right to work -- */
+
+.hc-rtw-card {
+  align-self: start;
+}
+
+.hc-rtw-form {
+  padding: 0 34px 24px;
+}
+
+.hc-rtw-section:first-child {
+  padding-top: 20px;
+}
+
+.hc-rtw-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hc-rtw-choices label,
+.hc-rtw-choices label span {
+  width: 100%;
+}
+
+.hc-rtw-choices label span {
+  justify-content: center;
+  min-height: 42px;
+}
+
+.hc-rtw-subtitle {
+  margin: 0 0 12px;
+  color: var(--hc-ink);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.hc-rtw-document {
+  width: 100%;
+  min-height: 88px !important;
+}
+
+.hc-rtw-guidance {
+  margin: 12px 0 0;
+  color: var(--hc-muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.hc-rtw-guidance + .hc-rtw-guidance {
+  margin-top: 4px;
+}
+
+.hc-rtw-guidance a {
+  color: var(--hc-red);
+  font-weight: 700;
+}
+
+.hc-rtw-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hc-rtw-fields label {
+  display: grid;
+  gap: 7px;
+  color: var(--hc-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.hc-rtw-fields input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 13px;
+  color: var(--hc-ink);
+  border: 1px solid #e3d6c4;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font: inherit;
+}
+
+.hc-rtw-fields input:focus {
+  border-color: var(--hc-red);
+  outline: 2px solid rgba(198, 42, 26, .14);
+  outline-offset: 1px;
+}
+
+.hc-rtw-consent {
+  align-items: flex-start;
+}
+
+.hc-rtw-consent input {
+  flex: 0 0 auto;
+  margin-top: 2px;
 }
 
 /* ---------------------------------------------------- background checks -- */
@@ -6303,6 +6404,8 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-business-actions .hc-business-quiet-button { justify-self: start; }
   .hc-business-actions .hc-personal-submit { width: 100%; }
   .hc-business-service-choices { grid-template-columns: 1fr; }
+  .hc-rtw-choices,
+  .hc-rtw-fields { grid-template-columns: 1fr; }
   .hc-background-form { padding-left: 20px; padding-right: 20px; }
   .hc-background-dates { grid-template-columns: 1fr; }
   .hc-experience-form { padding-left: 20px; padding-right: 20px; }

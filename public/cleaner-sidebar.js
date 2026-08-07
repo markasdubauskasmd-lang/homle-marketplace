@@ -9,7 +9,7 @@
  * while future screenshot-led pages can be connected at one stable URL apiece.
  */
 
-import { accountNav, onboardingIcons, onboardingNav } from "./cleaner-onboarding-steps.js?v=20260806-1";
+import { accountNav, onboardingIcons, onboardingNav } from "./cleaner-onboarding-steps.js?v=20260807-2";
 
 function configureCleanerShell() {
   const nav = document.querySelector(".hc-side .hc-nav");
