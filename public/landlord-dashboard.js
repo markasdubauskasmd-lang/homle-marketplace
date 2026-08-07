@@ -2974,7 +2974,6 @@ window.addEventListener("online", () => {
   if (!state.hidden && state.dataset.kind === "offline") loadWorkspace();
   else if (!workspace.hidden && bookings.some((booking) => booking.status === "pending-cleaner-acceptance")) void refreshBookingTransition();
 });
-document.querySelector("[data-year]").textContent = new Date().getFullYear();
 initialiseRequestDefaults();
 renderTaskPreview();
 configureSpeech();
