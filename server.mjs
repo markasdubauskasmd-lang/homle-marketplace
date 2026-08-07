@@ -5413,7 +5413,7 @@ async function serveFile(requestPath, response, cspNonce = "") {
     "/cleaner/dashboard": "cleaner-dashboard.html",
     "/cleaner/onboarding": "cleaner-registration.html",
     "/cleaner/schedule": "cleaner-schedule.html",
-    "/cleaner/reviews": "cleaner-reviews.html",
+    "/cleaner/reviews": "cleaner-performance.html",
     "/cleaner/jobs-map": "cleaner-jobs-map.html",
     "/cleaner/performance": "cleaner-performance.html",
     "/cleaner/registration": "cleaner-registration.html",
@@ -5518,6 +5518,10 @@ async function handleHttpRequest(request, response) {
     }
     if ((request.method === "GET" || request.method === "HEAD") && requestUrl.pathname === "/cleaner/availability") {
       response.writeHead(308, { "Location": "/cleaner/jobs-map", "Cache-Control": "no-store" });
+      return response.end();
+    }
+    if ((request.method === "GET" || request.method === "HEAD") && requestUrl.pathname === "/cleaner/reviews") {
+      response.writeHead(308, { "Location": "/cleaner/performance", "Cache-Control": "no-store" });
       return response.end();
     }
     // Browsers, bookmark importers and older home-screen clients still probe

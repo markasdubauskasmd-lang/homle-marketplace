@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
-  <script src="/cleaner-performance.js?v=20260729-2" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260807-4">
+  <script src="/cleaner-performance.js?v=20260807-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -179,6 +179,60 @@
         -->
         <p class="hc-boundary" data-perf-boundary>Ranking is not live yet. Homle records completed jobs and approved reviews, but does not yet track arrival punctuality or cancellation rate, so no rank is assigned.</p>
 
+        <section class="hc-performance-reviews" aria-labelledby="performance-reviews-title">
+          <div class="hc-page-head">
+            <div>
+              <h2 class="hc-page-title" id="performance-reviews-title">Reviews &amp; ratings</h2>
+              <p class="hc-page-sub">Clients rate every completed job. Ratings drive how often you're offered work.</p>
+            </div>
+            <a class="hc-btn-outline" href="/cleaner/profile/preview">View public profile &nearr;</a>
+          </div>
+
+          <ul class="hc-tiles">
+            <li class="hc-tile">
+              <div class="hc-tile-label">OVERALL RATING</div>
+              <div class="hc-tile-value"><span data-reviews-overall>&mdash;</span></div>
+              <div class="hc-tile-sub" data-reviews-count>No approved reviews yet</div>
+            </li>
+            <li class="hc-tile">
+              <div class="hc-tile-label">COMPLETED JOBS</div>
+              <div class="hc-tile-value" data-reviews-completed>0</div>
+              <div class="hc-tile-sub">verified marketplace jobs</div>
+            </li>
+            <li class="hc-tile">
+              <div class="hc-tile-label">PUBLIC LISTING</div>
+              <div class="hc-tile-value" data-reviews-public>&mdash;</div>
+              <div class="hc-tile-sub">what clients can see</div>
+            </li>
+            <li class="hc-tile">
+              <div class="hc-tile-label">AWAITING MODERATION</div>
+              <div class="hc-tile-value" data-reviews-pending>&mdash;</div>
+              <div class="hc-tile-sub">held until Homle approves</div>
+            </li>
+          </ul>
+
+          <div class="hc-two-col">
+            <div class="hc-col">
+              <div class="hc-rev-empty" data-reviews-empty hidden>
+                <div class="hc-rev-empty-mark" aria-hidden="true">&#9733;</div>
+                <div class="hc-rev-empty-title">No client reviews yet</div>
+                <p class="hc-rev-empty-copy">Reviews appear here after your first completed job. A client can only review a booking they confirmed as finished.</p>
+              </div>
+              <div data-reviews-list></div>
+            </div>
+
+            <div class="hc-col hc-col-wide">
+              <section class="hc-panel">
+                <h3 class="hc-h4">Rating breakdown</h3>
+                <div class="hc-bars" data-reviews-bars></div>
+              </section>
+              <section class="hc-panel">
+                <h3 class="hc-h4">Earn your first 5&#9733;</h3>
+                <div class="hc-tip">Arrive on time &middot; follow the client's checklist &middot; send finish photos &middot; reply to messages quickly.</div>
+              </section>
+            </div>
+          </div>
+        </section>
 
           <div class="hc-feedback" data-perf-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
 

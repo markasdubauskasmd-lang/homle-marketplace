@@ -13,7 +13,7 @@
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-9";
-import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260729-7";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260807-1";
 
 export function element(name, className, text) {
   const node = document.createElement(name);
@@ -126,8 +126,8 @@ export function createCleanerPage(key, render) {
           onboardingSections: onboardingResult.status === "fulfilled" && Array.isArray(onboardingResult.value.sections) ? onboardingResult.value.sections : []
         }));
       } catch { renderCleanerNav(null); }
-      await render({ account, showFeedback, requestJson });
       showFeedback("");
+      await render({ account, showFeedback, requestJson });
     } catch (error) {
       if (error.code === "browser-offline") showGate("You are offline.", "Reconnect to load this page.", { allowRetry: true });
       else if (error.statusCode === 401) showGate("Sign in as a Cleaner to open this page.", "This workspace is private to the assigned Cleaner account.", { allowSignIn: true });
