@@ -203,6 +203,8 @@ assert(page.includes("Secure landlord access") && !page.includes("landlord-prepa
    artwork moved from a full-width banner into the Scan card, and the sidebar's
    manual-request button moved into the Manual card beside it. */
 assert(page.includes("workspace-brand-copy") && page.includes("ld-mobile-nav") && page.includes("ld-start-art-scan") && page.includes("ld-art-beam"), "The approved sidebar, bottom bar or scanning-phone presentation is missing from the real dashboard markup.");
+assert(v2Styles.includes("width: auto;") && v2Styles.includes("max-width: none;") && v2Styles.includes(".landlord-dashboard-main > * {\n  width: 100%;\n  max-width: none;"), "The desktop Landlord workspace is still constrained by the global reading-page shell or a narrow child cap.");
+assert(page.includes('class="ld-topbar-avatar" href="/landlord/account"') && v2Styles.includes(".ld-topbar-avatar img") && v2Styles.includes("border-radius: inherit;") && v2Styles.includes("object-fit: cover;"), "The signed-in profile photo is not a useful Account link or can still render as an unclipped square.");
 assert(page.includes('data-open-landlord-section="messages"') && page.includes('data-landlord-panel="messages"'), "The Messages destination in the sidebar has no panel to select.");
 // Messaging has no backend. It must say so rather than present a dead composer.
 assert(page.includes("Messaging is coming soon") && /<input[^>]+disabled[^>]*aria-label="Message composer, not yet available"/.test(page), "The Messages placeholder presents a working-looking composer for a feature with no backend.");
