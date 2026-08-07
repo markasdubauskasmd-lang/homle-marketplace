@@ -92,9 +92,14 @@
           <p data-view-subtitle>Let’s keep your property spotless.</p>
         </div>
         <div class="ld-topbar-actions">
-          <a class="ld-bell" href="/notifications" data-notification-link aria-label="Notifications">
+          <!-- Keeps `hidden` and the landlord-notification-link class it had in
+               the sidebar. The attribute is what stops the shortcut appearing
+               before the private workspace is authenticated — landlord-dashboard.js
+               owns it — and the label stays a real <span> for screen readers,
+               visually hidden by the top-bar rules rather than removed. -->
+          <a class="landlord-notification-link" href="/notifications" data-notification-link aria-label="Notifications" hidden>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 16v-5.5a5.5 5.5 0 0 1 11 0V16l1.5 2.5H5z"></path><path d="M10 20.5a2 2 0 0 0 4 0"></path></svg>
-            <span class="ld-bell-label">Notifications</span>
+            <span>Notifications</span>
             <span class="notification-nav-count" data-notification-count hidden></span>
           </a>
           <span class="ld-topbar-avatar" data-account-avatar aria-hidden="true">H</span>

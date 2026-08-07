@@ -159,21 +159,36 @@ body.landlord-dashboard-page .ld-topbar-copy h1 {
 body.landlord-dashboard-page .ld-topbar-copy p { margin: 6px 0 0; font-size: 15px; color: var(--ld-muted); }
 body.landlord-dashboard-page .ld-topbar-actions { display: flex; align-items: center; gap: 12px; flex: none; }
 
-body.landlord-dashboard-page .ld-bell {
+/* The bell kept its landlord-notification-link class when it moved out of the
+   sidebar, so these rules are scoped to .ld-topbar and reset the sidebar
+   geometry that class still carries in landlord-dashboard.css. */
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link {
   position: relative;
   width: 44px;
   height: 44px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  gap: 0;
   display: grid;
   place-items: center;
+  border: 0;
   border-radius: 999px;
   background: var(--ld-paper);
   color: var(--ld-ink-soft);
   box-shadow: var(--ld-card-shadow);
   transition: transform .15s ease;
 }
-body.landlord-dashboard-page .ld-bell:hover { transform: translateY(-1px); }
-body.landlord-dashboard-page .ld-bell svg { width: 19px; height: 19px; }
-body.landlord-dashboard-page .ld-bell-label {
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link:hover,
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link:focus-visible {
+  transform: translateY(-1px);
+  background: var(--ld-paper);
+  border: 0;
+  color: var(--ld-coral);
+}
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link svg { width: 19px; height: 19px; }
+/* The visible label is the icon; the text stays for assistive technology. */
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link > span:not([data-notification-count]) {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -181,7 +196,7 @@ body.landlord-dashboard-page .ld-bell-label {
   clip-path: inset(50%);
   white-space: nowrap;
 }
-body.landlord-dashboard-page .ld-bell .notification-nav-count {
+body.landlord-dashboard-page .ld-topbar .landlord-notification-link .notification-nav-count {
   position: absolute;
   top: 2px;
   right: 1px;
@@ -1119,7 +1134,7 @@ body.landlord-dashboard-page .ld-art-pen {
   body.landlord-dashboard-page .ld-art-tick,
   body.landlord-dashboard-page .ld-art-pen,
   body.landlord-dashboard-page .ld-step.is-now .ld-step-dot { animation: none; }
-  body.landlord-dashboard-page .ld-bell,
+  body.landlord-dashboard-page .ld-topbar .landlord-notification-link,
   body.landlord-dashboard-page .ld-btn,
   body.landlord-dashboard-page .ld-plan,
   body.landlord-dashboard-page .ld-plan-chev { transition: none; }
