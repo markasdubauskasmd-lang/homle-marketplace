@@ -78,7 +78,8 @@ try {
   assert(t71Payment(deploymentVerifier) && t71Directory(deploymentVerifier), "Migration-71 verification must prove the Administrator payment page and the unauthenticated Cleaner directory both have an index that their query shape can actually use.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 72\)'/, "Deployment verification must detect account notification real-time signals dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 73\)'/, "Deployment verification must detect the structured room-scan migration dynamically.");
-  assert(deploymentVerifier.includes("Cleaner onboarding final review submission is not an allowed encrypted section") && deploymentVerifier.includes("position('review' IN pg_get_constraintdef(oid))>0"), "Deployment verification must prove the encrypted onboarding table accepts the final review submission record.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 92\)'/, "Deployment verification must detect the final Cleaner submission migration dynamically.");
+  assert(deploymentVerifier.includes("IF cleaner_final_submission_installed AND NOT EXISTS") && deploymentVerifier.includes("Cleaner onboarding final review submission is not an allowed encrypted section") && deploymentVerifier.includes("position('review' IN pg_get_constraintdef(oid))>0"), "Deployment verification must allow the supported pre-upgrade schema and prove the upgraded encrypted onboarding table accepts the final review submission record.");
   // The structured scan's only participant boundary is the SECURITY DEFINER
   // projection. A deployment that grants the runtime role direct table access
   // has no boundary left, so the check has to run on every deployment rather
