@@ -11,6 +11,7 @@ import { setupInsurance } from "./cleaner-insurance.js?v=20260729-2";
 import { setupBanking } from "./cleaner-banking.js?v=20260729-1";
 import { setupEquipment } from "./cleaner-equipment.js?v=20260807-1";
 import { setupAvailability } from "./cleaner-availability.js?v=20260805-1";
+import { setupCongratulations, setupReviewSubmit } from "./cleaner-review-submit.js?v=20260807-1";
 
 function stepIcon(name) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -30,6 +31,14 @@ function stepIcon(name) {
 }
 
 createCleanerPage("reg", async (context) => {
+  if (location.pathname === "/cleaner/congratulations") {
+    await setupCongratulations(context);
+    return;
+  }
+  if (location.pathname === "/cleaner/review-submit") {
+    await setupReviewSubmit(context);
+    return;
+  }
   if (location.pathname === "/cleaner/personal-details") {
     await setupPersonalDetails(context);
     return;

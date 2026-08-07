@@ -456,6 +456,11 @@
       "order": 91,
       "file": "091_booking_summary_verification_markers.sql",
       "sha256": "1359d1740eb778b2267a8bcbc9588b9ed97a06b8e5bb6f352f0a9029db2a155d"
+    },
+    {
+      "order": 92,
+      "file": "092_cleaner_onboarding_final_submission.sql",
+      "sha256": "3e39853d7d5cd0fe6477935a1e53ebf059e1e73c5b371145ea6991ecf6fb1d0b"
     }
   ],
   "grantFiles": [

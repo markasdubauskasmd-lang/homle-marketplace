@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-<link rel="stylesheet" href="/homle-cleaner.css?v=20260807-4">
-<script src="/cleaner-registration.js?v=20260807-3" type="module"></script>
+<link rel="stylesheet" href="/homle-cleaner.css?v=20260807-5">
+<script src="/cleaner-registration.js?v=20260807-4" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -275,6 +275,16 @@
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
             </header>
 
+            <header class="hc-business-topbar" data-review-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 14 of 14 &mdash; Review &amp; submit</strong>
+                <div class="hc-business-progress-track hc-review-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="14" aria-valuenow="14"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
             <ol class="hc-personal-rail" aria-label="Cleaner registration steps">
               <li class="hc-personal-rail-step is-current" data-personal-step-key="personal"><span>1</span><strong>Personal details</strong></li>
               <li class="hc-personal-rail-step" data-personal-step-key="business"><span>2</span><strong>Business details</strong></li>
@@ -289,7 +299,7 @@
               <li class="hc-personal-rail-step" data-personal-step-key="skills"><span>11</span><strong>Skills</strong></li>
               <li class="hc-personal-rail-step" data-personal-step-key="training"><span>12</span><strong>Training &amp; certificates</strong></li>
               <li class="hc-personal-rail-step" data-personal-step-key="compliance"><span>13</span><strong>Compliance &amp; declarations</strong></li>
-              <li class="hc-personal-rail-step"><span>14</span><strong>Review &amp; submit</strong></li>
+              <li class="hc-personal-rail-step" data-personal-step-key="review"><span>14</span><strong>Review &amp; submit</strong></li>
             </ol>
 
             <section class="hc-personal-card" data-personal-card aria-labelledby="cleaner-personal-title">
@@ -1142,7 +1152,56 @@
                 </div>
               </form>
             </section>
+
+            <section class="hc-personal-card hc-review-card" data-review-submit hidden aria-labelledby="cleaner-review-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-review-title">Review &amp; submit</h1>
+                <p>Check each stage before sending your application to Homlle. Sensitive document numbers, full addresses and bank details are never displayed here.</p>
+              </header>
+
+              <div class="hc-review-content">
+                <section class="hc-review-summary" aria-labelledby="cleaner-review-summary-title">
+                  <div>
+                    <span class="hc-review-kicker">Application check</span>
+                    <h2 id="cleaner-review-summary-title">Your onboarding stages</h2>
+                    <p data-review-summary>Checking your securely stored information&hellip;</p>
+                  </div>
+                  <span class="hc-review-count" data-review-count aria-live="polite">&mdash;</span>
+                </section>
+
+                <div class="hc-review-list" data-review-list aria-live="polite"></div>
+
+                <label class="hc-review-confirm">
+                  <input type="checkbox" data-review-confirm>
+                  <span><strong>I confirm that the information I have provided is accurate.</strong><small>I understand Homlle will review my application and may contact me for more information.</small></span>
+                </label>
+
+                <div class="hc-business-actions hc-review-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/contracts">&larr; Back</a>
+                  <p data-review-save-status role="status" aria-live="polite">Complete every required stage before submitting.</p>
+                  <button class="hc-personal-submit" type="button" data-review-submit-button disabled>Submit application <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </div>
+            </section>
           </div>
+
+          <section class="hc-congratulations" data-congratulations hidden aria-labelledby="cleaner-congratulations-title">
+            <div class="hc-confetti" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
+            <div class="hc-congratulations-check" aria-hidden="true">
+              <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="29"></circle><path d="m18 33 9 9 19-21"></path></svg>
+            </div>
+            <span class="hc-congratulations-kicker">Application submitted</span>
+            <h1 id="cleaner-congratulations-title">Congratulations!</h1>
+            <p class="hc-congratulations-lead">Your Homlle application is now with our verification team.</p>
+            <div class="hc-congratulations-next">
+              <strong>What happens next?</strong>
+              <p>Check <span data-congratulations-email>your email</span> for further instructions. We will verify your information and get back to you.</p>
+            </div>
+            <p class="hc-congratulations-note">You can safely leave this page. Your submitted information remains stored securely.</p>
+            <a class="hc-personal-submit hc-congratulations-button" href="/cleaner/dashboard">Go to Cleaner workspace <span aria-hidden="true">&nearr;</span></a>
+          </section>
 
           <div class="hc-feedback" data-reg-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
 

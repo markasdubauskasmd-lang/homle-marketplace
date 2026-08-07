@@ -54,6 +54,7 @@ const cleanerReviewsPath = new RegExp(`^/api/marketplace/cleaners/(${uuidPattern
 const cleanerAvailabilityPath = new RegExp(`^/api/marketplace/cleaner/availability/(${uuidPattern})$`);
 const cleanerOnboardingSectionPath = /^\/api\/marketplace\/cleaner\/onboarding\/([a-z-]+)$/;
 const cleanerOnboardingDocumentsPath = "/api/marketplace/cleaner/onboarding/documents";
+const cleanerOnboardingSubmissionPath = "/api/marketplace/cleaner/onboarding/submission";
 const cleanerOnboardingDocumentPath = /^\/api\/marketplace\/cleaner\/onboarding\/documents\/([a-z-]+)\/([A-Za-z][A-Za-z0-9]{0,79})$/;
 const cleanerProfilePhotoPath = "/api/marketplace/cleaner/profile-photo";
 const cleanerAddressResolvePath = "/api/marketplace/cleaner/address-lookup/resolve";
@@ -148,7 +149,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
   if (!properties || typeof properties.getLandlordProfile !== "function" || typeof properties.saveLandlordProfile !== "function" || typeof properties.createProperty !== "function" || typeof properties.updateOwnProperty !== "function" || typeof properties.listOwnProperties !== "function" || typeof properties.listArchivedOwnProperties !== "function" || typeof properties.archiveOwnProperty !== "function" || typeof properties.restoreOwnProperty !== "function" || typeof properties.getBookingProperty !== "function") throw new TypeError("Marketplace HTTP routes require the property service.");
   if (!cleaners || !["getOwnProfile", "saveOwnProfile", "searchPublicProfiles", "getPublicProfile", "listOwnAvailability", "createOwnAvailability", "withdrawOwnAvailability"].every((method) => typeof cleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaner profile service.");
-  if (!cleanerOnboarding || !["listOwnSections", "getOwnSection", "saveOwnSection"].every((method) => typeof cleanerOnboarding[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner onboarding service.");
+  if (!cleanerOnboarding || !["listOwnSections", "getOwnSection", "saveOwnSection", "getSubmissionReadiness", "submitOwnApplication"].every((method) => typeof cleanerOnboarding[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner onboarding service.");
   if (!cleanerOnboardingDocuments || !["listOwnDocuments", "saveOwnDocument", "getOwnDocument", "deleteOwnDocument"].every((method) => typeof cleanerOnboardingDocuments[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner onboarding document service.");
   if (!cleanerProfilePhotos || !["getOwnPhoto", "saveOwnPhoto"].every((method) => typeof cleanerProfilePhotos[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner profile photo service.");
   if (!favouriteCleaners || !["listOwn", "setOwn"].every((method) => typeof favouriteCleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the favourite-Cleaner service.");
@@ -446,6 +447,18 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { roles: ["cleaner"] });
           sendJson(response, 200, { ok: true, sections: await cleanerOnboarding.listOwnSections(context.actor) });
+          return true;
+        }
+        if (pathname === cleanerOnboardingSubmissionPath) {
+          if (request.method !== "GET" && request.method !== "POST") return methodNotAllowed(response, ["GET", "POST"]), true;
+          const mutation = request.method === "POST";
+          const context = await security.protect(request, { mutation, roles: ["cleaner"] });
+          if (mutation) {
+            const submission = await cleanerOnboarding.submitOwnApplication(context.actor, await readJsonObject(request));
+            sendJson(response, submission.replayed ? 200 : 201, { ok: true, submission });
+          } else {
+            sendJson(response, 200, { ok: true, submission: await cleanerOnboarding.getSubmissionReadiness(context.actor) });
+          }
           return true;
         }
         if (pathname === cleanerOnboardingDocumentsPath) {

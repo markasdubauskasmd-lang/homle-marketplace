@@ -2,7 +2,11 @@ import { decryptCleanerOnboardingPayload, encryptCleanerOnboardingPayload, asser
 
 export const cleanerOnboardingSections = Object.freeze([
   "personal", "business", "identity", "rtw", "dbs", "tax", "experience", "references", "insurance",
-  "banking", "equipment", "transport", "availability", "areas", "languages", "skills", "training", "compliance"
+  "banking", "equipment", "transport", "availability", "areas", "languages", "skills", "training", "compliance", "review"
+]);
+
+export const requiredCleanerSubmissionSections = Object.freeze([
+  "personal", "business", "banking", "identity", "rtw", "dbs", "experience", "insurance", "equipment", "areas"
 ]);
 
 const sectionSet = new Set(cleanerOnboardingSections);
@@ -72,6 +76,21 @@ function projection(record, secret) {
   });
 }
 
+export function cleanerSubmissionReadiness(sections = []) {
+  const bySection = new Map((Array.isArray(sections) ? sections : [])
+    .filter((section) => section && typeof section.section === "string")
+    .map((section) => [section.section, section]));
+  const missingSections = requiredCleanerSubmissionSections.filter((section) => !["submitted", "verified"].includes(bySection.get(section)?.status));
+  const review = bySection.get("review") || null;
+  return Object.freeze({
+    requiredSections: [...requiredCleanerSubmissionSections],
+    missingSections,
+    ready: missingSections.length === 0,
+    submitted: ["submitted", "verified"].includes(review?.status),
+    submittedAt: review?.data?.submittedAt || review?.completedAt || null
+  });
+}
+
 export function createCleanerOnboardingService(repository, options = {}) {
   if (!repository || typeof repository.listOwnSections !== "function" || typeof repository.saveOwnSection !== "function") throw new TypeError("A complete Cleaner onboarding repository is required.");
   const secret = options.dataEncryptionSecret;
@@ -97,6 +116,34 @@ export function createCleanerOnboardingService(repository, options = {}) {
       const normalized = normalizedCleanerOnboardingInput(sectionValue, input);
       const payloadCiphertext = encryptCleanerOnboardingPayload(normalized.data, actor.userId, normalized.section, secret);
       return projection(await repository.saveOwnSection(actor, { ...normalized, payloadCiphertext }), secret);
+    },
+    async getSubmissionReadiness(actor) {
+      requireCleaner(actor, "review onboarding submission readiness");
+      const records = await repository.listOwnSections(actor);
+      return cleanerSubmissionReadiness(records.map((record) => projection(record, secret)));
+    },
+    async submitOwnApplication(actor, input = {}) {
+      requireCleaner(actor, "submit onboarding information");
+      if (input?.confirmed !== true) throw Object.assign(new TypeError("Confirm that your onboarding information is accurate before submitting."), { statusCode: 422, code: "onboarding-confirmation-required" });
+      const records = await repository.listOwnSections(actor);
+      const sections = records.map((record) => projection(record, secret));
+      const readiness = cleanerSubmissionReadiness(sections);
+      const existing = sections.find((section) => section.section === "review" && ["submitted", "verified"].includes(section.status));
+      if (existing) return Object.freeze({ ...existing, replayed: true });
+      if (!readiness.ready) {
+        throw Object.assign(new TypeError("Complete every required onboarding stage before submitting."), {
+          statusCode: 422,
+          code: "onboarding-incomplete",
+          missingSections: readiness.missingSections
+        });
+      }
+      const submittedAt = new Date().toISOString();
+      const normalized = normalizedCleanerOnboardingInput("review", {
+        status: "submitted",
+        data: { applicationStatus: "awaiting-review", submittedAt, confirmed: true }
+      });
+      const payloadCiphertext = encryptCleanerOnboardingPayload(normalized.data, actor.userId, normalized.section, secret);
+      return Object.freeze({ ...projection(await repository.saveOwnSection(actor, { ...normalized, payloadCiphertext }), secret), replayed: false });
     }
   });
 }

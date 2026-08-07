@@ -332,6 +332,8 @@ try {
   const cleanerInsurancePage = await fetch(`${base}/cleaner/insurance`);
   const cleanerBankingPage = await fetch(`${base}/cleaner/banking`);
   const cleanerEquipmentPage = await fetch(`${base}/cleaner/equipment`);
+  const cleanerReviewPage = await fetch(`${base}/cleaner/review-submit`);
+  const cleanerCongratulationsPage = await fetch(`${base}/cleaner/congratulations`);
   const cleanerDocumentsPage = await fetch(`${base}/cleaner/documents`);
   const cleanerTrainingPage = await fetch(`${base}/cleaner/training`);
   const cleanerContractsPage = await fetch(`${base}/cleaner/contracts`);
@@ -350,6 +352,8 @@ try {
   const cleanerInsuranceText = await cleanerInsurancePage.text();
   const cleanerBankingText = await cleanerBankingPage.text();
   const cleanerEquipmentText = await cleanerEquipmentPage.text();
+  const cleanerReviewText = await cleanerReviewPage.text();
+  const cleanerCongratulationsText = await cleanerCongratulationsPage.text();
   const cleanerDocumentsText = await cleanerDocumentsPage.text();
   const cleanerTrainingText = await cleanerTrainingPage.text();
   const cleanerContractsText = await cleanerContractsPage.text();
@@ -358,7 +362,7 @@ try {
   const adminCasesText = await adminCasesPage.text();
   const adminPaymentsText = await adminPaymentsPage.text();
   assert(cleanerDirectoryPage.status === 404 && cleanerEditorPage.status === 404, "The retired Cleaner directory or profile editor is still served.");
-  assert([cleanerPersonalDetailsPage, cleanerBusinessDetailsPage, cleanerIdentityVerificationPage, cleanerRightToWorkPage, cleanerBackgroundChecksPage, cleanerWorkAreasPage, cleanerExperiencePage, cleanerInsurancePage, cleanerBankingPage, cleanerEquipmentPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPayoutPage, landlordDashboardPage, adminCasesPage, adminPaymentsPage].every((response) => response.ok), "A current dashboard, Cleaner onboarding page or Administrator page is unavailable.");
+  assert([cleanerPersonalDetailsPage, cleanerBusinessDetailsPage, cleanerIdentityVerificationPage, cleanerRightToWorkPage, cleanerBackgroundChecksPage, cleanerWorkAreasPage, cleanerExperiencePage, cleanerInsurancePage, cleanerBankingPage, cleanerEquipmentPage, cleanerReviewPage, cleanerCongratulationsPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPayoutPage, landlordDashboardPage, adminCasesPage, adminPaymentsPage].every((response) => response.ok), "A current dashboard, Cleaner onboarding page or Administrator page is unavailable.");
   assert([cleanerPersonalDetailsPage, cleanerBusinessDetailsPage, cleanerIdentityVerificationPage, cleanerRightToWorkPage, cleanerBackgroundChecksPage, cleanerWorkAreasPage, cleanerExperiencePage, cleanerInsurancePage, cleanerBankingPage, cleanerEquipmentPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPayoutPage, adminCasesPage, adminPaymentsPage].every((response) => response.headers.get("cache-control") === "no-store"), "A private onboarding, payout or Administrator page became cacheable.");
   assert(cleanerPersonalDetailsText.includes("Personal details") && cleanerPersonalDetailsText.includes("data-personal-form") && cleanerPersonalDetailsText.includes("Emergency contact"), "The Cleaner personal-details page lost its form.");
   assert(cleanerBusinessDetailsText.includes("Business details") && cleanerBusinessDetailsText.includes("data-business-form") && cleanerBusinessDetailsText.includes("Solo cleaner"), "The Cleaner business-details page lost its form.");
@@ -371,6 +375,7 @@ try {
   assert(cleanerInsuranceText.includes("Insurance") && cleanerInsuranceText.includes("data-insurance-form") && cleanerInsuranceText.includes("Public liability policy") && cleanerInsuranceText.includes("Policy details"), "The Cleaner insurance page lost its form.");
   assert(cleanerBankingText.includes("Banking &amp; payments") && cleanerBankingText.includes("data-banking-form") && cleanerBankingText.includes("Managed securely by Stripe") && cleanerBankingText.includes("Invoice template (optional)"), "The Cleaner banking page lost its secure payout handoff design.");
   assert(cleanerEquipmentText.includes("Equipment") && cleanerEquipmentText.includes("data-equipment-form") && cleanerEquipmentText.includes("Do you provide your own cleaning equipment?") && cleanerEquipmentText.includes("Tick what you have"), "The Cleaner equipment page lost its own-kit checklist design.");
+  assert(cleanerReviewText.includes("Review &amp; submit") && cleanerReviewText.includes("data-review-submit-button") && cleanerCongratulationsText.includes("Congratulations!") && cleanerCongratulationsText.includes("What happens next?") && cleanerCongratulationsText.includes("for further instructions"), "The Cleaner final review or congratulations page is unavailable.");
   assert(cleanerDocumentsText.includes("Document centre") && cleanerDocumentsText.includes("data-documents-list") && cleanerDocumentsText.includes("Files shown here are encrypted in Homle’s private Render database") && cleanerDocumentsText.includes("Verification remains separate from storage") && !cleanerDocumentsText.includes("Sadie Fletcher"), "The Cleaner Document centre lost its private, honest document-list design.");
   assert(cleanerTrainingText.includes("Homle Academy") && cleanerTrainingText.includes("data-training-modules") && cleanerTrainingText.includes("3 active required learning modules") && cleanerTrainingText.includes("Only required training is active for now") && cleanerTrainingText.includes("nothing is started or recorded on this preview") && !cleanerTrainingText.includes("Sadie Fletcher"), "The Cleaner Academy lost its private, honest required-module catalogue design.");
   assert(cleanerContractsText.includes("Contracts &amp; agreements") && cleanerContractsText.includes("data-contract-list") && cleanerContractsText.includes("Sign outstanding") && cleanerContractsText.includes("Signing is not connected") && !cleanerContractsText.includes("Sadie") && !cleanerContractsText.includes("86.157.44.102"), "The Cleaner Contracts page lost its private, honest agreements design.");
