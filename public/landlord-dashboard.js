@@ -592,10 +592,17 @@ async function refreshSelectedCleanerProfile() {
  * dashboard used until now, so saved links and any open tab keep working.
  */
 function workspaceTabFromLocation() {
-  const path = /^\/landlord\/(properties|requests|account|payments)\/?$/.exec(location.pathname);
+  const path = /^\/landlord\/(home|properties|bookings|messages|requests|account|payments)\/?$/.exec(location.pathname);
   if (path) return path[1];
-  const hash = /^#landlord-(properties|requests|account)$/.exec(location.hash);
-  return hash?.[1] || "";
+  // /landlord/dashboard is the canonical entry point and now opens Home, which
+  // is the view the v2 design leads with.
+  if (/^\/landlord\/dashboard\/?$/.test(location.pathname)) return "home";
+  const hash = /^#landlord-(properties|requests|account|bookings)$/.exec(location.hash);
+  if (hash) return hash[1];
+  // The Bookings section kept its original id, so the anchor that used to scroll
+  // to it now selects the view instead of landing on a hidden panel.
+  if (location.hash === "#landlord-bookings") return "bookings";
+  return "";
 }
 
 // Retained under the old name so nothing that calls it has to change.
@@ -609,7 +616,10 @@ if (requestBuilderMount && requestBuilderPanel) requestBuilderMount.replaceWith(
 
 function setRequestBuilderExpanded(expanded) {
   if (!requestBuilderPanel) return;
-  requestBuilderPanel.hidden = false;
+  // The builder is its own view now. It used to sit collapsed at the foot of
+  // every panel, which in the v2 layout would put a second "Manual request"
+  // banner directly under the Manual card on Home offering the same thing.
+  requestBuilderPanel.hidden = !expanded;
   requestBuilderPanel.classList.toggle("pac-collapsed", !expanded);
   const toggle = requestBuilderPanel.querySelector("[data-pac-toggle]");
   if (toggle) {
@@ -640,13 +650,75 @@ function loadPrepareWizard() {
   return prepareWizardLoad;
 }
 
+/**
+ * The title and standfirst for each view, so the top bar says where you are.
+ *
+ * `requests` deliberately reuses the Properties heading: selecting it expands the
+ * builder underneath the Properties panel rather than replacing the view, which
+ * is the behaviour that was already here.
+ */
+const workspaceTabCopy = {
+  home: { title: "Hello, {name}", subtitle: "Let’s keep your property spotless." },
+  properties: { title: "Properties", subtitle: "The locations saved privately to your account." },
+  bookings: { title: "Bookings", subtitle: "Everything upcoming and everything done." },
+  messages: { title: "Messages", subtitle: "Talk to the Cleaner working on your property." },
+  account: { title: "Account", subtitle: "Your details, payments and preferences." },
+  payments: { title: "Payments", subtitle: "What each booking costs, and where its authorisation has reached." },
+  requests: { title: "Properties", subtitle: "The locations saved privately to your account." }
+};
+
+const viewTitle = document.querySelector("[data-view-title]");
+const viewSubtitle = document.querySelector("[data-view-subtitle]");
+
+/**
+ * The Landlord's name lives here, not in the heading.
+ *
+ * Only the Home greeting renders it, and switching to any other view replaces
+ * that heading's contents — so reading the name back out of the DOM would lose
+ * it the first time someone visited Properties and came back.
+ */
+let landlordDisplayName = "Landlord";
+
+function setLandlordDisplayName(name) {
+  landlordDisplayName = name || "Landlord";
+  const named = document.querySelector("[data-landlord-name]");
+  if (named) named.textContent = landlordDisplayName;
+}
+
+function renderWorkspaceHeading(selected) {
+  const copy = workspaceTabCopy[selected] || workspaceTabCopy.home;
+  if (viewSubtitle) viewSubtitle.textContent = copy.subtitle;
+  if (!viewTitle) return;
+  if (copy.title.includes("{name}")) {
+    const [before, after] = copy.title.split("{name}");
+    const holder = element("span", "", landlordDisplayName);
+    holder.setAttribute("data-landlord-name", "");
+    viewTitle.replaceChildren(document.createTextNode(before), holder, document.createTextNode(after));
+  } else {
+    viewTitle.textContent = copy.title;
+  }
+}
+
+function markCurrentNavigation(selected) {
+  // Both navs point at the same destinations, so both are marked from one place.
+  for (const link of document.querySelectorAll(".landlord-dashboard-nav a, .ld-mobile-nav a")) {
+    const section = link.dataset.openLandlordSection;
+    const current = section === selected || (selected === "requests" && section === "properties") || (selected === "payments" && section === "account");
+    if (current) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  }
+}
+
 function selectWorkspaceTab(name, { historyMode = "" } = {}) {
-  const selected = ["properties", "requests", "account", "payments"].includes(name) ? name : "properties";
+  const selected = ["home", "properties", "bookings", "messages", "requests", "account", "payments"].includes(name) ? name : "home";
   document.querySelectorAll('[data-landlord-panel]:not([data-landlord-panel="requests"])').forEach((panel) => {
     panel.hidden = selected === "requests" ? panel.dataset.landlordPanel !== "properties" : panel.dataset.landlordPanel !== selected;
   });
   setRequestBuilderExpanded(selected === "requests");
   if (selected === "requests") loadPrepareWizard();
+  renderWorkspaceHeading(selected);
+  markCurrentNavigation(selected);
+  if (selected === "home") renderHomeView();
   // A real path, not a fragment, so the address bar names where the Landlord
   // is, Back returns to the previous panel, and the link can be shared.
   const url = `/landlord/${selected}`;
@@ -1040,6 +1112,9 @@ function showRequestContinuation(request) {
   requestContinuation.replaceChildren(heading, scan);
   requestContinuation.hidden = false;
   scan.open = true;
+  // The continuation is the next step of the request that was just saved, so the
+  // builder is revealed as well as expanded — it is hidden outside its own view.
+  if (requestBuilderPanel) requestBuilderPanel.hidden = false;
   requestBuilderPanel?.classList.remove("pac-collapsed");
   requestBuilderPanel?.querySelector("[data-pac-toggle]")?.setAttribute("aria-expanded", "true");
   queueMicrotask(() => {
@@ -1909,6 +1984,132 @@ function updateLandlordWaitingDeadlines() {
   if (Number.isFinite(nextUpdateMs)) landlordInvitationDeadlineTimer = window.setTimeout(updateLandlordWaitingDeadlines, Math.max(1_000, nextUpdateMs + 250));
 }
 
+/**
+ * Guide prices for the Home view's "Recommended for you" cards.
+ *
+ * THESE ARE NOT QUOTES, and there is deliberately no endpoint behind them.
+ * Homle has no landlord-facing pricing API: the only pricing rules that exist
+ * (/api/marketplace/pricing/scan-ruleset) price a completed room scan, not a
+ * catalogue. A real total is the one a Cleaner accepts against a frozen
+ * checklist, which is the guarantee the whole request flow is built on.
+ *
+ * So they are a labelled constant rather than a fetch pretending to be one, the
+ * section header carries an "Indicative" flag, and every card links to the scan
+ * that produces a real price instead of adding anything to a draft. When a
+ * pricing endpoint exists, replace this array and the markup stays as it is.
+ */
+const LD_INDICATIVE_PLANS = Object.freeze([
+  Object.freeze({ name: "Standard clean", desc: "Living room, kitchen, bathroom", from: "£68", tone: "standard" }),
+  Object.freeze({ name: "Deep clean", desc: "Detailed kitchen and bathroom refresh", from: "£112", tone: "deep" }),
+  Object.freeze({ name: "End of tenancy", desc: "Full property clean", from: "£185", tone: "tenancy" })
+]);
+
+/* Cloned from the <template>s in the markup — see the note beside them. */
+function planArtwork(tone) {
+  const template = document.querySelector(`[data-ld-plan-art="${tone}"]`);
+  return template ? template.content.cloneNode(true) : document.createDocumentFragment();
+}
+
+let indicativePlansRendered = false;
+
+function renderIndicativePlans() {
+  const list = document.querySelector("[data-ld-plans]");
+  if (!list || indicativePlansRendered) return;
+  list.replaceChildren(...LD_INDICATIVE_PLANS.map((plan) => {
+    const row = element("a", `ld-plan ld-plan-${plan.tone}`);
+    row.href = "/landlord/book";
+    const icon = element("span", "ld-plan-icon");
+    icon.append(planArtwork(plan.tone));
+    icon.setAttribute("aria-hidden", "true");
+    const copy = element("span", "ld-plan-copy");
+    copy.append(element("strong", "", plan.name), element("small", "", plan.desc));
+    const price = element("span", "ld-plan-price");
+    price.append(element("small", "", "From"), element("strong", "", plan.from));
+    const chev = element("span", "ld-plan-chev", "›");
+    chev.setAttribute("aria-hidden", "true");
+    row.append(icon, copy, price, chev);
+    // Screen readers get the caveat the badge makes visual, and the destination.
+    row.setAttribute("aria-label", `${plan.name}. Guide price from ${plan.from}, not a quote. Scan your property for an exact price.`);
+    return row;
+  }));
+  indicativePlansRendered = true;
+}
+
+/* Design step order, mapped from the booking statuses that actually exist. */
+const upcomingStepDefinitions = Object.freeze([
+  Object.freeze({ key: "booked", label: "Booked" }),
+  Object.freeze({ key: "matched", label: "Matched" }),
+  Object.freeze({ key: "on-the-way", label: "On the way" }),
+  Object.freeze({ key: "cleaning", label: "Cleaning" }),
+  Object.freeze({ key: "complete", label: "Complete" })
+]);
+
+const upcomingStepByStatus = {
+  "pending-cleaner-acceptance": 0,
+  confirmed: 1,
+  "cleaner-en-route": 2,
+  "cleaner-arrived": 2,
+  "cleaning-in-progress": 3,
+  "awaiting-review": 4,
+  completed: 4
+};
+
+/**
+ * The Home view's "Upcoming cleaning" card.
+ *
+ * Real booking state only — it reads the same `bookings` the Bookings view
+ * lists, through the same buckets, so the two can never disagree. When there is
+ * nothing live it shows the empty card instead, exactly as the design does.
+ */
+function renderUpcomingClean() {
+  const card = document.querySelector("[data-ld-upcoming]");
+  const empty = document.querySelector("[data-ld-upcoming-empty]");
+  if (!card || !empty) return;
+
+  const buckets = bookingSummaryBuckets(bookings, "landlord");
+  const candidates = [...buckets.active, ...buckets.upcoming, ...buckets.waiting];
+  const booking = candidates.slice().sort((a, b) => String(a.scheduledStartAt || "").localeCompare(String(b.scheduledStartAt || "")))[0] || null;
+
+  card.hidden = !booking;
+  empty.hidden = Boolean(booking);
+  if (!booking) return;
+
+  const pill = card.querySelector("[data-ld-upcoming-pill]");
+  if (pill) pill.textContent = bookingSummaryStatusLabels[booking.status] || "Booking";
+
+  const address = card.querySelector("[data-ld-upcoming-address]");
+  if (address) address.textContent = booking.propertyLabel || booking.propertyName || booking.propertyArea || "Saved property";
+
+  const when = card.querySelector("[data-ld-upcoming-when]");
+  if (when) when.textContent = formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt);
+
+  const eta = card.querySelector("[data-ld-upcoming-eta]");
+  if (eta) {
+    const who = booking.counterpartyName ? ` · ${booking.counterpartyName}` : "";
+    eta.textContent = `${bookingSummaryStatusLabels[booking.status] || "Booking"}${who}`;
+  }
+
+  const stepIndex = upcomingStepByStatus[booking.status] ?? 0;
+  const steps = card.querySelector("[data-ld-upcoming-steps]");
+  if (steps) {
+    steps.replaceChildren(...upcomingStepDefinitions.map((step, index) => {
+      const node = element("li", "ld-step");
+      if (index < stepIndex) node.classList.add("is-done");
+      if (index === stepIndex) node.classList.add("is-now");
+      const dot = element("span", "ld-step-dot");
+      dot.setAttribute("aria-hidden", "true");
+      node.append(dot, element("span", "ld-step-label", step.label));
+      if (index === stepIndex) node.setAttribute("aria-current", "step");
+      return node;
+    }));
+  }
+}
+
+function renderHomeView() {
+  renderIndicativePlans();
+  renderUpcomingClean();
+}
+
 function renderBookings() {
   const buckets = bookingSummaryBuckets(bookings, "landlord");
   const historySummary = landlordDashboardSummary(bookings);
@@ -1932,6 +2133,9 @@ function renderBookings() {
   document.querySelector("[data-landlord-history-reveal-count]").textContent = String(historySummary.completedCleanCount);
   renderLandlordHistory(historySummary);
   renderLandlordPayments(bookings);
+  // Home shows the soonest of these same bookings, so it is refreshed from the
+  // one place the booking list is built rather than polling separately.
+  renderUpcomingClean();
   syncInvitationStream();
 }
 
@@ -2131,7 +2335,7 @@ async function loadWorkspace() {
     if (!access.ready) return access.reason === "different-workspace"
       ? showState(`Your ${access.label} workspace is active.`, "Properties, room scans and cleaning requests remain in a separate private Landlord dashboard.", { kind: "authentication", workspaceDestination: access.destination, workspaceLabel: access.label })
       : showState("This account has no Landlord workspace.", "Sign in through Book a clean to create the separate property workspace.", { kind: "authentication", allowSignIn: true });
-    document.querySelector("[data-landlord-name]").textContent = account.displayName || "Landlord";
+    setLandlordDisplayName(account.displayName || "Landlord");
     renderAccountAvatar(account);
     state.hidden = true;
     for (const item of privateNavigation) item.hidden = false;
@@ -2501,8 +2705,28 @@ function configureSpeech() {
   speechStatus.textContent = "Speech is available. Your browser may use its own speech-to-text service.";
 }
 
-window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "properties"));
-selectWorkspaceTab(workspaceTabFromHash() || "properties");
+// Home is the landing view in the v2 design, so an address with no view in it
+// opens Home rather than Properties.
+window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "home"));
+selectWorkspaceTab(workspaceTabFromHash() || "home");
+
+/**
+ * Scan / Manual.
+ *
+ * The tab does not hide either card — both stay on screen, as the design has
+ * them, and the tab only marks which route is in focus. Choosing Manual also
+ * warms the stepped wizard, so the builder is ready by the time the card's
+ * button is pressed.
+ */
+const startTabs = [...document.querySelectorAll("[data-ld-tab]")];
+function selectStartTab(name) {
+  const selected = name === "manual" ? "manual" : "scan";
+  for (const tab of startTabs) tab.setAttribute("aria-selected", String(tab.dataset.ldTab === selected));
+  for (const card of document.querySelectorAll("[data-ld-card]")) card.classList.toggle("is-active", card.dataset.ldCard === selected);
+  if (selected === "manual") loadPrepareWizard();
+}
+for (const tab of startTabs) tab.addEventListener("click", () => selectStartTab(tab.dataset.ldTab));
+selectStartTab("scan");
 document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link.addEventListener("click", (event) => {
   event.preventDefault();
   const selected = link.dataset.openLandlordSection;
