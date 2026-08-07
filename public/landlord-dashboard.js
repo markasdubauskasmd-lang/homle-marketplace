@@ -833,24 +833,126 @@ function closePropertyEditor() {
   propertySave.textContent = "Save property privately";
 }
 
+/* Cloned from a <template> in the markup, so no markup is ever parsed here. */
+function cloneIcon(name) {
+  const template = document.querySelector(`[data-ld-icon="${name}"]`);
+  return template ? template.content.cloneNode(true) : document.createDocumentFragment();
+}
+
+const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+
+function formatShortDate(value) {
+  const parsed = Date.parse(value || "");
+  return Number.isNaN(parsed) ? "—" : shortDate.format(new Date(parsed));
+}
+
+/** "2 Bedrooms · 1 Bathroom", falling back to the property type. */
+function propertySubtitle(property) {
+  const parts = [];
+  const bedrooms = Number(property.bedrooms);
+  const bathrooms = Number(property.bathrooms);
+  if (Number.isFinite(bedrooms) && bedrooms > 0) parts.push(`${bedrooms} ${bedrooms === 1 ? "Bedroom" : "Bedrooms"}`);
+  if (Number.isFinite(bathrooms) && bathrooms > 0) parts.push(`${bathrooms} ${bathrooms === 1 ? "Bathroom" : "Bathrooms"}`);
+  if (!parts.length) return String(property.propertyType || "Property").replace(/-/g, " ");
+  return parts.join(" · ");
+}
+
+/**
+ * The room chips.
+ *
+ * A saved checklist already names its rooms, so those are used when present.
+ * Otherwise the bedroom/bathroom counts are described rather than invented —
+ * nothing here claims a room the Landlord has not told Homle about.
+ */
+function propertyRoomLabels(property) {
+  const saved = Array.isArray(property.savedChecklist) ? property.savedChecklist : [];
+  const named = [...new Set(saved.map((task) => String(task?.room || "").trim()).filter(Boolean))];
+  if (named.length) return named.slice(0, 6);
+  const labels = [];
+  const bedrooms = Number(property.bedrooms);
+  const bathrooms = Number(property.bathrooms);
+  if (Number.isFinite(bedrooms) && bedrooms > 0) labels.push(bedrooms === 1 ? "Bedroom" : `${bedrooms} Bedrooms`);
+  if (Number.isFinite(bathrooms) && bathrooms > 0) labels.push(bathrooms === 1 ? "Bathroom" : `${bathrooms} Bathrooms`);
+  return labels;
+}
+
+/**
+ * When this property was last cleaned and what is next.
+ *
+ * Bookings carry propertyName rather than a property id for anything that is
+ * not repeat-eligible, so they are matched by that name. An unmatched property
+ * shows "—" instead of borrowing another property's dates.
+ */
+function propertyCleaningDates(property) {
+  const name = String(property.name || "").trim();
+  const mine = name ? bookings.filter((booking) => String(booking.propertyName || "").trim() === name) : [];
+  const done = mine
+    .filter((booking) => ["completed", "awaiting-review"].includes(booking.status))
+    .sort((a, b) => String(b.scheduledStartAt || "").localeCompare(String(a.scheduledStartAt || "")));
+  const ahead = mine
+    .filter((booking) => ["pending-cleaner-acceptance", "confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress"].includes(booking.status))
+    .sort((a, b) => String(a.scheduledStartAt || "").localeCompare(String(b.scheduledStartAt || "")));
+  return {
+    last: done.length ? formatShortDate(done[0].scheduledStartAt) : "—",
+    next: ahead.length ? formatShortDate(ahead[0].scheduledStartAt) : "—",
+    booked: ahead.length > 0
+  };
+}
+
 function renderProperties() {
   propertyList.replaceChildren();
   propertySelect.replaceChildren(element("option", "", properties.length ? "Choose a property" : "Add a property first"));
   propertySelect.firstElementChild.value = "";
   for (const property of properties) {
+    // The v2 property card: address, what the property is, when it was last
+    // cleaned and what is next, the rooms, then the two things a Landlord
+    // actually does from here. The protected details and the access/archive
+    // controls keep their existing behaviour inside the disclosure below —
+    // they are the rarer actions and the design gives the card to the common
+    // two.
     const card = element("article", "landlord-property-card");
     const heading = element("div", "landlord-property-card-heading");
-    const title = element("div");
-    title.append(element("span", "landlord-private-pill", "Private property"), element("h3", "", property.name || "Saved property"), element("p", "", exactAddress(property)));
-    heading.append(title, element("strong", "", String(property.propertyType || "Property").replace(/-/g, " ")));
-    const facts = element("dl", "landlord-property-facts");
-    facts.append(propertyFact("Bedrooms", property.bedrooms ?? "—"), propertyFact("Bathrooms", property.bathrooms ?? "—"), propertyFact("Size", property.approximateSizeSqM == null ? "Not supplied" : `${property.approximateSizeSqM} m²`), propertyFact("Saved tasks", Array.isArray(property.savedChecklist) ? property.savedChecklist.length : 0));
+    const icon = element("span", "ld-prop-icon");
+    icon.append(cloneIcon("property"));
+    icon.setAttribute("aria-hidden", "true");
+    const title = element("div", "ld-prop-main");
+    title.append(element("h3", "", property.name || "Saved property"), element("p", "", propertySubtitle(property)));
+    const timeline = element("div", "ld-prop-dates");
+    const cleaned = propertyCleaningDates(property);
+    for (const [label, value] of [["Last cleaned", cleaned.last], ["Next", cleaned.next]]) {
+      const item = element("span", "");
+      item.append(document.createTextNode(`${label} `), element("strong", "", value));
+      timeline.append(item);
+    }
+    title.append(timeline);
+    const chip = element("span", `ld-prop-chip${cleaned.booked ? " ld-prop-chip-booked" : ""}`, cleaned.booked ? "Clean booked" : "No clean booked");
+    heading.append(icon, title, chip);
+
+    const rooms = element("div", "ld-prop-rooms");
+    for (const room of propertyRoomLabels(property)) rooms.append(element("span", "ld-prop-room", room));
+
+    const actions = element("div", "landlord-property-actions");
+    const scanAgain = element("a", "button button-outline", "Scan again");
+    scanAgain.href = "/landlord/book";
+    scanAgain.setAttribute("aria-label", `Scan ${property.name || "saved property"} again`);
+    const book = element("button", "button", "Book Clean");
+    book.type = "button";
+    book.setAttribute("aria-label", `Book a clean for ${property.name || "saved property"}`);
+    book.addEventListener("click", () => {
+      saveSelectedProperty(sessionStorage, property.propertyId);
+      selectedPropertyId = property.propertyId;
+      selectWorkspaceTab("requests", { historyMode: "push" });
+      propertySelect.value = property.propertyId;
+      applySuggestedCleaningType();
+    });
+    actions.append(scanAgain, book);
+
     const details = element("details", "landlord-property-details");
     details.append(element("summary", "", "View protected property details"));
     const notes = element("dl");
-    notes.append(propertyFact("Access instructions", property.accessInstructions || "None saved"), propertyFact("Parking", property.parkingInstructions || "None saved"), propertyFact("Cleaning preferences", property.cleaningPreferences || "None saved"), propertyFact("Special notes", property.specialNotes || "None saved"));
+    notes.append(propertyFact("Exact address", exactAddress(property)), propertyFact("Access instructions", property.accessInstructions || "None saved"), propertyFact("Parking", property.parkingInstructions || "None saved"), propertyFact("Cleaning preferences", property.cleaningPreferences || "None saved"), propertyFact("Special notes", property.specialNotes || "None saved"), propertyFact("Size", property.approximateSizeSqM == null ? "Not supplied" : `${property.approximateSizeSqM} m²`), propertyFact("Saved tasks", Array.isArray(property.savedChecklist) ? property.savedChecklist.length : 0));
     details.append(notes);
-    const actions = element("div", "landlord-property-actions");
+    const secondary = element("div", "landlord-property-actions landlord-property-actions-secondary");
     const edit = element("button", "button button-outline", property.accessInstructions ? "Edit access and details" : "Add access details");
     edit.type = "button";
     edit.setAttribute("aria-label", `${property.accessInstructions ? "Edit access and details for" : "Add access details for"} ${property.name || "saved property"}`);
@@ -859,12 +961,23 @@ function renderProperties() {
     archive.type = "button";
     archive.setAttribute("aria-label", `Archive ${property.name || "saved property"}`);
     archive.addEventListener("click", () => openPropertyArchive(property));
-    actions.append(edit, archive);
-    card.append(heading, facts, details, actions);
+    secondary.append(edit, archive);
+    details.append(secondary);
+
+    card.append(heading, rooms, actions, details);
     propertyList.append(card);
     const option = element("option", "", property.name || "Saved property");
     option.value = property.propertyId;
     propertySelect.append(option);
+  }
+  // The design closes the grid with a dashed tile rather than leaving the last
+  // row ragged. It opens the same property editor the heading button does.
+  if (properties.length) {
+    const add = element("button", "ld-prop-add");
+    add.type = "button";
+    add.append(cloneIcon("add"), element("span", "ld-prop-add-title", "Add another property"), element("span", "ld-prop-add-copy", "Scan it once and we remember the rooms"));
+    add.addEventListener("click", () => openPropertyEditor());
+    propertyList.append(add);
   }
   const hasSoleProperty = properties.length === 1;
   propertySelectLabel.hidden = hasSoleProperty;
@@ -1881,12 +1994,23 @@ function renderBookingCard(booking) {
     card.classList.add("landlord-waiting-card");
     card.dataset.landlordWaitingBookingId = booking.bookingId;
   }
+  // The v2 booking row: the property leads, then one line saying when, who and
+  // how much — the three things the design puts under the address. The status
+  // pill and the price keep their own elements so the existing styling and the
+  // status-agreement test still find them.
+  const settled = ["completed", "awaiting-review", "cancelled", "disputed"].includes(booking.status);
   const heading = element("div", "booking-summary-heading");
-  const title = element("div");
-  title.append(element("span", "booking-status-pill", bookingSummaryStatusLabels[booking.status] || "Booking"), element("h3", "", booking.cleaningType || "Cleaning"), element("p", "", `${booking.propertyName || "Saved property"} · ${booking.counterpartyName || "Assigned Cleaner"}`));
-  heading.append(title, element("strong", "booking-summary-price", formatBookingMoney(booking.pricePence)));
+  const icon = element("span", `ld-booking-icon${settled ? " ld-booking-icon-done" : ""}`);
+  icon.append(cloneIcon(settled ? "booking-done" : "booking"));
+  icon.setAttribute("aria-hidden", "true");
+  const title = element("div", "ld-booking-main");
+  // Price is deliberately not repeated here — booking-summary-price carries it.
+  const meta = [formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt), booking.counterpartyName || "Assigned Cleaner"].filter(Boolean).join(" · ");
+  title.append(element("h3", "", booking.propertyName || "Saved property"), element("p", "", meta));
+  heading.append(icon, title, element("span", "booking-status-pill", bookingSummaryStatusLabels[booking.status] || "Booking"), element("strong", "booking-summary-price", formatBookingMoney(booking.pricePence)));
   const facts = element("dl", "booking-summary-facts");
-  for (const [label, value] of [["When", formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)], ["Area", booking.propertyArea || "Saved property area"], [bookingSummaryPriceLabel("landlord"), formatBookingMoney(booking.pricePence)], ["Checklist", `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`]]) {
+  // Cleaning type moved down here when the address took the heading.
+  for (const [label, value] of [["Clean", booking.cleaningType || "Cleaning"], ["When", formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt)], ["Area", booking.propertyArea || "Saved property area"], [bookingSummaryPriceLabel("landlord"), formatBookingMoney(booking.pricePence)], ["Checklist", `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`]]) {
     const wrapper = element("div");
     wrapper.append(element("dt", "", label), element("dd", "", value));
     facts.append(wrapper);

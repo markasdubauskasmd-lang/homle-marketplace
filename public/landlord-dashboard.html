@@ -249,6 +249,9 @@
            both collapsible toggles are unchanged. -->
       <section id="landlord-bookings" data-landlord-panel="bookings" class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
         <button class="landlord-section-toggle" type="button" data-landlord-section-toggle aria-expanded="false" aria-controls="landlord-booking-content"><span id="landlord-bookings-title">Active and upcoming bookings</span><span class="landlord-section-toggle-meta"><span data-landlord-booking-reveal-count>0</span><span aria-hidden="true">↓</span></span></button>
+        <!-- Cloned by renderBookingCard(). -->
+        <template data-ld-icon="booking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2.5"></rect><path d="M4 10.5h16M8.5 4v4M15.5 4v4"></path></svg></template>
+        <template data-ld-icon="booking-done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"></path></svg></template>
         <div id="landlord-booking-content" data-landlord-section-content hidden>
           <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p></div><div class="landlord-booking-live"><span data-landlord-booking-live role="status" aria-live="polite">Checking private booking updates…</span><button class="text-button" type="button" data-landlord-booking-refresh>Refresh booking status</button></div></div>
           <div class="landlord-empty-card" data-request-empty><strong>No requests or upcoming bookings yet.</strong><p>Saved cleaning requests appear here first, then become confirmed bookings only after a Cleaner accepts the frozen time, scope and price.</p></div>
@@ -270,6 +273,10 @@
 
       <section id="landlord-panel-properties" data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title">
         <div class="landlord-panel-heading"><div><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your properties</h2></div><button class="button button-outline" type="button" data-toggle-property-form>Add property</button></div>
+        <!-- Cloned by renderProperties(). Same reason as the plan icons: the
+             script is held to "no innerHTML anywhere in this file". -->
+        <template data-ld-icon="property"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4.5l8 6V20H4z"></path><rect x="10" y="14" width="4" height="6"></rect></svg></template>
+        <template data-ld-icon="add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></template>
         <div class="landlord-empty-card" data-property-empty><strong>No account properties yet.</strong><p>Add a property to prepare a private request draft. Nothing is published to Cleaner search.</p></div>
         <div class="landlord-property-grid" data-property-list hidden></div>
         <div class="landlord-form-feedback" data-property-status role="status" aria-live="polite" tabindex="-1" hidden></div>

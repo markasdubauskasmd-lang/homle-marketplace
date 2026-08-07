@@ -35,6 +35,8 @@ body.landlord-dashboard-page {
   --ld-border: #e7e4e0;
   --ld-quiet-border: #e1deda;
   --ld-success: #2e9e63;
+  --ld-success-ink: #2e7d51;
+  --ld-success-tint: #eaf4ee;
   --ld-success-rail: #9fd3b8;
   --ld-success-ring: #cfe6da;
   --ld-warn-ink: #9a6d14;
@@ -763,26 +765,109 @@ body.landlord-dashboard-page .landlord-property-grid > .landlord-property-card {
 body.landlord-dashboard-page .landlord-property-card-heading { display: flex; gap: 14px; align-items: flex-start; }
 body.landlord-dashboard-page .landlord-property-card-heading h3 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -.015em; }
 body.landlord-dashboard-page .landlord-property-card-heading p { margin: 2px 0 0; font-size: 13px; color: var(--ld-dim); }
-body.landlord-dashboard-page .landlord-property-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 14px 0 0;
+body.landlord-dashboard-page .ld-prop-icon {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #f4f1ed;
+  color: #9a9188;
 }
+body.landlord-dashboard-page .ld-prop-icon svg { width: 24px; height: 24px; }
+body.landlord-dashboard-page .ld-prop-main { flex: 1; min-width: 0; }
+body.landlord-dashboard-page .ld-prop-dates { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+body.landlord-dashboard-page .ld-prop-dates > span { font-size: 12.5px; color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-prop-dates strong { color: #4a4a4a; font-weight: 600; }
+body.landlord-dashboard-page .ld-prop-chip {
+  flex: none;
+  align-self: flex-start;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--ld-warn-tint);
+  color: var(--ld-warn-ink);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+body.landlord-dashboard-page .ld-prop-chip-booked { background: var(--ld-success-tint, #eaf4ee); color: var(--ld-success-ink); }
+body.landlord-dashboard-page .ld-prop-rooms { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; }
+body.landlord-dashboard-page .ld-prop-room {
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--ld-canvas);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #6a6a6a;
+}
+body.landlord-dashboard-page .ld-prop-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 150px;
+  padding: 26px;
+  background: transparent;
+  border: 1.5px dashed #dedad5;
+  border-radius: 16px;
+  font-family: inherit;
+  color: var(--ld-dim);
+  cursor: pointer;
+  transition: border-color .16s ease, color .16s ease;
+}
+body.landlord-dashboard-page .ld-prop-add:hover { border-color: var(--ld-coral); color: var(--ld-coral); }
+body.landlord-dashboard-page .ld-prop-add svg { width: 26px; height: 26px; }
+body.landlord-dashboard-page .ld-prop-add-title { font-size: 14px; font-weight: 600; }
+body.landlord-dashboard-page .ld-prop-add-copy { font-size: 12.5px; }
+
+/* Archived properties still render the older fact list. */
+body.landlord-dashboard-page .landlord-property-facts { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; }
 body.landlord-dashboard-page .landlord-property-facts > div {
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
-  background: var(--ld-canvas);
-  border-radius: 999px;
   padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--ld-canvas);
 }
-body.landlord-dashboard-page .landlord-property-facts dt { font-size: 11.5px; font-weight: 600; color: var(--ld-dim); margin: 0; }
-body.landlord-dashboard-page .landlord-property-facts dd { font-size: 11.5px; font-weight: 600; color: #6a6a6a; margin: 0; }
+body.landlord-dashboard-page .landlord-property-facts dt,
+body.landlord-dashboard-page .landlord-property-facts dd { margin: 0; font-size: 11.5px; font-weight: 600; }
+body.landlord-dashboard-page .landlord-property-facts dt { color: var(--ld-dim); }
+body.landlord-dashboard-page .landlord-property-facts dd { color: #6a6a6a; }
+
+/* The protected details and the rarer access/archive controls. */
 body.landlord-dashboard-page .landlord-property-details { margin-top: 12px; font-size: 13px; }
-body.landlord-dashboard-page .landlord-property-details > summary { color: var(--ld-coral); font-weight: 600; cursor: pointer; }
+body.landlord-dashboard-page .landlord-property-details > summary { color: var(--ld-dim); font-weight: 600; font-size: 12.5px; cursor: pointer; }
+body.landlord-dashboard-page .landlord-property-details > summary:hover { color: var(--ld-coral); }
+body.landlord-dashboard-page .landlord-property-details dl { display: grid; gap: 8px; margin: 12px 0 0; }
+body.landlord-dashboard-page .landlord-property-details dt { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ld-faint); }
+body.landlord-dashboard-page .landlord-property-details dd { margin: 2px 0 0; font-size: 13px; }
 body.landlord-dashboard-page .landlord-property-actions { display: flex; gap: 9px; margin-top: 14px; flex-wrap: wrap; }
 body.landlord-dashboard-page .landlord-property-actions .button { flex: 1; min-width: 120px; justify-content: center; text-align: center; padding: 10px; font-size: 13.5px; }
+
+/* ── Booking rows ─────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .ld-booking-icon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--ld-coral-tint);
+  color: var(--ld-coral);
+}
+body.landlord-dashboard-page .ld-booking-icon svg { width: 21px; height: 21px; }
+body.landlord-dashboard-page .ld-booking-icon-done { background: var(--ld-success-tint, #eaf4ee); color: var(--ld-success); }
+body.landlord-dashboard-page .ld-booking-icon-done svg { width: 16px; height: 16px; }
+body.landlord-dashboard-page .ld-booking-main { flex: 1; min-width: 0; }
+body.landlord-dashboard-page .booking-summary-heading { align-items: center; }
+body.landlord-dashboard-page .ld-booking-main h3 { margin: 0; font-size: 15.5px; font-weight: 700; letter-spacing: -.015em; }
+body.landlord-dashboard-page .ld-booking-main p { margin: 2px 0 0; font-size: 13px; color: var(--ld-dim); }
+body.landlord-dashboard-page .booking-status-pill { flex: none; white-space: nowrap; }
+body.landlord-dashboard-page .booking-money-boundary { margin: 12px 0 0; font-size: 12px; line-height: 1.5; color: var(--ld-faint); }
 
 body.landlord-dashboard-page .landlord-empty-card,
 body.landlord-dashboard-page .booking-dashboard-empty {
