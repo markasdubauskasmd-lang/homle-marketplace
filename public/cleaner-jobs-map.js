@@ -5,12 +5,22 @@ import {
   formatBookingWindow
 } from "./booking-summary-model.js?v=20260723-3";
 import { createCleanerPage, element, requestJson } from "./cleaner-page.js?v=20260729-6";
+import {
+  clampedMapZoom,
+  coordinateFromWorldPixel,
+  openStreetMapTileUrl,
+  postcodeMapTileSize,
+  worldPixelFromCoordinate
+} from "./postcode-map-core.js?v=20260805-1";
 
 const localPreview = ["127.0.0.1", "localhost"].includes(location.hostname);
-const mapWorld = document.querySelector("[data-map-world]");
+const mapHost = document.querySelector("[data-area-map]");
+const tileHost = document.querySelector("[data-map-tiles]");
 const pinHost = document.querySelector("[data-map-pins]");
 const listHost = document.querySelector("[data-map-list]");
-let zoom = 1;
+const mapState = { latitude: 51.372, longitude: -0.102, zoom: 12 };
+let mappedJobs = [];
+let pointer = null;
 
 function previewDate(daysAhead, hour, durationHours) {
   const start = new Date();
@@ -23,13 +33,16 @@ function previewDate(daysAhead, hour, durationHours) {
 function previewJobs() {
   return [
     {
-      bookingId: "preview-sw11-deep-clean",
+      bookingId: "preview-cr0-deep-clean",
       preview: true,
       participantRole: "cleaner",
       status: "pending-cleaner-acceptance",
       cleaningType: "Deep clean",
-      locationLabel: "Battersea, SW11",
-      propertyArea: "SW11",
+      locationLabel: "Central Croydon, CR0",
+      propertyArea: "CR0",
+      mapDistrict: "Croydon",
+      latitude: 51.372,
+      longitude: -0.101,
       propertyType: "2-bedroom flat",
       pricePence: 6800,
       distanceMiles: 2.4,
@@ -38,13 +51,16 @@ function previewJobs() {
       ...previewDate(2, 9, 4)
     },
     {
-      bookingId: "preview-sw4-regular-clean",
+      bookingId: "preview-cr2-regular-clean",
       preview: true,
       participantRole: "cleaner",
       status: "pending-cleaner-acceptance",
       cleaningType: "Regular home clean",
-      locationLabel: "Clapham, SW4",
-      propertyArea: "SW4",
+      locationLabel: "South Croydon, CR2",
+      propertyArea: "CR2",
+      mapDistrict: "Croydon",
+      latitude: 51.349,
+      longitude: -0.091,
       propertyType: "3-bedroom house",
       pricePence: 4800,
       distanceMiles: 3.8,
@@ -53,13 +69,16 @@ function previewJobs() {
       ...previewDate(4, 12, 3)
     },
     {
-      bookingId: "preview-se1-end-tenancy",
+      bookingId: "preview-cr7-end-tenancy",
       preview: true,
       participantRole: "cleaner",
       status: "pending-cleaner-acceptance",
       cleaningType: "End of tenancy",
-      locationLabel: "Southwark, SE1",
-      propertyArea: "SE1",
+      locationLabel: "Thornton Heath, CR7",
+      propertyArea: "CR7",
+      mapDistrict: "Croydon",
+      latitude: 51.398,
+      longitude: -0.101,
       propertyType: "1-bedroom flat",
       pricePence: 9200,
       distanceMiles: 5.1,
@@ -139,11 +158,107 @@ function durationLabel(booking) {
   return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} ${hours === 1 ? "hour" : "hours"}`;
 }
 
-function jobPosition(booking, index) {
-  const source = `${booking.propertyArea || "UK"}-${index}`;
-  let hash = 0;
-  for (const character of source) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  return { left: 18 + hash % 64, top: 18 + Math.floor(hash / 97) % 60 };
+function mapSize() {
+  const bounds = mapHost.getBoundingClientRect();
+  return { width: Math.max(320, bounds.width || 480), height: Math.max(360, bounds.height || 500) };
+}
+
+function mapPosition(latitude, longitude) {
+  const { width, height } = mapSize();
+  const centre = worldPixelFromCoordinate(mapState.latitude, mapState.longitude, mapState.zoom);
+  const point = worldPixelFromCoordinate(latitude, longitude, mapState.zoom);
+  return { x: width / 2 + point.x - centre.x, y: height / 2 + point.y - centre.y };
+}
+
+function renderTiles() {
+  const { width, height } = mapSize();
+  const centre = worldPixelFromCoordinate(mapState.latitude, mapState.longitude, mapState.zoom);
+  const firstX = Math.floor((centre.x - width / 2) / postcodeMapTileSize);
+  const lastX = Math.floor((centre.x + width / 2) / postcodeMapTileSize);
+  const firstY = Math.floor((centre.y - height / 2) / postcodeMapTileSize);
+  const lastY = Math.floor((centre.y + height / 2) / postcodeMapTileSize);
+  const count = 2 ** mapState.zoom;
+  const tiles = [];
+  for (let y = firstY; y <= lastY; y += 1) {
+    if (y < 0 || y >= count) continue;
+    for (let x = firstX; x <= lastX; x += 1) {
+      const tile = document.createElement("img");
+      tile.className = "hc-jobs-map-tile";
+      tile.alt = "";
+      tile.decoding = "async";
+      tile.draggable = false;
+      tile.src = openStreetMapTileUrl(mapState.zoom, x, y);
+      tile.style.transform = `translate(${Math.round(x * postcodeMapTileSize - centre.x + width / 2)}px, ${Math.round(y * postcodeMapTileSize - centre.y + height / 2)}px)`;
+      tiles.push(tile);
+    }
+  }
+  tileHost.replaceChildren(...tiles);
+  renderMapPins();
+  document.querySelector("[data-map-zoom-level]").textContent = `Zoom ${mapState.zoom}`;
+  document.querySelector("[data-map-zoom-out]").disabled = mapState.zoom <= 8;
+  document.querySelector("[data-map-zoom-in]").disabled = mapState.zoom >= 16;
+}
+
+function fitMatchedJobs() {
+  if (!mappedJobs.length) return;
+  mapState.latitude = mappedJobs.reduce((total, job) => total + job.latitude, 0) / mappedJobs.length;
+  mapState.longitude = mappedJobs.reduce((total, job) => total + job.longitude, 0) / mappedJobs.length;
+  const { width, height } = mapSize();
+  let fittedZoom = 15;
+  for (; fittedZoom >= 8; fittedZoom -= 1) {
+    const centre = worldPixelFromCoordinate(mapState.latitude, mapState.longitude, fittedZoom);
+    const fits = mappedJobs.every((job) => {
+      const point = worldPixelFromCoordinate(job.latitude, job.longitude, fittedZoom);
+      return Math.abs(point.x - centre.x) <= width * .34 && Math.abs(point.y - centre.y) <= height * .34;
+    });
+    if (fits) break;
+  }
+  mapState.zoom = clampedMapZoom(fittedZoom, 8, 16);
+  renderTiles();
+}
+
+async function resolveMatchedJobs(bookings) {
+  const cache = new Map();
+  const resolved = [];
+  for (const booking of bookings) {
+    let latitude = Number(booking.latitude);
+    let longitude = Number(booking.longitude);
+    let district = String(booking.mapDistrict || booking.locationLabel || "").split(",")[0].trim();
+    const outcode = String(booking.propertyArea || "").trim().toUpperCase();
+    if ((!Number.isFinite(latitude) || !Number.isFinite(longitude)) && outcode) {
+      let location = cache.get(outcode);
+      if (location === undefined) {
+        try {
+          const response = await fetch(`https://api.postcodes.io/outcodes/${encodeURIComponent(outcode)}`, { headers: { Accept: "application/json" } });
+          const record = response.ok ? (await response.json())?.result : null;
+          location = Number.isFinite(Number(record?.latitude)) && Number.isFinite(Number(record?.longitude))
+            ? { latitude: Number(record.latitude), longitude: Number(record.longitude), district: String(record.admin_district || "").trim() }
+            : null;
+        } catch { location = null; }
+        cache.set(outcode, location);
+      }
+      if (location) ({ latitude, longitude, district = location.district || district } = location);
+    }
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) resolved.push({ booking, latitude, longitude, district, outcode });
+  }
+  return resolved;
+}
+
+async function updateMatchedAreaMap(bookings) {
+  mappedJobs = await resolveMatchedJobs(bookings);
+  const districts = [...new Set(mappedJobs.map((job) => job.district).filter(Boolean))];
+  const outcodes = [...new Set(mappedJobs.map((job) => job.outcode).filter(Boolean))];
+  const areaTitle = document.querySelector("[data-map-area-title]");
+  const areaCopy = document.querySelector("[data-map-area-copy]");
+  if (!mappedJobs.length) {
+    areaTitle.textContent = "Matched area map";
+    areaCopy.textContent = bookings.length ? "Postcode coordinates are temporarily unavailable" : "Available jobs will be mapped here";
+    pinHost.replaceChildren();
+    return;
+  }
+  areaTitle.textContent = districts.length === 1 ? `${districts[0]} jobs` : outcodes.length === 1 ? `${outcodes[0]} jobs` : "Your matched job areas";
+  areaCopy.textContent = `${outcodes.join(", ")} · showing ${mappedJobs.length} available ${mappedJobs.length === 1 ? "job" : "jobs"}`;
+  fitMatchedJobs();
 }
 
 function selectJob(bookingId, { scroll = false } = {}) {
@@ -205,17 +320,26 @@ function renderCard(booking, index) {
   return card;
 }
 
-function renderPin(booking, index) {
+function renderPin(mappedJob, index) {
+  const { booking, latitude, longitude } = mappedJob;
+  const position = mapPosition(latitude, longitude);
+  const { width, height } = mapSize();
+  if (position.x < -40 || position.x > width + 40 || position.y < -40 || position.y > height + 40) return null;
   const pin = element("button", "hc-jobs-map-pin", String(index + 1));
-  const position = jobPosition(booking, index);
   pin.type = "button";
-  pin.style.left = `${position.left}%`;
-  pin.style.top = `${position.top}%`;
+  pin.style.left = `${Math.round(position.x)}px`;
+  pin.style.top = `${Math.round(position.y)}px`;
   pin.dataset.mapPinId = booking.bookingId;
   pin.setAttribute("aria-label", `${booking.cleaningType || "Cleaning job"} in ${booking.propertyArea || "your area"}, ${formatBookingMoney(booking.pricePence)}`);
   pin.setAttribute("aria-pressed", "false");
   pin.addEventListener("click", () => selectJob(booking.bookingId, { scroll: true }));
   return pin;
+}
+
+function renderMapPins() {
+  pinHost.replaceChildren(...mappedJobs.map(renderPin).filter(Boolean));
+  const selected = document.querySelector(".hc-jobs-map-card.is-selected")?.dataset.mapJobId;
+  if (selected) selectJob(selected);
 }
 
 function renderJobs(bookings, { preview = false } = {}) {
@@ -228,21 +352,51 @@ function renderJobs(bookings, { preview = false } = {}) {
   document.querySelector("[data-map-area-count]").textContent = String(areas.size);
   document.querySelector("[data-map-highest-pay]").textContent = highest ? formatBookingMoney(highest) : "—";
   listHost.replaceChildren(...jobs.map(renderCard));
-  pinHost.replaceChildren(...jobs.map(renderPin));
   if (jobs[0]) selectJob(jobs[0].bookingId);
+  updateMatchedAreaMap(jobs);
 }
 
-function updateZoom(nextZoom) {
-  zoom = Math.min(1.35, Math.max(.8, nextZoom));
-  mapWorld.style.setProperty("--jobs-map-scale", String(zoom));
-  document.querySelector("[data-map-zoom-level]").textContent = `${Math.round(zoom * 100)}%`;
-  document.querySelector("[data-map-zoom-out]").disabled = zoom <= .8;
-  document.querySelector("[data-map-zoom-in]").disabled = zoom >= 1.35;
+function updateZoom(change) {
+  mapState.zoom = clampedMapZoom(mapState.zoom + change, 8, 16);
+  renderTiles();
 }
 
-document.querySelector("[data-map-zoom-out]")?.addEventListener("click", () => updateZoom(zoom - .1));
-document.querySelector("[data-map-zoom-in]")?.addEventListener("click", () => updateZoom(zoom + .1));
-document.querySelector("[data-map-reset]")?.addEventListener("click", () => updateZoom(1));
+document.querySelector("[data-map-zoom-out]")?.addEventListener("click", () => updateZoom(-1));
+document.querySelector("[data-map-zoom-in]")?.addEventListener("click", () => updateZoom(1));
+document.querySelector("[data-map-reset]")?.addEventListener("click", fitMatchedJobs);
+
+mapHost?.addEventListener("pointerdown", (event) => {
+  if (event.target.closest("button, a")) return;
+  const centre = worldPixelFromCoordinate(mapState.latitude, mapState.longitude, mapState.zoom);
+  pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, centre };
+  mapHost.setPointerCapture?.(event.pointerId);
+  mapHost.classList.add("is-dragging");
+});
+mapHost?.addEventListener("pointermove", (event) => {
+  if (!pointer || pointer.id !== event.pointerId) return;
+  const coordinate = coordinateFromWorldPixel(pointer.centre.x - (event.clientX - pointer.x), pointer.centre.y - (event.clientY - pointer.y), mapState.zoom);
+  mapState.latitude = coordinate.latitude;
+  mapState.longitude = coordinate.longitude;
+  renderTiles();
+});
+function finishPointer(event) {
+  if (!pointer || pointer.id !== event.pointerId) return;
+  pointer = null;
+  mapHost.classList.remove("is-dragging");
+}
+mapHost?.addEventListener("pointerup", finishPointer);
+mapHost?.addEventListener("pointercancel", finishPointer);
+mapHost?.addEventListener("wheel", (event) => {
+  event.preventDefault();
+  updateZoom(event.deltaY < 0 ? 1 : -1);
+}, { passive: false });
+mapHost?.addEventListener("keydown", (event) => {
+  if (event.key === "+" || event.key === "=") updateZoom(1);
+  else if (event.key === "-") updateZoom(-1);
+  else return;
+  event.preventDefault();
+});
+if (mapHost && typeof ResizeObserver === "function") new ResizeObserver(() => renderTiles()).observe(mapHost);
 
 async function loadRealJobs({ showFeedback }) {
   try {
