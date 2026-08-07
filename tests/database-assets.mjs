@@ -32,14 +32,15 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 89);
-  assert.equal(repositoryResult.migrations.at(-1), "089_cleaner_onboarding_document_storage.sql");
+  assert.equal(repositoryResult.migrations.length, 90);
+  assert.equal(repositoryResult.migrations.at(-1), "090_booking_client_conversation_names.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
   const roomMeasurementMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "074_room_scan_measurements.sql"), "utf8");
   const bookingChangeMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "088_landlord_booking_change_requests.sql"), "utf8");
   const onboardingDocumentMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "089_cleaner_onboarding_document_storage.sql"), "utf8");
+  const bookingClientNamesMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "090_booking_client_conversation_names.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
   const publicCleanerProfileBehaviour = await readFile(path.join(sourceDatabaseDirectory, "integration", "public-cleaner-profile-behaviour.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
@@ -105,6 +106,8 @@ try {
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 82\)'/, "Deployment verification must detect owner property archiving dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 89\)'/, "Deployment verification must detect encrypted Cleaner document storage dynamically.");
   assert(onboardingDocumentMigration.includes("content_ciphertext bytea") && onboardingDocumentMigration.includes("save_my_cleaner_onboarding_document") && onboardingDocumentMigration.includes("cleaner-onboarding-document-saved"), "Migration 89 must store encrypted Cleaner document bytes through an audited owner-only function.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 90\)'/, "Deployment verification must detect privacy-limited Cleaner client names dynamically.");
+  assert(bookingClientNamesMigration.includes("booking-client-conversation-names-v1") && bookingClientNamesMigration.includes("split_part(btrim(landlord_user.display_name), ' ', 1)") && deploymentVerifier.includes("Cleaner booking conversations lost their privacy-limited client name projection"), "Migration 90 must expose only an organisation or first-name label for confirmed Cleaner conversations and verify the deployed function body.");
   assert(deploymentVerifier.includes("archive_my_property(uuid)") && deploymentVerifier.includes("Owner property archiving lost its active-work guard or audit evidence"), "Deployment verification must prove property archiving keeps active work and history protected.");
   assert(deploymentVerifier.includes("restore_my_property(uuid)") && deploymentVerifier.includes("Owner property restoration lost its archived-owner guard or audit evidence"), "Deployment verification must prove property restoration remains owner-bound, archived-only and audited.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 84\)'/, "Deployment verification must detect encrypted Cleaner onboarding records dynamically.");
