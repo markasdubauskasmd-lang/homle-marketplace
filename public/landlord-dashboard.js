@@ -2234,6 +2234,241 @@ function renderHomeView() {
   renderUpcomingClean();
 }
 
+const clockTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" });
+
+function formatClock(value) {
+  const parsed = Date.parse(value || "");
+  return Number.isNaN(parsed) ? "" : clockTime.format(new Date(parsed));
+}
+
+/** "2.5 hrs" from the booked window, or "" when the window is incomplete. */
+function bookedDuration(booking) {
+  const start = Date.parse(booking?.scheduledStartAt || "");
+  const end = Date.parse(booking?.scheduledEndAt || "");
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return "";
+  const hours = (end - start) / 3_600_000;
+  return `${Number.isInteger(hours) ? hours : hours.toFixed(1)} hrs`;
+}
+
+/* "Assigned Cleaner" is the server's placeholder for "not matched yet". */
+function namedCleaner(booking) {
+  const name = String(booking?.counterpartyName || "").trim();
+  return name && name !== "Assigned Cleaner" ? name : "";
+}
+
+function initialsFor(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  return parts.map((part) => part[0]?.toUpperCase() || "").join("") || "?";
+}
+
+/**
+ * The "NEXT CLEAN" card.
+ *
+ * Every value is read from the booking record. The design also shows the
+ * Cleaner's lifetime clean count and star rating, and a per-room task
+ * breakdown; the booking payload carries none of those — it has a name, a task
+ * TOTAL and a window — so they are omitted rather than invented. The stage
+ * times are shown only where a real timestamp exists.
+ */
+function renderNextClean() {
+  const card = document.querySelector("[data-ld-next]");
+  const empty = document.querySelector("[data-ld-next-empty]");
+  if (!card || !empty) return;
+
+  const buckets = bookingSummaryBuckets(bookings, "landlord");
+  const booking = [...buckets.active, ...buckets.upcoming, ...buckets.waiting]
+    .slice()
+    .sort((a, b) => String(a.scheduledStartAt || "").localeCompare(String(b.scheduledStartAt || "")))[0] || null;
+
+  card.hidden = !booking;
+  empty.hidden = Boolean(booking);
+  if (!booking) return;
+
+  const icon = card.querySelector("[data-ld-next-icon]");
+  if (icon && !icon.firstChild) icon.append(cloneIcon("home"));
+
+  const pill = card.querySelector("[data-ld-next-pill]");
+  if (pill) pill.textContent = bookingSummaryStatusLabels[booking.status] || "Booking";
+
+  const address = card.querySelector("[data-ld-next-address]");
+  if (address) address.textContent = booking.propertyName || "Saved property";
+
+  const meta = card.querySelector("[data-ld-next-meta]");
+  if (meta) {
+    meta.textContent = [
+      formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt),
+      bookedDuration(booking),
+      `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`
+    ].filter(Boolean).join(" · ");
+  }
+
+  const cleanerRow = card.querySelector("[data-ld-next-cleaner]");
+  const cleaner = namedCleaner(booking);
+  if (cleanerRow) {
+    cleanerRow.hidden = !cleaner;
+    if (cleaner) {
+      card.querySelector("[data-ld-next-initials]").textContent = initialsFor(cleaner);
+      card.querySelector("[data-ld-next-cleaner-name]").textContent = cleaner;
+      card.querySelector("[data-ld-next-cleaner-note]").textContent = "Cleaner for this booking";
+    }
+  }
+
+  // Only timestamps the record actually carries. A stage with nothing known
+  // shows no time rather than a guess.
+  const stageIndex = upcomingStepByStatus[booking.status] ?? 0;
+  const stageTimes = [
+    "",
+    formatShortDate(booking.respondedAt || booking.confirmedAt) === "—" ? "" : formatShortDate(booking.respondedAt || booking.confirmedAt),
+    "",
+    formatClock(booking.scheduledStartAt),
+    formatClock(booking.scheduledEndAt)
+  ];
+  const stages = card.querySelector("[data-ld-next-stages]");
+  if (stages) {
+    stages.replaceChildren(...upcomingStepDefinitions.map((step, index) => {
+      const node = element("li", "ld-stage");
+      if (index < stageIndex) node.classList.add("is-done");
+      if (index === stageIndex) node.classList.add("is-now");
+      const dot = element("span", "ld-stage-dot");
+      dot.setAttribute("aria-hidden", "true");
+      if (index < stageIndex) dot.append(cloneIcon("tick"));
+      node.append(dot, element("span", "ld-stage-label", step.label), element("span", "ld-stage-time", stageTimes[index] || ""));
+      if (index === stageIndex) node.setAttribute("aria-current", "step");
+      return node;
+    }));
+  }
+
+  const planCount = card.querySelector("[data-ld-next-plan-count]");
+  if (planCount) planCount.textContent = `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`;
+
+  // The design breaks this down room by room. The booking record has a task
+  // total only, so the panel shows the truthful whole-plan state instead of a
+  // fabricated per-room split.
+  const planBody = card.querySelector("[data-ld-next-plan-body]");
+  if (planBody) {
+    const complete = stageIndex >= 4;
+    const running = stageIndex === 3;
+    const row = element("div", "ld-plan-row");
+    const dot = element("span", `ld-plan-dot${complete ? " is-done" : running ? " is-now" : ""}`);
+    dot.setAttribute("aria-hidden", "true");
+    const label = element("span", "ld-plan-name", booking.cleaningType || "Cleaning");
+    const track = element("span", "ld-plan-track");
+    const fill = element("span", `ld-plan-fill${complete ? " is-done" : ""}`);
+    fill.style.width = complete ? "100%" : running ? "50%" : "0%";
+    track.append(fill);
+    row.append(dot, label, track);
+    const note = element("p", "ld-plan-note", complete
+      ? "Every task on this plan is done."
+      : running
+        ? "The clean is in progress. Room-by-room progress appears in the booking record."
+        : "The reviewed checklist is attached to this booking.");
+    planBody.replaceChildren(row, note);
+  }
+
+  const view = card.querySelector("[data-ld-next-view]");
+  if (view) {
+    // The real booking record, when the server says one is available.
+    view.href = booking.activeJobAvailable ? `/bookings/${encodeURIComponent(booking.bookingId)}` : "/landlord/bookings";
+    view.hidden = false;
+  }
+  const change = card.querySelector("[data-ld-next-change]");
+  if (change) change.href = `/landlord/help?bookingId=${encodeURIComponent(booking.bookingId)}`;
+}
+
+/**
+ * The account totals beside the next clean.
+ *
+ * The design's second tile counts evidence photos. Nothing in the booking
+ * payload exposes a photo count, so the completed booking value — which
+ * landlordDashboardSummary already computes — takes that slot rather than a
+ * number with nothing behind it.
+ */
+function renderBookStats(summary) {
+  const host = document.querySelector("[data-ld-book-stats]");
+  if (!host) return;
+  const propertyCount = properties.length;
+  const tiles = [
+    { key: "CLEANS COMPLETED", value: String(summary.completedCleanCount), sub: propertyCount ? `across ${propertyCount} ${propertyCount === 1 ? "property" : "properties"}` : "" },
+    { key: "COMPLETED VALUE", value: formatBookingMoney(summary.completedBookingValuePence), sub: summary.previousCleanerVisitCount ? `${summary.previousCleanerVisitCount} Cleaner ${summary.previousCleanerVisitCount === 1 ? "visit" : "visits"}` : "" }
+  ];
+  host.replaceChildren(...tiles.map((tile) => {
+    const node = element("div", "ld-book-stat");
+    node.append(element("div", "ld-book-stat-key", tile.key));
+    const value = element("div", "ld-book-stat-value");
+    value.append(element("strong", "", tile.value), element("span", "", tile.sub));
+    node.append(value);
+    return node;
+  }));
+}
+
+/**
+ * Completed work, as the design's evidence grid.
+ *
+ * The BEFORE/AFTER strip and photo counts in the design are not reproduced:
+ * the booking payload exposes no media, and a card captioned "6 photos" over a
+ * placeholder texture would be claiming evidence this page cannot show. The
+ * card keeps its shape and its two real actions.
+ */
+function renderPastCleans(buckets) {
+  const grid = document.querySelector("[data-ld-past-grid]");
+  const empty = document.querySelector("[data-ld-past-empty]");
+  const note = document.querySelector("[data-ld-past-note]");
+  if (!grid || !empty) return;
+
+  const past = buckets.history
+    .filter((booking) => ["completed", "awaiting-review", "disputed"].includes(booking.status))
+    .slice()
+    .sort((a, b) => String(b.scheduledStartAt || "").localeCompare(String(a.scheduledStartAt || "")));
+
+  empty.hidden = past.length > 0;
+  grid.hidden = past.length === 0;
+  if (note) note.textContent = past.length ? "The record of what was done on each visit" : "";
+
+  grid.replaceChildren(...past.map((booking) => {
+    const card = element("article", "ld-past");
+    const banner = element("div", "ld-past-banner");
+    banner.setAttribute("aria-hidden", "true");
+    const actions = element("div", "ld-past-actions");
+    if (booking.activeJobAvailable) {
+      const report = element("a", "ld-btn ld-btn-quiet", "View report");
+      report.href = `/bookings/${encodeURIComponent(booking.bookingId)}`;
+      actions.append(report);
+    }
+    const again = element("button", "ld-btn ld-btn-primary", "Book again");
+    again.type = "button";
+    again.addEventListener("click", () => {
+      const match = properties.find((property) => property.name === booking.propertyName);
+      if (match) {
+        saveSelectedProperty(sessionStorage, match.propertyId);
+        selectedPropertyId = match.propertyId;
+      }
+      selectWorkspaceTab("requests", { historyMode: "push" });
+      if (match) {
+        propertySelect.value = match.propertyId;
+        applySuggestedCleaningType();
+      }
+    });
+    actions.append(again);
+    banner.append(actions);
+
+    const body = element("div", "ld-past-body");
+    body.append(element("div", "ld-past-address", booking.propertyName || "Saved property"));
+    body.append(element("div", "ld-past-meta", [formatShortDate(booking.scheduledStartAt), `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`, formatBookingMoney(booking.pricePence)].filter((part) => part && part !== "—").join(" · ")));
+
+    const footer = element("div", "ld-past-footer");
+    const cleaner = namedCleaner(booking);
+    if (cleaner) {
+      footer.append(element("span", "ld-past-avatar", initialsFor(cleaner)), element("span", "ld-past-cleaner", cleaner));
+    } else footer.append(element("span", "ld-past-cleaner", "Cleaner record kept privately"));
+    footer.append(element("span", "ld-past-state", bookingSummaryStatusLabels[booking.status] || "Completed"));
+    if (booking.status === "disputed") footer.append(element("span", "ld-past-issue", "1 issue"));
+    body.append(footer);
+
+    card.append(banner, body);
+    return card;
+  }));
+}
+
 function renderBookings() {
   const buckets = bookingSummaryBuckets(bookings, "landlord");
   const historySummary = landlordDashboardSummary(bookings);
@@ -2257,9 +2492,12 @@ function renderBookings() {
   document.querySelector("[data-landlord-history-reveal-count]").textContent = String(historySummary.completedCleanCount);
   renderLandlordHistory(historySummary);
   renderLandlordPayments(bookings);
-  // Home shows the soonest of these same bookings, so it is refreshed from the
-  // one place the booking list is built rather than polling separately.
+  // Home and the Bookings view read the same records, so all three are built
+  // from the one place rather than polling separately.
   renderUpcomingClean();
+  renderNextClean();
+  renderBookStats(historySummary);
+  renderPastCleans(buckets);
   syncInvitationStream();
 }
 
