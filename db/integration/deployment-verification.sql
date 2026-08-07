@@ -903,7 +903,10 @@ BEGIN
     selected_function := to_regprocedure('tideway_private.list_my_booking_summaries(integer)');
     SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
     IF selected_function IS NULL
-       OR position('participant-response-deadline-v1' IN COALESCE(selected_source,''))=0
+       OR (
+         position('participant-response-deadline-v1' IN COALESCE(selected_source,''))=0
+         AND position('booking-client-conversation-names-v1' IN COALESCE(selected_source,''))=0
+       )
        OR position('WHEN booking.status = ''pending-cleaner-acceptance'' THEN booking.cleaner_response_deadline' IN COALESCE(selected_source,''))=0
        OR position('''canRespond'', booking.cleaner_user_id = actor_id' IN COALESCE(selected_source,''))=0
        OR position('access_instructions' IN COALESCE(selected_source,''))>0
