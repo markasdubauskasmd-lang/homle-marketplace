@@ -3142,7 +3142,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 
 .hc-business-progress-track span {
   display: block;
-  width: 29.412%;
+  width: 11.765%;
   height: 100%;
   border-radius: inherit;
   background: var(--hc-red);
@@ -3399,11 +3399,11 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* ------------------------------------------------ identity verification -- */
 
 .hc-identity-progress-track span {
-  width: 11.765%;
+  width: 23.529%;
 }
 
 .hc-background-progress-track span {
-  width: 23.529%;
+  width: 35.294%;
 }
 
 .hc-identity-card {
@@ -3645,7 +3645,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* -------------------------------------------------- cleaning experience -- */
 
 .hc-experience-progress-track span {
-  width: 35.294%;
+  width: 41.176%;
 }
 
 .hc-experience-card {
@@ -4280,7 +4280,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* --------------------------------------------------------------- banking -- */
 
 .hc-banking-progress-track span {
-  width: 52.941%;
+  width: 17.647%;
 }
 
 .hc-banking-card {
