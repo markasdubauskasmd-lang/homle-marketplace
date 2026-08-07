@@ -22,11 +22,9 @@ function configureCleanerShell() {
   if (!onboardingShell) {
     onboardingGroup?.remove();
     const onboardingEntry = primaryItems.find((item) => item.getAttribute("href") === "/cleaner/onboarding");
-    if (onboardingEntry) {
-      onboardingEntry.href = "/cleaner/onboarding";
-      const label = onboardingEntry.querySelector(".hc-nav-label");
-      if (label) label.textContent = "Onboarding";
-    }
+    const scheduleEntry = primaryItems.find((item) => item.getAttribute("href") === "/cleaner/schedule");
+    onboardingEntry?.remove();
+    scheduleEntry?.remove();
     primaryItems
       .filter((item) => item.matches(".hc-nav-cta"))
       .forEach((item) => item.remove());

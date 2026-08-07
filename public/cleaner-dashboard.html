@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
   <script src="/cleaner-dashboard.js?v=20260729-2" type="module"></script>
+  <script src="/cleaner-schedule.js?v=20260805-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -204,6 +205,94 @@
           </div>
           <div class="hc-empty" data-cleaner-job-empty>No confirmed jobs yet — accepting an offer creates a booking once Homle rechecks your availability.</div>
           <div class="hc-jobs" data-cleaner-job-list></div>
+
+          <section class="hc-activity-schedule" aria-labelledby="activity-schedule-title">
+            <section class="hc-gate" data-schedule-gate role="status" aria-live="polite">
+              <h2 class="hc-h3" data-schedule-gate-title>Checking your schedule…</h2>
+              <p class="hc-card-sub" data-schedule-gate-copy>Your schedule opens only inside the assigned Cleaner account.</p>
+              <div class="hc-gate-actions">
+                <a class="hc-btn" href="/login?intent=work" data-schedule-sign-in hidden>Sign in as a Cleaner</a>
+                <button class="hc-btn-outline" type="button" data-schedule-retry hidden>Try again</button>
+              </div>
+            </section>
+
+            <div data-schedule hidden>
+              <div class="hc-feedback hc-feedback-error" data-schedule-offline role="status" aria-live="polite" hidden>
+                <strong>You are offline.</strong> Your schedule shows the last loaded jobs and will not refresh until the connection returns.
+              </div>
+
+              <div class="hc-page-head">
+                <div>
+                  <h2 class="hc-page-title" id="activity-schedule-title">My schedule</h2>
+                  <p class="hc-page-sub">Confirmed jobs in green — offers you haven't answered yet are dashed.</p>
+                </div>
+                <div class="hc-weeknav">
+                  <button class="hc-weeknav-btn" type="button" data-week-prev aria-label="Previous week">←</button>
+                  <span class="hc-weeknav-label" data-week-label>This week</span>
+                  <button class="hc-weeknav-btn" type="button" data-week-next aria-label="Next week">→</button>
+                </div>
+              </div>
+
+              <ul class="hc-tiles">
+                <li class="hc-tile">
+                  <div class="hc-tile-label">VALUE THIS WEEK</div>
+                  <div class="hc-tile-value" data-week-value>£0.00</div>
+                  <div class="hc-tile-sub">agreed Cleaner pay</div>
+                </li>
+                <li class="hc-tile">
+                  <div class="hc-tile-label">NEXT WEEK</div>
+                  <div class="hc-tile-value" data-next-week-value>£0.00</div>
+                  <div class="hc-tile-sub">confirmed so far</div>
+                </li>
+                <li class="hc-tile">
+                  <div class="hc-tile-label">HOURS BOOKED</div>
+                  <div class="hc-tile-value" data-week-hours>0</div>
+                  <div class="hc-tile-sub">this week</div>
+                </li>
+                <li class="hc-tile">
+                  <div class="hc-tile-label">JOBS</div>
+                  <div class="hc-tile-value"><span data-week-confirmed>0</span></div>
+                  <div class="hc-tile-sub"><span data-week-pending>0</span> awaiting your reply</div>
+                </li>
+              </ul>
+
+              <div class="hc-week">
+                <div class="hc-week-grid" data-week-grid></div>
+              </div>
+
+              <section class="hc-schedule-time-off" aria-labelledby="schedule-time-off-title">
+                <div class="hc-schedule-time-off-head">
+                  <div>
+                    <span class="hc-schedule-time-off-kicker">AVAILABILITY CONTROL</span>
+                    <h3 id="schedule-time-off-title">Holiday mode &amp; time off</h3>
+                    <p>Pause new job offers or record a date when you cannot work. Confirmed jobs are not cancelled.</p>
+                  </div>
+                  <a href="/cleaner/availability">Edit weekly hours</a>
+                </div>
+                <form class="hc-schedule-time-off-form" data-schedule-time-off-form>
+                  <div class="hc-availability-limits">
+                    <label class="hc-availability-holiday">
+                      <span><strong>Holiday mode &mdash; pause all new job offers</strong></span>
+                      <span class="hc-availability-toggle"><span>No</span><input type="checkbox" name="holidayMode"><i aria-hidden="true"></i></span>
+                    </label>
+                    <label class="hc-availability-date"><span>Unavailable date</span><input type="date" name="unavailableDate"><small>Homle will not offer new jobs on this date.</small></label>
+                  </div>
+                  <div class="hc-schedule-time-off-actions">
+                    <p data-schedule-time-off-status role="status" aria-live="polite">Loading your saved holiday settings&hellip;</p>
+                    <button class="hc-btn" type="submit">Save time off</button>
+                  </div>
+                </form>
+              </section>
+
+              <div class="hc-upcoming">
+                <div class="hc-upcoming-empty" data-upcoming-empty>Nothing booked yet — accept a pending job from your Activity page to build your schedule.</div>
+                <div data-upcoming-list></div>
+                <div class="hc-upcoming-note">Confirmed jobs stay in Homle. Calendar sync is not available yet.</div>
+              </div>
+
+              <div class="hc-feedback" data-schedule-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
+            </div>
+          </section>
 
           <ul class="hc-tiles">
             <li class="hc-tile">

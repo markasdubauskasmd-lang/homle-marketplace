@@ -953,11 +953,19 @@
 .hc-nav-chevron { font-size: 18px; color: var(--hc-muted-3); transition: transform .18s ease; }
 .hc-nav-group:not([open]) .hc-nav-chevron { transform: rotate(-90deg); }
 
-/* Registration is a focused journey. The normal workspace keeps one Onboarding
-   doorway; onboarding pages show only their steps and the return to Dashboard. */
+/* Registration is a focused journey. The signed-in workspace omits onboarding
+   navigation; onboarding pages show only their steps and the return to Activity. */
 .cleaner-workspace-page:not(.cleaner-onboarding-page) [data-onboarding-group],
-.cleaner-workspace-page:not(.cleaner-onboarding-page) .hc-nav > .hc-nav-cta {
+.cleaner-workspace-page:not(.cleaner-onboarding-page) .hc-nav > .hc-nav-cta,
+.cleaner-workspace-page:not(.cleaner-onboarding-page) .hc-nav > a[href="/cleaner/onboarding"],
+.cleaner-workspace-page:not(.cleaner-onboarding-page) .hc-nav > a[href="/cleaner/schedule"] {
   display: none;
+}
+
+.hc-activity-schedule {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px solid var(--hc-rule-soft);
 }
 
 .cleaner-onboarding-page .hc-nav > .hc-nav-item,
@@ -2267,21 +2275,6 @@ a.hc-contract-title:focus-visible { outline: 2px solid rgba(198, 42, 26, .32); o
 .hc-pp-chip.is-primary { color: var(--hc-red-link); background: var(--hc-red-pill-bg); }
 .hc-pp-none { font-size: 12px; color: var(--hc-muted-2); }
 
-.hc-pp-availability {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 7px;
-  padding: 13px 18px;
-  border: 1px solid #eadfce;
-  border-radius: 14px;
-  background: #fffcf7;
-}
-.hc-pp-availability-day { display: grid; justify-items: center; gap: 7px; min-width: 0; }
-.hc-pp-availability-label { font-size: 10px; font-weight: 650; color: var(--hc-ink-3); }
-.hc-pp-availability-dots { display: grid; gap: 4px; }
-.hc-pp-availability-dot { width: 8px; height: 8px; border-radius: 50%; background: #eadfc7; }
-.hc-pp-availability-dot[data-on="true"] { background: var(--hc-green); }
-.hc-pp-availability-note { margin: 6px 0 0; color: var(--hc-muted-2); font-size: 10px; line-height: 1.45; }
 .hc-pp-reviews { padding-top: 18px; border-top: 1px solid #f0e6d4; }
 .hc-pp-review-empty {
   padding: 19px 18px;
@@ -2818,7 +2811,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 
 .hc-business-progress-track span {
   display: block;
-  width: 26.315%;
+  width: 29.412%;
   height: 100%;
   border-radius: inherit;
   background: var(--hc-red);
@@ -3073,11 +3066,11 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* ------------------------------------------------ identity verification -- */
 
 .hc-identity-progress-track span {
-  width: 10.526%;
+  width: 11.765%;
 }
 
 .hc-background-progress-track span {
-  width: 21.052%;
+  width: 23.529%;
 }
 
 .hc-identity-card {
@@ -3319,7 +3312,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* -------------------------------------------------- cleaning experience -- */
 
 .hc-experience-progress-track span {
-  width: 36.842%;
+  width: 35.294%;
 }
 
 .hc-experience-card {
@@ -3570,7 +3563,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* ------------------------------------------------------------ references -- */
 
 .hc-references-progress-track span {
-  width: 42.105%;
+  width: 41.176%;
 }
 
 .hc-references-card {
@@ -3771,7 +3764,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* ------------------------------------------------------------- insurance -- */
 
 .hc-insurance-progress-track span {
-  width: 47.368%;
+  width: 47.059%;
 }
 
 .hc-insurance-card {
@@ -3954,7 +3947,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* --------------------------------------------------------------- banking -- */
 
 .hc-banking-progress-track span {
-  width: 52.632%;
+  width: 52.941%;
 }
 
 .hc-banking-card {
@@ -4201,7 +4194,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* ------------------------------------------------------------- equipment -- */
 
 .hc-equipment-progress-track span {
-  width: 57.895%;
+  width: 58.824%;
 }
 
 .hc-equipment-card {
@@ -4456,7 +4449,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* ---------------------------------------------------------- availability -- */
 
 .hc-availability-progress-track span {
-  width: 68.421%;
+  width: 70.588%;
 }
 
 .hc-availability-card {
@@ -4798,7 +4791,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 }
 
 .hc-work-progress-track span {
-  width: 73.684%;
+  width: 76.471%;
 }
 
 .hc-work-card {
@@ -5823,7 +5816,6 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-pp-who { min-width: 160px; }
   .hc-pp-name { font-size: 24px; }
   .hc-pp-stats { grid-template-columns: 1fr 1fr; }
-  .hc-pp-availability { padding-left: 9px; padding-right: 9px; gap: 3px; }
   .hc-profile-strength-card,
   .hc-profile-side-card { padding: 20px; }
   .hc-personal-grid-four,
