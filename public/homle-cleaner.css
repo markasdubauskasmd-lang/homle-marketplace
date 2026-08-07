@@ -5190,7 +5190,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 .hc-postcode-map.is-zooming .hc-postcode-map-zones,
 .hc-postcode-map.is-zooming .hc-postcode-map-markers {
   transform: translate(var(--hc-map-pan-x, 0), var(--hc-map-pan-y, 0)) scale(var(--hc-map-zoom-scale, 1));
-  transition: transform .3s cubic-bezier(.22, .7, .2, 1);
+  transition: none;
 }
 
 .hc-postcode-map-tile {
