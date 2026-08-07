@@ -451,6 +451,11 @@
       "order": 90,
       "file": "090_booking_client_conversation_names.sql",
       "sha256": "3fc28049583ef60e6ebedba98eb181c00dddb23b0c5d60f1aeb704d7e15ad33c"
+    },
+    {
+      "order": 91,
+      "file": "091_booking_summary_verification_markers.sql",
+      "sha256": "1359d1740eb778b2267a8bcbc9588b9ed97a06b8e5bb6f352f0a9029db2a155d"
     }
   ],
   "grantFiles": [
