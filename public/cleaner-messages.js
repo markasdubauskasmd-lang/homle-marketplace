@@ -11,6 +11,7 @@ const submit = document.querySelector("[data-message-submit]");
 const recipient = document.querySelector("[data-message-recipient]");
 const recipientAvatar = document.querySelector("[data-message-recipient-avatar]");
 const context = document.querySelector("[data-message-context]");
+const bookingLink = document.querySelector("[data-message-booking-link]");
 
 const state = {
   account: null,
@@ -71,6 +72,7 @@ function initial(value) {
 
 function bookingContext(booking) {
   const parts = [];
+  if (booking?.cleaningType) parts.push(booking.cleaningType);
   if (booking?.propertyArea) parts.push(booking.propertyArea);
   const start = new Date(booking?.scheduledStartAt || "");
   if (Number.isFinite(start.getTime())) {
@@ -110,6 +112,7 @@ function renderConversation(conversation) {
   button.type = "button";
   button.dataset.bookingId = conversation.bookingId;
   button.setAttribute("aria-pressed", String(conversation.bookingId === state.selectedBookingId));
+  button.setAttribute("aria-label", `Open conversation with ${conversation.name} for ${bookingContext(conversation)}`);
   const avatar = element("span", "hc-message-avatar", initial(conversation.name));
   avatar.setAttribute("aria-hidden", "true");
   const copy = element("span", "hc-message-conversation-copy");
@@ -142,6 +145,7 @@ function renderMessages({ forceBottom = false } = {}) {
     recipient.textContent = "No conversation selected";
     recipientAvatar.textContent = "H";
     context.textContent = "Private booking messages";
+    bookingLink.hidden = true;
     renderEmptyThread("Your inbox is ready", "Choose an active booking conversation when one becomes available.");
     input.disabled = true;
     submit.disabled = true;
@@ -151,6 +155,8 @@ function renderMessages({ forceBottom = false } = {}) {
   recipient.textContent = conversation.name;
   recipientAvatar.textContent = initial(conversation.name);
   context.textContent = bookingContext(conversation);
+  bookingLink.href = `/cleaner/jobs/${encodeURIComponent(conversation.bookingId)}`;
+  bookingLink.hidden = false;
   input.disabled = state.sending || state.loadingBookingId === conversation.bookingId;
   submit.disabled = input.disabled;
 
@@ -196,6 +202,9 @@ async function loadMessagePage(bookingId) {
 async function selectConversation(bookingId) {
   if (!safeBookingId(bookingId) || state.loadingBookingId || state.sending) return;
   state.selectedBookingId = bookingId;
+  const selectedUrl = new URL(location.href);
+  selectedUrl.searchParams.set("bookingId", bookingId);
+  history.replaceState(null, "", `${selectedUrl.pathname}${selectedUrl.search}${selectedUrl.hash}`);
   state.messageRetry = null;
   renderConversations();
   if (!state.messages.has(bookingId)) {
@@ -301,14 +310,15 @@ form.addEventListener("submit", async (event) => {
 createCleanerPage("messages", async ({ account, showFeedback, requestJson }) => {
   state.account = account;
   const result = await requestJson("/api/marketplace/bookings?limit=50");
-  state.conversations = (Array.isArray(result.bookings) ? result.bookings : [])
+  const conversations = (Array.isArray(result.bookings) ? result.bookings : [])
     .filter((booking) => booking?.participantRole === "cleaner" && activeJobMessagingOpen(booking.status))
     .map((booking) => ({
       ...booking,
       bookingId: safeBookingId(booking.bookingId),
       name: conversationName(booking)
     }))
-    .filter((booking) => booking.bookingId)
+    .filter((booking) => booking.bookingId);
+  state.conversations = [...new Map(conversations.map((conversation) => [conversation.bookingId, conversation])).values()]
     .sort((left, right) => Date.parse(right.scheduledStartAt || "") - Date.parse(left.scheduledStartAt || ""));
 
   const requested = safeBookingId(new URLSearchParams(location.search).get("bookingId"));

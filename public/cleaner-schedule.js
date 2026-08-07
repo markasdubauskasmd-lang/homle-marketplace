@@ -1,4 +1,5 @@
 import { bookingSummaryBuckets, bookingSummaryStatusLabels, formatBookingMoney } from "./booking-summary-model.js?v=20260723-3";
+import { activeJobMessagingOpen } from "./active-job-model.js?v=20260728-1";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260729-6";
@@ -38,6 +39,7 @@ const dayNumFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London
 const timeFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hour12: false });
 const rangeFormat = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", day: "numeric", month: "short" });
 const londonKeyFormat = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" });
+const bookingIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 let bookings = [];
 let weekOffset = 0;
@@ -283,6 +285,36 @@ function renderJobImages(booking) {
   return gallery;
 }
 
+function clientDisplayName(booking) {
+  const name = typeof booking?.counterpartyName === "string" ? booking.counterpartyName.trim() : "";
+  return name || "client";
+}
+
+function renderBookingActions(booking) {
+  const actions = element("div", "hc-activity-job-actions");
+  if (booking.preview) {
+    const messagePreview = element("span", "hc-message-client-link is-preview", "Message client");
+    messagePreview.setAttribute("aria-disabled", "true");
+    messagePreview.title = "Messaging opens when a real clean is confirmed.";
+    actions.append(messagePreview);
+    return actions;
+  }
+
+  const bookingId = String(booking.bookingId || "").toLowerCase();
+  if (bookingIdPattern.test(bookingId) && activeJobMessagingOpen(booking.status)) {
+    const clientName = clientDisplayName(booking);
+    const messageLink = element("a", "hc-message-client-link", `Message ${clientName}`);
+    messageLink.href = `/cleaner/messages?bookingId=${encodeURIComponent(bookingId)}`;
+    messageLink.setAttribute("aria-label", `Message ${clientName} about this clean`);
+    actions.append(messageLink);
+  }
+
+  const jobLink = element("a", "hc-job-link", "View job →");
+  jobLink.href = `/cleaner/jobs/${bookingId}`;
+  actions.append(jobLink);
+  return actions;
+}
+
 function renderUpcoming() {
   const buckets = bookingSummaryBuckets(bookings, "cleaner");
   const upcoming = [...buckets.active, ...buckets.upcoming];
@@ -318,11 +350,7 @@ function renderUpcoming() {
     }
     const footer = element("div", "hc-activity-job-footer");
     footer.append(date, element("p", "hc-activity-job-privacy", booking.preview ? "Preview only — this is not a confirmed booking." : "Only the working area is shown here. Open the job for private access details."));
-    if (!booking.preview) {
-      const link = element("a", "hc-job-link", "View job →");
-      link.href = `/cleaner/jobs/${booking.bookingId}`;
-      footer.append(link);
-    }
+    footer.append(renderBookingActions(booking));
     body.append(heading, details, footer);
     row.append(renderJobImages(booking), body);
     return row;

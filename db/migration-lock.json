@@ -446,6 +446,11 @@
       "order": 89,
       "file": "089_cleaner_onboarding_document_storage.sql",
       "sha256": "6c8932ea82b3adbc9dcfafb70aff521264da2600e5296ce2cd5c0b3beadd9213"
+    },
+    {
+      "order": 90,
+      "file": "090_booking_client_conversation_names.sql",
+      "sha256": "3fc28049583ef60e6ebedba98eb181c00dddb23b0c5d60f1aeb704d7e15ad33c"
     }
   ],
   "grantFiles": [

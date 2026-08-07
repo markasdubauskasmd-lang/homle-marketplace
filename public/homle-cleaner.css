@@ -2124,6 +2124,17 @@ a.hc-contract-title:focus-visible { outline: 2px solid rgba(198, 42, 26, .32); o
 .hc-activity-job-footer { display: flex; align-items: center; gap: 11px; margin-top: auto; padding-top: 17px; }
 .hc-activity-job-privacy { flex: 1; margin: 0; color: var(--hc-muted); font-size: 10.5px; line-height: 1.45; }
 .hc-activity-job-footer .hc-job-link { white-space: nowrap; }
+.hc-activity-job-actions { display: flex; align-items: center; justify-content: flex-end; gap: 9px; flex-wrap: wrap; }
+.hc-message-client-link {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 36px; padding: 8px 14px;
+  border: 1px solid var(--hc-red); border-radius: 12px;
+  color: var(--hc-red-link); background: #ffffff;
+  font-size: 11px; font-weight: 750; line-height: 1.2; text-align: center; text-decoration: none;
+}
+.hc-message-client-link:hover { color: #ffffff; background: var(--hc-red); text-decoration: none; }
+.hc-message-client-link.is-preview { cursor: not-allowed; opacity: .58; }
+.hc-message-client-link.is-preview:hover { color: var(--hc-red-link); background: #ffffff; }
 [data-schedule][data-preview="true"] .hc-schedule-time-off { opacity: .72; }
 [data-schedule][data-preview="true"] .hc-schedule-time-off input,
 [data-schedule][data-preview="true"] .hc-schedule-time-off button { cursor: not-allowed; }
@@ -5979,9 +5990,18 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   border-bottom: 1px solid #eee4d5;
 }
 
-.hc-message-chat-head > span:last-child {
+.hc-message-chat-copy {
   display: grid;
   gap: 1px;
+}
+
+.hc-message-booking-link {
+  margin-left: auto;
+  color: var(--hc-red-link);
+  font-size: 9px;
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 .hc-message-chat-head strong {

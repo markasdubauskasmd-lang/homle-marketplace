@@ -41,6 +41,7 @@ DECLARE
   cleaner_onboarding_records_installed boolean := false;
   cleaner_address_lookup_rate_limit_installed boolean := false;
   cleaner_document_storage_installed boolean := false;
+  booking_client_names_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables text[] := ARRAY[
@@ -256,6 +257,8 @@ BEGIN
       INTO landlord_booking_changes_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 89)'
       INTO cleaner_document_storage_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 90)'
+      INTO booking_client_names_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -288,6 +291,11 @@ BEGIN
     property_restoration_installed := to_regprocedure('tideway_private.restore_my_property(uuid)') IS NOT NULL;
     cleaner_onboarding_records_installed := to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NOT NULL;
     cleaner_document_storage_installed := to_regprocedure('tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)') IS NOT NULL;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.list_my_booking_summaries(integer)')
+        AND position('booking-client-conversation-names-v1' IN procedure.prosrc)>0
+    ) INTO booking_client_names_installed;
     administrator_funnel_installed := to_regprocedure('tideway_private.get_administrator_funnel_report(integer)') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
@@ -475,6 +483,16 @@ BEGIN
     IF position('has_role(''cleaner'')' IN COALESCE(selected_source,''))=0
        OR position('cleaner-onboarding-document-saved' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Cleaner document storage lost its Cleaner-only or audit boundary';
+    END IF;
+  END IF;
+  IF booking_client_names_installed THEN
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.list_my_booking_summaries(integer)');
+    IF position('booking-client-conversation-names-v1' IN COALESCE(selected_source,''))=0
+       OR position('landlord_profile.organisation_name' IN COALESCE(selected_source,''))=0
+       OR position('split_part(btrim(landlord_user.display_name)' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Cleaner booking conversations lost their privacy-limited client name projection';
     END IF;
   END IF;
 
