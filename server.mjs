@@ -5426,7 +5426,6 @@ async function serveFile(requestPath, response, cspNonce = "") {
     "/cleaner/background-checks": "cleaner-registration.html",
     "/cleaner/work-areas": "cleaner-registration.html",
     "/cleaner/experience": "cleaner-registration.html",
-    "/cleaner/references": "cleaner-registration.html",
     "/cleaner/insurance": "cleaner-registration.html",
     "/cleaner/banking": "cleaner-registration.html",
     "/cleaner/equipment": "cleaner-registration.html",
@@ -5515,6 +5514,10 @@ async function handleHttpRequest(request, response) {
     const canonicalLocation = canonicalPublicLocation(request, requestUrl);
     if (canonicalLocation) {
       response.writeHead(308, { "Location": canonicalLocation, "Cache-Control": "public, max-age=300" });
+      return response.end();
+    }
+    if ((request.method === "GET" || request.method === "HEAD") && requestUrl.pathname === "/cleaner/references") {
+      response.writeHead(308, { "Location": "/cleaner/insurance", "Cache-Control": "no-store" });
       return response.end();
     }
     // Browsers, bookmark importers and older home-screen clients still probe

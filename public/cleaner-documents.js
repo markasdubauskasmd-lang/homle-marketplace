@@ -20,7 +20,6 @@ const definitions = [
   { section: "experience", documentType: "cleaningCertificates", extension: "PDF", title: "Cleaning certificates", category: "Experience", href: "/cleaner/experience" },
   { section: "experience", documentType: "coshhCertificate", extension: "PDF", title: "COSHH certificate", category: "Experience", href: "/cleaner/experience" },
   { section: "experience", documentType: "healthSafetyCertificate", extension: "PDF", title: "Health & safety certificate", category: "Experience", href: "/cleaner/experience" },
-  { section: "references", documentType: "referenceLetters", extension: "PDF", title: "Reference letter", category: "References", href: "/cleaner/references" },
   { section: "insurance", documentType: "publicLiabilityPolicy", extension: "PDF", title: "Public liability policy", category: "Insurance", href: "/cleaner/insurance" },
   { section: "insurance", documentType: "professionalIndemnityPolicy", extension: "PDF", title: "Professional indemnity policy", category: "Insurance", href: "/cleaner/insurance" },
   { section: "insurance", documentType: "employersLiabilityPolicy", extension: "PDF", title: "Employers’ liability policy", category: "Insurance", href: "/cleaner/insurance" },

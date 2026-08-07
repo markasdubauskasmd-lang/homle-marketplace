@@ -6,7 +6,6 @@ import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=
 import { setupBackgroundChecks } from "./cleaner-background-checks.js?v=20260728-1";
 import { setupWorkAreas } from "./cleaner-work-areas.js?v=20260805-6";
 import { setupExperience } from "./cleaner-experience.js?v=20260805-1";
-import { setupReferences } from "./cleaner-references.js?v=20260729-1";
 import { setupInsurance } from "./cleaner-insurance.js?v=20260729-2";
 import { setupBanking } from "./cleaner-banking.js?v=20260729-1";
 import { setupEquipment } from "./cleaner-equipment.js?v=20260805-1";
@@ -52,10 +51,6 @@ createCleanerPage("reg", async (context) => {
   }
   if (location.pathname === "/cleaner/experience") {
     await setupExperience(context);
-    return;
-  }
-  if (location.pathname === "/cleaner/references") {
-    await setupReferences(context);
     return;
   }
   if (location.pathname === "/cleaner/insurance") {
