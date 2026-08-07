@@ -84,7 +84,7 @@ assert.match(route, /body\?\.purpose === "confirmation" \? "confirmation" : "wal
   const vision = createAnthropicRoomVision({ apiKey: "test-key", model: walkingModel, client });
   await vision.readRoom({ image: "data:image/jpeg;base64,AA", roomName: "Kitchen", purpose: "confirmation" });
   await vision.readRoom({ image: "data:image/jpeg;base64,AA", roomName: "Kitchen", purpose: "walking" });
-  assert.deepEqual(client.calls, ["claude-sonnet-5", walkingModel], "With no confirmation tier configured, the price-setting read did not get the stronger tier.");
+  assert.deepEqual(client.calls, ["claude-opus-4-8", walkingModel], "With no confirmation tier configured, the price-setting read did not get the stronger tier.");
 }
 
 // And it is genuinely opt-out, not merely defaulted: naming the walking model
@@ -110,7 +110,7 @@ assert.match(route, /body\?\.purpose === "confirmation" \? "confirmation" : "wal
   const client = recordingClient();
   const vision = createAnthropicRoomVision({ apiKey: "test-key", client });
   await vision.readRoom({ image: "data:image/jpeg;base64,AA", roomName: "Kitchen", purpose: "confirmation" });
-  assert.deepEqual(client.calls, ["claude-sonnet-5"], `With no models configured the confirmation read used ${client.calls[0]}, not the tier that can resolve soiling.`);
+  assert.deepEqual(client.calls, ["claude-opus-4-8"], `With no models configured the confirmation read used ${client.calls[0]}, not the tier that can resolve soiling.`);
 }
 
 // The walking frames are the volume, and they stay cheap. If this ever flips to
@@ -200,7 +200,7 @@ assert.match(serverSource, /roomVisionModels: marketplaceAttachment\.roomVisionM
 {
   const client = recordingClient();
   const configured = createAnthropicRoomVision({ apiKey: "test-key", client });
-  assert.deepEqual(configured.models, { walking: "claude-haiku-4-5", confirmation: "claude-sonnet-5" }, `The provider reports ${JSON.stringify(configured.models)}, which is not what health would publish.`);
+  assert.deepEqual(configured.models, { walking: "claude-haiku-4-5", confirmation: "claude-opus-4-8" }, `The provider reports ${JSON.stringify(configured.models)}, which is not what health would publish.`);
 }
 {
   const client = recordingClient();
