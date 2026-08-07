@@ -4548,7 +4548,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 /* ------------------------------------------------------------- equipment -- */
 
 .hc-equipment-progress-track span {
-  width: 60%;
+  width: 64.286%;
 }
 
 .hc-equipment-card {
@@ -5206,7 +5206,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 }
 
 .hc-work-progress-track span {
-  width: 73.333%;
+  width: 71.429%;
 }
 
 .hc-work-card {

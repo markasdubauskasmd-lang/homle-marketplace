@@ -321,7 +321,7 @@ export async function setupEquipment({ account, showFeedback, requestJson }) {
       profile = results[1].profile;
       hydrateEquipment(form, profile, equipmentData);
       showFeedback(`${serviceType === "beautician" ? "Beauty" : "Cleaning"} equipment and primary travel mode saved.`, "success");
-      location.assign("/cleaner/availability");
+      location.assign("/cleaner/work-areas");
     } catch (error) {
       showFeedback(error.message || "Equipment could not be saved.", "error");
     } finally {
