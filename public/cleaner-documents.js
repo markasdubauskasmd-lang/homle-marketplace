@@ -15,6 +15,7 @@ const definitions = [
   { section: "identity", documentType: "licenceBack", extension: "JPG", title: "Driving licence — back", category: "Identity", href: "/cleaner/identity-verification" },
   { section: "identity", documentType: "birthCertificate", extension: "PDF", title: "Birth certificate", category: "Identity", href: "/cleaner/identity-verification" },
   { section: "identity", documentType: "residencePermit", extension: "PDF", title: "Visa / residence permit", category: "Identity", href: "/cleaner/identity-verification" },
+  { section: "rtw", documentType: "rightToWorkPassport", extension: "PDF", title: "Right to work passport", category: "Right to work", href: "/cleaner/right-to-work" },
   { section: "dbs", documentType: "dbsCertificate", extension: "PDF", title: "DBS certificate", category: "Background", href: "/cleaner/background-checks" },
   { section: "experience", documentType: "cv", extension: "PDF", title: "CV", category: "Experience", href: "/cleaner/experience" },
   { section: "experience", documentType: "cleaningCertificates", extension: "PDF", title: "Cleaning certificates", category: "Experience", href: "/cleaner/experience" },

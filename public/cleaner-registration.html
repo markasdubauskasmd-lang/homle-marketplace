@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-<link rel="stylesheet" href="/homle-cleaner.css?v=20260807-3">
-<script src="/cleaner-registration.js?v=20260807-2" type="module"></script>
+<link rel="stylesheet" href="/homle-cleaner.css?v=20260807-4">
+<script src="/cleaner-registration.js?v=20260807-3" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -181,6 +181,16 @@
                 <span>Complete registration</span>
                 <strong>Step 4 of 14 &mdash; Identity verification</strong>
                 <div class="hc-business-progress-track hc-identity-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="14" aria-valuenow="4"><span></span></div>
+              </div>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
+            </header>
+
+            <header class="hc-business-topbar" data-rtw-topbar hidden>
+              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
+              <div class="hc-business-progress">
+                <span>Complete registration</span>
+                <strong>Step 5 of 14 &mdash; Right to work</strong>
+                <div class="hc-business-progress-track hc-rtw-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="14" aria-valuenow="5"><span></span></div>
               </div>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
             </header>
@@ -518,6 +528,61 @@
               </form>
             </section>
 
+            <section class="hc-personal-card hc-identity-card hc-rtw-card" data-right-to-work hidden aria-labelledby="cleaner-rtw-title">
+              <header class="hc-personal-head">
+                <h1 id="cleaner-rtw-title">Right to work</h1>
+                <p>We&rsquo;re legally required to confirm you can work in the UK before your first booking.</p>
+              </header>
+
+              <form class="hc-personal-form hc-identity-form hc-rtw-form" data-rtw-form>
+                <fieldset class="hc-identity-section hc-rtw-section">
+                  <legend>Citizenship</legend>
+                  <p class="hc-business-question">Are you a British or Irish citizen?</p>
+                  <div class="hc-business-choices hc-rtw-choices">
+                    <label><input type="radio" name="britishOrIrishCitizen" value="yes" required><span>Yes</span></label>
+                    <label><input type="radio" name="britishOrIrishCitizen" value="no" required><span>No</span></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-identity-section hc-rtw-section" data-rtw-yes hidden disabled>
+                  <legend>Proof of citizenship</legend>
+                  <h2 class="hc-rtw-subtitle">Upload your passport</h2>
+                  <label class="hc-identity-document hc-rtw-document">
+                    <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                    <span><strong>Passport photo page</strong><small>All four corners visible &middot; PDF, JPEG or PNG &middot; max 20MB</small></span>
+                    <span class="hc-identity-document-action">Choose file</span>
+                    <input type="file" name="rightToWorkPassport" accept="application/pdf,image/jpeg,image/png" data-rtw-file>
+                  </label>
+                  <p class="hc-rtw-guidance"><strong>No passport?</strong> You can use your birth certificate and National Insurance number instead. Contact Homlle support so we can arrange the alternative check.</p>
+                  <p class="hc-rtw-guidance">We&rsquo;ll confirm your likeness on a short video call before approval.</p>
+                </fieldset>
+
+                <fieldset class="hc-identity-section hc-rtw-section" data-rtw-no hidden disabled>
+                  <legend>Home Office check</legend>
+                  <h2 class="hc-rtw-subtitle">Enter your share code</h2>
+                  <div class="hc-rtw-fields">
+                    <label><span>Share code <b aria-hidden="true">*</b></span><input name="shareCode" autocomplete="off" spellcheck="false" maxlength="11" placeholder="W12 345 678" pattern="[A-Za-z0-9]{3} ?[A-Za-z0-9]{3} ?[A-Za-z0-9]{3}"></label>
+                    <label><span>Date of birth <b aria-hidden="true">*</b></span><input name="rightToWorkDateOfBirth" type="date" autocomplete="bday"></label>
+                  </div>
+                  <p class="hc-rtw-guidance">Get a free code at <a href="https://www.gov.uk/prove-right-to-work/get-a-share-code-online" target="_blank" rel="noopener noreferrer">gov.uk</a> &mdash; choose &ldquo;prove your right to work&rdquo;. Codes last 90 days.</p>
+                </fieldset>
+
+                <fieldset class="hc-identity-section hc-rtw-section">
+                  <legend>Consent</legend>
+                  <label class="hc-background-consent hc-rtw-consent">
+                    <input type="checkbox" name="rightToWorkConsent" required>
+                    <span>I confirm the details above are mine and consent to them being checked with the Home Office and stored for the duration of my work plus 2 years.</span>
+                  </label>
+                </fieldset>
+
+                <div class="hc-business-actions">
+                  <a class="hc-business-quiet-button" href="/cleaner/identity-verification">&larr; Back</a>
+                  <p data-rtw-save-status role="status" aria-live="polite">Choose Yes or No to see the required right-to-work details.</p>
+                  <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
+                </div>
+              </form>
+            </section>
+
             <section class="hc-personal-card hc-identity-card hc-background-card" data-background-checks hidden aria-labelledby="cleaner-background-title">
               <p class="hc-identity-status" data-background-status role="status">Checking your background-check status&hellip;</p>
               <header class="hc-personal-head">
@@ -564,7 +629,7 @@
                 </fieldset>
 
                 <div class="hc-business-actions">
-                  <a class="hc-business-quiet-button" href="/cleaner/identity-verification">&larr; Back</a>
+                  <a class="hc-business-quiet-button" href="/cleaner/right-to-work">&larr; Back</a>
                   <p data-background-save-status role="status" aria-live="polite">Selected DBS documents and details are encrypted and stored when you continue.</p>
                   <button class="hc-personal-submit" type="submit">Save &amp; continue <span aria-hidden="true">&nearr;</span></button>
                 </div>

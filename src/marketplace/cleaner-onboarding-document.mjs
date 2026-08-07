@@ -11,6 +11,7 @@ export const cleanerOnboardingDocumentMimeTypes = Object.freeze(["application/pd
 
 export const cleanerOnboardingDocumentTypes = Object.freeze({
   identity: Object.freeze(["passportPhoto", "licenceFront", "licenceBack", "birthCertificate", "residencePermit"]),
+  rtw: Object.freeze(["rightToWorkPassport"]),
   dbs: Object.freeze(["dbsCertificate"]),
   experience: Object.freeze(["cv", "cleaningCertificates", "coshhCertificate", "healthSafetyCertificate"]),
   references: Object.freeze(["referenceLetters"]),

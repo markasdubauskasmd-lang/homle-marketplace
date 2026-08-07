@@ -50,6 +50,9 @@ assert.equal(records.get("identity:passportPhoto").content_ciphertext.includes(B
 assert.equal(records.get("identity:passportPhoto").object_key_ciphertext.includes(Buffer.from("render-postgres")), false, "The storage locator must not be plaintext.");
 assert.equal((await service.listOwnDocuments(actor, "identity")).length, 1);
 assert.deepEqual((await service.getOwnDocument(actor, "identity", "passportPhoto")).bytes, pdf);
+const rightToWorkPassport = await service.saveOwnDocument(actor, "rtw", "rightToWorkPassport", { filename: "right-to-work.pdf", mimeType: "application/pdf", bytes: pdf });
+assert.equal(rightToWorkPassport.section, "rtw");
+assert.deepEqual((await service.getOwnDocument(actor, "rtw", "rightToWorkPassport")).bytes, pdf);
 await assert.rejects(() => service.saveOwnDocument(actor, "identity", "unknown", { filename: "x.pdf", mimeType: "application/pdf", bytes: pdf }), /supported document type/);
 await assert.rejects(() => service.saveOwnDocument(actor, "identity", "passportPhoto", { filename: "x.png", mimeType: "image/png", bytes: pdf }), /contents do not match/);
 await assert.rejects(() => service.saveOwnDocument(actor, "identity", "passportPhoto", { filename: "x.pdf", mimeType: "application/pdf", bytes: Buffer.alloc(maximumCleanerOnboardingDocumentBytes + 1) }), /20 MB/);
