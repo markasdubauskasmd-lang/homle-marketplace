@@ -283,6 +283,12 @@ export function createMarketplaceRuntime(pool, options = {}) {
     speechSummaryReady: speechSummary !== null,
     roomVision,
     roomVisionReady: roomVision !== null,
+    // Which model answers which read. Configuration, not a credential — and the
+    // one thing that cannot be inferred from `roomVisionReady`: a deployment
+    // whose confirmation tier was pinned to the cheap model by an environment
+    // variable looks identical to one running the intended tier, right up until
+    // someone compares grading quality and has nothing to check.
+    roomVisionModels: roomVision?.models || null,
     matchingReady: bookingPricingPolicy !== null,
     paymentRepository,
     paymentService,

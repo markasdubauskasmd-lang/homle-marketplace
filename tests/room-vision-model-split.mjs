@@ -84,7 +84,7 @@ assert.match(route, /body\?\.purpose === "confirmation" \? "confirmation" : "wal
   const vision = createAnthropicRoomVision({ apiKey: "test-key", model: walkingModel, client });
   await vision.readRoom({ image: "data:image/jpeg;base64,AA", roomName: "Kitchen", purpose: "confirmation" });
   await vision.readRoom({ image: "data:image/jpeg;base64,AA", roomName: "Kitchen", purpose: "walking" });
-  assert.deepEqual(client.calls, ["claude-sonnet-5", walkingModel], "With no confirmation tier configured, the price-setting read did not get the stronger tier.");
+  assert.deepEqual(client.calls, ["claude-opus-4-8", walkingModel], "With no confirmation tier configured, the price-setting read did not get the stronger tier.");
 }
 
 // And it is genuinely opt-out, not merely defaulted: naming the walking model
@@ -110,7 +110,7 @@ assert.match(route, /body\?\.purpose === "confirmation" \? "confirmation" : "wal
   const client = recordingClient();
   const vision = createAnthropicRoomVision({ apiKey: "test-key", client });
   await vision.readRoom({ image: "data:image/jpeg;base64,AA", roomName: "Kitchen", purpose: "confirmation" });
-  assert.deepEqual(client.calls, ["claude-sonnet-5"], `With no models configured the confirmation read used ${client.calls[0]}, not the tier that can resolve soiling.`);
+  assert.deepEqual(client.calls, ["claude-opus-4-8"], `With no models configured the confirmation read used ${client.calls[0]}, not the tier that can resolve soiling.`);
 }
 
 // The walking frames are the volume, and they stay cheap. If this ever flips to
@@ -177,3 +177,35 @@ assert.match(visionSource, /const supportsEffort = /, "The effort capability gat
 assert.match(visionSource, /opus-\[5-9\]/, "The effort gate does not recognise the current Opus line, so a deployment on it would silently lose the effort hint.");
 
 console.log("Room vision model-split tests passed: price-setting read on the resolving tier, walking frames cheap, prompt caching wired, effort per read.");
+
+/* ── The configured tiers are visible without reading a scan record ── */
+
+// `roomVisionReady: true` says a reader is configured. It does not say which
+// model answers the read that sets the price — and ROOM_VISION_CONFIRMATION_MODEL
+// can pin that back to the cheap tier with no other symptom: scans still work,
+// boxes still appear, grading is just quietly worse. Publishing the resolved
+// tiers turns a silent misconfiguration into something checkable in a browser.
+const runtimeSource = readFileSync(new URL("../src/marketplace/runtime.mjs", import.meta.url), "utf8");
+const attachmentSource = readFileSync(new URL("../src/marketplace/attachment.mjs", import.meta.url), "utf8");
+const serverSource = readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
+
+assert.match(runtimeSource, /roomVisionModels: roomVision\?\.models \|\| null/, "The runtime no longer surfaces which models the reader resolved to.");
+assert.match(attachmentSource, /roomVisionModels: runtime\.roomVisionModels \|\| null/, "The attachment drops the resolved models, so health cannot report them.");
+// The disabled default has to carry the key too, or a deployment with no reader
+// returns a differently-shaped health body than one with a reader.
+assert.match(attachmentSource, /roomVisionReady: false,\s*\n\s*roomVisionModels: null/, "The disabled attachment omits roomVisionModels, so the health shape changes depending on configuration.");
+assert.match(serverSource, /roomVisionModels: marketplaceAttachment\.roomVisionModels \|\| null/, "The health endpoint no longer publishes the resolved reader tiers.");
+
+// The provider is what produces the record, so it has to keep exposing it.
+{
+  const client = recordingClient();
+  const configured = createAnthropicRoomVision({ apiKey: "test-key", client });
+  assert.deepEqual(configured.models, { walking: "claude-haiku-4-5", confirmation: "claude-opus-4-8" }, `The provider reports ${JSON.stringify(configured.models)}, which is not what health would publish.`);
+}
+{
+  const client = recordingClient();
+  const pinned = createAnthropicRoomVision({ apiKey: "test-key", confirmationModel: "claude-haiku-4-5", client });
+  assert.equal(pinned.models.confirmation, "claude-haiku-4-5", "A pinned confirmation tier is not reflected in the published models, so the check would report the intended tier while the cheap one actually answers.");
+}
+
+console.log("Health now publishes the resolved reader tiers, so a pinned confirmation model is visible without reading a scan record.");

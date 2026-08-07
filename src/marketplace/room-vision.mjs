@@ -423,7 +423,7 @@ export function createAnthropicRoomVision(options = {}) {
   // is where the better model earns its cost.
   //
   // Haiku stays the default for the walking frames. The confirmation read
-  // defaults to Sonnet 5 — the split is on unless you turn it off.
+  // defaults to Opus 4.8 — the split is on unless you turn it off.
   //
   // Two reasons it is worth the money on this read specifically. It grades
   // soiling, which is fine detail: a dust film on a sill, a grease sheen that
@@ -435,7 +435,7 @@ export function createAnthropicRoomVision(options = {}) {
   //
   // Set ROOM_VISION_CONFIRMATION_MODEL to the walking model to put it back.
   const model = String(options.model || "claude-haiku-4-5").trim();
-  const confirmationModel = String(options.confirmationModel || "").trim() || "claude-sonnet-5";
+  const confirmationModel = String(options.confirmationModel || "").trim() || "claude-opus-4-8";
 
   // Purpose comes from the client, so it must never be able to escalate. Anything
   // unrecognised — absent, misspelt, or hand-crafted — resolves to the cheaper
