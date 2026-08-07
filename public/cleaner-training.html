@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
-  <script src="/cleaner-training.js?v=20260729-3" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260807-1">
+  <script src="/cleaner-training.js?v=20260807-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -139,23 +139,24 @@
               </div>
               <dl class="hc-academy-stats" aria-label="Academy status">
                 <div><dt>CATALOGUE</dt><dd>34</dd></div>
-                <div><dt>AVAILABLE</dt><dd>0</dd></div>
+                <div><dt>ACTIVE</dt><dd>3</dd></div>
                 <div><dt>CERTIFICATES</dt><dd>0</dd></div>
               </dl>
             </section>
 
             <div class="hc-academy-filters" role="group" aria-label="Filter training modules">
-              <button class="is-current" type="button" data-training-filter="all" aria-pressed="true">All</button>
-              <button type="button" data-training-filter="required" aria-pressed="false">Required</button>
-              <button type="button" data-training-filter="safety" aria-pressed="false">Safety</button>
-              <button type="button" data-training-filter="specialism" aria-pressed="false">Specialism</button>
-              <button type="button" data-training-filter="business" aria-pressed="false">Business</button>
+              <button type="button" data-training-filter="all" aria-pressed="false" aria-disabled="true" disabled title="Inactive for now">All</button>
+              <button class="is-current" type="button" data-training-filter="required" aria-pressed="true">Required</button>
+              <button type="button" data-training-filter="safety" aria-pressed="false" aria-disabled="true" disabled title="Inactive for now">Safety</button>
+              <button type="button" data-training-filter="specialism" aria-pressed="false" aria-disabled="true" disabled title="Inactive for now">Specialism</button>
+              <button type="button" data-training-filter="business" aria-pressed="false" aria-disabled="true" disabled title="Inactive for now">Business</button>
             </div>
+            <p class="hc-academy-availability-note">Only required training is active for now. The other Academy modules are retained and temporarily inactive.</p>
 
             <div class="hc-feedback" data-training-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
             <p class="hc-sr-only" data-training-result-status aria-live="polite"></p>
 
-            <section class="hc-academy-grid" data-training-modules aria-label="34 learning modules"></section>
+            <section class="hc-academy-grid" data-training-modules aria-label="3 active required learning modules"></section>
 
             <section class="hc-academy-documents" aria-labelledby="academy-documents-title">
               <div>

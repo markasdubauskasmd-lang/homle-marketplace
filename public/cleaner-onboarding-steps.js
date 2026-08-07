@@ -25,11 +25,8 @@ export const onboardingSteps = [
   { key: "experience", title: "Skills and Experience", icon: "star", sidebar: true, href: "/cleaner/experience",
     derive: (d) => Number.isFinite(d.profile?.yearsExperience) },
   { key: "insurance", title: "Insurance", icon: "umb", sidebar: true, href: "/cleaner/insurance", derive: null },
-  { key: "equipment", title: "Equipment", icon: "box", sidebar: true, href: "/cleaner/equipment",
+  { key: "equipment", title: "Equipment & Travel", icon: "box", sidebar: true, href: "/cleaner/equipment",
     derive: (d) => (d.profile?.equipmentSupplied?.length || 0) + (d.profile?.productsSupplied?.length || 0) > 0 },
-  { key: "transport", title: "Transport", icon: "truck", sidebar: false, href: "", derive: null },
-  { key: "availability", title: "Availability", icon: "cal", sidebar: true, href: "/cleaner/availability",
-    derive: (d) => (d.availabilityCount || 0) > 0 },
   { key: "areas", title: "Work areas", icon: "pin", sidebar: true, href: "/cleaner/work-areas",
     derive: (d) => (d.profile?.serviceAreas?.length || 0) > 0 },
   { key: "skills", title: "Skills", icon: "spark", sidebar: false, href: "", derive: null },
@@ -42,11 +39,12 @@ export const onboardingSteps = [
  *
  * This is deliberately a separate list from `onboardingSteps` above, because the design
  * treats them separately: the sidebar uses shorter labels ("Banking", "Contracts"), adds
- * a Documents entry that is not a progress step, and omits Right to work, Transport
- * and Skills, which appear only as progress chips.
+ * a Documents entry that is not a progress step, and omits Right to work and Skills,
+ * which appear only as progress chips.
  *
  * `step` links an entry to a step key so its tick reflects real completion. An entry with
- * no `step` has nothing to derive from and shows an outstanding dot.
+ * no `step` has nothing to derive from and shows an outstanding dot. Travel is now
+ * collected with Equipment, while older standalone transport records remain readable.
  */
 export const onboardingNav = [
   { label: "Personal Details", icon: "user", step: "personal", href: "/cleaner/personal-details" },
@@ -57,8 +55,7 @@ export const onboardingNav = [
   { label: "Work Areas", icon: "pin", step: "areas", href: "/cleaner/work-areas" },
   { label: "Skills and Experience", icon: "star", step: "experience", href: "/cleaner/experience" },
   { label: "Insurance", icon: "umb", step: "insurance", href: "/cleaner/insurance" },
-  { label: "Availability", icon: "cal", step: "availability", href: "/cleaner/availability" },
-  { label: "Equipment", icon: "box", step: "equipment", href: "/cleaner/equipment" },
+  { label: "Equipment & Travel", icon: "box", step: "equipment", href: "/cleaner/equipment" },
   { label: "Documents", icon: "folder", step: "", href: "/cleaner/documents" },
   { label: "Training", icon: "award", step: "training", href: "/cleaner/training" },
   { label: "Contracts", icon: "pen", step: "compliance", href: "/cleaner/contracts" }
