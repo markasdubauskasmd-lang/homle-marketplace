@@ -133,8 +133,8 @@
 
           <div class="hc-page-head">
             <div>
-              <h1 class="hc-page-title">My schedule</h1>
-              <p class="hc-page-sub">Confirmed jobs in green — offers you haven't answered yet are dashed.</p>
+              <h1 class="hc-page-title">Activity schedule</h1>
+              <p class="hc-page-sub">See selected work by week, then review every clean's price, area, type and property images below.</p>
             </div>
             <div class="hc-weeknav">
               <button class="hc-weeknav-btn" type="button" data-week-prev aria-label="Previous week">←</button>
@@ -194,7 +194,14 @@
             </form>
           </section>
 
-          <div class="hc-upcoming">
+          <section class="hc-upcoming" aria-labelledby="selected-work-title">
+            <div class="hc-upcoming-head">
+              <div>
+                <span class="hc-schedule-time-off-kicker">SELECTED WORK</span>
+                <h2 id="selected-work-title">Upcoming cleans</h2>
+                <p>Your confirmed work will appear here in date order.</p>
+              </div>
+            </div>
             <div class="hc-upcoming-empty" data-upcoming-empty>Nothing booked yet — accept a pending job from your <a href="/cleaner/dashboard">dashboard</a> to build your schedule.</div>
             <div data-upcoming-list></div>
             <!--
@@ -202,7 +209,7 @@
               Homle has no calendar integration, so this states what actually happens.
             -->
             <div class="hc-upcoming-note">Confirmed jobs stay in Homle. Calendar sync is not available yet.</div>
-          </div>
+          </section>
 
           <div class="hc-feedback" data-schedule-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
 

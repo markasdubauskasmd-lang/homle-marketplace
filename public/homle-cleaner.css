@@ -968,6 +968,12 @@
   border-top: 1px solid var(--hc-rule-soft);
 }
 
+/* Activity remains useful while the live job feed is being connected. The
+   independent schedule script owns the connection note and calendar preview. */
+.hc-main-inner[data-activity-schedule-ready="true"] > [data-cleaner-dashboard-gate] {
+  display: none;
+}
+
 .cleaner-onboarding-page .hc-nav > .hc-nav-item,
 .cleaner-onboarding-page .hc-nav > .hc-nav-cta,
 .cleaner-onboarding-page [data-account-group] {
@@ -1984,6 +1990,8 @@ a.hc-contract-title:focus-visible { outline: 2px solid rgba(198, 42, 26, .32); o
 .hc-week-job:hover { transform: translateY(-1px); text-decoration: none; color: var(--hc-green-ink); }
 .hc-week-job[data-state="pending"] { background: #ffffff; border: 1.5px dashed var(--hc-rule-dash); color: var(--hc-ink-4); }
 .hc-week-job[data-state="pending"]:hover { color: var(--hc-ink-4); }
+.hc-week-job[data-state="preview"] { background: #fff5ee; border: 1.5px dashed #e7a392; color: #8b352b; cursor: default; }
+.hc-week-job[data-state="preview"]:hover { transform: none; color: #8b352b; }
 .hc-week-job-time { font-size: 10px; font-weight: 700; letter-spacing: .3px; }
 .hc-week-job-title { font-size: 11px; font-weight: 600; margin-top: 3px; line-height: 1.3; }
 .hc-week-job-meta { font-size: 10px; margin-top: 3px; opacity: .8; }
@@ -2042,7 +2050,11 @@ a.hc-contract-title:focus-visible { outline: 2px solid rgba(198, 42, 26, .32); o
 
 .hc-schedule-time-off-actions .hc-btn { flex: none; }
 
-.hc-upcoming { background: var(--hc-panel); border-radius: 24px; box-shadow: 0 14px 34px rgba(180, 150, 110, .13); padding: 12px 26px; }
+.hc-upcoming { background: var(--hc-panel); border-radius: 24px; box-shadow: 0 14px 34px rgba(180, 150, 110, .13); padding: 24px 26px 12px; margin-bottom: 22px; }
+.hc-upcoming-head { display: flex; justify-content: space-between; gap: 18px; align-items: start; margin-bottom: 18px; }
+.hc-upcoming-head h2,
+.hc-upcoming-head h3 { margin: 5px 0 3px; font-family: var(--hc-font-display); font-size: 24px; }
+.hc-upcoming-head p { margin: 0; color: var(--hc-muted); font-size: 12px; }
 .hc-upcoming-row { display: flex; align-items: center; gap: 14px; padding: 14px 2px; border-bottom: 1px solid var(--hc-rule-soft); flex-wrap: wrap; }
 .hc-upcoming-row:last-of-type { border-bottom: 0; }
 .hc-upcoming-date {
@@ -2058,6 +2070,42 @@ a.hc-contract-title:focus-visible { outline: 2px solid rgba(198, 42, 26, .32); o
 .hc-upcoming-pay { font-family: var(--hc-font-display); font-weight: 800; font-size: 17px; flex: none; }
 .hc-upcoming-empty { padding: 26px; text-align: center; font-size: 13px; color: var(--hc-muted); }
 .hc-upcoming-note { padding: 13px 4px; font-size: 11.5px; color: var(--hc-muted-2); }
+
+.hc-activity-job-card {
+  display: grid;
+  grid-template-columns: minmax(260px, .86fr) minmax(330px, 1.14fr);
+  gap: 22px;
+  padding: 20px 0;
+  border-top: 1px solid var(--hc-rule-soft);
+}
+.hc-activity-job-card[data-preview="true"] { background: linear-gradient(90deg, rgba(255, 247, 240, .72), rgba(255, 255, 255, 0)); }
+.hc-activity-job-images { display: grid; grid-template-columns: 1.6fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; min-height: 194px; }
+.hc-activity-job-image { position: relative; min-width: 0; overflow: hidden; border-radius: 15px; background: var(--hc-cream); }
+.hc-activity-job-image:first-child { grid-row: 1 / span 2; }
+.hc-activity-job-image img,
+.hc-activity-job-image svg { width: 100%; height: 100%; display: block; object-fit: cover; }
+.hc-activity-job-image-label {
+  position: absolute; left: 8px; bottom: 8px;
+  padding: 4px 8px; border-radius: 999px;
+  color: #ffffff; background: rgba(28, 24, 21, .72);
+  font-size: 9px; font-weight: 700; letter-spacing: .3px;
+}
+.hc-activity-job-body { display: flex; min-width: 0; flex-direction: column; }
+.hc-activity-job-heading { display: flex; justify-content: space-between; align-items: start; gap: 16px; }
+.hc-activity-job-heading-copy { min-width: 0; }
+.hc-activity-job-status { display: inline-flex; padding: 5px 9px; border-radius: 999px; background: #f8e5dc; color: var(--hc-red-link); font-size: 9px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+.hc-activity-job-title { margin: 8px 0 0; font-family: var(--hc-font-display); font-size: 24px; line-height: 1.1; }
+.hc-activity-job-price { color: var(--hc-red-link); font-family: var(--hc-font-display); font-size: 26px; white-space: nowrap; }
+.hc-activity-job-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px 20px; margin: 20px 0 0; }
+.hc-activity-job-detail { min-width: 0; }
+.hc-activity-job-detail dt { color: var(--hc-muted-2); font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.hc-activity-job-detail dd { margin: 4px 0 0; color: var(--hc-ink-2); font-size: 12.5px; font-weight: 600; overflow-wrap: anywhere; }
+.hc-activity-job-footer { display: flex; align-items: center; gap: 11px; margin-top: auto; padding-top: 17px; }
+.hc-activity-job-privacy { flex: 1; margin: 0; color: var(--hc-muted); font-size: 10.5px; line-height: 1.45; }
+.hc-activity-job-footer .hc-job-link { white-space: nowrap; }
+[data-schedule][data-preview="true"] .hc-schedule-time-off { opacity: .72; }
+[data-schedule][data-preview="true"] .hc-schedule-time-off input,
+[data-schedule][data-preview="true"] .hc-schedule-time-off button { cursor: not-allowed; }
 
 /* ------------------------------------------------------------ job detail -- */
 
@@ -5751,9 +5799,12 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 
 @media (max-width: 900px) {
   .hc { flex-direction: column; height: auto; overflow: visible; }
-  .hc-side { width: 100%; border-right: 0; border-bottom: 1px solid var(--hc-rule); position: sticky; top: 0; background: var(--hc-ground); z-index: 10; }
-  .hc-nav { display: flex; gap: 6px; overflow-x: auto; padding: 4px 12px 12px; }
+  .hc-side { width: 100%; height: auto; min-height: 0; border-right: 0; border-bottom: 1px solid var(--hc-rule); position: sticky; top: 0; background: var(--hc-ground); z-index: 10; }
+  .hc-nav { display: flex; flex: none; align-items: center; gap: 6px; height: 56px; max-height: 56px; overflow-x: auto; padding: 4px 12px 12px; }
   .hc-nav-item { width: auto; white-space: nowrap; }
+  .hc-nav > .hc-nav-group { display: flex; flex: none; align-items: center; gap: 6px; margin: 0; }
+  .hc-nav > .hc-nav-group > .hc-nav-group-summary,
+  .hc-nav > .hc-nav-group > .hc-account-nav-status { display: none; }
   .hc-nav-cta, .hc-nav-group-label, .hc-side-foot { display: none; }
   .hc-main { overflow-y: visible; }
   .hc-main-inner { padding: 24px 18px 56px; }
@@ -5803,10 +5854,19 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-contract-sign-card > p,
   .hc-contract-sign-card > small { grid-column: 1 / -1; }
   .cleaner-messages-page .hc-main-inner { padding-top: 24px; }
+  .hc-activity-job-card { grid-template-columns: 1fr; }
+  .hc-activity-job-images { min-height: 240px; }
 }
 
 @media (max-width: 600px) {
   .hc-profile-preview-head { align-items: flex-start; }
+  .hc-week { overflow-x: auto; }
+  .hc-week-grid { min-width: 760px; }
+  .hc-activity-job-images { grid-template-columns: 1fr 1fr; min-height: 230px; }
+  .hc-activity-job-image:first-child { grid-column: 1 / -1; grid-row: auto; min-height: 135px; }
+  .hc-activity-job-heading { align-items: flex-start; }
+  .hc-activity-job-details { grid-template-columns: 1fr; }
+  .hc-activity-job-footer { align-items: flex-start; flex-wrap: wrap; }
   .hc-profile-preview-head .hc-page-title { font-size: 34px; }
   .hc-profile-preview-rail { display: flex; }
   .hc-pp-banner { min-height: 102px; padding-left: 22px; padding-right: 22px; }
