@@ -42,6 +42,7 @@ DECLARE
   cleaner_address_lookup_rate_limit_installed boolean := false;
   cleaner_document_storage_installed boolean := false;
   booking_client_names_installed boolean := false;
+  cleaner_final_submission_installed boolean := false;
   active_invite_function text;
   active_dispatch_function text;
   rls_tables text[] := ARRAY[
@@ -259,6 +260,8 @@ BEGIN
       INTO cleaner_document_storage_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 90)'
       INTO booking_client_names_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 92)'
+      INTO cleaner_final_submission_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -290,6 +293,13 @@ BEGIN
     property_archiving_installed := to_regprocedure('tideway_private.archive_my_property(uuid)') IS NOT NULL;
     property_restoration_installed := to_regprocedure('tideway_private.restore_my_property(uuid)') IS NOT NULL;
     cleaner_onboarding_records_installed := to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NOT NULL;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conrelid=to_regclass('public.cleaner_onboarding_sections')
+        AND conname='cleaner_onboarding_sections_section_code_check'
+        AND contype='c'
+        AND position('review' IN pg_get_constraintdef(oid))>0
+    ) INTO cleaner_final_submission_installed;
     cleaner_document_storage_installed := to_regprocedure('tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)') IS NOT NULL;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
@@ -456,7 +466,7 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'Cleaner onboarding payloads are missing encrypted byte storage or expose plaintext JSON';
     END IF;
-    IF NOT EXISTS (
+    IF cleaner_final_submission_installed AND NOT EXISTS (
       SELECT 1 FROM pg_constraint
       WHERE conrelid='public.cleaner_onboarding_sections'::regclass
         AND conname='cleaner_onboarding_sections_section_code_check'
