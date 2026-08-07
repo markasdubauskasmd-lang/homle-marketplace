@@ -188,7 +188,10 @@ try {
   assert(!recording.done && !recording.remove, "Review controls are visible while recording.");
   assert(recording.micLabel === "Stop" && recording.micPressed === "true", `The mic button did not become Stop (label "${recording.micLabel}").`);
   assert(/Recording/.test(recording.status), `The status does not say it is recording: "${recording.status}".`);
-  assert(recording.timer === "0:00", `The timer did not restart: "${recording.timer}".`);
+  // A busy CI runner can cross the first one-second boundary between the mic
+  // click and this snapshot. Both values prove the clock restarted; accepting
+  // anything later would hide a stale timer from a previous recording.
+  assert(["0:00", "0:01"].includes(recording.timer), `The timer did not restart: "${recording.timer}".`);
 
   /* ── Speech arrives; Stop moves to review with the transcript editable ─── */
 
