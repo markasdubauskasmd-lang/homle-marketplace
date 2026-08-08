@@ -461,6 +461,11 @@
       "order": 92,
       "file": "092_cleaner_onboarding_final_submission.sql",
       "sha256": "3e39853d7d5cd0fe6477935a1e53ebf059e1e73c5b371145ea6991ecf6fb1d0b"
+    },
+    {
+      "order": 93,
+      "file": "093_right_to_work_birth_certificate.sql",
+      "sha256": "ebe43a99af78a8e7433e0354533ba7fdfdd129d48c69efdcf54202040d6ea393"
     }
   ],
   "grantFiles": [

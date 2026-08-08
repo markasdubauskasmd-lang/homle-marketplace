@@ -20,6 +20,9 @@ assert.deepEqual(normalizedCleanerOnboardingInput("business", { status: "submitt
 assert.deepEqual(normalizedCleanerOnboardingInput("rtw", { status: "submitted", data: { britishOrIrishCitizen: "no", shareCode: " W12 345 678 ", rightToWorkDateOfBirth: "1990-01-02", rightToWorkConsent: true } }).data, {
   britishOrIrishCitizen: "no", shareCode: "W12 345 678", rightToWorkDateOfBirth: "1990-01-02", rightToWorkConsent: true
 });
+assert.deepEqual(normalizedCleanerOnboardingInput("rtw", { status: "submitted", data: { britishOrIrishCitizen: "yes", nationalInsuranceNumber: " AB 12 34 56 C ", rightToWorkConsent: true } }).data, {
+  britishOrIrishCitizen: "yes", nationalInsuranceNumber: "AB 12 34 56 C", rightToWorkConsent: true
+});
 const previousAddress = { postcode: "SW1A 1AA", houseNumber: "10", street: "Example Road", town: "London", county: "Greater London", country: "United Kingdom", fromMonth: "02", fromYear: "2022", yearsLived: "2.5" };
 assert.deepEqual(normalizedCleanerOnboardingInput("personal", { status: "submitted", data: { livedUnderFiveYears: true, previousAddresses: [previousAddress] } }).data.previousAddresses, [previousAddress]);
 assert.throws(() => normalizedCleanerOnboardingInput("banking", { data: { sortCode: "00-00-00" } }), /Stripe/);

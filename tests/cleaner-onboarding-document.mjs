@@ -53,6 +53,9 @@ assert.deepEqual((await service.getOwnDocument(actor, "identity", "passportPhoto
 const rightToWorkPassport = await service.saveOwnDocument(actor, "rtw", "rightToWorkPassport", { filename: "right-to-work.pdf", mimeType: "application/pdf", bytes: pdf });
 assert.equal(rightToWorkPassport.section, "rtw");
 assert.deepEqual((await service.getOwnDocument(actor, "rtw", "rightToWorkPassport")).bytes, pdf);
+const rightToWorkBirthCertificate = await service.saveOwnDocument(actor, "rtw", "rightToWorkBirthCertificate", { filename: "birth-certificate.pdf", mimeType: "application/pdf", bytes: pdf });
+assert.equal(rightToWorkBirthCertificate.documentType, "rightToWorkBirthCertificate");
+assert.deepEqual((await service.getOwnDocument(actor, "rtw", "rightToWorkBirthCertificate")).bytes, pdf);
 await assert.rejects(() => service.saveOwnDocument(actor, "identity", "unknown", { filename: "x.pdf", mimeType: "application/pdf", bytes: pdf }), /supported document type/);
 await assert.rejects(() => service.saveOwnDocument(actor, "identity", "passportPhoto", { filename: "x.png", mimeType: "image/png", bytes: pdf }), /contents do not match/);
 await assert.rejects(() => service.saveOwnDocument(actor, "identity", "passportPhoto", { filename: "x.pdf", mimeType: "application/pdf", bytes: Buffer.alloc(maximumCleanerOnboardingDocumentBytes + 1) }), /20 MB/);

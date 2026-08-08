@@ -3,7 +3,7 @@ import { createCleanerPage, element, requestJson, setText } from "./cleaner-page
 import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260804-3";
 import { setupBusinessDetails } from "./cleaner-business-details.js?v=20260728-1";
 import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=20260728-1";
-import { setupRightToWork } from "./cleaner-right-to-work.js?v=20260807-1";
+import { setupRightToWork } from "./cleaner-right-to-work.js?v=20260808-1";
 import { setupBackgroundChecks } from "./cleaner-background-checks.js?v=20260728-1";
 import { setupWorkAreas } from "./cleaner-work-areas.js?v=20260807-1";
 import { setupExperience } from "./cleaner-experience.js?v=20260805-1";
