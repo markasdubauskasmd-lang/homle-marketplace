@@ -2900,70 +2900,12 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 
 .hc-personal-layout {
   display: grid;
-  grid-template-columns: 195px minmax(0, 760px);
+  grid-template-columns: minmax(0, 760px);
   gap: 24px;
   align-items: start;
   justify-content: center;
   padding-top: 14px;
 }
-
-.hc-personal-rail {
-  position: sticky;
-  top: 34px;
-  display: grid;
-  gap: 3px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.hc-personal-rail-step {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
-  gap: 8px;
-  align-items: center;
-  min-height: 31px;
-  padding: 4px 8px;
-  color: var(--hc-muted);
-  border-radius: 11px;
-}
-
-.hc-personal-rail-step span {
-  display: grid;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  color: var(--hc-muted-2);
-  border-radius: 50%;
-  background: #eee5d2;
-  font-size: 9px;
-  font-weight: 700;
-}
-
-.hc-personal-rail-step strong {
-  overflow: hidden;
-  font-size: 11px;
-  font-weight: 500;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.hc-personal-rail-step.is-complete span {
-  color: #ffffff;
-  background: var(--hc-red);
-}
-
-.hc-personal-rail-step.is-complete span::before { content: "✓"; }
-.hc-personal-rail-step.is-complete span { font-size: 0; }
-.hc-personal-rail-step.is-complete span::before { font-size: 10px; }
-
-.hc-personal-rail-step.is-current {
-  color: var(--hc-red-deep);
-  background: var(--hc-red-pill-bg);
-}
-
-.hc-personal-rail-step.is-current strong { font-weight: 600; }
-.hc-personal-rail-step.is-current span { color: #ffffff; background: var(--hc-red); }
 
 .hc-personal-card {
   overflow: hidden;
@@ -6362,7 +6304,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-pp-stats { grid-template-columns: repeat(2, 1fr); }
   .hc-setup { flex-direction: column; align-items: flex-start; padding: 32px 28px; }
   .hc-phone { align-self: center; }
-  .hc-personal-layout { grid-template-columns: 160px minmax(0, 1fr); }
+  .hc-personal-layout { grid-template-columns: minmax(0, 760px); }
   .hc-personal-grid-four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-personal-address-top { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-work-builder { grid-template-columns: minmax(230px, .8fr) minmax(280px, 1.2fr); }
@@ -6391,12 +6333,6 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-job-pay { text-align: left; }
   .hc-job-expiry { text-align: left; flex-basis: 100%; }
   .hc-personal-layout { grid-template-columns: 1fr; padding-top: 0; }
-  .hc-personal-rail {
-    position: static;
-    grid-template-columns: repeat(19, 150px);
-    overflow-x: auto;
-    padding: 2px 0 10px;
-  }
   .hc-personal-card { border-radius: 16px; }
   .hc-personal-head, .hc-personal-form { padding-left: 20px; padding-right: 20px; }
   .hc-personal-grid-three { grid-template-columns: 1fr 1fr; }
