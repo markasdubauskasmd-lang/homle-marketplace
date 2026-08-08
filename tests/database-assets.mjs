@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 92);
-  assert.equal(repositoryResult.migrations.at(-1), "092_cleaner_onboarding_final_submission.sql");
+  assert.equal(repositoryResult.migrations.length, 93);
+  assert.equal(repositoryResult.migrations.at(-1), "093_right_to_work_birth_certificate.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
@@ -42,6 +42,7 @@ try {
   const onboardingDocumentMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "089_cleaner_onboarding_document_storage.sql"), "utf8");
   const bookingClientNamesMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "090_booking_client_conversation_names.sql"), "utf8");
   const bookingSummaryVerificationMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "091_booking_summary_verification_markers.sql"), "utf8");
+  const rightToWorkBirthCertificateMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "093_right_to_work_birth_certificate.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
   const publicCleanerProfileBehaviour = await readFile(path.join(sourceDatabaseDirectory, "integration", "public-cleaner-profile-behaviour.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
@@ -109,6 +110,9 @@ try {
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 82\)'/, "Deployment verification must detect owner property archiving dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 89\)'/, "Deployment verification must detect encrypted Cleaner document storage dynamically.");
   assert(onboardingDocumentMigration.includes("content_ciphertext bytea") && onboardingDocumentMigration.includes("save_my_cleaner_onboarding_document") && onboardingDocumentMigration.includes("cleaner-onboarding-document-saved"), "Migration 89 must store encrypted Cleaner document bytes through an audited owner-only function.");
+  assert(rightToWorkBirthCertificateMigration.includes("rightToWorkPassport") && rightToWorkBirthCertificateMigration.includes("rightToWorkBirthCertificate") && rightToWorkBirthCertificateMigration.includes("cleaner-onboarding-document-saved"), "Migration 93 must admit both Right to Work evidence types without weakening the encrypted audited writer.");
+  assert.match(deploymentVerifier, /migration_order = 93/, "Deployment verification must detect encrypted Right to Work alternative evidence support.");
+  assert(deploymentVerifier.includes("Right-to-work passport or birth-certificate storage is missing from the encrypted document boundary"), "Deployment verification must prove both Right to Work evidence types remain inside encrypted document storage.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 90\)'/, "Deployment verification must detect privacy-limited Cleaner client names dynamically.");
   assert(bookingClientNamesMigration.includes("booking-client-conversation-names-v1") && bookingClientNamesMigration.includes("split_part(btrim(landlord_user.display_name), ' ', 1)") && deploymentVerifier.includes("Cleaner booking conversations lost their privacy-limited client name projection"), "Migration 90 must expose only an organisation or first-name label for confirmed Cleaner conversations and verify the deployed function body.");
   assert(bookingSummaryVerificationMigration.includes("participant-response-deadline-v1") && bookingSummaryVerificationMigration.includes("booking-client-conversation-names-v1") && bookingSummaryVerificationMigration.includes("booking-summary-verification-markers-v1"), "Migration 91 must preserve both independently verified booking-summary contracts without rewriting an applied migration.");

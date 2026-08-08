@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-<link rel="stylesheet" href="/homle-cleaner.css?v=20260808-1">
-<script src="/cleaner-registration.js?v=20260807-4" type="module"></script>
+<link rel="stylesheet" href="/homle-cleaner.css?v=20260808-2">
+<script src="/cleaner-registration.js?v=20260808-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -539,14 +539,38 @@
 
                 <fieldset class="hc-identity-section hc-rtw-section" data-rtw-yes hidden disabled>
                   <legend>Proof of citizenship</legend>
-                  <h2 class="hc-rtw-subtitle">Upload your passport</h2>
-                  <label class="hc-identity-document hc-rtw-document">
-                    <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
-                    <span><strong>Passport photo page</strong><small>All four corners visible &middot; PDF, JPEG or PNG &middot; max 20MB</small></span>
-                    <span class="hc-identity-document-action">Choose file</span>
-                    <input type="file" name="rightToWorkPassport" accept="application/pdf,image/jpeg,image/png" data-rtw-file>
-                  </label>
-                  <p class="hc-rtw-guidance"><strong>No passport?</strong> You can use your birth certificate and National Insurance number instead. Contact Homlle support so we can arrange the alternative check.</p>
+                  <p class="hc-rtw-guidance hc-rtw-evidence-guidance">Choose one of the two options below.</p>
+                  <div class="hc-rtw-evidence-options">
+                    <section class="hc-rtw-evidence-option" aria-labelledby="rtw-passport-option-title">
+                      <span class="hc-rtw-option-label">Option 1</span>
+                      <h2 class="hc-rtw-subtitle" id="rtw-passport-option-title">Upload your passport</h2>
+                      <label class="hc-identity-document hc-rtw-document">
+                        <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                        <span><strong>Passport photo page</strong><small>All four corners visible &middot; PDF, JPEG or PNG &middot; max 20MB</small></span>
+                        <span class="hc-identity-document-action">Choose file</span>
+                        <input type="file" name="rightToWorkPassport" accept="application/pdf,image/jpeg,image/png" data-rtw-file>
+                      </label>
+                    </section>
+
+                    <div class="hc-rtw-option-divider" aria-hidden="true"><span>or</span></div>
+
+                    <section class="hc-rtw-evidence-option" aria-labelledby="rtw-birth-certificate-option-title">
+                      <span class="hc-rtw-option-label">Option 2</span>
+                      <h2 class="hc-rtw-subtitle" id="rtw-birth-certificate-option-title">Birth certificate and NI number</h2>
+                      <label class="hc-identity-document hc-rtw-document">
+                        <span class="hc-identity-document-icon" aria-hidden="true">&uarr;</span>
+                        <span><strong>Birth certificate</strong><small>Full certificate &middot; PDF, JPEG or PNG &middot; max 20MB</small></span>
+                        <span class="hc-identity-document-action">Choose file</span>
+                        <input type="file" name="rightToWorkBirthCertificate" accept="application/pdf,image/jpeg,image/png" data-rtw-file>
+                      </label>
+                      <div class="hc-rtw-fields hc-rtw-ni-fields">
+                        <label>
+                          <span>National Insurance (NI) number</span>
+                          <input name="nationalInsuranceNumber" autocomplete="off" spellcheck="false" maxlength="13" placeholder="AB 12 34 56 C" pattern="[A-CEGHJ-PR-TW-Z]{2} ?[0-9]{2} ?[0-9]{2} ?[0-9]{2} ?[A-D]" title="Enter a National Insurance number such as AB 12 34 56 C">
+                        </label>
+                      </div>
+                    </section>
+                  </div>
                   <p class="hc-rtw-guidance">We&rsquo;ll confirm your likeness on a short video call before approval.</p>
                 </fieldset>
 

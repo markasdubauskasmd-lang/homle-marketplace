@@ -41,6 +41,7 @@ DECLARE
   cleaner_onboarding_records_installed boolean := false;
   cleaner_address_lookup_rate_limit_installed boolean := false;
   cleaner_document_storage_installed boolean := false;
+  right_to_work_alternative_evidence_installed boolean := false;
   booking_client_names_installed boolean := false;
   cleaner_final_submission_installed boolean := false;
   active_invite_function text;
@@ -262,6 +263,8 @@ BEGIN
       INTO booking_client_names_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 92)'
       INTO cleaner_final_submission_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 93)'
+      INTO right_to_work_alternative_evidence_installed;
   ELSE
     -- A fully manual fresh install has no private migration ledger. Detect each
     -- optional schema level from the exact object introduced by that migration
@@ -301,6 +304,11 @@ BEGIN
         AND position('review' IN pg_get_constraintdef(oid))>0
     ) INTO cleaner_final_submission_installed;
     cleaner_document_storage_installed := to_regprocedure('tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)') IS NOT NULL;
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc procedure
+      WHERE procedure.oid=to_regprocedure('tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)')
+        AND position('rightToWorkBirthCertificate' IN procedure.prosrc)>0
+    ) INTO right_to_work_alternative_evidence_installed;
     SELECT EXISTS (
       SELECT 1 FROM pg_proc procedure
       WHERE procedure.oid=to_regprocedure('tideway_private.list_my_booking_summaries(integer)')
@@ -502,6 +510,11 @@ BEGIN
     IF position('has_role(''cleaner'')' IN COALESCE(selected_source,''))=0
        OR position('cleaner-onboarding-document-saved' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Cleaner document storage lost its Cleaner-only or audit boundary';
+    END IF;
+    IF right_to_work_alternative_evidence_installed
+       AND (position('rightToWorkPassport' IN COALESCE(selected_source,''))=0
+         OR position('rightToWorkBirthCertificate' IN COALESCE(selected_source,''))=0) THEN
+      RAISE EXCEPTION 'Right-to-work passport or birth-certificate storage is missing from the encrypted document boundary';
     END IF;
   END IF;
   IF booking_client_names_installed THEN
