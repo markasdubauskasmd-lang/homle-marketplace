@@ -4399,6 +4399,10 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   background: #fffdfa;
 }
 
+.hc-insurance-view-controls + .hc-insurance-responsibility {
+  margin-top: 12px;
+}
+
 .hc-insurance-view-controls > div:first-child {
   display: grid;
   min-width: 0;
