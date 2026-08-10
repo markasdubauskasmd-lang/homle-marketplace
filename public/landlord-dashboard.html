@@ -603,9 +603,27 @@
             <div class="landlord-sole-property" data-sole-property hidden><span>Cleaning property</span><strong data-sole-property-name></strong><small>Your only saved property is selected automatically.</small></div>
             <label data-property-select-label>Property<select name="propertyId" required data-property-select><option value="">Add a property first</option></select></label>
             <label data-cleaning-type-field>Primary cleaning type<select name="cleaningType" required><option value="">Choose one</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select><small data-cleaning-type-hint>Choose a property to receive a sensible default.</small></label>
-            <label data-duration-field>Estimated duration<select name="durationMinutes" required><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="300">5 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></label>
-            <label data-date-field>Date<input name="requestedDate" type="date" required></label>
-            <label data-time-field>Start time<input name="requestedTime" type="time" required></label>
+            <!-- One question, not three. "When is the clean" is a single thing a
+                 customer decides, and splitting it across three labelled fields
+                 made them read as three separate decisions. Laid out as a
+                 sentence — 21 Aug, at 15:30, for 3 hours — it reads the way the
+                 answer is actually held in someone's head.
+
+                 The three inputs keep their own names, data hooks and required
+                 flags, so validation and the draft recovery are untouched; only
+                 the labelling and layout changed. Each still has a visible label
+                 for screen readers, sized down rather than removed. -->
+            <fieldset class="pac-schedule">
+              <legend>When</legend>
+              <div class="pac-schedule-row">
+                <label data-date-field><span>Date</span><input name="requestedDate" type="date" required></label>
+                <span class="pac-schedule-join" aria-hidden="true">at</span>
+                <label data-time-field><span>Start</span><input name="requestedTime" type="time" required></label>
+                <span class="pac-schedule-join" aria-hidden="true">for</span>
+                <label data-duration-field><span>How long</span><select name="durationMinutes" required><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="300">5 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></label>
+              </div>
+              <p class="pac-schedule-hint">Two hours is the minimum visit. You can change this before a cleaner accepts.</p>
+            </fieldset>
             </div>
 
             <details class="dashboard-optional-fields"><summary>Budget cap, recurring or special instructions <span>Optional</span></summary><div><div class="field-row"><label>Frequency<select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select></label><label>Maximum booking total (£) <span>(needed for automatic matching)</span><input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01" aria-describedby="automatic-matching-budget-help"></label></div><small id="automatic-matching-budget-help">Set the most you approve Homle to use when finding a Cleaner automatically. Leave it blank only if you will choose a Cleaner yourself.</small><label>Special instructions <span>(optional)</span><textarea name="specialInstructions" rows="3" maxlength="5000"></textarea></label></div></details>
