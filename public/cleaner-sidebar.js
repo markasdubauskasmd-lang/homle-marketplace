@@ -38,8 +38,14 @@ function configureCleanerShell() {
   const role = document.querySelector(".hc-brand-role");
   if (role) role.textContent = "ONBOARDING";
   if (onboardingGroup) {
-    onboardingGroup.open = true;
-    onboardingGroup.querySelector(":scope > .hc-nav-group-summary")?.remove();
+    const onboardingList = document.createElement("div");
+    onboardingList.className = onboardingGroup.className;
+    onboardingList.dataset.onboardingGroup = "";
+    onboardingList.setAttribute("aria-label", "Onboarding steps");
+    [...onboardingGroup.children]
+      .filter((child) => !child.matches(".hc-nav-group-summary"))
+      .forEach((child) => onboardingList.append(child));
+    onboardingGroup.replaceWith(onboardingList);
   }
 }
 
