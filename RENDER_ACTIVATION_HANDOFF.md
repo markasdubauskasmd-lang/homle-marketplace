@@ -679,6 +679,7 @@ The web service can now host those same jobs in its own process. Add:
 
 - `MARKETPLACE_INLINE_WORKERS` = `true`  ← **the new flag; without it nothing changes**
 - `MARKETPLACE_WORKER_ENABLED` = `true`
+- `TIDEWAY_EXPECT_RELEASE` = the exact eight-character commit reported by the release being deployed
 - `WORKER_DATABASE_URL` = the **`tideway_worker`** connection string *(secret — dashboard only)*
 - `WORKER_AUTOMATIC_DISPATCH_ENABLED` = `true`
 - `WORKER_EMAIL_ENABLED` = `true` *(only once Step 1 email is configured)*
@@ -691,11 +692,17 @@ Rules that matter:
    otherwise every job runs twice.
 2. `WORKER_DATABASE_URL` **must** authenticate as `tideway_worker`, not `tideway_app`.
    The process refuses to start otherwise, by design.
-3. A free Render instance sleeps when idle, which pauses these jobs. They catch up on
+3. **Update `TIDEWAY_EXPECT_RELEASE` before every manual deployment.** The worker
+   deliberately refuses a stale value even though the web process can still serve.
+   On 10 August 2026, release `bc7ba44c` was healthy but every background job was
+   disabled because the value still named `66e93539`. Updating the value to the
+   release actually deployed restored all nine scheduled jobs. Confirm the startup
+   log says `Inline marketplace workers started` after each deployment.
+4. A free Render instance sleeps when idle, which pauses these jobs. They catch up on
    the next request, so due work is not lost, but **wall-clock timing is not guaranteed
    on the free plan.** Do not promise customers timed automatic dispatch until the
    service no longer sleeps.
-4. Verify with `GET /api/health` → `marketplace.automaticDispatchReady: true`. If it is
+5. Verify with `GET /api/health` → `marketplace.automaticDispatchReady: true`. If it is
    `false`, the flag, the worker URL or `WORKER_AUTOMATIC_DISPATCH_ENABLED` is missing;
    the service log states which. A worker that cannot start is logged loudly and left
    off — it never takes the website down.
