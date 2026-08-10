@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-<link rel="stylesheet" href="/homle-cleaner.css?v=20260810-3">
-<script src="/cleaner-registration.js?v=20260808-1" type="module"></script>
+<link rel="stylesheet" href="/homle-cleaner.css?v=20260810-4">
+<script src="/cleaner-registration.js?v=20260810-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -872,43 +872,41 @@
                 </fieldset>
 
                 <fieldset class="hc-insurance-section">
-                  <legend>Policy documents</legend>
-                  <div class="hc-insurance-policies">
-                    <label class="hc-insurance-document">
-                      <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
-                      <span><strong>Public liability policy</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
-                      <span class="hc-insurance-document-action">Choose file</span>
-                      <input type="file" name="publicLiabilityPolicy" accept="application/pdf,image/jpeg,image/png" data-insurance-file>
-                    </label>
-                    <label class="hc-insurance-document">
-                      <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
-                      <span><strong data-insurance-professional-label>Professional indemnity (if held)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
-                      <span class="hc-insurance-document-action">Choose file</span>
-                      <input type="file" name="professionalIndemnityPolicy" accept="application/pdf,image/jpeg,image/png" data-insurance-file>
-                    </label>
-                    <label class="hc-insurance-document">
-                      <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
-                      <span><strong>Employers&rsquo; liability (if you employ staff)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
-                      <span class="hc-insurance-document-action">Choose file</span>
-                      <input type="file" name="employersLiabilityPolicy" accept="application/pdf,image/jpeg,image/png" data-insurance-file>
-                    </label>
-                    <div class="hc-insurance-cover-note">
-                      <div>
-                        <strong>Need suitable cover?</strong>
-                        <span data-insurance-supplier-copy>Protectivity offers specialist cleaning insurance with online quotes.</span>
-                        <small>Suggested supplier only. Homlle does not sell, arrange or guarantee the policy. Check the insured activities, limits and exclusions before buying.</small>
-                      </div>
-                      <a href="https://www.protectivity.com/product/cleaning-insurance/" target="_blank" rel="noopener noreferrer" data-insurance-supplier-link>View cover &amp; get a quote <span aria-hidden="true">&nearr;</span></a>
-                    </div>
-                  </div>
-                </fieldset>
-
-                <fieldset class="hc-insurance-section">
                   <legend>Policy details</legend>
-                  <div class="hc-insurance-details">
-                    <label><span>Policy number <b aria-hidden="true">*</b></span><input name="policyNumber" autocomplete="off" spellcheck="false" maxlength="80" required></label>
-                    <label><span>Provider <b aria-hidden="true">*</b></span><input name="policyProvider" autocomplete="organization" maxlength="120" required></label>
-                    <label><span>Expiry date <b aria-hidden="true">*</b></span><input name="policyExpiry" type="date" autocomplete="off" required></label>
+                  <p class="hc-insurance-question">Add each policy separately so its insurance type, details and document can be checked together.</p>
+                  <div class="hc-insurance-policy-entries" data-insurance-policy-entries></div>
+                  <button class="hc-insurance-add-policy" type="button" data-insurance-add-policy>+ Add another insurance type</button>
+                  <template data-insurance-policy-template>
+                    <div class="hc-insurance-policy-entry" data-insurance-policy-entry>
+                      <label class="hc-insurance-policy-type"><span>Insurance type <b aria-hidden="true">*</b></span>
+                        <select data-insurance-policy-type required>
+                          <option value="">Select insurance type</option>
+                          <option value="public_liability">Public liability</option>
+                          <option value="product_liability">Product liability</option>
+                          <option value="treatment_professional_liability" data-insurance-policy-profession="beautician">Treatment / professional liability</option>
+                          <option value="employers_liability">Employers&rsquo; liability</option>
+                          <option value="business_use_motor">Business-use motor cover</option>
+                        </select>
+                      </label>
+                      <label><span>Policy number <b aria-hidden="true">*</b></span><input data-insurance-policy-number autocomplete="off" spellcheck="false" maxlength="80" required></label>
+                      <label><span>Provider <b aria-hidden="true">*</b></span><input data-insurance-policy-provider autocomplete="organization" maxlength="120" required></label>
+                      <label><span>Expiry date <b aria-hidden="true">*</b></span><input data-insurance-policy-expiry type="date" autocomplete="off" required></label>
+                      <label class="hc-insurance-document hc-insurance-policy-document">
+                        <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
+                        <span><strong data-insurance-policy-document-label>Policy document</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                        <span class="hc-insurance-document-action">Choose file</span>
+                        <input type="file" accept="application/pdf,image/jpeg,image/png" data-insurance-file data-insurance-policy-file disabled>
+                      </label>
+                      <button class="hc-insurance-remove-policy" type="button" data-insurance-remove-policy>Remove</button>
+                    </div>
+                  </template>
+                  <div class="hc-insurance-cover-note">
+                    <div>
+                      <strong>Need suitable cover?</strong>
+                      <span data-insurance-supplier-copy>Protectivity offers specialist cleaning insurance with online quotes.</span>
+                      <small>Suggested supplier only. Homlle does not sell, arrange or guarantee the policy. Check the insured activities, limits and exclusions before buying.</small>
+                    </div>
+                    <a href="https://www.protectivity.com/product/cleaning-insurance/" target="_blank" rel="noopener noreferrer" data-insurance-supplier-link>View cover &amp; get a quote <span aria-hidden="true">&nearr;</span></a>
                   </div>
                 </fieldset>
 

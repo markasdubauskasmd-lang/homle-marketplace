@@ -11,7 +11,7 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // Pinning the complete dedicated surface and the shared browser assets it loads
 // makes an accidental change fail in CI before it can be merged or deployed.
 const expectedFileCount = 87;
-const expectedDigest = "31671de468d056d1f6b943d006c335d2f654399fa2261fb3eec7aa570e05a54e";
+const expectedDigest = "729a511c4a0d96b6e4b97aa6c2a4e4e71affc45c60766a8ddbbf1b6d1907b8aa";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
