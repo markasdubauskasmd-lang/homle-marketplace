@@ -55,7 +55,8 @@ assert.equal(providerGaps.readiness.automaticMatchingRehearsal, true);
 assert.equal(providerGaps.readiness.transactionalNotifications, false);
 assert.equal(providerGaps.readiness.emailFallback, false);
 assert.equal(providerGaps.readiness.requestedAccountEntry, false);
-assert.equal(providerGaps.readiness.testPaymentRehearsal, false);
+assert.equal(providerGaps.readiness.testPaymentService, false);
+assert.equal(providerGaps.readiness.participantPaymentRehearsalReady, false);
 assert.equal(providerGaps.readiness.realPayments, false);
 assert.deepEqual(providerGaps.remainingActions.map((entry) => entry.key), ["facebook-sign-in", "apple-sign-in", "transactional-email", "test-payments"]);
 assert.equal(providerGaps.capabilities.mediaReady, true);
@@ -63,10 +64,16 @@ const serialized = JSON.stringify(providerGaps);
 assert(!serialized.includes("never-project-this") && !serialized.includes("never-project-provider-secrets") && !serialized.includes("postgres://") && !serialized.includes("DATABASE_URL") && !serialized.includes("GOOGLE_CLIENT_SECRET"), "The live activation snapshot exposed unexpected or private fields.");
 
 const fullyConfiguredTest = liveActivationSnapshot(health({ emailReady: true, paymentsReady: true }), { origin: "https://homle.example", providers: providers({ emailPassword: true, passwordReset: true, emailVerification: true, apple: true, facebook: true }) });
-assert.equal(fullyConfiguredTest.readiness.testPaymentRehearsal, true);
+assert.equal(fullyConfiguredTest.readiness.testPaymentService, true);
+assert.equal(fullyConfiguredTest.readiness.participantPaymentRehearsalReady, true);
 assert.equal(fullyConfiguredTest.readiness.requestedAccountEntry, true);
 assert.deepEqual(fullyConfiguredTest.remainingActions, []);
 assert.equal(fullyConfiguredTest.readiness.realPayments, false, "A staging health snapshot claimed that real payments were approved.");
+
+const stripeWithoutEmail = liveActivationSnapshot(health({ paymentsReady: true }), { origin: "https://homle.example", providers: providers() });
+assert.equal(stripeWithoutEmail.readiness.testPaymentService, true, "A healthy Stripe test adapter was reported as unavailable because transactional email was missing.");
+assert.equal(stripeWithoutEmail.readiness.participantPaymentRehearsalReady, false, "Stripe attachment alone falsely proved the complete participant payment rehearsal ready.");
+assert.deepEqual(stripeWithoutEmail.remainingActions.map((entry) => entry.key), ["facebook-sign-in", "apple-sign-in", "transactional-email"], "A healthy Stripe adapter retained a misleading payment-configuration action.");
 
 const missingStorage = liveActivationSnapshot(health({ mediaReady: false }), { origin: "https://homle.example", providers: providers() });
 assert.deepEqual(missingStorage.remainingActions.map((entry) => entry.key), ["facebook-sign-in", "apple-sign-in", "private-media", "transactional-email", "test-payments"]);
