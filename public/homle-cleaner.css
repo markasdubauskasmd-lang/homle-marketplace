@@ -1066,6 +1066,10 @@
   display: block;
 }
 
+.cleaner-onboarding-page [data-onboarding-group] > .hc-nav-group-summary {
+  display: none;
+}
+
 /* Onboarding sub-items carry a completion tick or an outstanding dot, as in the design. */
 .hc-nav-sub { font-size: 13px; }
 .hc-nav-tick {
