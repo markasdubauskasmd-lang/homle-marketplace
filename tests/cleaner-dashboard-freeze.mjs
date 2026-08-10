@@ -11,7 +11,7 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // Pinning the complete dedicated surface and the shared browser assets it loads
 // makes an accidental change fail in CI before it can be merged or deployed.
 const expectedFileCount = 87;
-const expectedDigest = "b831b24e5b16e911b790f4eebeca2777866a1640c0e008567f60e225c97e8e47";
+const expectedDigest = "ae9f7576b4c8635788c98eb67e6b693c8e2f24a2a1d436cc921047b5c50ab8d2";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
@@ -53,7 +53,13 @@ async function boundaryDigest(files) {
   const digest = createHash("sha256");
   for (const relativePath of files) {
     const bytes = await readFile(path.join(repositoryRoot, ...relativePath.split("/")));
-    const fileDigest = createHash("sha256").update(bytes).digest("hex");
+    // Git may materialize tracked text as CRLF on Windows and LF on Linux.
+    // Those are the same repository content, so normalize text before hashing;
+    // binary assets remain byte-exact.
+    const content = relativePath.endsWith(".png")
+      ? bytes
+      : Buffer.from(bytes.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
+    const fileDigest = createHash("sha256").update(content).digest("hex");
     digest.update(relativePath);
     digest.update("\0");
     digest.update(fileDigest);
