@@ -4,6 +4,11 @@ import { hydrateOnboardingDocumentInputs, storedDocumentCopy, uploadOnboardingFo
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
+const supplierLinks = {
+  cleaner: "https://www.protectivity.com/product/cleaning-insurance/",
+  beautician: "https://www.protectivity.com/product/beauty-therapist-insurance/"
+};
+let serviceType = "cleaner";
 
 function renderRail(progress) {
   const steps = new Map(progress.steps.map((step) => [step.key, step]));
@@ -26,6 +31,48 @@ function renderStoredDocument(input, document) {
   const action = row?.querySelector(".hc-insurance-document-action");
   if (copy) copy.textContent = storedDocumentCopy(document);
   if (action) action.textContent = "Replace";
+}
+
+function selectedServiceType(value) {
+  return String(value || "").toLowerCase() === "beautician" ? "beautician" : "cleaner";
+}
+
+function setInsurancePresentation() {
+  const beautician = serviceType === "beautician";
+  document.querySelectorAll("[data-insurance-requirements]").forEach((panel) => {
+    panel.hidden = panel.dataset.insuranceRequirements !== serviceType;
+  });
+  const badge = document.querySelector("[data-insurance-profession-badge]");
+  if (badge) badge.textContent = beautician ? "Beautician cover" : "Cleaner cover";
+  const professionalLabel = document.querySelector("[data-insurance-professional-label]");
+  if (professionalLabel) professionalLabel.textContent = beautician
+    ? "Treatment / professional liability policy"
+    : "Professional indemnity (if held)";
+  const supplierCopy = document.querySelector("[data-insurance-supplier-copy]");
+  if (supplierCopy) supplierCopy.textContent = beautician
+    ? "Protectivity offers specialist cover for self-employed and mobile beauty therapists."
+    : "Protectivity offers specialist cleaning insurance with online quotes.";
+  const supplierLink = document.querySelector("[data-insurance-supplier-link]");
+  if (supplierLink instanceof HTMLAnchorElement) supplierLink.href = supplierLinks[serviceType];
+  const requirementCopy = document.querySelector("[data-insurance-requirement-copy]");
+  if (requirementCopy) requirementCopy.textContent = beautician
+    ? "Public liability and treatment / professional liability must be selected before you continue."
+    : "Public liability must be selected before you continue.";
+}
+
+function selectedCoverTypes(form) {
+  return new Set([...form.querySelectorAll('input[name="coverTypes"]:checked')].map((input) => input.value));
+}
+
+function validateCoverTypes(form, showFeedback) {
+  const selected = selectedCoverTypes(form);
+  const missing = [];
+  if (!selected.has("public_liability")) missing.push("public liability");
+  if (serviceType === "beautician" && !selected.has("treatment_professional_liability")) missing.push("treatment / professional liability");
+  if (!missing.length) return true;
+  showFeedback(`Confirm that your policy includes ${missing.join(" and ")} before continuing. Nothing was uploaded or saved.`, "error");
+  form.querySelector('input[name="coverTypes"]')?.focus();
+  return false;
 }
 
 export async function setupInsurance({ account, showFeedback, requestJson }) {
@@ -58,19 +105,23 @@ export async function setupInsurance({ account, showFeedback, requestJson }) {
   if (insuranceTopbar) insuranceTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
-  const [profileResult, availabilityResult, payoutResult] = await Promise.allSettled([
+  const [profileResult, availabilityResult, payoutResult, businessResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
-    requestJson("/api/marketplace/cleaner/payout-account")
+    requestJson("/api/marketplace/cleaner/payout-account"),
+    requestJson("/api/marketplace/cleaner/onboarding/business")
   ]);
   const profile = profileResult.status === "fulfilled" ? profileResult.value.profile : null;
   const availabilityCount = availabilityResult.status === "fulfilled" && Array.isArray(availabilityResult.value.availability)
     ? availabilityResult.value.availability.length
     : 0;
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
+  const businessData = businessResult.status === "fulfilled" ? businessResult.value.section?.data : null;
+  serviceType = selectedServiceType(businessData?.serviceType);
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
   await loadOnboardingForm(requestJson, "insurance", form).catch(() => null);
   await hydrateOnboardingDocumentInputs(requestJson, "insurance", form, "[data-insurance-file]", renderStoredDocument).catch(() => null);
+  setInsurancePresentation();
 
   document.querySelectorAll("[data-insurance-file]").forEach((fileInput) => {
     fileInput.addEventListener("change", () => {
@@ -104,6 +155,7 @@ export async function setupInsurance({ account, showFeedback, requestJson }) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!form.reportValidity()) return;
+    if (!validateCoverTypes(form, showFeedback)) return;
     const expiryInput = form.elements.namedItem("policyExpiry");
     const today = new Date().toISOString().slice(0, 10);
     if (expiryInput instanceof HTMLInputElement && expiryInput.value < today) {

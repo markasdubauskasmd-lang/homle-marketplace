@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-<link rel="stylesheet" href="/homle-cleaner.css?v=20260808-2">
+<link rel="stylesheet" href="/homle-cleaner.css?v=20260810-1">
 <script src="/cleaner-registration.js?v=20260808-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
@@ -810,12 +810,58 @@
                 <p class="hc-insurance-status" role="status">Insurance documents are stored securely when submitted. Verification remains pending until Homle reviews them.</p>
               <header class="hc-personal-head">
                 <h1 id="cleaner-insurance-title">Insurance</h1>
-                <p>Public liability cover is required before your first job.</p>
+                <p>Your insurance protects you, your clients and the work you provide through Homlle.</p>
               </header>
 
               <form class="hc-insurance-form" data-insurance-form>
                 <fieldset class="hc-insurance-section">
-                  <legend>Policies</legend>
+                  <legend>Your responsibility</legend>
+                  <div class="hc-insurance-responsibility">
+                    <div>
+                      <strong>You arrange and pay for your own business insurance</strong>
+                      <p>You are joining as a self-employed service provider. Your policy is separate from Homlle&rsquo;s company insurance and must cover every service you offer.</p>
+                    </div>
+                    <span data-insurance-profession-badge>Cleaner cover</span>
+                  </div>
+
+                  <div class="hc-insurance-requirements" data-insurance-requirements="cleaner">
+                    <h2>Cover to arrange as a cleaner</h2>
+                    <ul>
+                      <li><strong>Public liability</strong> for injury or accidental damage at a client&rsquo;s property.</li>
+                      <li><strong>Property being worked on / loss of keys</strong> where your policy offers it.</li>
+                      <li><strong>Product liability</strong> if you supply cleaning chemicals or products.</li>
+                      <li><strong>Employers&rsquo; liability</strong> if you employ anyone, subject to the legal exemptions.</li>
+                      <li><strong>Business-use motor cover</strong> from your motor insurer if you drive to jobs.</li>
+                    </ul>
+                  </div>
+
+                  <div class="hc-insurance-requirements" data-insurance-requirements="beautician" hidden>
+                    <h2>Cover to arrange as a beautician</h2>
+                    <ul>
+                      <li><strong>Public liability</strong> for injury or accidental damage at a client&rsquo;s property.</li>
+                      <li><strong>Treatment / professional liability</strong> covering every treatment you provide.</li>
+                      <li><strong>Product liability</strong> for products you use, supply or sell.</li>
+                      <li><strong>Employers&rsquo; liability</strong> if you employ anyone, subject to the legal exemptions.</li>
+                      <li><strong>Business-use motor cover</strong> from your motor insurer if you travel to appointments by car.</li>
+                    </ul>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-insurance-section">
+                  <legend>Cover held</legend>
+                  <p class="hc-insurance-question">Tick every type of cover shown on your current policy.</p>
+                  <div class="hc-insurance-cover-types">
+                    <label><input type="checkbox" name="coverTypes" value="public_liability"><span>Public liability</span></label>
+                    <label><input type="checkbox" name="coverTypes" value="product_liability"><span>Product liability</span></label>
+                    <label data-insurance-treatment-option><input type="checkbox" name="coverTypes" value="treatment_professional_liability"><span>Treatment / professional liability</span></label>
+                    <label><input type="checkbox" name="coverTypes" value="employers_liability"><span>Employers&rsquo; liability</span></label>
+                    <label><input type="checkbox" name="coverTypes" value="business_use_motor"><span>Business-use motor</span></label>
+                  </div>
+                  <p class="hc-insurance-requirement-copy" data-insurance-requirement-copy>Public liability must be selected before you continue.</p>
+                </fieldset>
+
+                <fieldset class="hc-insurance-section">
+                  <legend>Policy documents</legend>
                   <div class="hc-insurance-policies">
                     <label class="hc-insurance-document">
                       <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
@@ -825,7 +871,7 @@
                     </label>
                     <label class="hc-insurance-document">
                       <span class="hc-insurance-document-icon" aria-hidden="true">&uarr;</span>
-                      <span><strong>Professional indemnity (optional)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
+                      <span><strong data-insurance-professional-label>Professional indemnity (if held)</strong><small>PDF, JPEG or PNG &middot; max 20MB</small></span>
                       <span class="hc-insurance-document-action">Choose file</span>
                       <input type="file" name="professionalIndemnityPolicy" accept="application/pdf,image/jpeg,image/png" data-insurance-file>
                     </label>
@@ -835,7 +881,14 @@
                       <span class="hc-insurance-document-action">Choose file</span>
                       <input type="file" name="employersLiabilityPolicy" accept="application/pdf,image/jpeg,image/png" data-insurance-file>
                     </label>
-                    <p class="hc-insurance-cover-note"><strong>Need cover?</strong> Homle does not currently connect to or endorse an insurance provider. Arrange appropriate cover independently before accepting work.</p>
+                    <div class="hc-insurance-cover-note">
+                      <div>
+                        <strong>Need suitable cover?</strong>
+                        <span data-insurance-supplier-copy>Protectivity offers specialist cleaning insurance with online quotes.</span>
+                        <small>Suggested supplier only. Homlle does not sell, arrange or guarantee the policy. Check the insured activities, limits and exclusions before buying.</small>
+                      </div>
+                      <a href="https://www.protectivity.com/product/cleaning-insurance/" target="_blank" rel="noopener noreferrer" data-insurance-supplier-link>View cover &amp; get a quote <span aria-hidden="true">&nearr;</span></a>
+                    </div>
                   </div>
                 </fieldset>
 
@@ -845,6 +898,14 @@
                     <label><span>Policy number <b aria-hidden="true">*</b></span><input name="policyNumber" autocomplete="off" spellcheck="false" maxlength="80" required></label>
                     <label><span>Provider <b aria-hidden="true">*</b></span><input name="policyProvider" autocomplete="organization" maxlength="120" required></label>
                     <label><span>Expiry date <b aria-hidden="true">*</b></span><input name="policyExpiry" type="date" autocomplete="off" required></label>
+                  </div>
+                </fieldset>
+
+                <fieldset class="hc-insurance-section">
+                  <legend>Confirmation</legend>
+                  <div class="hc-insurance-confirmations">
+                    <label><input type="checkbox" name="insuranceResponsibilityAccepted" required><span>I understand that I am responsible for arranging, paying for and maintaining suitable insurance.</span></label>
+                    <label><input type="checkbox" name="insuredServicesConfirmed" required><span>I confirm that my policy covers every service and treatment I will offer through Homlle.</span></label>
                   </div>
                 </fieldset>
 
