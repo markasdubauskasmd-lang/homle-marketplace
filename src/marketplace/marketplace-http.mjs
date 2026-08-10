@@ -183,14 +183,27 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
 
   // Pricing is injected rather than imported at the point of use, so an
   // administrator's stored values can replace the shipped defaults without a
-  // deployment. Nothing stored yet means the shipped defaults, which are a
-  // complete working price list rather than placeholders.
-  const pricingConfiguration = typeof options.pricingConfiguration === "function"
-    ? options.pricingConfiguration
-    : async () => defaultPricingConfig;
-  const pricingEconomicsConfiguration = typeof options.pricingEconomicsConfiguration === "function"
-    ? options.pricingEconomicsConfiguration
-    : async () => defaultPricingEconomics;
+  // deployment.
+  //
+  // Nothing stored resolves to the shipped defaults, which are a complete
+  // working price list rather than placeholders — a deployment that has never
+  // opened the pricing page quotes the same numbers as one that has. A read
+  // that FAILS also falls back, because refusing to price a clean because a
+  // configuration lookup timed out is worse than pricing it at the defaults the
+  // whole test suite is calibrated against.
+  const pricingAdministration = options.pricingAdministration || null;
+  async function pricingConfiguration(actor) {
+    if (typeof options.pricingConfiguration !== "function") return defaultPricingConfig;
+    try {
+      return (await options.pricingConfiguration(actor)) || defaultPricingConfig;
+    } catch { return defaultPricingConfig; }
+  }
+  async function pricingEconomicsConfiguration(actor) {
+    if (typeof options.pricingEconomicsConfiguration !== "function") return defaultPricingEconomics;
+    try {
+      return (await options.pricingEconomicsConfiguration(actor)) || defaultPricingEconomics;
+    } catch { return defaultPricingEconomics; }
+  }
 
   return {
     async handle(request, response, suppliedUrl) {
@@ -1073,8 +1086,8 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method === "GET") {
             sendJson(response, 200, {
               ok: true,
-              config: normalizedPricingConfig(await pricingConfiguration()),
-              economics: normalizedPricingEconomics(await pricingEconomicsConfiguration())
+              config: normalizedPricingConfig(await pricingConfiguration(context.actor)),
+              economics: normalizedPricingEconomics(await pricingEconomicsConfiguration(context.actor))
             });
             return true;
           }
@@ -1084,10 +1097,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             // economics edit cannot leave a saved price list it no longer suits.
             const config = normalizedPricingConfig(body?.config);
             const economics = normalizedPricingEconomics(body?.economics);
-            const saved = typeof options.savePricing === "function"
-              ? await options.savePricing(context.actor, { config, economics })
-              : { config, economics };
-            sendJson(response, 200, { ok: true, ...saved });
+            if (!pricingAdministration) {
+              // Better a plain refusal than a form that appears to save. An
+              // operator who believes a price change landed will not check it.
+              throw Object.assign(new Error("Pricing storage is not connected, so this change was not saved."), { statusCode: 503, code: "pricing-storage-unavailable" });
+            }
+            await pricingAdministration.publish(context.actor, { config, economics, changeReason: body?.changeReason });
+            sendJson(response, 200, { ok: true, config, economics });
             return true;
           }
           return methodNotAllowed(response, ["GET", "PUT"]), true;
@@ -1152,11 +1168,11 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         // paid and what Homle keeps is not the customer's side of the contract.
         if (pathname === "/api/marketplace/pricing/quote") {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
-          await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const quoteContext = await security.protect(request, { mutation: true, roles: ["landlord"] });
           await limitPublicRead(request, "marketplace-landlord:scan-preview");
           const body = await readJsonObject(request, maximumRoomScanBodyBytes);
-          const config = normalizedPricingConfig(await pricingConfiguration());
-          const { quote } = reviewedQuote(quoteRooms(body, config), await pricingEconomicsConfiguration());
+          const config = normalizedPricingConfig(await pricingConfiguration(quoteContext.actor));
+          const { quote } = reviewedQuote(quoteRooms(body, config), await pricingEconomicsConfiguration(quoteContext.actor));
           sendJson(response, 200, { ok: true, quote });
           return true;
         }
@@ -1165,9 +1181,9 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         // customer is about to be quoted, and there is nothing to hide in them.
         if (pathname === "/api/marketplace/pricing/config") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
-          await security.protect(request, { roles: ["landlord"] });
+          const configContext = await security.protect(request, { roles: ["landlord"] });
           await limitPublicRead(request, "marketplace-landlord:scan-preview");
-          sendJson(response, 200, { ok: true, config: normalizedPricingConfig(await pricingConfiguration()) });
+          sendJson(response, 200, { ok: true, config: normalizedPricingConfig(await pricingConfiguration(configContext.actor)) });
           return true;
         }
         // Turns two tapped pixel spans into a measurement with its band. Compute

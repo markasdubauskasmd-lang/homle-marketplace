@@ -118,7 +118,7 @@ function buildFields() {
   field(core, { path: "includedItemsPerRoom", label: "Tasks included per room", value: working.includedItemsPerRoom, min: 0, max: 50 });
   field(core, { path: "additionalItemPence", label: "Each additional task", value: working.additionalItemPence, suffix: "£", min: 0, max: 100, step: 0.5 });
   field(core, { path: "additionalItemMinutes", label: "Minutes per additional task", value: working.additionalItemMinutes, suffix: "min", min: 0, max: 120 });
-  field(core, { path: "minimumBookingPence", label: "Minimum booking", value: working.minimumBookingPence, suffix: "£", min: 0, max: 1000, step: 0.5 });
+  field(core, { path: "minimumBookingMinutes", label: "Minimum visit", value: working.minimumBookingMinutes, suffix: "min", min: 0, max: 1440, step: 15 });
 
   const rooms = document.querySelector("[data-fields-rooms]");
   rooms.replaceChildren();
@@ -301,11 +301,15 @@ form?.addEventListener("submit", async (event) => {
   } catch (error) {
     return showFeedback(error.message, "error");
   }
+  const changeReason = document.querySelector("[data-pricing-reason]")?.value?.trim() || "";
+  if (changeReason.length < 10) {
+    return showFeedback("Say why this is changing — at least a short sentence. It is stored with the version.", "error");
+  }
   showFeedback("Saving…");
   try {
     const result = await request("/api/marketplace/admin/pricing", {
       method: "PUT",
-      body: JSON.stringify({ config: candidate, economics: candidate.economics })
+      body: JSON.stringify({ config: candidate, economics: candidate.economics, changeReason })
     });
     working = normalizedPricingConfig(result.config);
     economics = result.economics || economics;

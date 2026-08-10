@@ -220,10 +220,68 @@ export function bookingPricingPolicyFromEnvironment(env = process.env) {
 export function createBookingWorkflowService(repository, options = {}) {
   if (!repository || typeof repository.listParticipantBookings !== "function" || typeof repository.getInvitationCandidate !== "function" || typeof repository.inviteCleaner !== "function" || typeof repository.respondToInvitation !== "function") throw new TypeError("A complete booking workflow repository is required.");
   const pricingPolicy = options.pricingPolicy || null;
+  // The share and floors a platform-priced booking settles against. Absent
+  // means the cost-up path is the only one available, which is the behaviour
+  // every existing deployment already has.
+  const platformEconomics = options.platformEconomics || null;
+  // The cost-up policy owns this for its own path; the platform-priced path
+  // needs the same window and cannot reach into the policy's closure for it.
+  const platformInvitationTtlMinutes = integer(options.invitationTtlMinutes ?? 180, 15, 1440, "Invitation lifetime");
   const clock = options.clock || (() => new Date());
   const requirePayoutReady = options.requirePayoutReady === true;
   const getPayoutReadiness = options.getPayoutReadiness;
   if (requirePayoutReady && typeof getPayoutReadiness !== "function") throw new TypeError("Paid booking acceptance requires a Cleaner payout-readiness boundary.");
+  /**
+   * Terms for a request that already carries the price the customer saw.
+   *
+   * The customer figure is NOT recomputed here. It is the number on their
+   * screen, frozen onto the request when they were shown it, and the whole
+   * point is that it survives to the card unchanged — including across a
+   * pricing change an operator publishes in between.
+   *
+   * Returns null when the request has no platform quote, so the caller falls
+   * back to the cost-up path.
+   */
+  function platformPricedTerms(candidate, now) {
+    const customerPricePence = Number(candidate?.quoted_total_pence ?? candidate?.quotedTotalPence);
+    const quotedMinutes = Number(candidate?.quoted_minutes ?? candidate?.quotedMinutes);
+    if (!Number.isInteger(customerPricePence) || customerPricePence < 1) return null;
+    if (!platformEconomics) return null;
+
+    const cleanerPayPence = Math.round(customerPricePence * platformEconomics.cleanerShareBasisPoints / 10000);
+    const paymentFeePence = platformEconomics.paymentFeeFixedPence
+      + Math.ceil(customerPricePence * platformEconomics.paymentFeeBasisPoints / 10000);
+    const contribution = customerPricePence - cleanerPayPence - paymentFeePence;
+    // The same floors the quote was checked against when it was shown. If a
+    // request somehow reaches here below them, refusing is right: the
+    // alternative is a booking that loses money on every visit.
+    if (contribution < platformEconomics.minimumContributionPence) {
+      throw Object.assign(new Error("This request cannot be booked at the price it was quoted."), { statusCode: 409, code: "request-not-priceable" });
+    }
+
+    const start = new Date(candidate.requested_start_at);
+    const responseDeadline = new Date(Math.min(start.getTime(), now.getTime() + platformInvitationTtlMinutes * 60000));
+    if (responseDeadline.getTime() <= now.getTime()) throw Object.assign(new Error("The requested start time is too close to invite a cleaner."), { statusCode: 409, code: "request-too-soon" });
+
+    return {
+      customerPricePence,
+      cleanerPayPence,
+      labourOnCostPence: 0,
+      paymentFeePence,
+      riskContingencyPence: 0,
+      travelCostPence: 0,
+      suppliesCostPence: 0,
+      otherCostPence: 0,
+      quotedMinutes: Number.isInteger(quotedMinutes) ? quotedMinutes : null,
+      pricingConfigVersion: Number(candidate?.pricing_config_version ?? candidate?.pricingConfigVersion) || null,
+      // Reported, not targeted. Under platform pricing the margin is whatever
+      // the published price list produces; it is not searched for.
+      targetMarginBasisPoints: Math.round((contribution / customerPricePence) * 10000),
+      targetContributionPence: contribution,
+      responseDeadline: responseDeadline.toISOString()
+    };
+  }
+
   async function invitationQuote(actor, input = {}) {
     if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.some((role) => role === "landlord" || role === "administrator")) throw new TypeError("A Landlord account is required to price a Cleaner invitation.");
     if (!pricingPolicy || typeof pricingPolicy.quote !== "function") throw Object.assign(new Error("Booking invitations are unavailable until the private pricing policy is configured."), { statusCode: 503, code: "pricing-not-configured" });
@@ -235,7 +293,15 @@ export function createBookingWorkflowService(repository, options = {}) {
     if (requirePayoutReady && candidate.payout_ready !== true) {
       throw Object.assign(new Error("This Cleaner is not ready to receive a test payout yet. Choose another available Cleaner; no invitation or payment was created."), { statusCode: 409, code: "cleaner-payout-not-ready" });
     }
-    return Object.freeze({ requestId, cleanerId, terms: pricingPolicy.quote(candidate, clock()) });
+    // A request that carries the price the customer was shown is priced FROM
+    // that price: the customer figure is already decided, and the cleaner is
+    // paid a share of it. A request without one is priced exactly as before,
+    // cost-up from this cleaner's own rates. Both paths stay live because both
+    // are real — a bespoke job quoted against a cleaner's rate card has no
+    // platform price to freeze.
+    const terms = platformPricedTerms(candidate, clock())
+      || pricingPolicy.quote(candidate, clock());
+    return Object.freeze({ requestId, cleanerId, terms });
   }
   return Object.freeze({
     async listParticipantBookings(actor, input = {}) {

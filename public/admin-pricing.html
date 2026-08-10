@@ -16,7 +16,7 @@
 </head>
 <body class="booking-dashboard-page admin-payments-page">
   <a class="skip-link" href="#admin-pricing-main">Skip to pricing</a>
-  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator" data-admin-private-navigation hidden><a href="/admin/bookings">Booking operations</a><a href="/admin/cases">Booking cases</a><a href="/admin/verifications">Cleaner vetting</a><a href="/admin">Control desk</a></nav></div></header>
+  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator" data-admin-private-navigation hidden><a href="/admin/pricing">Pricing</a><a href="/admin/bookings">Booking operations</a><a href="/admin/cases">Booking cases</a><a href="/admin/verifications">Cleaner vetting</a><a href="/admin">Control desk</a></nav></div></header>
 
   <main id="admin-pricing-main" class="booking-dashboard-shell">
     <section class="booking-dashboard-gate" data-admin-pricing-gate>
@@ -101,6 +101,18 @@
           <h2 id="economics-title">Economics <span class="admin-pricing-private-pill">Never shown to customers</span></h2>
           <p>The cleaner's share is the promise to supply. The floors below are what stops a booking being sold at a loss — a quote that breaks one is refused rather than discounted.</p>
           <div class="admin-pricing-grid" data-fields-economics></div>
+        </section>
+
+        <!-- Required, and required to be meaningful. A price change with no
+             stated reason is the one nobody can explain six months later, when
+             the question is why margin moved. The database enforces the length
+             as well, so this cannot be skipped by calling the API directly. -->
+        <section class="admin-pricing-card" aria-labelledby="reason-title">
+          <h2 id="reason-title">Why are you changing this?</h2>
+          <label class="admin-pricing-field">
+            <span class="admin-pricing-field-label">Recorded against this version, with your name and the time</span>
+            <textarea data-pricing-reason rows="2" minlength="10" maxlength="500" placeholder="For example: raised the additional-task price to £3.50 after the March margin review"></textarea>
+          </label>
         </section>
 
         <div class="admin-pricing-actions">

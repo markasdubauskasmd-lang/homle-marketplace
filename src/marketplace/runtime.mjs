@@ -23,6 +23,7 @@ import { createCleaningRequestService } from "./cleaning-request-service.mjs";
 import { createScanRepository } from "./scan-repository.mjs";
 import { createScanService } from "./scan-service.mjs";
 import { createScanPricingRepository, createScanPricingService } from "./scan-pricing-repository.mjs";
+import { createPricingConfigurationRepository } from "./pricing-configuration-repository.mjs";
 import { createScanGroundTruthRepository, createScanGroundTruthService } from "./scan-ground-truth.mjs";
 import { createScanTelemetry } from "./scan-telemetry.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config.mjs";
@@ -175,6 +176,10 @@ export function createMarketplaceRuntime(pool, options = {}) {
   // network; an Administrator reads the snapshot out.
   const scanTelemetry = options.scanTelemetry || createScanTelemetry();
   const scanPricingService = createScanPricingService(createScanPricingRepository(database));
+  // The operator's price list. Reads fall back to the shipped defaults when
+  // nothing has been published, so a fresh deployment quotes the same numbers
+  // as a configured one rather than refusing to price.
+  const pricingConfigurationRepository = createPricingConfigurationRepository(database);
   // The pricing service is passed in so a scan can be estimated against the
   // rules an operator actually published. With nothing published the estimate
   // falls back to the shipped defaults, so an unconfigured deployment prices
@@ -228,7 +233,13 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const administratorFunnelService = createAdministratorFunnelService(administratorFunnelRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, { clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError });
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
+    clientKey: options.clientKey,
+    onUnexpectedError: options.onUnexpectedError,
+    pricingConfiguration: (actor) => pricingConfigurationRepository.activeConfig(actor),
+    pricingEconomicsConfiguration: (actor) => pricingConfigurationRepository.economicsForRuntime(actor),
+    pricingAdministration: pricingConfigurationRepository
+  });
   if (options.emailDelivery && !environment.emailConfigured) throw new TypeError("Authentication HTTP composition requires one configured HTTPS or SMTP email provider and EMAIL_FROM.");
   const authenticationRouter = options.emailDelivery || googleOidcProvider || appleSignInProvider
     ? createAuthenticationHttpRouter({ security, credentialService, identityService, facebookIdentityService, facebookDataDeletionService, providerLinkState, accountSessionService, emailDelivery: options.emailDelivery, rateLimiter: options.rateLimiter, googleOidcProvider, appleSignInProvider, facebookLoginProvider }, { appOrigin: environment.appOrigin, clientKey: options.clientKey, onUnexpectedError: options.onUnexpectedError, workspaceReady: true })
