@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-<link rel="stylesheet" href="/homle-cleaner.css?v=20260810-1">
+<link rel="stylesheet" href="/homle-cleaner.css?v=20260810-2">
 <script src="/cleaner-registration.js?v=20260808-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
@@ -821,7 +821,18 @@
                       <strong>You arrange and pay for your own business insurance</strong>
                       <p>You are joining as a self-employed service provider. Your policy is separate from Homlle&rsquo;s company insurance and must cover every service you offer.</p>
                     </div>
-                    <span data-insurance-profession-badge>Cleaner cover</span>
+                    <span data-insurance-profession-badge>Viewing Cleaner cover</span>
+                  </div>
+
+                  <div class="hc-insurance-view-controls">
+                    <div>
+                      <strong>View coverage needed for</strong>
+                      <p data-insurance-selection-note>Your saved onboarding service is Cleaner.</p>
+                    </div>
+                    <div class="hc-insurance-view-switch" role="group" aria-label="View insurance requirements for">
+                      <button type="button" data-insurance-view-switch="cleaner" aria-pressed="true">Cleaner</button>
+                      <button type="button" data-insurance-view-switch="beautician" aria-pressed="false">Beautician</button>
+                    </div>
                   </div>
 
                   <div class="hc-insurance-requirements" data-insurance-requirements="cleaner">
@@ -853,7 +864,7 @@
                   <div class="hc-insurance-cover-types">
                     <label><input type="checkbox" name="coverTypes" value="public_liability"><span>Public liability</span></label>
                     <label><input type="checkbox" name="coverTypes" value="product_liability"><span>Product liability</span></label>
-                    <label data-insurance-treatment-option><input type="checkbox" name="coverTypes" value="treatment_professional_liability"><span>Treatment / professional liability</span></label>
+                    <label data-insurance-cover-option="beautician"><input type="checkbox" name="coverTypes" value="treatment_professional_liability"><span>Treatment / professional liability</span></label>
                     <label><input type="checkbox" name="coverTypes" value="employers_liability"><span>Employers&rsquo; liability</span></label>
                     <label><input type="checkbox" name="coverTypes" value="business_use_motor"><span>Business-use motor</span></label>
                   </div>
