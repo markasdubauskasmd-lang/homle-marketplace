@@ -138,7 +138,14 @@
             <span data-review-price-range></span>
             <span class="scan-review-deltas" data-review-deltas aria-live="polite"></span>
           </div>
-          <p class="hint" data-review-price-note>Your price for the tasks selected. Nothing is charged now — a cleaner accepts this exact scope and total before anything is booked.</p>
+          <!-- Still says "not a quote", and must keep saying it until bookings
+               are priced by this engine rather than by booking-workflow's
+               cost-up quote(). The number above is firm and reconciles to the
+               breakdown, but it is not yet what the booking charges, and a
+               panel that claimed otherwise would be the exact mismatch this
+               work exists to remove. Delete this caveat in the same change that
+               moves bookings across — not before. -->
+          <p class="hint" data-review-price-note>Your price for the tasks selected — not a quote until a cleaner accepts this exact scope. Nothing is charged now.</p>
           <details data-review-breakdown-wrap>
             <summary>How this was worked out</summary>
             <ul class="scan-review-lines" data-review-breakdown></ul>
