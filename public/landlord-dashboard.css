@@ -1354,6 +1354,48 @@ body.landlord-dashboard-page .landlord-task-preview [role="listitem"]::before {
   background: var(--ld-coral);
 }
 
+/* One text box and the two actions the Landlord actually needs. Speech still
+   writes the same validated room-labelled tasks into this field; Add images
+   saves the private draft and opens the existing protected photo flow. */
+body.landlord-dashboard-page .landlord-simple-instructions {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+}
+body.landlord-dashboard-page .landlord-simple-instructions-label {
+  color: var(--ld-ink);
+  font-family: var(--ld-display);
+  font-size: 18px;
+  font-weight: 800;
+}
+body.landlord-dashboard-page .landlord-simple-instructions textarea {
+  width: 100%;
+  min-height: 190px;
+  resize: vertical;
+}
+body.landlord-dashboard-page .landlord-simple-instructions-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+body.landlord-dashboard-page .landlord-simple-instructions-actions .button { min-width: 150px; }
+body.landlord-dashboard-page .landlord-simple-instructions [data-speech-status] {
+  margin: 0;
+  color: var(--ld-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  body.landlord-dashboard-page .landlord-simple-instructions-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  body.landlord-dashboard-page .landlord-simple-instructions-actions .button {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 @keyframes pac-pulse {
   0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 oklch(0.7 0.16 150 / 0.5); }
   50% { transform: scale(1.25); box-shadow: 0 0 0 6px oklch(0.7 0.16 150 / 0); }
