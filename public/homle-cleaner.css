@@ -4347,6 +4347,119 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   text-transform: uppercase;
 }
 
+.hc-insurance-responsibility {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px;
+  color: var(--hc-ink);
+  border: 1px solid #ead8bd;
+  border-radius: 12px;
+  background: #f8f0e2;
+}
+
+.hc-insurance-responsibility > div {
+  display: grid;
+  gap: 5px;
+}
+
+.hc-insurance-responsibility strong,
+.hc-insurance-requirements h2 {
+  font-size: 12px;
+}
+
+.hc-insurance-responsibility p {
+  max-width: 590px;
+  margin: 0;
+  color: var(--hc-muted);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.hc-insurance-responsibility > span {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  color: #8d241b;
+  border-radius: 999px;
+  background: #f8dcd4;
+  font-size: 8.5px;
+  font-weight: 700;
+}
+
+.hc-insurance-requirements {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid #eadfce;
+  border-radius: 12px;
+  background: #fffdfa;
+}
+
+.hc-insurance-requirements h2 {
+  margin: 0 0 10px;
+}
+
+.hc-insurance-requirements ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  color: var(--hc-muted);
+  font-size: 9.5px;
+  line-height: 1.45;
+  list-style: none;
+}
+
+.hc-insurance-requirements li {
+  position: relative;
+  padding-left: 16px;
+}
+
+.hc-insurance-requirements li::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--hc-red);
+  content: "\2713";
+  font-weight: 700;
+}
+
+.hc-insurance-question,
+.hc-insurance-requirement-copy {
+  margin: 0;
+  color: var(--hc-muted);
+  font-size: 9.5px;
+}
+
+.hc-insurance-cover-types {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.hc-insurance-cover-types label,
+.hc-insurance-confirmations label {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  padding: 12px;
+  color: var(--hc-ink);
+  border: 1px solid #ead9c1;
+  border-radius: 10px;
+  background: #fdfaf4;
+  font-size: 9.5px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.hc-insurance-cover-types input,
+.hc-insurance-confirmations input {
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+  accent-color: var(--hc-red);
+}
+
 .hc-insurance-policies {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4435,10 +4548,11 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 }
 
 .hc-insurance-cover-note {
-  display: flex;
+  display: grid;
   min-height: 62px;
   margin: 0;
-  align-items: center;
+  gap: 10px;
+  align-items: start;
   padding: 12px 14px;
   color: var(--hc-muted);
   border-radius: 10px;
@@ -4448,8 +4562,41 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 }
 
 .hc-insurance-cover-note strong {
-  margin-right: 4px;
+  display: block;
+  margin-bottom: 3px;
   color: var(--hc-ink);
+}
+
+.hc-insurance-cover-note > div {
+  display: grid;
+  gap: 3px;
+}
+
+.hc-insurance-cover-note small {
+  color: var(--hc-muted-2);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.hc-insurance-cover-note a {
+  width: fit-content;
+  padding: 7px 10px;
+  color: #ffffff;
+  border-radius: 999px;
+  background: var(--hc-red);
+  font-size: 8.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.hc-insurance-cover-note a:hover,
+.hc-insurance-cover-note a:focus-visible {
+  background: #a9271b;
+}
+
+.hc-insurance-confirmations {
+  display: grid;
+  gap: 10px;
 }
 
 .hc-insurance-details {
@@ -6401,6 +6548,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-experience-specialisms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-experience-history { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-references-contact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hc-insurance-cover-types,
   .hc-insurance-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-banking-account-secondary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hc-equipment-grid,
@@ -6489,7 +6637,9 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-insurance-status { margin-left: 20px; margin-right: 20px; }
   .hc-insurance-form { padding-left: 20px; padding-right: 20px; }
   .hc-insurance-policies,
+  .hc-insurance-cover-types,
   .hc-insurance-details { grid-template-columns: 1fr; }
+  .hc-insurance-responsibility { display: grid; }
   .hc-banking-form { padding-left: 20px; padding-right: 20px; }
   .hc-banking-account-primary,
   .hc-banking-account-secondary,
