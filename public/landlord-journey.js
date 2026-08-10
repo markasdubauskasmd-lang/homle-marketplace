@@ -1,3 +1,9 @@
+// Pricing. The same modules the server prices with, so the number the customer
+// watches move is the number the booking is made at.
+import { defaultPricingConfig, normalizedPricingConfig } from "./pricing-config.js?v=20260808-1";
+import { quoteInputFromScan, quoteRooms } from "./pricing-engine.js?v=20260808-1";
+import { createPriceAnimator, formatPence, showPriceDelta } from "./price-animator.js?v=20260808-1";
+
 import {
   journeySteps,
   stepIndex,
@@ -688,6 +694,9 @@ async function createOrRecoverRequest(csrf, propertyId) {
     budgetPence: null,
     frequency: state.draft.frequency,
     tasks,
+    // The browser sends scope, never money. The server recomputes this selection
+    // from its active price list and freezes that authoritative quote.
+    pricingRequest: state.scanRooms.length ? currentPricingRequest() : null,
     submit: false
   };
   try {
@@ -740,26 +749,109 @@ function renderReviewLevel(review) {
   provisional.hidden = !review.provisional;
 }
 
+/**
+ * The running total.
+ *
+ * Priced locally so the number moves the instant a task is tapped — a scanner
+ * that waits on a round trip to tell you what something cost is a scanner
+ * people stop trusting. The server prices the same selection with the same
+ * module when the booking is made, so "instant" costs nothing in accuracy.
+ *
+ * The old ranged estimate is gone from this panel. A range exists to express
+ * uncertainty about what is IN the room; once the customer has confirmed the
+ * task list there is none left to express, and showing one anyway invites them
+ * to expect the bottom of it.
+ */
+let priceAnimator = null;
+let pricingConfig = null;
+
+// Marketplace service codes describe the product; the pricing engine uses a
+// smaller set of calculation families. Keeping the translation explicit stops
+// a deep, turnover or commercial scan from silently pricing as standard.
+const pricingServiceTypeByCode = Object.freeze({
+  "regular-domestic": "standard",
+  "rental-turnovers": "rental-turnover",
+  "end-of-tenancy": "end-of-tenancy",
+  workplaces: "commercial",
+  "communal-areas": "commercial",
+  "deep-cleans": "deep"
+});
+
+function currentPricingRequest() {
+  return quoteInputFromScan({
+    rooms: correctedScanRooms().map((room) => ({ roomName: room.name, objects: room.objects }))
+  }, {
+    serviceType: pricingServiceTypeByCode[state.draft.serviceCode] || "standard",
+    frequency: state.draft.frequency || "one-time"
+  });
+}
+
+async function loadPricingConfig() {
+  if (pricingConfig) return pricingConfig;
+  try {
+    const result = await requestJson("/api/marketplace/pricing/config");
+    pricingConfig = normalizedPricingConfig(result.config);
+  } catch {
+    // The shipped defaults are a complete price list, so a failed fetch shows a
+    // real price rather than a dash. The server still prices the booking.
+    pricingConfig = normalizedPricingConfig(defaultPricingConfig);
+  }
+  return pricingConfig;
+}
+
 function renderReviewPrice(review) {
   const host = reviewElement("[data-review-estimate]");
   const refusal = reviewElement("[data-review-refusal]");
-  if (!review.price) {
-    host.hidden = true;
+
+  const config = pricingConfig;
+  const quote = config ? quoteRooms(currentPricingRequest(), config) : null;
+
+  if (!quote?.priceable) {
+    // Falls back to whatever the assessment could say. A scan that cannot be
+    // priced is not a broken scan — it is one that needs a person, and the
+    // refusal panel already says so.
+    host.hidden = !review.price;
     refusal.hidden = !review.refusal;
-    reviewElement("[data-review-refusal-reason]").textContent = review.refusal;
+    reviewElement("[data-review-refusal-reason]").textContent = review.refusal || quote?.reason || "";
     return;
   }
+
   refusal.hidden = true;
   host.hidden = false;
-  reviewElement("[data-review-price]").textContent = review.price.total;
-  reviewElement("[data-review-price-range]").textContent = review.price.range;
-  reviewElement("[data-review-rates]").textContent = review.ratesNote;
+
+  if (!priceAnimator) {
+    priceAnimator = createPriceAnimator(reviewElement("[data-review-price]"), {
+      onDelta: (delta) => showPriceDelta(reviewElement("[data-review-deltas]"), delta)
+    });
+  }
+  priceAnimator.set(quote.totalPence);
+
+  // The duration, not a second price. Two numbers that both look like money is
+  // how a customer ends up unsure which one they are paying.
+  reviewElement("[data-review-price-range]").textContent = `${Math.round(quote.estimatedMinutes / 6) / 10} hrs · ${quote.serviceLabel}`;
+  reviewElement("[data-review-rates]").textContent = review.ratesNote || "";
+
+  // Room by room, then the whole-visit lines. Every included task is named and
+  // shown as included, so "why is this £3 more" always has an answer on screen.
   const breakdown = reviewElement("[data-review-breakdown]");
-  breakdown.replaceChildren(...review.price.lines.map((line) => {
+  const rows = [];
+  for (const room of quote.rooms) {
+    const heading = textNode("li", "scan-review-line scan-review-line-room");
+    heading.append(textNode("span", "", room.label), textNode("b", "", formatPence(room.totalPence)));
+    rows.push(heading);
+    for (const line of room.lines) {
+      const row = textNode("li", `scan-review-line scan-review-line-task${line.included ? " is-included" : ""}`);
+      row.append(textNode("span", "", line.label), textNode("b", "", line.included ? "Included" : formatPence(line.pence)));
+      rows.push(row);
+    }
+  }
+  for (const line of quote.lines) {
+    if (line.kind === "subtotal" || line.kind === "premium") continue;
     const row = textNode("li", "scan-review-line");
-    row.append(textNode("span", "", line.label), textNode("b", "", line.amount));
-    return row;
-  }));
+    row.append(textNode("span", "", line.label), textNode("b", "", formatPence(line.pence)));
+    rows.push(row);
+  }
+  breakdown.replaceChildren(...rows);
 }
 
 function renderReviewQuestions(review) {
@@ -1111,6 +1203,8 @@ function renderReview() {
 // assessment must not cost the customer their scan.
 async function refreshScanReview() {
   if (!reviewHost || !state.scanRooms.length) return;
+  // Cached after the first call; the price list does not change mid-scan.
+  await loadPricingConfig();
   const rooms = correctedScanRooms();
   try {
     const result = await requestJson("/api/marketplace/landlord/scan-preview", {

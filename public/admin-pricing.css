@@ -1,0 +1,103 @@
+/* The pricing screen, and the price chip the scanner shares with it. */
+
+.admin-pricing-heading { margin: 0 0 20px; }
+.admin-pricing-heading h1 { margin: 4px 0 6px; font-size: clamp(24px, 3vw, 32px); }
+.admin-pricing-heading p { max-width: 62ch; color: var(--homle-muted, #665f61); line-height: 1.55; }
+
+.admin-pricing-card,
+.admin-pricing-preview {
+  background: #fff;
+  border: 1px solid var(--homle-line, rgba(40, 30, 26, .12));
+  border-radius: var(--homle-radius-lg, 22px);
+  padding: 20px 22px;
+  margin-bottom: 16px;
+  box-shadow: var(--homle-shadow-sm);
+}
+.admin-pricing-card h2 { margin: 0 0 4px; font-size: 17px; }
+.admin-pricing-card > p { margin: 0 0 14px; max-width: 70ch; font-size: 13.5px; line-height: 1.55; color: var(--homle-muted, #665f61); }
+
+/* The preview sits above the fields and stays there while they are edited. */
+.admin-pricing-preview { position: sticky; top: 12px; z-index: 5; }
+.admin-pricing-preview-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.admin-pricing-preview-head h2 { margin: 0; font-size: 17px; }
+.admin-pricing-preview-head label { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.admin-pricing-preview-head select { border-radius: var(--homle-radius-sm, 10px); border: 1px solid var(--homle-line, rgba(40, 30, 26, .18)); padding: 8px 10px; font: inherit; }
+
+.admin-pricing-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.admin-pricing-figure {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--homle-radius, 16px);
+  background: var(--homle-surface, #fbf9f3);
+}
+.admin-pricing-figure strong { font-size: 21px; letter-spacing: -.02em; }
+.admin-pricing-figure small { font-size: 11.5px; color: var(--homle-muted, #665f61); }
+.admin-pricing-figure-key { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--homle-dim, #8a8078); }
+.admin-pricing-figure.is-headline { background: color-mix(in oklch, var(--homle-coral, #e11b22) 10%, white); }
+.admin-pricing-figure.is-good { background: color-mix(in oklch, var(--homle-success, #2e9e63) 12%, white); }
+.admin-pricing-figure.is-bad { background: color-mix(in oklch, var(--homle-coral, #e11b22) 16%, white); }
+
+.admin-pricing-warning {
+  margin: 14px 0 0;
+  padding: 11px 14px;
+  border-radius: var(--homle-radius-sm, 10px);
+  background: color-mix(in oklch, var(--homle-coral, #e11b22) 12%, white);
+  color: color-mix(in oklch, var(--homle-coral, #e11b22) 70%, black);
+  font-size: 13px;
+  font-weight: 600;
+}
+.admin-pricing-breakdown { margin-top: 14px; }
+.admin-pricing-breakdown summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.admin-pricing-breakdown ul { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.admin-pricing-breakdown li { display: flex; justify-content: space-between; gap: 14px; font-size: 13px; }
+
+.admin-pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.admin-pricing-rooms { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.admin-pricing-row {
+  padding: 12px 14px;
+  border: 1px solid var(--homle-line-soft, rgba(40, 30, 26, .08));
+  border-radius: var(--homle-radius, 16px);
+}
+.admin-pricing-row-name { display: block; margin-bottom: 10px; font-size: 14px; }
+.admin-pricing-row-fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+.admin-pricing-field { display: grid; gap: 5px; }
+.admin-pricing-field-label { font-size: 11.5px; font-weight: 600; color: var(--homle-muted, #665f61); }
+.admin-pricing-field-row { display: flex; align-items: center; gap: 5px; }
+.admin-pricing-field-row input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--homle-line, rgba(40, 30, 26, .18));
+  border-radius: var(--homle-radius-sm, 10px);
+  font: inherit;
+  background: #fff;
+}
+.admin-pricing-field-row input:focus-visible { outline: 2px solid var(--homle-coral-action, #c8102e); outline-offset: 1px; }
+.admin-pricing-affix { flex: none; font-size: 12px; color: var(--homle-dim, #8a8078); }
+
+/* The commercial half, marked so it is never mistaken for customer-facing. */
+.admin-pricing-card-private { border-color: color-mix(in oklch, var(--homle-coral, #e11b22) 35%, transparent); }
+.admin-pricing-private-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--homle-coral, #e11b22) 12%, white);
+  color: color-mix(in oklch, var(--homle-coral, #e11b22) 70%, black);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.admin-pricing-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 20px 0 40px; }
+.admin-pricing-actions .landlord-form-feedback { flex: 1; min-width: 200px; margin: 0; }
+
+@media (max-width: 700px) {
+  .admin-pricing-preview { position: static; }
+  .admin-pricing-row-fields { grid-template-columns: repeat(2, 1fr); }
+  .admin-pricing-actions .button { width: 100%; }
+}

@@ -1,0 +1,36 @@
+/* The running total and its delta chip.
+ *
+ * Shared by the scanner and the admin preview because they show the same thing:
+ * a price that moves, and a chip saying what moved it. Kept out of both pages'
+ * own stylesheets so the two can never drift into looking like different
+ * numbers.
+ */
+
+/* ── The scanner's running total ─────────────────────────────────────────── */
+
+.price-delta {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity .28s ease, transform .28s ease;
+}
+.price-delta.is-up { background: var(--homle-coral-action, #c8102e); }
+.price-delta.is-down { background: var(--homle-success, #2e9e63); }
+.price-delta.is-leaving { opacity: 0; transform: translateY(-6px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .price-delta { transition: none; }
+}
+
+/* The scanner's breakdown, grouped by room. */
+.scan-review-deltas { display: inline-flex; gap: 6px; margin-left: 10px; vertical-align: middle; }
+.scan-review-line-room { margin-top: 10px; font-weight: 700; }
+.scan-review-line-task { padding-left: 12px; font-size: 13px; }
+.scan-review-line-task.is-included b { color: var(--homle-dim, #8a8078); font-weight: 600; }
