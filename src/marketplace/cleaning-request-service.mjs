@@ -225,7 +225,11 @@ export function createCleaningRequestService(repository, options = {}) {
         scopeConfirmedAt: new Date(result.scopeConfirmedAt).toISOString(),
         cleanerPreviewAuthorized: result.cleanerPreviewAuthorized === true,
         photoCount: Number(result.photoCount),
-        taskCount: Number(result.taskCount)
+        taskCount: Number(result.taskCount),
+        quotedTotalPence: result.quotedTotalPence == null ? null : Number(result.quotedTotalPence),
+        quotedMinutes: result.quotedMinutes == null ? null : Number(result.quotedMinutes),
+        pricingConfigVersion: result.pricingConfigVersion == null ? null : Number(result.pricingConfigVersion),
+        quotedAt: result.quotedAt ? new Date(result.quotedAt).toISOString() : null
       });
     },
     async configureAutomaticDispatch(actor, cleaningRequestId, input = {}) {

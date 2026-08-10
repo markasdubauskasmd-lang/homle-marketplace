@@ -33,7 +33,24 @@ export function createCleaningRequestRepository(database) {
       return database.withUserTransaction(actor, async (client) => {
         try {
           const result = await client.query("SELECT tideway_private.submit_cleaning_request($1::uuid,$2::boolean,$3::boolean) AS submission", [requestId, choice.scopeReviewed, choice.cleanerPreviewAuthorized]);
-          return result.rows[0]?.submission;
+          const submission = result.rows[0]?.submission;
+          if (!submission) return submission;
+          // The database function deliberately returns only the reviewed-scan
+          // receipt. Fetch the immutable quote in the same owner-bound
+          // transaction so the completion screen never has to reconstruct a
+          // price from browser state that may be stale or absent.
+          const quote = await client.query(
+            "SELECT quoted_total_pence, quoted_minutes, pricing_config_version, quoted_at FROM cleaning_requests WHERE id=$1::uuid AND landlord_user_id=$2::uuid",
+            [requestId, actor.userId]
+          );
+          const saved = quote.rows[0] || {};
+          return {
+            ...submission,
+            quotedTotalPence: saved.quoted_total_pence == null ? null : Number(saved.quoted_total_pence),
+            quotedMinutes: saved.quoted_minutes == null ? null : Number(saved.quoted_minutes),
+            pricingConfigVersion: saved.pricing_config_version == null ? null : Number(saved.pricing_config_version),
+            quotedAt: saved.quoted_at ? new Date(saved.quoted_at).toISOString() : null
+          };
         } catch (error) {
           const mapped = {
             "request-not-found": [404, "request-not-found", "The cleaning-request draft was not found."],
