@@ -3011,6 +3011,12 @@ async function createRequestDraft(event) {
   event.preventDefault();
   requestFeedback.hidden = true;
   if (!requestForm.reportValidity()) return;
+  // "Add images" is the one deliberate approval action in the simplified
+  // final step. Keep the existing server payload and validation boundary, but
+  // do not ask the Landlord to repeat approval in a separate checkbox.
+  const scopeConfirmation = requestForm.elements.scopeReviewed;
+  scopeConfirmation.disabled = false;
+  scopeConfirmation.checked = true;
   const data = new FormData(requestForm);
   let tasks;
   let window;
@@ -3019,7 +3025,10 @@ async function createRequestDraft(event) {
     tasks = requestTasksFromLines(data.get("tasks"));
     window = requestedWindow(data.get("requestedDate"), data.get("requestedTime"), data.get("durationMinutes"));
     budgetPence = moneyToPence(data.get("budget"));
-  } catch (error) { return showFeedback(requestFeedback, error.message); }
+  } catch (error) {
+    scopeConfirmation.checked = false;
+    return showFeedback(requestFeedback, error.message);
+  }
   const cleaningType = String(data.get("cleaningType") || "");
   const frequency = String(data.get("frequency") || "one-time");
   const requiredServices = [cleaningType];
@@ -3056,7 +3065,7 @@ async function createRequestDraft(event) {
     requestDirty = false;
     showRequestContinuation(result.cleaningRequest);
   } catch (error) { showFeedback(requestFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message); }
-  finally { setPending(requestSave, false, "Save and add room photos"); }
+  finally { setPending(requestSave, false, "Add images"); }
 }
 
 function setPending(button, pending, label) {
