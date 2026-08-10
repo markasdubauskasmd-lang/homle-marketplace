@@ -694,6 +694,9 @@ async function createOrRecoverRequest(csrf, propertyId) {
     budgetPence: null,
     frequency: state.draft.frequency,
     tasks,
+    // The browser sends scope, never money. The server recomputes this selection
+    // from its active price list and freezes that authoritative quote.
+    pricingRequest: state.scanRooms.length ? currentPricingRequest() : null,
     submit: false
   };
   try {
@@ -762,6 +765,27 @@ function renderReviewLevel(review) {
 let priceAnimator = null;
 let pricingConfig = null;
 
+// Marketplace service codes describe the product; the pricing engine uses a
+// smaller set of calculation families. Keeping the translation explicit stops
+// a deep, turnover or commercial scan from silently pricing as standard.
+const pricingServiceTypeByCode = Object.freeze({
+  "regular-domestic": "standard",
+  "rental-turnovers": "rental-turnover",
+  "end-of-tenancy": "end-of-tenancy",
+  workplaces: "commercial",
+  "communal-areas": "commercial",
+  "deep-cleans": "deep"
+});
+
+function currentPricingRequest() {
+  return quoteInputFromScan({
+    rooms: correctedScanRooms().map((room) => ({ roomName: room.name, objects: room.objects }))
+  }, {
+    serviceType: pricingServiceTypeByCode[state.draft.serviceCode] || "standard",
+    frequency: state.draft.frequency || "one-time"
+  });
+}
+
 async function loadPricingConfig() {
   if (pricingConfig) return pricingConfig;
   try {
@@ -780,9 +804,7 @@ function renderReviewPrice(review) {
   const refusal = reviewElement("[data-review-refusal]");
 
   const config = pricingConfig;
-  const quote = config
-    ? quoteRooms(quoteInputFromScan({ rooms: correctedScanRooms().map((room) => ({ roomName: room.name, objects: room.objects })) }), config)
-    : null;
+  const quote = config ? quoteRooms(currentPricingRequest(), config) : null;
 
   if (!quote?.priceable) {
     // Falls back to whatever the assessment could say. A scan that cannot be

@@ -140,17 +140,26 @@ assert(legacyTerms.customerPricePence > 4000,
 assert(legacyTerms.quotedMinutes === undefined,
   "A cost-up booking claimed a quoted duration it never had.");
 
-/* ── Without economics configured, nothing changes ───────────────────────── */
+/* A stored quote must never fall back to the legacy cleaner-rate calculation.
+   That would let the displayed scanner price differ from the booked total. */
+let missingEconomicsRejected = false;
+try {
+  await termsFor({});
+} catch (error) {
+  missingEconomicsRejected = error.code === "pricing-not-configured";
+}
+assert(missingEconomicsRejected,
+  "A stored customer quote silently fell back to a different pricing model.");
 
-const fallback = await termsFor({});
-assert(fallback.customerPricePence !== quote.totalPence,
-  "Platform pricing was applied without the economics that decide whether it is safe.");
+const dynamic = await termsFor({ getPlatformEconomics: async () => defaultPricingEconomics });
+assert(dynamic.customerPricePence === quote.totalPence,
+  "The runtime economics reader did not carry the stored scanner quote into booking terms.");
 
 /* ── A quote that cannot pay everyone is refused at booking too ──────────── */
 
 let refused = false;
 try {
-  await termsFor({ platformEconomics: { ...defaultPricingEconomics, cleanerShareBasisPoints: 9400, minimumContributionPence: 900000 } });
+  await termsFor({ platformEconomics: { ...defaultPricingEconomics, minimumContributionPence: 100000 } });
 } catch (error) {
   refused = error.code === "request-not-priceable";
 }

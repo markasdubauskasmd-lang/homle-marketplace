@@ -24,6 +24,9 @@ import { createScanRepository } from "./scan-repository.mjs";
 import { createScanService } from "./scan-service.mjs";
 import { createScanPricingRepository, createScanPricingService } from "./scan-pricing-repository.mjs";
 import { createPricingConfigurationRepository } from "./pricing-configuration-repository.mjs";
+import { defaultPricingConfig, normalizedPricingConfig } from "../../public/pricing-config.js";
+import { quoteRooms } from "../../public/pricing-engine.js";
+import { defaultPricingEconomics, normalizedPricingEconomics, reviewedQuote } from "./pricing-economics.mjs";
 import { createScanGroundTruthRepository, createScanGroundTruthService } from "./scan-ground-truth.mjs";
 import { createScanTelemetry } from "./scan-telemetry.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config.mjs";
@@ -166,8 +169,15 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const favouriteCleanerService = createFavouriteCleanerService(favouriteCleanerRepository);
   const propertyRepository = createPropertyRepository(database);
   const propertyService = createPropertyService(propertyRepository, { dataEncryptionSecret: env.DATA_ENCRYPTION_KEY, geocoder });
+  const pricingConfigurationRepository = createPricingConfigurationRepository(database);
   const cleaningRequestRepository = createCleaningRequestRepository(database);
-  const cleaningRequestService = createCleaningRequestService(cleaningRequestRepository);
+  const cleaningRequestService = createCleaningRequestService(cleaningRequestRepository, {
+    async quotePlatformRequest(actor, input) {
+      const config = normalizedPricingConfig((await pricingConfigurationRepository.activeConfig(actor)) || defaultPricingConfig);
+      const economics = normalizedPricingEconomics((await pricingConfigurationRepository.economicsForRuntime(actor)) || defaultPricingEconomics);
+      return reviewedQuote(quoteRooms(input, config), economics).quote;
+    }
+  });
   // The vision reader is passed in so a stored scan can name the model that
   // read it. It stays optional: with no provider configured the scan still
   // records everything the device found, simply without attribution.
@@ -179,7 +189,6 @@ export function createMarketplaceRuntime(pool, options = {}) {
   // The operator's price list. Reads fall back to the shipped defaults when
   // nothing has been published, so a fresh deployment quotes the same numbers
   // as a configured one rather than refusing to price.
-  const pricingConfigurationRepository = createPricingConfigurationRepository(database);
   // The pricing service is passed in so a scan can be estimated against the
   // rules an operator actually published. With nothing published the estimate
   // falls back to the shipped defaults, so an unconfigured deployment prices
@@ -197,6 +206,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const cleanerPayoutService = options.paymentProvider ? createCleanerPayoutService(cleanerPayoutRepository, options.paymentProvider, { appOrigin: environment.appOrigin }) : null;
   const bookingWorkflowService = createBookingWorkflowService(bookingRepository, {
     pricingPolicy: bookingPricingPolicy,
+    getPlatformEconomics: async (actor) => (await pricingConfigurationRepository.economicsForRuntime(actor)) || defaultPricingEconomics,
     requirePayoutReady: paymentService !== null,
     getPayoutReadiness: cleanerPayoutService ? (actor) => cleanerPayoutService.getStatus(actor) : undefined
   });

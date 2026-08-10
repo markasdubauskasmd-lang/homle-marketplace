@@ -72,6 +72,9 @@ export function cleaningRequestScopeFingerprint(value) {
     budgetPence: value.budgetPence,
     frequency: value.frequency,
     recurrenceRule: value.recurrenceRule,
+    quotedTotalPence: value.quotedTotalPence ?? null,
+    quotedMinutes: value.quotedMinutes ?? null,
+    pricingConfigVersion: value.pricingConfigVersion ?? null,
     tasks: value.tasks.map(({ roomName, description, sortOrder }) => ({ roomName, description, sortOrder }))
   };
   return createHash("sha256").update(JSON.stringify(snapshot), "utf8").digest("hex");
@@ -88,6 +91,19 @@ export function normalizedCleaningRequest(input = {}, options = {}) {
   if (requestedStart.getTime() > now.getTime() + 366 * 24 * 60 * 60 * 1000) throw new TypeError("Requested cleaning time is too far in the future.");
   if (duration < 30 * 60 * 1000 || duration > 16 * 60 * 60 * 1000) throw new TypeError("Estimated cleaning duration must be between 30 minutes and 16 hours.");
   const recurrenceValue = recurrence(input.frequency);
+  const suppliedQuote = options.platformQuote;
+  let quote = null;
+  if (suppliedQuote != null) {
+    const totalPence = Number(suppliedQuote.totalPence);
+    const estimatedMinutes = Number(suppliedQuote.estimatedMinutes);
+    const configVersion = Number(suppliedQuote.configVersion);
+    if (suppliedQuote.priceable !== true || !Number.isInteger(totalPence) || totalPence < 1 || totalPence > 10_000_000
+      || !Number.isInteger(estimatedMinutes) || estimatedMinutes < 1 || estimatedMinutes > 10_080
+      || !Number.isInteger(configVersion) || configVersion < 1 || configVersion > 100_000) {
+      throw Object.assign(new Error(suppliedQuote?.reason || "This cleaning scope cannot be priced safely."), { statusCode: 422, code: suppliedQuote?.code || "request-not-priceable" });
+    }
+    quote = { quotedTotalPence: totalPence, quotedMinutes: estimatedMinutes, pricingConfigVersion: configVersion, quotedAt: now.toISOString() };
+  }
   const record = {
     id: uuid(input.id || randomUUID(), "cleaning request id"),
     propertyId: uuid(input.propertyId, "property id"),
@@ -99,6 +115,7 @@ export function normalizedCleaningRequest(input = {}, options = {}) {
     budgetPence: budget(input.budgetPence),
     ...recurrenceValue,
     tasks: tasks(input.tasks),
+    ...(quote || {}),
     status: input.submit === false ? "draft" : "searching-for-cleaner",
     submittedAt: input.submit === false ? null : now.toISOString()
   };
@@ -123,6 +140,10 @@ function projection(record) {
     requiredServices: Array.isArray(record.required_services) ? record.required_services : [],
     specialInstructions: record.special_instructions || "",
     budgetPence: record.budget_pence == null ? null : Number(record.budget_pence),
+    quotedTotalPence: record.quoted_total_pence == null ? null : Number(record.quoted_total_pence),
+    quotedMinutes: record.quoted_minutes == null ? null : Number(record.quoted_minutes),
+    pricingConfigVersion: record.pricing_config_version == null ? null : Number(record.pricing_config_version),
+    quotedAt: record.quoted_at ? new Date(record.quoted_at).toISOString() : null,
     frequency: Object.entries(recurrenceRules).find(([, rule]) => rule === (record.recurrence_rule || null))?.[0] || "one-time",
     tasks: recordTasks(record.tasks).map((task) => ({ roomName: task.roomName ?? task.room_name, description: task.description, sortOrder: Number(task.sortOrder ?? task.sort_order) || 0 })),
     scopeFingerprint: record.scope_fingerprint,
@@ -180,7 +201,12 @@ export function createCleaningRequestService(repository, options = {}) {
   return {
     async createOwnRequest(actor, input) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to create a cleaning request.");
-      return projection(await repository.createOwnRequest(actor, normalizedCleaningRequest({ ...input, submit: false }, options)));
+      let platformQuote = null;
+      if (input?.pricingRequest != null) {
+        if (typeof options.quotePlatformRequest !== "function") throw Object.assign(new Error("Platform pricing is temporarily unavailable."), { statusCode: 503, code: "pricing-not-configured" });
+        platformQuote = await options.quotePlatformRequest(actor, input.pricingRequest);
+      }
+      return projection(await repository.createOwnRequest(actor, normalizedCleaningRequest({ ...input, submit: false }, { ...options, platformQuote })));
     },
     async listOwnRequests(actor) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to list cleaning requests.");
