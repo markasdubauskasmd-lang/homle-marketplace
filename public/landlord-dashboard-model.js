@@ -60,6 +60,66 @@ export function moneyToPence(value) {
   return pence;
 }
 
+const pricingServiceTypeByCleaningType = Object.freeze({
+  "regular-domestic": "standard",
+  "rental-turnovers": "rental-turnover",
+  "end-of-tenancy": "end-of-tenancy",
+  workplaces: "commercial",
+  "communal-areas": "commercial",
+  "deep-cleans": "deep"
+});
+
+function manualRoomType(roomName) {
+  const name = String(roomName || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  if (/^(kitchen|kitchens)$/.test(name)) return "kitchen";
+  if (/^(bathroom|bathrooms|toilet|toilets|wc|shower-room|ensuite|en-suite)$/.test(name)) return "bathroom";
+  if (/^(living-room|lounge|sitting-room)$/.test(name)) return "living-room";
+  if (/^(bedroom|bedrooms|master-bedroom|guest-bedroom)$/.test(name)) return "bedroom";
+  if (/^(office|study|workspace|work-room)$/.test(name)) return "office";
+  if (/^(dining-room|dining-area)$/.test(name)) return "dining-room";
+  if (/^(hall|hallway|landing|corridor|entrance)$/.test(name)) return "hallway";
+  if (/^(utility|utility-room|laundry|laundry-room)$/.test(name)) return "utility-room";
+  return "other";
+}
+
+function manualTaskPriceCode(description, index) {
+  const task = String(description || "").toLowerCase();
+  // These are the premium jobs already defined by Homle's public price list.
+  // Everything else remains an ordinary task; the server still owns the price.
+  if (/\boven\b/.test(task)) return "oven";
+  if (/\bfridge\b|\brefrigerator\b/.test(task)) return "fridge";
+  if (/\bfreezer\b/.test(task)) return "freezer";
+  if (/\bcarpet\b/.test(task)) return "carpet-room";
+  if (/\bwindow/.test(task) && /\binside\b|\binterior\b|\binternal\b/.test(task)) return "windows-interior";
+  if (/\bsofa\b|\bsettee\b|\bupholster/.test(task)) return "upholstery-item";
+  if (/\bmould\b|\bmold\b/.test(task)) return "mould-treatment";
+  if (/\blimescale\b/.test(task)) return "limescale";
+  if (/\bcupboard/.test(task) && /\binside\b|\binterior\b|\binternal\b/.test(task)) return "cupboards-interior";
+  if (/\bbalcony\b|\bpatio\b/.test(task)) return "balcony-patio";
+  return `manual-task-${index + 1}`;
+}
+
+// Manual requests use the same authoritative pricing boundary as scans. The
+// customer supplies only confirmed rooms/tasks; the server applies its active
+// price list and freezes the result on the private request.
+export function pricingRequestFromManualTasks(tasks, options = {}) {
+  if (!Array.isArray(tasks) || !tasks.length) throw new TypeError("Add at least one room-labelled cleaning task before pricing.");
+  const grouped = new Map();
+  tasks.forEach((task, index) => {
+    const roomName = String(task?.roomName || "").trim();
+    const description = String(task?.description || "").trim();
+    const key = roomName.toLowerCase();
+    if (!grouped.has(key)) grouped.set(key, { roomType: manualRoomType(roomName), label: roomName, items: [] });
+    grouped.get(key).items.push({ code: manualTaskPriceCode(description, index), label: description.slice(0, 80) });
+  });
+  return Object.freeze({
+    serviceType: pricingServiceTypeByCleaningType[String(options.cleaningType || "")] || "standard",
+    frequency: String(options.frequency || "one-time"),
+    rooms: [...grouped.values()],
+    addOns: []
+  });
+}
+
 export function requestStatusLabel(status) {
   const labels = { draft: "Draft — scan not submitted", "searching-for-cleaner": "Searching for Cleaner", "cleaner-invited": "Cleaner invited", "pending-cleaner-acceptance": "Waiting for Cleaner", matched: "Matched", cancelled: "Cancelled" };
   return labels[status] || "Status unavailable";
