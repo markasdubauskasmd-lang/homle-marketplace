@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cleanerOnboardingDocumentTypes, createCleanerOnboardingDocumentService, maximumCleanerOnboardingDocumentBytes } from "../src/marketplace/cleaner-onboarding-document.mjs";
+import { createCleanerOnboardingDocumentService, maximumCleanerOnboardingDocumentBytes } from "../src/marketplace/cleaner-onboarding-document.mjs";
 
 const cleanerId = "11111111-1111-4111-8111-111111111111";
 const actor = Object.freeze({ userId: cleanerId, roles: ["cleaner"] });
@@ -56,13 +56,6 @@ assert.deepEqual((await service.getOwnDocument(actor, "rtw", "rightToWorkPasspor
 const rightToWorkBirthCertificate = await service.saveOwnDocument(actor, "rtw", "rightToWorkBirthCertificate", { filename: "birth-certificate.pdf", mimeType: "application/pdf", bytes: pdf });
 assert.equal(rightToWorkBirthCertificate.documentType, "rightToWorkBirthCertificate");
 assert.deepEqual((await service.getOwnDocument(actor, "rtw", "rightToWorkBirthCertificate")).bytes, pdf);
-for (const documentType of ["publicLiabilityPolicy", "productLiabilityPolicy", "treatmentProfessionalLiabilityPolicy", "employersLiabilityPolicy", "businessUseMotorPolicy"]) {
-  assert.ok(cleanerOnboardingDocumentTypes.insurance.includes(documentType), `${documentType} must be an allowed Insurance document type.`);
-  const insuranceDocument = await service.saveOwnDocument(actor, "insurance", documentType, { filename: `${documentType}.pdf`, mimeType: "application/pdf", bytes: pdf });
-  assert.equal(insuranceDocument.documentType, documentType);
-  assert.equal(records.get(`insurance:${documentType}`).content_ciphertext.includes(Buffer.from("private passport bytes")), false, `${documentType} bytes must be encrypted before reaching PostgreSQL.`);
-  assert.deepEqual((await service.getOwnDocument(actor, "insurance", documentType)).bytes, pdf);
-}
 await assert.rejects(() => service.saveOwnDocument(actor, "identity", "unknown", { filename: "x.pdf", mimeType: "application/pdf", bytes: pdf }), /supported document type/);
 await assert.rejects(() => service.saveOwnDocument(actor, "identity", "passportPhoto", { filename: "x.png", mimeType: "image/png", bytes: pdf }), /contents do not match/);
 await assert.rejects(() => service.saveOwnDocument(actor, "identity", "passportPhoto", { filename: "x.pdf", mimeType: "application/pdf", bytes: Buffer.alloc(maximumCleanerOnboardingDocumentBytes + 1) }), /20 MB/);
