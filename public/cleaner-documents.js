@@ -23,11 +23,8 @@ const definitions = [
   { section: "experience", documentType: "coshhCertificate", extension: "PDF", title: "COSHH certificate", category: "Experience", href: "/cleaner/experience" },
   { section: "experience", documentType: "healthSafetyCertificate", extension: "PDF", title: "Health & safety certificate", category: "Experience", href: "/cleaner/experience" },
   { section: "insurance", documentType: "publicLiabilityPolicy", extension: "PDF", title: "Public liability policy", category: "Insurance", href: "/cleaner/insurance" },
-  { section: "insurance", documentType: "productLiabilityPolicy", extension: "PDF", title: "Product liability policy", category: "Insurance", href: "/cleaner/insurance" },
-  { section: "insurance", documentType: "treatmentProfessionalLiabilityPolicy", extension: "PDF", title: "Treatment / professional liability policy", category: "Insurance", href: "/cleaner/insurance" },
   { section: "insurance", documentType: "professionalIndemnityPolicy", extension: "PDF", title: "Professional indemnity policy", category: "Insurance", href: "/cleaner/insurance" },
   { section: "insurance", documentType: "employersLiabilityPolicy", extension: "PDF", title: "Employers’ liability policy", category: "Insurance", href: "/cleaner/insurance" },
-  { section: "insurance", documentType: "businessUseMotorPolicy", extension: "PDF", title: "Business-use motor policy", category: "Insurance", href: "/cleaner/insurance" },
   { section: "banking", documentType: "invoiceTemplate", extension: "PDF", title: "Invoice template", category: "Banking", href: "/cleaner/banking" }
 ];
 
