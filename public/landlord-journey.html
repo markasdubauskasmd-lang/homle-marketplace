@@ -12,7 +12,7 @@
 <link rel="icon" href="/homle-logo-128-4f82ebad.png" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
-<link rel="stylesheet" href="/homle-tokens.css?v=20260728-2"><link rel="stylesheet" href="/styles.css?v=20260728-3">
+<link rel="stylesheet" href="/homle-tokens.css?v=20260728-2"><link rel="stylesheet" href="/styles.css?v=20260728-3"><link rel="stylesheet" href="/pricing.css?v=20260808-1">
 </head>
 <body class="journey-page">
 
@@ -128,12 +128,17 @@
           <p class="hint" data-review-provisional hidden></p>
         </div>
 
+        <!-- The running total. It is a firm price, not a range: it is computed
+             from the tasks the customer can see and change, by the same module
+             the server prices with. The delta chip beside it names what a tap
+             just cost, so an increase never has to be worked out. -->
         <div class="scan-review-estimate" data-review-estimate hidden>
           <div class="scan-review-estimate-head">
             <b data-review-price>—</b>
             <span data-review-price-range></span>
+            <span class="scan-review-deltas" data-review-deltas aria-live="polite"></span>
           </div>
-          <p class="hint">An estimate from what the scan found, not a quote. Your cleaner confirms the price before anything is booked, and nothing is charged now.</p>
+          <p class="hint" data-review-price-note>Your price for the tasks selected. Nothing is charged now — a cleaner accepts this exact scope and total before anything is booked.</p>
           <details data-review-breakdown-wrap>
             <summary>How this was worked out</summary>
             <ul class="scan-review-lines" data-review-breakdown></ul>

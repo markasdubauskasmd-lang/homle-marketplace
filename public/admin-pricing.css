@@ -101,26 +101,3 @@
   .admin-pricing-row-fields { grid-template-columns: repeat(2, 1fr); }
   .admin-pricing-actions .button { width: 100%; }
 }
-
-/* ── The scanner's running total ─────────────────────────────────────────── */
-
-.price-delta {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #1a1a1a;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity .28s ease, transform .28s ease;
-}
-.price-delta.is-up { background: var(--homle-coral-action, #c8102e); }
-.price-delta.is-down { background: var(--homle-success, #2e9e63); }
-.price-delta.is-leaving { opacity: 0; transform: translateY(-6px); }
-
-@media (prefers-reduced-motion: reduce) {
-  .price-delta { transition: none; }
-}

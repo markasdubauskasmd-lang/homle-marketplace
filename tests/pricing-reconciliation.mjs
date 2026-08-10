@@ -66,7 +66,7 @@ for (const service of serviceCodes) {
           const roomSummed = room.lines.reduce((total, line) => total + line.pence, 0);
           assert(roomSummed === room.totalPence, `Room ${room.label} lines do not sum to its total.`);
         }
-        assert(quote.totalPence >= config.minimumBookingPence, "A quote came in under the minimum booking.");
+        assert(quote.totalPence >= 5600, "A quote came in under the two-hour minimum visit.");
       }
     }
   }
@@ -143,7 +143,7 @@ const withExtra = quoteRooms({ rooms: [{ roomType: "bedroom", items: task("A", "
 const withoutExtra = quoteRooms({ rooms: [{ roomType: "bedroom", items: task("A", "B", "C") }] }, config);
 assert(withoutExtra.totalPence <= withExtra.totalPence, "Removing a task raised the price.");
 const emptyRoom = quoteRooms({ rooms: [{ roomType: "bedroom", items: [] }] }, config);
-assert(emptyRoom.priceable && emptyRoom.totalPence === config.minimumBookingPence,
+assert(emptyRoom.priceable && emptyRoom.totalPence === 5600,
   "A room with nothing selected did not fall back to the minimum booking.");
 
 console.log("Pricing reconciliation tests passed: one implementation shared by browser and server, breakdowns that reconcile across 500+ combinations, whole-pence determinism, payout split that accounts for the whole customer price, refused quotes that carry no chargeable number, and a scan that prices identically at checkout.");

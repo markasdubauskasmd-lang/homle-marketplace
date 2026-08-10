@@ -47,8 +47,13 @@
 //     desk, a set of skirting boards. It is deliberately NOT what an oven or a
 //     carpet costs; those are premium items below, priced from their own market
 //     rates (oven £55–£85, carpet £40–£80/room).
-//   * £45 minimum visit matches the floor a travelling cleaner needs to cover
-//     getting there, and sits under the £80 a standard 2-bed clean fetches.
+//   * The minimum visit is TWO HOURS, not a cash floor. Every UK agency sells
+//     a minimum duration rather than a minimum price, because the constraint is
+//     real: a cleaner gives up a travel slot for the visit whatever it contains.
+//     Expressed in minutes it also stays correct when the hourly rate moves —
+//     a cash floor silently becomes 1.6 hours the first time the rate rises.
+//     At £28/hour that is £56, of which the cleaner takes £39.20 — exactly the
+//     £19.60/hour headline, which a cash floor could not guarantee.
 //
 // Every value is integer pence. No floating-point money anywhere.
 
@@ -190,7 +195,8 @@ export const defaultPricingConfig = Object.freeze({
   additionalItemPence: 300,
   additionalItemMinutes: 7,
 
-  minimumBookingPence: 4500,
+  // The minimum billable visit. Two hours, in minutes so it tracks the rate.
+  minimumBookingMinutes: 120,
 
   rooms: defaultRooms,
   premiumItems: defaultPremiumItems,
@@ -273,7 +279,7 @@ export function normalizedPricingConfig(input = {}) {
     includedItemsPerRoom: count(source.includedItemsPerRoom ?? defaultPricingConfig.includedItemsPerRoom, 0, 50, "Included items per room"),
     additionalItemPence: pence(source.additionalItemPence ?? defaultPricingConfig.additionalItemPence, 0, 10000, "Additional item price"),
     additionalItemMinutes: count(source.additionalItemMinutes ?? defaultPricingConfig.additionalItemMinutes, 0, 120, "Additional item minutes"),
-    minimumBookingPence: pence(source.minimumBookingPence ?? defaultPricingConfig.minimumBookingPence, 0, 100000, "Minimum booking"),
+    minimumBookingMinutes: count(source.minimumBookingMinutes ?? defaultPricingConfig.minimumBookingMinutes, 0, 1440, "Minimum booking minutes"),
     rooms: Object.freeze(rooms),
     premiumItems: Object.freeze(premiumItems),
     addOns: Object.freeze(addOns),

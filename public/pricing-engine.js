@@ -196,17 +196,30 @@ export function quoteRooms(request = {}, config = {}) {
 
   const beforeMinimum = afterService + multiRoomDiscountPence + recurringDiscountPence + premiumPence + addOnPence;
 
-  // 6. The floor. Below this a visit does not cover getting there. The service
-  //    type can raise it — an end-of-tenancy clean has a guarantee behind it.
-  const floor = Math.max(rules.minimumBookingPence, service.minimumPence);
+  // 6. The floor: a minimum VISIT LENGTH, not a minimum price.
+  //
+  //    A cleaner gives up a travel slot for the visit whatever it contains, so
+  //    the constraint is time. Priced through the same service multiplier as
+  //    the rooms, because two hours of deep-clean work is not two hours of
+  //    standard work. The service type keeps its own cash floor on top — an
+  //    end-of-tenancy clean carries a guarantee that two hours does not cover.
+  const minimumDurationPence = Math.round(
+    (rules.minimumBookingMinutes / 60) * rules.customerHourlyRatePence * service.multiplierBasisPoints / basisPointDivisor
+  );
+  const floor = Math.max(minimumDurationPence, service.minimumPence);
   const minimumAdjustmentPence = Math.max(0, floor - beforeMinimum);
   if (minimumAdjustmentPence > 0) {
-    lines.push(line("minimum", `Minimum ${service.label.toLowerCase()} charge of ${formatPounds(floor)}`, minimumAdjustmentPence, { kind: "minimum" }));
+    const hours = Math.round(rules.minimumBookingMinutes / 6) / 10;
+    lines.push(line("minimum", `Minimum ${hours}-hour visit — ${formatPounds(floor)}`, minimumAdjustmentPence, { kind: "minimum" }));
   }
 
   const totalPence = beforeMinimum + minimumAdjustmentPence;
 
-  const estimatedMinutes = pricedRooms.reduce((total, room) => total + room.minutes, 0) + addOnMinutes;
+  // The booked duration is floored too. A two-hour minimum that still reported
+  // twenty-five minutes of work would make every cleaner-pay check meaningless
+  // and would tell the cleaner to expect a job far shorter than the one sold.
+  const workedMinutes = pricedRooms.reduce((total, room) => total + room.minutes, 0) + addOnMinutes;
+  const estimatedMinutes = Math.max(workedMinutes, rules.minimumBookingMinutes);
 
   const total = lines.reduce((sum, entry) => sum + entry.pence, 0);
   // Not a defensive nicety. If this ever fires, a customer is being shown a
@@ -234,7 +247,8 @@ export function quoteRooms(request = {}, config = {}) {
     discountPence: multiRoomDiscountPence + recurringDiscountPence,
     minimumAdjustmentPence,
     totalPence,
-    estimatedMinutes
+    estimatedMinutes,
+    workedMinutes
   });
 }
 
