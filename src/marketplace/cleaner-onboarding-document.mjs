@@ -15,7 +15,14 @@ export const cleanerOnboardingDocumentTypes = Object.freeze({
   dbs: Object.freeze(["dbsCertificate"]),
   experience: Object.freeze(["cv", "cleaningCertificates", "coshhCertificate", "healthSafetyCertificate"]),
   references: Object.freeze(["referenceLetters"]),
-  insurance: Object.freeze(["publicLiabilityPolicy", "professionalIndemnityPolicy", "employersLiabilityPolicy"]),
+  insurance: Object.freeze([
+    "publicLiabilityPolicy",
+    "productLiabilityPolicy",
+    "treatmentProfessionalLiabilityPolicy",
+    "professionalIndemnityPolicy",
+    "employersLiabilityPolicy",
+    "businessUseMotorPolicy"
+  ]),
   banking: Object.freeze(["invoiceTemplate"])
 });
 

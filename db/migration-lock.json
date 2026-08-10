@@ -476,6 +476,11 @@
       "order": 95,
       "file": "095_request_platform_quote.sql",
       "sha256": "5fa95305bcfdd40750aa660a1efb20bc825ec4d206f5b2e52f54afa08d39e091"
+    },
+    {
+      "order": 96,
+      "file": "096_insurance_policy_document_types.sql",
+      "sha256": "8678e7c67a64036608d95563675f345d1983b460d8476ff638c22d0ddb6e0946"
     }
   ],
   "grantFiles": [

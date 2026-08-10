@@ -47,7 +47,13 @@ function sectionSummary(key, data = {}, profile = null, documents = []) {
     const specialisms = selectedValues(data.specialisms || data.cleanerSpecialisms || data.beauticianSpecialisms);
     return `${safeText(data.yearsExperience, profile?.yearsExperience != null ? `${profile.yearsExperience} years` : "Experience recorded")} · ${specialisms.length} specialism${specialisms.length === 1 ? "" : "s"}`;
   }
-  if (key === "insurance") return `${safeText(data.policyProvider, "Provider recorded")} · ${safeText(data.policyExpiry, "Expiry recorded")} · ${documentCount} document${documentCount === 1 ? "" : "s"}`;
+  if (key === "insurance") {
+    const policies = Array.isArray(data.policies) ? data.policies : [];
+    const policyCount = policies.length || 1;
+    const providers = [...new Set(policies.map((policy) => safeText(policy?.provider)).filter(Boolean))];
+    const earliestExpiry = policies.map((policy) => safeText(policy?.expiry)).filter(Boolean).sort()[0];
+    return `${policyCount} polic${policyCount === 1 ? "y" : "ies"} · ${providers.join(", ") || safeText(data.policyProvider, "Provider recorded")} · ${earliestExpiry || safeText(data.policyExpiry, "Expiry recorded")} · ${documentCount} document${documentCount === 1 ? "" : "s"}`;
+  }
   if (key === "equipment") {
     const kits = data.kitsByProfession?.[data.serviceType || "cleaner"] || {};
     const equipment = selectedValues(kits.equipmentSupplied || profile?.equipmentSupplied);
