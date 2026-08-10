@@ -65,6 +65,10 @@ function row(record) {
     required_services: record.requiredServices,
     special_instructions: record.specialInstructions,
     budget_pence: record.budgetPence,
+    quoted_total_pence: record.quotedTotalPence ?? null,
+    quoted_minutes: record.quotedMinutes ?? null,
+    pricing_config_version: record.pricingConfigVersion ?? null,
+    quoted_at: record.quotedAt ?? null,
     recurrence_rule: record.recurrenceRule,
     scope_fingerprint: record.scopeFingerprint,
     submitted_at: record.submittedAt,
@@ -100,6 +104,13 @@ assert(dispatch.enabled && dispatch.attemptLimit === 3 && dispatch.maximumCustom
 const withdrawn = await service.withdrawOwnRequest(landlord, requestId, { reasonCode: "date-changed" });
 assert(withdrawn.status === "cancelled" && withdrawn.previousStatus === "searching-for-cleaner" && withdrawn.reasonCode === "date-changed" && calls.at(-1).kind === "withdraw" && calls.at(-1).actor.userId === landlordId, "Pre-booking withdrawal was not explicit, owner-bound or safely projected.");
 assert(await rejects(() => service.createOwnRequest({ userId: "cleaner", roles: ["cleaner"] }, input), "Landlord account"), "A Cleaner could create a Landlord cleaning request.");
+const pricedService = createCleaningRequestService(fakeRepository, {
+  clock: () => new Date(now),
+  quotePlatformRequest: async () => ({ priceable: true, totalPence: 7850, estimatedMinutes: 180, configVersion: 4 })
+});
+const platformPriced = await pricedService.createOwnRequest(landlord, { ...input, pricingRequest: { rooms: [{ roomType: "kitchen", items: [] }] } });
+assert(platformPriced.quotedTotalPence === 7850 && platformPriced.quotedMinutes === 180 && platformPriced.pricingConfigVersion === 4 && platformPriced.quotedAt === now.toISOString(), "The server-authoritative scanner quote was not frozen onto the request.");
+assert(await rejects(() => service.createOwnRequest(landlord, { ...input, pricingRequest: { rooms: [] } }), "temporarily unavailable"), "A client-supplied pricing request bypassed the server pricing boundary.");
 assert(await rejects(() => service.submitOwnRequest(landlord, requestId, { scopeReviewed: false, cleanerPreviewAuthorized: false }), "Review and confirm") && await rejects(() => service.submitOwnRequest(landlord, requestId, { scopeReviewed: true }), "Choose whether"), "Request submission accepted missing scope review or an implicit photo-preview choice.");
 assert(await rejects(() => service.configureAutomaticDispatch({ userId: "cleaner", roles: ["cleaner"] }, requestId, { enabled: true }), "Landlord account") && await rejects(() => service.configureAutomaticDispatch(landlord, requestId, { enabled: "yes" }), "Choose whether") && await rejects(() => service.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 6 }), "between 1 and 5") && await rejects(() => service.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 1 }), "approve the maximum"), "Automatic matching accepted the wrong role, implicit consent, an unbounded attempt limit or a missing price approval.");
 assert(await rejects(() => service.withdrawOwnRequest({ userId: "cleaner", roles: ["cleaner"] }, requestId, { reasonCode: "other" }), "Landlord account") && await rejects(() => service.withdrawOwnRequest(landlord, requestId, { reasonCode: "invented" }), "supported reason"), "Request withdrawal accepted the wrong role or an invented reason.");
@@ -128,7 +139,7 @@ await repository.listOwnRequests(landlord);
 await repository.submitOwnRequest(landlord, requestId, { scopeReviewed: true, cleanerPreviewAuthorized: false });
 const repositoryDispatch = await repository.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 3, approvedMaximumPricePence: 15000 });
 await repository.withdrawOwnRequest(landlord, requestId, { reasonCode: "no-longer-needed" });
-assert(repositoryDispatch.maximumCustomerPricePence === 15000 && databaseCalls[0].text.includes("id=$1::uuid AND landlord_user_id=$2::uuid") && databaseCalls[0].values[1] === landlordId && databaseCalls[1].values[1] === landlordId && databaseCalls[2].text.includes("unnest($2::text[], $3::text[], $4::integer[])") && databaseCalls[3].text.includes("cleaning_request_status_history") && databaseCalls[3].values[2] === landlordId && databaseCalls[4].text.includes("request.landlord_user_id=$1::uuid") && databaseCalls[5].text.includes("submit_cleaning_request($1::uuid,$2::boolean,$3::boolean)") && databaseCalls[6].text.includes("SELECT budget_pence") && databaseCalls[6].values[1] === landlordId && databaseCalls[7].text.includes("configure_automatic_dispatch($1::uuid,$2::boolean,$3::smallint)") && databaseCalls[8].text.includes("withdraw_cleaning_request($1::uuid,$2::text)") && databaseCalls[8].values[1] === "no-longer-needed", "Cleaning-request repository did not atomically verify the owner-approved maximum, parameterize writes or preserve the function-only request lifecycle.");
+assert(repositoryDispatch.maximumCustomerPricePence === 15000 && databaseCalls[0].text.includes("id=$1::uuid AND landlord_user_id=$2::uuid") && databaseCalls[0].values[1] === landlordId && databaseCalls[1].values[1] === landlordId && databaseCalls[1].values.length === 17 && databaseCalls[2].text.includes("unnest($2::text[], $3::text[], $4::integer[])") && databaseCalls[3].text.includes("cleaning_request_status_history") && databaseCalls[3].values[2] === landlordId && databaseCalls[4].text.includes("request.landlord_user_id=$1::uuid") && databaseCalls[5].text.includes("submit_cleaning_request($1::uuid,$2::boolean,$3::boolean)") && databaseCalls[6].text.includes("SELECT budget_pence") && databaseCalls[6].values[1] === landlordId && databaseCalls[7].text.includes("configure_automatic_dispatch($1::uuid,$2::boolean,$3::smallint)") && databaseCalls[8].text.includes("withdraw_cleaning_request($1::uuid,$2::text)") && databaseCalls[8].values[1] === "no-longer-needed", "Cleaning-request repository did not atomically verify the owner-approved maximum, parameterize writes or preserve the function-only request lifecycle.");
 dispatchBudgetPence = 14000;
 assert(await rejects(() => repository.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 1, approvedMaximumPricePence: 15000 }), "approved maximum does not match"), "Automatic matching could be authorized after the saved request maximum changed.");
 propertyOwned = false;

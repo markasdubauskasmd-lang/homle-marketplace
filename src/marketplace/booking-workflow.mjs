@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { uuid, uuidPattern } from "./validation.mjs";
 import { bookingStatuses as canonicalBookingStatuses } from "./domain.mjs";
+import { normalizedPricingEconomics, quoteEconomics } from "./pricing-economics.mjs";
 
 export const bookingPricingEnvironmentRules = Object.freeze([
   Object.freeze({ property: "targetMarginBasisPoints", key: "BOOKING_TARGET_MARGIN_BPS", minimum: 1, maximum: 9000 }),
@@ -223,7 +224,8 @@ export function createBookingWorkflowService(repository, options = {}) {
   // The share and floors a platform-priced booking settles against. Absent
   // means the cost-up path is the only one available, which is the behaviour
   // every existing deployment already has.
-  const platformEconomics = options.platformEconomics || null;
+  const platformEconomics = options.platformEconomics ? normalizedPricingEconomics(options.platformEconomics) : null;
+  const getPlatformEconomics = typeof options.getPlatformEconomics === "function" ? options.getPlatformEconomics : null;
   // The cost-up policy owns this for its own path; the platform-priced path
   // needs the same window and cannot reach into the policy's closure for it.
   const platformInvitationTtlMinutes = integer(options.invitationTtlMinutes ?? 180, 15, 1440, "Invitation lifetime");
@@ -242,20 +244,18 @@ export function createBookingWorkflowService(repository, options = {}) {
    * Returns null when the request has no platform quote, so the caller falls
    * back to the cost-up path.
    */
-  function platformPricedTerms(candidate, now) {
+  function platformPricedTerms(candidate, now, economics) {
     const customerPricePence = Number(candidate?.quoted_total_pence ?? candidate?.quotedTotalPence);
     const quotedMinutes = Number(candidate?.quoted_minutes ?? candidate?.quotedMinutes);
     if (!Number.isInteger(customerPricePence) || customerPricePence < 1) return null;
-    if (!platformEconomics) return null;
+    if (!economics) throw Object.assign(new Error("Platform pricing is temporarily unavailable."), { statusCode: 503, code: "pricing-not-configured" });
 
-    const cleanerPayPence = Math.round(customerPricePence * platformEconomics.cleanerShareBasisPoints / 10000);
-    const paymentFeePence = platformEconomics.paymentFeeFixedPence
-      + Math.ceil(customerPricePence * platformEconomics.paymentFeeBasisPoints / 10000);
-    const contribution = customerPricePence - cleanerPayPence - paymentFeePence;
-    // The same floors the quote was checked against when it was shown. If a
-    // request somehow reaches here below them, refusing is right: the
-    // alternative is a booking that loses money on every visit.
-    if (contribution < platformEconomics.minimumContributionPence) {
+    const settled = quoteEconomics(customerPricePence, quotedMinutes, economics);
+    // Re-run every commercial floor at invitation time. The stored total is
+    // immutable, but operator economics can change between scan and booking;
+    // silently accepting a now-unhealthy quote would make the audit boundary
+    // cosmetic rather than protective.
+    if (!settled.healthy) {
       throw Object.assign(new Error("This request cannot be booked at the price it was quoted."), { statusCode: 409, code: "request-not-priceable" });
     }
 
@@ -265,9 +265,9 @@ export function createBookingWorkflowService(repository, options = {}) {
 
     return {
       customerPricePence,
-      cleanerPayPence,
+      cleanerPayPence: settled.cleanerPayoutPence,
       labourOnCostPence: 0,
-      paymentFeePence,
+      paymentFeePence: settled.paymentFeePence,
       riskContingencyPence: 0,
       travelCostPence: 0,
       suppliesCostPence: 0,
@@ -276,8 +276,8 @@ export function createBookingWorkflowService(repository, options = {}) {
       pricingConfigVersion: Number(candidate?.pricing_config_version ?? candidate?.pricingConfigVersion) || null,
       // Reported, not targeted. Under platform pricing the margin is whatever
       // the published price list produces; it is not searched for.
-      targetMarginBasisPoints: Math.round((contribution / customerPricePence) * 10000),
-      targetContributionPence: contribution,
+      targetMarginBasisPoints: settled.grossMarginBasisPoints,
+      targetContributionPence: settled.grossMarginPence,
       responseDeadline: responseDeadline.toISOString()
     };
   }
@@ -299,7 +299,10 @@ export function createBookingWorkflowService(repository, options = {}) {
     // cost-up from this cleaner's own rates. Both paths stay live because both
     // are real — a bespoke job quoted against a cleaner's rate card has no
     // platform price to freeze.
-    const terms = platformPricedTerms(candidate, clock())
+    const resolvedPlatformEconomics = getPlatformEconomics
+      ? normalizedPricingEconomics(await getPlatformEconomics(actor))
+      : platformEconomics;
+    const terms = platformPricedTerms(candidate, clock(), resolvedPlatformEconomics)
       || pricingPolicy.quote(candidate, clock());
     return Object.freeze({ requestId, cleanerId, terms });
   }
