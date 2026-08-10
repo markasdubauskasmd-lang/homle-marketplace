@@ -3056,7 +3056,7 @@ async function createRequestDraft(event) {
     requestDirty = false;
     showRequestContinuation(result.cleaningRequest);
   } catch (error) { showFeedback(requestFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message); }
-  finally { setPending(requestSave, false, "Save and add room photos"); }
+  finally { setPending(requestSave, false, "Continue — add photos"); }
 }
 
 function setPending(button, pending, label) {
