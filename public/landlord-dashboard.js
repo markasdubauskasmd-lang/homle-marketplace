@@ -7,7 +7,7 @@ import { consumeRoomPhotoInputFiles, maximumRoomPhotos, validatedRoomPhotoSelect
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260730-1";
+import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, pricingRequestFromManualTasks, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260810-1";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260723-3";
 import { activeBookingChangeRequestFor, supportRequestPage, supportStatusLabels } from "./landlord-help-model.js?v=20260804-1";
 import { storedCsrf } from "./session-csrf.js";
@@ -31,6 +31,8 @@ const requestCompleteDuration = document.querySelector("[data-request-complete-d
 const requestCompleteQuoteNote = document.querySelector("[data-request-complete-quote-note]");
 const requestCompleteWarning = document.querySelector("[data-request-complete-warning]");
 const requestCompleteNext = document.querySelector("[data-request-complete-next]");
+const requestCompleteSandbox = document.querySelector("[data-request-complete-sandbox]");
+const requestCompleteSandboxNote = document.querySelector("[data-request-complete-sandbox-note]");
 const propertyForm = document.querySelector("[data-property-form]");
 const requestForm = document.querySelector("[data-request-form]");
 const requestContinuation = document.querySelector("[data-request-continuation]");
@@ -143,6 +145,7 @@ let pricingReady = false;
 let geocodingReady = false;
 let matchingReady = false;
 let automaticDispatchReady = false;
+let paymentsReady = false;
 let requestRecoveryChecked = false;
 let requestRecoveryTimer = null;
 let completedRequestId = "";
@@ -472,6 +475,8 @@ function showRequestCompletion(submission, { automaticDispatch = false, automati
     : "Your reviewed scan is submitted for matching. No Cleaner has been invited automatically.";
   requestCompleteWarning.textContent = warning;
   requestCompleteWarning.hidden = !warning;
+  requestCompleteSandbox.hidden = !paymentsReady;
+  requestCompleteSandboxNote.hidden = !paymentsReady;
   completedRequestId = String(submission?.cleaningRequestId || "");
   requestCompleteNext.textContent = selectedCleanerInvited || automaticDispatch ? "Track Cleaner response" : "Choose Cleaner & exact price";
   state.hidden = true;
@@ -2768,6 +2773,7 @@ async function loadWorkspace() {
       automaticDispatchReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.automaticDispatchReady === true
     });
     ({ mediaReady, pricingReady, geocodingReady, matchingReady, automaticDispatchReady } = capabilities);
+    paymentsReady = healthResult.status === "fulfilled" && healthResult.value?.marketplace?.paymentsReady === true;
     mediaReadiness.hidden = capabilities.notice === null;
     if (capabilities.notice) {
       capabilityTitle.textContent = capabilities.notice.title;
@@ -2888,11 +2894,25 @@ async function createRequestDraft(event) {
     budgetPence = moneyToPence(data.get("budget"));
   } catch (error) { return showFeedback(requestFeedback, error.message); }
   const cleaningType = String(data.get("cleaningType") || "");
+  const frequency = String(data.get("frequency") || "one-time");
   const requiredServices = [cleaningType];
   if (data.get("scopeReviewed") !== "on") return showFeedback(requestFeedback, "Review and confirm the concise room checklist before saving this draft.");
   const csrf = await recoverCsrf(requestFeedback, "saving this cleaning-request draft");
   if (!csrf) return;
-  const body = { propertyId: String(data.get("propertyId") || ""), ...window, cleaningType, requiredServices, specialInstructions: String(data.get("specialInstructions") || ""), budgetPence, frequency: String(data.get("frequency") || "one-time"), tasks, submit: false };
+  const body = {
+    propertyId: String(data.get("propertyId") || ""),
+    ...window,
+    cleaningType,
+    requiredServices,
+    specialInstructions: String(data.get("specialInstructions") || ""),
+    budgetPence,
+    frequency,
+    tasks,
+    // Scope only. The server applies its active price list and freezes the
+    // quote; omitting this field was why manual requests displayed no price.
+    pricingRequest: pricingRequestFromManualTasks(tasks, { cleaningType, frequency }),
+    submit: false
+  };
   setPending(requestSave, true, "Saving draft…");
   try {
     const result = await requestJson("/api/marketplace/cleaning-requests", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
