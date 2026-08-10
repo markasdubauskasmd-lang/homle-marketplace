@@ -232,14 +232,34 @@ body.landlord-dashboard-page .landlord-completion-quote dd {
 }
 body.landlord-dashboard-page .landlord-completion-quote-note {
   max-width: 620px;
-  margin: 0 auto 26px;
+  margin: 0 auto 18px;
   color: var(--ld-muted);
   font-size: 14px;
   line-height: 1.5;
 }
 
+/* The submitted price and the Stripe integration check are the result of the
+   request journey, so they must appear before the longer explanation. Keeping
+   this override Landlord-only also protects the frozen Cleaner Dashboard. */
+body.landlord-dashboard-page .landlord-completion-actions {
+  margin-top: 18px;
+}
+
+body.landlord-dashboard-page .landlord-completion-test-note {
+  max-width: 720px;
+  margin: 14px auto 30px;
+  color: var(--ld-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+body.landlord-dashboard-page .landlord-request-complete .completion-next {
+  margin-top: 0;
+}
+
 @media (max-width: 560px) {
   body.landlord-dashboard-page .landlord-completion-quote { grid-template-columns: 1fr; }
+  body.landlord-dashboard-page .landlord-completion-actions .button { width: 100%; }
 }
 
 body.landlord-dashboard-page .booking-section-heading h2,

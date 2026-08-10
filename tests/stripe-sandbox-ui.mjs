@@ -16,7 +16,7 @@ assert(client.includes("csrfToken") && client.includes('redirect: "if_required"'
 assert(client.includes("payment?.amountPence !== 30") && client.includes("payment?.testMode !== true"), "The browser no longer fails closed outside the exact 30p test checkout.");
 assert(client.includes("new AbortController()") && client.includes("controller.abort()") && client.includes("stripeLoadPromise") && client.includes("20_000") && client.includes("payment-confirmation-timeout") && client.includes("60_000") && client.includes("browserOffline()"), "The immediate Stripe test can hang indefinitely or submit while the browser is offline.");
 assert(page.includes("/stripe-sandbox.js?v=20260810-1"), "The Stripe test page can reuse the pre-timeout browser controller.");
-assert(dashboard.includes('code: "no-eligible-cleaner"') && dashboard.includes('sandbox.href = "/stripe-sandbox?start=1"') && dashboardPage.includes("Test Stripe checkout (&pound;0.30)"), "The no-Cleaner and completion states no longer offer the Stripe test checkout.");
+assert(dashboard.includes('code: "no-eligible-cleaner"') && dashboard.includes('sandbox.href = "/stripe-sandbox?start=1"') && dashboardPage.includes("Test Stripe payment now (&pound;0.30)"), "The no-Cleaner and completion states no longer offer the Stripe test checkout.");
 assert(server.includes('"/stripe-sandbox": "stripe-sandbox.html"') && server.includes('requestPath === "/stripe-sandbox"'), "The server lost the standalone checkout route or Stripe CSP.");
 
 console.log("Stripe sandbox UI tests passed: no-Cleaner recovery, authenticated 30p test intent, Payment Element confirmation and isolated completion state.");
