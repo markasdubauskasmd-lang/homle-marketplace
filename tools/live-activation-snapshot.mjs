@@ -133,6 +133,14 @@ export function liveActivationSnapshot(payload, options = {}) {
   const coreReady = snapshot.writesAllowed === true && coreBookingCapabilityNames.every((name) => capabilities[name] === true);
   const emailFallbackReady = capabilities.emailReady && accountAccess.emailPassword && accountAccess.emailVerification && accountAccess.passwordReset;
   const requestedAccountEntryReady = emailFallbackReady && accountAccess.google && accountAccess.facebook && accountAccess.apple;
+  // `paymentsReady` proves that the running release has its guarded Stripe
+  // test adapter attached. It does not prove that a Landlord and Cleaner have
+  // completed the participant payment lifecycle. Keep those two statements
+  // separate: otherwise a missing mail sender makes a healthy Stripe adapter
+  // look broken, while a configured adapter can be mistaken for payment
+  // evidence that has never actually happened.
+  const testPaymentServiceReady = capabilities.paymentsReady;
+  const participantPaymentRehearsalReady = coreReady && capabilities.emailReady && testPaymentServiceReady;
   return Object.freeze({
     ok: true,
     ...snapshot,
@@ -142,7 +150,8 @@ export function liveActivationSnapshot(payload, options = {}) {
       transactionalNotifications: capabilities.emailReady,
       emailFallback: emailFallbackReady,
       requestedAccountEntry: requestedAccountEntryReady,
-      testPaymentRehearsal: coreReady && capabilities.emailReady && capabilities.paymentsReady,
+      testPaymentService: testPaymentServiceReady,
+      participantPaymentRehearsalReady,
       realPayments: false
     }),
     remainingActions: remainingActions(snapshot)
