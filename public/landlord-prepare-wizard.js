@@ -38,6 +38,18 @@
   const total = steps.length;
   let current = 0;
 
+  // A single step is not a wizard. With nothing to paginate, the stepper dots,
+  // the "Step 1 of 1" counter and the Back/Next pair are all chrome that says
+  // nothing — and a Next button that cannot advance is worse than no button.
+  // The form below is complete and submits on its own.
+  if (total === 1) {
+    if (stepper) stepper.hidden = true;
+    if (nav) nav.hidden = true;
+    steps[0].hidden = false;
+    if (basket) basket.hidden = false;
+    return;
+  }
+
   // Each step is programmatically focusable so keyboard focus can be moved into
   // it after a step change (Tab then continues through the step's fields).
   steps.forEach((step) => { step.tabIndex = -1; });
