@@ -1506,6 +1506,33 @@ body.landlord-dashboard-page .pac-basket-lines li { display: flex; gap: 9px; ali
 body.landlord-dashboard-page .pac-basket-lines li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--ld-coral); margin-top: 7px; flex-shrink: 0; }
 body.landlord-dashboard-page .pac-basket-lines li.pac-basket-empty { color: var(--ld-muted-2); font-style: italic; }
 body.landlord-dashboard-page .pac-basket-lines li.pac-basket-empty::before { display: none; }
+/* This is authenticated server output, not a catalogue guess. Keeping it in a
+   visually separate block prevents an estimate being mistaken for a frozen
+   booking total while still answering the Landlord's price question early. */
+body.landlord-dashboard-page .pac-basket-quote {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid oklch(0.7 0.12 25 / 0.24);
+  border-radius: 16px;
+  background: oklch(0.985 0.018 25);
+}
+body.landlord-dashboard-page .pac-basket-quote[hidden] { display: none; }
+body.landlord-dashboard-page .pac-basket-quote > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+}
+body.landlord-dashboard-page .pac-basket-quote span { color: var(--ld-muted-2); font-size: 12px; }
+body.landlord-dashboard-page .pac-basket-quote strong { color: var(--ld-ink); font-size: 17px; text-align: right; }
+body.landlord-dashboard-page .pac-basket-quote-status {
+  margin: 12px 0 0;
+  color: var(--ld-muted-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
 
 @media (max-width: 820px) {
   body.landlord-dashboard-page .pac-chips { grid-template-columns: repeat(2, 1fr); }

@@ -14,10 +14,10 @@
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/landlord-dashboard.css?v=20260810-1">
+  <link rel="stylesheet" href="/landlord-dashboard.css?v=20260810-2">
   <!-- The v2 composition, last so it wins without !important. -->
   <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260808-3">
-  <script src="/landlord-dashboard.js?v=20260810-3" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260810-4" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -611,7 +611,12 @@
                 <p class="pac-basket-heading"><span class="pac-basket-cart" aria-hidden="true">🧺</span>Cleaning</p>
                 <ul class="pac-basket-lines" data-pac-basket-lines><li class="pac-basket-empty">Choose a session to start your draft.</li></ul>
               </div>
-              <p class="pac-basket-note">Next, add room photos and submit for matching. Stripe checkout opens after a Cleaner accepts the confirmed total.</p>
+              <div class="pac-basket-quote" data-manual-quote hidden>
+                <div><span>Current estimate</span><strong data-manual-quote-price>Calculating…</strong></div>
+                <div><span>Estimated cleaning time</span><strong data-manual-quote-duration>Calculating…</strong></div>
+              </div>
+              <p class="pac-basket-quote-status" data-manual-quote-status role="status" aria-live="polite">Review and confirm the room checklist to see a server-calculated estimate before submission.</p>
+              <p class="pac-basket-note">The final total is frozen when you approve a Cleaner. Secure Stripe checkout opens after that Cleaner accepts.</p>
             </aside>
             </div>
           </fieldset>

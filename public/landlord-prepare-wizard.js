@@ -9,7 +9,8 @@
 // If this module fails to run while the rest of the dashboard still loads, the
 // panel shows every step at once and the form works as a single page — the
 // step-hiding CSS is gated on the `pac-wizard-on` class this file adds. Nothing
-// here submits, prices or charges anything.
+// here submits, calls pricing or charges anything. The authenticated dashboard
+// layer owns the server-calculated estimate shown inside this presentation.
 
 (function () {
   "use strict";
@@ -178,8 +179,9 @@
     }
   }, true);
 
-  // Live, honest "My basket" summary — no price. The exact total only exists
-  // later, at Cleaner approval, so we never invent a running figure here.
+  // Live structural basket summary. The authenticated dashboard module adds a
+  // server-calculated estimate beside it; this presentation layer never invents
+  // or calculates a price from browser-controlled fields.
   const basketAddress = panel.querySelector("[data-pac-basket-address]");
   const basketAddressText = panel.querySelector("[data-pac-basket-address-text]");
 
