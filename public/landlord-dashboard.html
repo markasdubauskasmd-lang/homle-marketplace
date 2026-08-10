@@ -548,41 +548,37 @@
             <div class="pac-layout">
             <div class="pac-main">
             <div class="pac-stepper" data-pac-stepper hidden><div class="pac-dots" data-pac-dots role="group" aria-label="Manual request steps"></div><p class="pac-step-count">Step <span data-pac-step-num>1</span> of <span data-pac-step-total>6</span></p><h3 class="pac-step-title" data-pac-step-title></h3></div>
-            <div class="pac-step" data-wizard-step data-step-title="Choose your cleaning session">
-            <section class="landlord-selected-cleaner" data-landlord-selected-cleaner hidden aria-labelledby="selected-cleaner-title">
-              <span class="landlord-selected-cleaner-avatar" data-landlord-selected-cleaner-avatar aria-hidden="true">C</span>
-              <div><p class="eyebrow">Selected Cleaner</p><h4 id="selected-cleaner-title" data-landlord-selected-cleaner-name>Checking current public profile…</h4><p data-landlord-selected-cleaner-evidence>Homle is verifying this selection before it can be invited.</p><small data-landlord-selected-cleaner-status role="status" aria-live="polite"></small></div>
-              <div class="landlord-selected-cleaner-actions"><button class="text-button" type="button" data-landlord-selected-cleaner-clear>Use best match instead</button></div>
-            </section>
-            <div class="landlord-sole-property" data-sole-property hidden><span>Cleaning property</span><strong data-sole-property-name></strong><small>Your only saved property is selected automatically.</small></div>
-            <label data-property-select-label>Property<select name="propertyId" required data-property-select><option value="">Add a property first</option></select></label>
-            <label data-cleaning-type-field>Primary cleaning type<select name="cleaningType" required><option value="">Choose one</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select><small data-cleaning-type-hint>Choose a property to receive a sensible default.</small></label>
-            </div>
-            <div class="pac-step" data-wizard-step data-step-title="How long will it take?">
-            <label data-duration-field>Estimated duration<select name="durationMinutes" required><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="300">5 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></label>
-            </div>
-            <div class="pac-step" data-wizard-step data-step-title="Pick a date">
-            <label data-date-field>Date<input name="requestedDate" type="date" required></label>
-            </div>
-            <div class="pac-step" data-wizard-step data-step-title="Choose a start time">
-            <label data-time-field>Start time<input name="requestedTime" type="time" required></label>
-            </div>
-            <div class="pac-step" data-wizard-step data-step-title="Walk through the rooms">
+            <!-- ONE screen, not six.
+                 The old wizard asked for the session, the duration, the date and
+                 the time on four separate pages before it ever asked what needed
+                 cleaning — which is the only question the customer actually came
+                 to answer. Describing the job now comes first, everything the
+                 booking needs but the customer does not think about is folded
+                 into one compact row, and the rest is behind a disclosure.
+
+                 Still one [data-wizard-step], so the stepped-wizard enhancement keeps
+                 working; it simply has nothing left to paginate and hides its own
+                 stepper. Every data hook and field name is unchanged. -->
+            <div class="pac-step" data-wizard-step data-step-title="Tell us what needs cleaning">
+
             <section class="landlord-speech-scope" aria-labelledby="speech-scope-title">
-              <p class="landlord-scan-property-status" data-scan-property-status role="status">You can start speaking before adding a property.</p>
-              <div class="landlord-speech-heading"><div><p class="eyebrow">Speech to concise bullets</p><h3 id="speech-scope-title">Walk through each room naturally.</h3></div><button class="button button-outline" type="button" data-speech-toggle>Start speaking</button></div>
-              <p data-speech-status role="status">Checking speech support…</p>
-              <p class="landlord-speech-prompt"><strong>Speak once.</strong> Name the room, then say what needs cleaning. Homle turns your words into concise Cleaner bullets as you go — no extra step. Homle updates the Cleaner bullets when you stop speaking too, and your own edits are never overwritten.</p>
-              <details class="landlord-speech-fallback" data-speech-fallback><summary>Type instead or edit what was heard</summary><div>
-                <label>Spoken or typed walkthrough<textarea name="transcript" rows="5" maxlength="5000" aria-describedby="transcript-privacy" placeholder="This is the kitchen. Wipe the worktops and mop the floor. Moving into the bathroom…"></textarea></label>
-                <small id="transcript-privacy">The raw walkthrough stays in this browser. Only the reviewed concise tasks are saved.</small>
-                <button class="button button-outline" type="button" data-summarise-speech>Update concise bullets</button>
+              <div class="landlord-speech-heading"><h3 id="speech-scope-title">What needs cleaning?</h3><button class="button button-outline pac-mic" type="button" data-speech-toggle>Speak instead</button></div>
+              <!-- The box IS the form now. Typing and speaking write to the same
+                   field, so there is no "which one am I using" to resolve. -->
+              <label class="pac-describe">
+                <textarea name="transcript" rows="6" maxlength="5000" aria-describedby="transcript-privacy" placeholder="Kitchen — worktops, hob and floor. Bathroom — shower screen and toilet. Two bedrooms, hoover and dust."></textarea>
+              </label>
+              <p class="pac-describe-hint" id="transcript-privacy">Name each room and what needs doing. We turn it into a checklist for the cleaner — you can edit it below. Your words stay in this browser; only the checklist is saved.</p>
+              <p class="landlord-scan-property-status" data-scan-property-status role="status" hidden>You can start speaking before adding a property.</p>
+              <p data-speech-status role="status" class="pac-speech-status"></p>
+              <details class="landlord-speech-fallback" data-speech-fallback hidden><summary>Edit what was heard</summary><div>
+                <button class="button button-outline" type="button" data-summarise-speech>Update the checklist</button>
               </div></details>
             </section>
             <section class="landlord-checklist-review" aria-labelledby="request-tasks-title">
-              <div class="landlord-checklist-heading"><div><p class="eyebrow">Cleaner instructions</p><h3 id="request-tasks-title">Review the concise bullets</h3></div><button class="text-button" type="button" data-use-saved-checklist>Use saved checklist</button></div>
-              <div class="landlord-task-preview" data-task-preview role="list" aria-live="polite"><p role="listitem">No tasks yet. Start speaking or type the room walkthrough.</p></div>
-              <details class="landlord-task-editor"><summary>Edit concise bullets</summary><div><label for="request-tasks">One room-labelled task per line</label><textarea id="request-tasks" name="tasks" rows="8" placeholder="Kitchen: Wipe the worktops&#10;Bathroom: Remove limescale from the shower screen"></textarea></div></details>
+              <div class="landlord-checklist-heading"><h3 id="request-tasks-title">Your cleaning checklist</h3><button class="text-button" type="button" data-use-saved-checklist>Use saved checklist</button></div>
+              <div class="landlord-task-preview" data-task-preview role="list" aria-live="polite"><p role="listitem">Your checklist appears here as you write.</p></div>
+              <details class="landlord-task-editor"><summary>Edit the checklist</summary><div><label for="request-tasks">One room-labelled task per line</label><textarea id="request-tasks" name="tasks" rows="8" placeholder="Kitchen: Wipe the worktops&#10;Bathroom: Remove limescale from the shower screen"></textarea></div></details>
               <!-- What the Landlord changed against the checklist the scan produced.
                    Hidden until the two actually differ: a diff that is always on
                    screen stops being read. -->
@@ -592,12 +588,46 @@
                 <button class="text-button" type="button" data-checklist-restore>Restore the scanned checklist</button>
               </section>
               <p class="landlord-task-review-status" data-task-review-status role="status">Add at least one room-labelled cleaning action before approval.</p>
-              <label class="checkbox landlord-review-confirmation"><input name="scopeReviewed" type="checkbox" required disabled><span>I reviewed every bullet and confirm this is the work I want quoted.</span></label>
+              <label class="checkbox landlord-review-confirmation"><input name="scopeReviewed" type="checkbox" required disabled><span>This is the work I want quoted.</span></label>
             </section>
+
+            <!-- What the booking needs to exist: where, and when. A cleaner
+                 cannot be sent to an unnamed address at an unnamed time, so these
+                 stay — but as one row rather than three pages. -->
+            <div class="pac-when">
+            <section class="landlord-selected-cleaner" data-landlord-selected-cleaner hidden aria-labelledby="selected-cleaner-title">
+              <span class="landlord-selected-cleaner-avatar" data-landlord-selected-cleaner-avatar aria-hidden="true">C</span>
+              <div><p class="eyebrow">Selected Cleaner</p><h4 id="selected-cleaner-title" data-landlord-selected-cleaner-name>Checking current public profile…</h4><p data-landlord-selected-cleaner-evidence>Homle is verifying this selection before it can be invited.</p><small data-landlord-selected-cleaner-status role="status" aria-live="polite"></small></div>
+              <div class="landlord-selected-cleaner-actions"><button class="text-button" type="button" data-landlord-selected-cleaner-clear>Use best match instead</button></div>
+            </section>
+            <div class="landlord-sole-property" data-sole-property hidden><span>Cleaning property</span><strong data-sole-property-name></strong><small>Your only saved property is selected automatically.</small></div>
+            <label data-property-select-label>Property<select name="propertyId" required data-property-select><option value="">Add a property first</option></select></label>
+            <label data-cleaning-type-field>Primary cleaning type<select name="cleaningType" required><option value="">Choose one</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select><small data-cleaning-type-hint>Choose a property to receive a sensible default.</small></label>
+            <!-- One question, not three. "When is the clean" is a single thing a
+                 customer decides, and splitting it across three labelled fields
+                 made them read as three separate decisions. Laid out as a
+                 sentence — 21 Aug, at 15:30, for 3 hours — it reads the way the
+                 answer is actually held in someone's head.
+
+                 The three inputs keep their own names, data hooks and required
+                 flags, so validation and the draft recovery are untouched; only
+                 the labelling and layout changed. Each still has a visible label
+                 for screen readers, sized down rather than removed. -->
+            <fieldset class="pac-schedule">
+              <legend>When</legend>
+              <div class="pac-schedule-row">
+                <label data-date-field><span>Date</span><input name="requestedDate" type="date" required></label>
+                <span class="pac-schedule-join" aria-hidden="true">at</span>
+                <label data-time-field><span>Start</span><input name="requestedTime" type="time" required></label>
+                <span class="pac-schedule-join" aria-hidden="true">for</span>
+                <label data-duration-field><span>How long</span><select name="durationMinutes" required><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="300">5 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></label>
+              </div>
+              <p class="pac-schedule-hint">Two hours is the minimum visit. You can change this before a cleaner accepts.</p>
+            </fieldset>
             </div>
-            <div class="pac-step" data-wizard-step data-step-title="Add room photos next">
-            <details class="dashboard-optional-fields"><summary>Add matching limit or recurring preference <span>Optional</span></summary><div><div class="field-row"><label>Frequency<select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select></label><label>Maximum booking total (£) <span>(needed for automatic matching)</span><input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01" aria-describedby="automatic-matching-budget-help"></label></div><small id="automatic-matching-budget-help">Set the most you approve Homle to use when finding a Cleaner automatically. Leave it blank only if you will choose a Cleaner yourself.</small><label>Special instructions <span>(optional)</span><textarea name="specialInstructions" rows="3" maxlength="5000"></textarea></label></div></details>
-            <button class="button" type="submit" data-save-request>Save and add room photos</button>
+
+            <details class="dashboard-optional-fields"><summary>Budget cap, recurring or special instructions <span>Optional</span></summary><div><div class="field-row"><label>Frequency<select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select></label><label>Maximum booking total (£) <span>(needed for automatic matching)</span><input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01" aria-describedby="automatic-matching-budget-help"></label></div><small id="automatic-matching-budget-help">Set the most you approve Homle to use when finding a Cleaner automatically. Leave it blank only if you will choose a Cleaner yourself.</small><label>Special instructions <span>(optional)</span><textarea name="specialInstructions" rows="3" maxlength="5000"></textarea></label></div></details>
+            <button class="button pac-submit" type="submit" data-save-request>Continue — add photos</button>
             <small class="landlord-draft-boundary"><strong>Next:</strong> add at least one private room photo, then submit for matching. Secure checkout opens only after a Cleaner accepts and Homle confirms the exact total.</small>
             </div>
             <p class="landlord-request-recovery-status" data-request-recovery-status role="status">An unfinished walkthrough stays only in this browser tab for up to 30 minutes. Approval and photos are never restored.</p>
