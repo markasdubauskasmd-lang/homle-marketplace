@@ -202,6 +202,46 @@ body.landlord-dashboard-page .landlord-history-overview { margin-top: 22px; box-
 body.landlord-dashboard-page .landlord-history-overview .landlord-previous-cleaners,
 body.landlord-dashboard-page .landlord-history-overview .landlord-favourite-cleaners { background: #fff; border: 1px solid var(--ld-line); border-radius: 18px; padding: 20px; box-shadow: var(--ld-card-shadow); margin-top: 16px; }
 
+body.landlord-dashboard-page .landlord-completion-quote {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 620px;
+  margin: 0 auto 12px;
+}
+body.landlord-dashboard-page .landlord-completion-quote[hidden] { display: none; }
+body.landlord-dashboard-page .landlord-completion-quote > div {
+  padding: 18px;
+  border: 1px solid var(--ld-line);
+  border-radius: 16px;
+  background: #fff7f5;
+}
+body.landlord-dashboard-page .landlord-completion-quote dt {
+  color: var(--ld-muted-2);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+body.landlord-dashboard-page .landlord-completion-quote dd {
+  margin: 7px 0 0;
+  color: var(--ld-ink);
+  font-family: var(--ld-display);
+  font-size: clamp(24px, 4vw, 34px);
+  font-weight: 800;
+}
+body.landlord-dashboard-page .landlord-completion-quote-note {
+  max-width: 620px;
+  margin: 0 auto 26px;
+  color: var(--ld-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 560px) {
+  body.landlord-dashboard-page .landlord-completion-quote { grid-template-columns: 1fr; }
+}
+
 body.landlord-dashboard-page .booking-section-heading h2,
 body.landlord-dashboard-page .landlord-panel-heading h2,
 body.landlord-dashboard-page .landlord-history-heading h3 { font-weight: 800; font-size: clamp(21px, 2.4vw, 26px); margin: 2px 0 0; }
