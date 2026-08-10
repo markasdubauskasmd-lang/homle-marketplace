@@ -1,8 +1,9 @@
 // The pricing engine, against the scenarios the brief specifies and the
 // invariants that make a price safe to charge.
 
-import { defaultPricingConfig, normalizedPricingConfig } from "../src/marketplace/pricing-config.mjs";
-import { quoteEconomics, quoteInputFromScan, quoteRooms } from "../src/marketplace/pricing-engine.mjs";
+import { defaultPricingConfig, normalizedPricingConfig } from "../public/pricing-config.js";
+import { quoteInputFromScan, quoteRooms } from "../public/pricing-engine.js";
+import { defaultPricingEconomics, normalizedPricingEconomics, quoteEconomics, reviewedQuote } from "../src/marketplace/pricing-economics.mjs";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -123,7 +124,7 @@ for (let round = 0; round < 25; round += 1) {
 
 const tiny = quoteRooms({ rooms: [{ roomType: "hallway", items: ordinary("Floor") }] }, config);
 assert(tiny.priceable && tiny.totalPence === 4500, "A one-task hallway did not reach the minimum visit charge.");
-assert(tiny.economics.grossMarginPence > 0, "The smallest possible booking loses money.");
+assert(reviewedQuote(tiny).economics.grossMarginPence > 0, "The smallest possible booking loses money.");
 
 /* ── Scenario 8: a large booking stays profitable and pays properly ───────── */
 
@@ -142,8 +143,9 @@ const large = quoteRooms({
 }, config);
 assert(large.priceable, `A large end-of-tenancy booking could not be priced: ${large.reason}`);
 assert(large.totalPence > 25000, `A seven-room end-of-tenancy clean priced implausibly low: ${large.totalPence}p.`);
-assert(large.economics.healthy && large.economics.grossMarginBasisPoints >= 2000,
-  `A large booking fell under the target margin: ${large.economics.grossMarginBasisPoints}bp.`);
+const largeEconomics = reviewedQuote(large).economics;
+assert(largeEconomics.healthy && largeEconomics.grossMarginBasisPoints >= 2000,
+  `A large booking fell under the target margin: ${largeEconomics.grossMarginBasisPoints}bp.`);
 assert(reconciles(large), "Large-booking breakdown does not sum to its total.");
 
 /* ── Service types are ordered as the market prices them ──────────────────── */
@@ -177,13 +179,13 @@ assert(withOven.premiumPence === withOvenOnce.premiumPence,
 
 /* ── Unit economics ───────────────────────────────────────────────────────── */
 
-const economics = large.economics;
+const economics = largeEconomics;
 assert(economics.customerPaysPence === large.totalPence, "The economics priced a different total from the quote.");
 assert(economics.cleanerPayoutPence + economics.platformRevenuePence === economics.customerPaysPence,
   "Cleaner payout and platform revenue do not account for the whole customer price.");
 assert(economics.grossMarginPence === economics.platformRevenuePence - economics.paymentFeePence,
   "Gross margin is not platform revenue less the payment fee.");
-assert(economics.effectiveCleanerHourlyPence >= config.economics.cleanerHourlyFloorPence,
+assert(economics.effectiveCleanerHourlyPence >= defaultPricingEconomics.cleanerHourlyFloorPence,
   "A priced booking pays the cleaner under the hourly floor.");
 // The share promised to supply is the share actually paid.
 assert(Math.abs(economics.cleanerPayoutPence - Math.round(large.totalPence * 0.7)) <= 1,
@@ -196,15 +198,15 @@ assert(Math.abs(economics.cleanerPayoutPence - Math.round(large.totalPence * 0.7
 // processor's fixed 20p is taken out of a real booking. That gap is exactly
 // what the quote-time guard exists for, and why config validation alone is not
 // enough to keep a loss-making price off a customer's screen.
-const starved = normalizedPricingConfig({
-  ...defaultPricingConfig,
-  economics: { ...defaultPricingConfig.economics, cleanerShareBasisPoints: 9000, targetGrossMarginBasisPoints: 500 }
-});
-const starvedQuote = quoteRooms({ rooms: sameRooms }, starved);
-assert(!starvedQuote.priceable && starvedQuote.code === "margin-floor",
+const starvedEconomics = { ...defaultPricingEconomics, cleanerShareBasisPoints: 9000, targetGrossMarginBasisPoints: 500 };
+const starvedReview = reviewedQuote(quoteRooms({ rooms: sameRooms }, config), starvedEconomics);
+assert(!starvedReview.quote.priceable && starvedReview.quote.code === "margin-floor",
   "A booking that cannot clear its margin floor was still offered to a customer.");
-assert(throws(() => normalizedPricingConfig({ economics: { cleanerShareBasisPoints: 9000, paymentFeeBasisPoints: 200, targetGrossMarginBasisPoints: 2000 } }), "exceed the whole booking value"),
-  "A configuration that spends more than the booking is worth was accepted.");
+assert(!starvedReview.quote.reason.includes("%") && !starvedReview.quote.reason.includes("margin"),
+  "The customer-facing refusal leaks the platform's margin position.");
+assert(starvedReview.economics.reason.includes("minimum"), "The operator-facing reason does not say what actually failed.");
+assert(throws(() => normalizedPricingEconomics({ cleanerShareBasisPoints: 9000, paymentFeeBasisPoints: 200, targetGrossMarginBasisPoints: 2000 }), "exceed the whole booking value"),
+  "An economics configuration that spends more than the booking is worth was accepted.");
 
 /* ── Operator edits are validated, not clamped ────────────────────────────── */
 
@@ -239,9 +241,20 @@ assert(reconciles(scanQuote), "A scan-derived breakdown does not sum to its tota
 
 /* ── Economics helper is usable on its own ────────────────────────────────── */
 
-const standalone = quoteEconomics(10000, 120, config);
+const standalone = quoteEconomics(10000, 120, defaultPricingEconomics);
 assert(standalone.cleanerPayoutPence === 7000 && standalone.paymentFeePence === 170,
   "Standalone economics did not apply the configured share and processor fee.");
 assert(standalone.grossMarginPence === 2830, `Gross margin on a £100 booking should be £28.30, was ${standalone.grossMarginPence}p.`);
+
+/* ── The browser half must not carry commercial figures ──────────────────── */
+
+const { readFile } = await import("node:fs/promises");
+for (const path of ["../public/pricing-config.js", "../public/pricing-engine.js"]) {
+  const source = await readFile(new URL(path, import.meta.url), "utf8");
+  const body = source.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "");
+  for (const secret of ["cleanerShareBasisPoints", "targetGrossMarginBasisPoints", "paymentFeeBasisPoints", "cleanerHourlyFloorPence", "minimumContributionPence"]) {
+    assert(!body.includes(secret), `${path} is served to the browser and carries ${secret}.`);
+  }
+}
 
 console.log("Pricing engine tests passed: the eight brief scenarios, breakdowns that reconcile to the penny, room-independent included items, premium tasks priced away from the £3 rule, market-ordered service types, reversible add/remove, validated operator edits, and no quote sold below its margin or cleaner-pay floor.");

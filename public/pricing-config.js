@@ -166,31 +166,17 @@ export const defaultDiscounts = Object.freeze({
   })
 });
 
-/* ── Marketplace economics ───────────────────────────────────────────────── */
-
-// cleanerShareBasisPoints is the headline promise to supply. Everything else is
-// the cost of running the visit, and targetGrossMarginBasisPoints is the line
-// under which a booking is not worth taking.
-//
-// Stripe UK domestic card pricing is 1.5% + 20p at the time of writing. It is
-// configured rather than assumed so a change of processor or of terms is one
-// edit. VAT is deliberately absent: Homle is below the threshold and adding a
-// VAT line before registering would overcharge every customer. When that
-// changes it belongs here, as its own field, not smuggled into the margin.
-export const defaultEconomics = Object.freeze({
-  cleanerShareBasisPoints: 7000,
-  paymentFeeBasisPoints: 150,
-  paymentFeeFixedPence: 20,
-  targetGrossMarginBasisPoints: 2000,
-  minimumContributionPence: 600,
-  // What a cleaner must clear per hour for the work to be worth accepting. The
-  // National Living Wage is £12.71 from April 2026; cleaners here are
-  // self-employed so it does not bind, but a platform paying under it will not
-  // hold supply. This is the guard that catches a room base edited down.
-  cleanerHourlyFloorPence: 1500
-});
-
 /* ── The whole config ────────────────────────────────────────────────────── */
+//
+// WHAT IS DELIBERATELY NOT IN THIS FILE
+//
+// The cleaner's share, the processor's fee and the margin floors are NOT here,
+// and must never be added. This module is served to the browser so the scanner
+// can price instantly without a round trip — which means everything in it is
+// readable by anyone who opens developer tools. What a cleaner is paid and what
+// Homle keeps is commercial information; it lives in
+// src/marketplace/pricing-economics.mjs, server-side only, and the customer
+// price is computed identically on both sides so the two can never disagree.
 
 export const defaultPricingConfig = Object.freeze({
   configId: "default",
@@ -210,8 +196,7 @@ export const defaultPricingConfig = Object.freeze({
   premiumItems: defaultPremiumItems,
   addOns: defaultAddOns,
   serviceTypes: defaultServiceTypes,
-  discounts: defaultDiscounts,
-  economics: defaultEconomics
+  discounts: defaultDiscounts
 });
 
 /* ── Validation ──────────────────────────────────────────────────────────── */
@@ -280,24 +265,6 @@ export function normalizedPricingConfig(input = {}) {
     recurring[frequency] = count(supplied, 0, 5000, `${frequency} discount`);
   }
 
-  const suppliedEconomics = source.economics ?? {};
-  const economics = Object.freeze({
-    cleanerShareBasisPoints: count(suppliedEconomics.cleanerShareBasisPoints ?? defaultEconomics.cleanerShareBasisPoints, 3000, 9500, "Cleaner share"),
-    paymentFeeBasisPoints: count(suppliedEconomics.paymentFeeBasisPoints ?? defaultEconomics.paymentFeeBasisPoints, 0, 1000, "Payment fee"),
-    paymentFeeFixedPence: pence(suppliedEconomics.paymentFeeFixedPence ?? defaultEconomics.paymentFeeFixedPence, 0, 10000, "Fixed payment fee"),
-    targetGrossMarginBasisPoints: count(suppliedEconomics.targetGrossMarginBasisPoints ?? defaultEconomics.targetGrossMarginBasisPoints, 0, 8000, "Target gross margin"),
-    minimumContributionPence: pence(suppliedEconomics.minimumContributionPence ?? defaultEconomics.minimumContributionPence, 0, 100000, "Minimum contribution"),
-    cleanerHourlyFloorPence: pence(suppliedEconomics.cleanerHourlyFloorPence ?? defaultEconomics.cleanerHourlyFloorPence, 0, 20000, "Cleaner hourly floor")
-  });
-
-  // The one cross-field rule worth refusing on: if the cleaner's share plus the
-  // processor's cut leaves less than the target margin, every booking priced by
-  // this config loses money. Better to reject the configuration than to
-  // discover it one settlement at a time.
-  if (economics.cleanerShareBasisPoints + economics.paymentFeeBasisPoints + economics.targetGrossMarginBasisPoints > 10000) {
-    throw new TypeError("Cleaner share, payment fee and target margin exceed the whole booking value.");
-  }
-
   return Object.freeze({
     configId: label(source.configId, defaultPricingConfig.configId, 40),
     version: count(source.version ?? pricingConfigVersion, 1, 10000, "Config version"),
@@ -314,8 +281,7 @@ export function normalizedPricingConfig(input = {}) {
     discounts: Object.freeze({
       multiRoomBasisPoints: Object.freeze(multiRoom),
       recurringBasisPoints: Object.freeze(recurring)
-    }),
-    economics
+    })
   });
 }
 

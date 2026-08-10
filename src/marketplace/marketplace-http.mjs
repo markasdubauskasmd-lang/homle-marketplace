@@ -4,6 +4,12 @@ import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, read
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 import { cleanerProfilePhotoMimeTypes, maximumCleanerProfilePhotoBytes } from "./cleaner-profile-photo.mjs";
 import { cleanerOnboardingDocumentMimeTypes, maximumCleanerOnboardingDocumentBytes } from "./cleaner-onboarding-document.mjs";
+// The customer price comes from the same module the browser runs, so the
+// scanner's number and the authorised number cannot drift. The economics that
+// decide whether Homle will sell at that number stay server-side.
+import { defaultPricingConfig, normalizedPricingConfig } from "../../public/pricing-config.js";
+import { quoteRooms } from "../../public/pricing-engine.js";
+import { defaultPricingEconomics, normalizedPricingEconomics, reviewedQuote } from "./pricing-economics.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
@@ -174,6 +180,17 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (cleanerPayouts && !["getStatus", "refreshStatus", "beginOnboarding"].every((method) => typeof cleanerPayouts[method] === "function")) throw new TypeError("Marketplace Cleaner payout routes require the complete payout service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
   const limitPublicRead = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
+
+  // Pricing is injected rather than imported at the point of use, so an
+  // administrator's stored values can replace the shipped defaults without a
+  // deployment. Nothing stored yet means the shipped defaults, which are a
+  // complete working price list rather than placeholders.
+  const pricingConfiguration = typeof options.pricingConfiguration === "function"
+    ? options.pricingConfiguration
+    : async () => defaultPricingConfig;
+  const pricingEconomicsConfiguration = typeof options.pricingEconomicsConfiguration === "function"
+    ? options.pricingEconomicsConfiguration
+    : async () => defaultPricingEconomics;
 
   return {
     async handle(request, response, suppliedUrl) {
@@ -1045,6 +1062,50 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, truth });
           return true;
         }
+        // The whole price list, read and written by an operator.
+        //
+        // The economics travel on THIS endpoint and no other: it is
+        // administrator-only, and the cleaner's share and the margin floors are
+        // exactly what an operator has come here to set. They are never
+        // attached to a customer-facing quote.
+        if (pathname === "/api/marketplace/admin/pricing") {
+          const context = await security.protect(request, { mutation: request.method !== "GET", roles: ["administrator"] });
+          if (request.method === "GET") {
+            sendJson(response, 200, {
+              ok: true,
+              config: normalizedPricingConfig(await pricingConfiguration()),
+              economics: normalizedPricingEconomics(await pricingEconomicsConfiguration())
+            });
+            return true;
+          }
+          if (request.method === "PUT") {
+            const body = await readJsonObject(request);
+            // Both halves are validated before either is stored, so a rejected
+            // economics edit cannot leave a saved price list it no longer suits.
+            const config = normalizedPricingConfig(body?.config);
+            const economics = normalizedPricingEconomics(body?.economics);
+            const saved = typeof options.savePricing === "function"
+              ? await options.savePricing(context.actor, { config, economics })
+              : { config, economics };
+            sendJson(response, 200, { ok: true, ...saved });
+            return true;
+          }
+          return methodNotAllowed(response, ["GET", "PUT"]), true;
+        }
+        // What a candidate price list would do to a real booking, before it is
+        // saved. Compute only — nothing is stored, and the configuration in the
+        // body is used instead of the live one precisely so an operator can see
+        // the consequence of an edit they have not committed to.
+        if (pathname === "/api/marketplace/admin/pricing/preview") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const body = await readJsonObject(request, maximumRoomScanBodyBytes);
+          const config = normalizedPricingConfig(body?.config);
+          const economics = normalizedPricingEconomics(body?.economics);
+          const reviewed = reviewedQuote(quoteRooms(body?.request ?? {}, config), economics);
+          sendJson(response, 200, { ok: true, quote: reviewed.quote, economics: reviewed.economics });
+          return true;
+        }
         if (pathname === "/api/marketplace/admin/pricing/scan-ruleset") {
           const context = await security.protect(request, { mutation: request.method !== "GET", roles: ["administrator"] });
           if (request.method === "GET") {
@@ -1076,6 +1137,37 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           await limitPublicRead(request, "marketplace-landlord:scan-preview");
           const body = await readJsonObject(request, maximumRoomScanBodyBytes);
           sendJson(response, 200, { ok: true, scan: await scans.previewScan(context.actor, body) });
+          return true;
+        }
+        // The price, from the rooms and tasks the customer has confirmed.
+        //
+        // THIS IS THE AUTHORITY. The browser runs the identical module so the
+        // scanner can update instantly without a round trip, but the number
+        // that reaches a booking is the one produced here — a client that has
+        // been tampered with cannot talk Homle into a price it did not compute.
+        //
+        // Compute only: nothing is stored, no cleaner is contacted and no
+        // booking is created, so it is rate-limited against the read allowance.
+        // The response deliberately carries no economics; what the cleaner is
+        // paid and what Homle keeps is not the customer's side of the contract.
+        if (pathname === "/api/marketplace/pricing/quote") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          await security.protect(request, { mutation: true, roles: ["landlord"] });
+          await limitPublicRead(request, "marketplace-landlord:scan-preview");
+          const body = await readJsonObject(request, maximumRoomScanBodyBytes);
+          const config = normalizedPricingConfig(await pricingConfiguration());
+          const { quote } = reviewedQuote(quoteRooms(body, config), await pricingEconomicsConfiguration());
+          sendJson(response, 200, { ok: true, quote });
+          return true;
+        }
+        // The price list the scanner needs to show a running total without a
+        // round trip per tap. Public-shaped on purpose: these are the prices a
+        // customer is about to be quoted, and there is nothing to hide in them.
+        if (pathname === "/api/marketplace/pricing/config") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          await security.protect(request, { roles: ["landlord"] });
+          await limitPublicRead(request, "marketplace-landlord:scan-preview");
+          sendJson(response, 200, { ok: true, config: normalizedPricingConfig(await pricingConfiguration()) });
           return true;
         }
         // Turns two tapped pixel spans into a measurement with its band. Compute

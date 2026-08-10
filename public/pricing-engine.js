@@ -30,7 +30,7 @@
 // item. Nothing is re-derived from a rounded number, which is how breakdowns
 // drift away from their totals.
 
-import { normalizedPricingConfig, roomDefinition } from "./pricing-config.mjs";
+import { normalizedPricingConfig, roomDefinition } from "./pricing-config.js";
 
 const basisPointDivisor = 10000;
 
@@ -57,8 +57,7 @@ function unpriceable(code, reason, config) {
     totalPence: 0,
     estimatedMinutes: 0,
     rooms: Object.freeze([]),
-    lines: Object.freeze([]),
-    economics: null
+    lines: Object.freeze([])
   });
 }
 
@@ -208,13 +207,6 @@ export function quoteRooms(request = {}, config = {}) {
   const totalPence = beforeMinimum + minimumAdjustmentPence;
 
   const estimatedMinutes = pricedRooms.reduce((total, room) => total + room.minutes, 0) + addOnMinutes;
-  const economics = quoteEconomics(totalPence, estimatedMinutes, rules);
-
-  // The margin guard. A configuration that cannot pay everyone is not a cheap
-  // booking, it is a loss, and it must not reach a customer.
-  if (!economics.healthy) {
-    return unpriceable("margin-floor", `This selection cannot be priced profitably: ${economics.reason}`, rules);
-  }
 
   const total = lines.reduce((sum, entry) => sum + entry.pence, 0);
   // Not a defensive nicety. If this ever fires, a customer is being shown a
@@ -242,58 +234,7 @@ export function quoteRooms(request = {}, config = {}) {
     discountPence: multiRoomDiscountPence + recurringDiscountPence,
     minimumAdjustmentPence,
     totalPence,
-    estimatedMinutes,
-    economics
-  });
-}
-
-/**
- * What one booking does to the business.
- *
- * Computed for every quote rather than in a reporting job afterwards, because a
- * margin that is only visible in a monthly report is a margin nobody defends at
- * the moment it is given away.
- */
-export function quoteEconomics(totalPence, estimatedMinutes, config = {}) {
-  const rules = config.economics ? config : normalizedPricingConfig(config);
-  const economics = rules.economics;
-
-  const customerPaysPence = money(totalPence);
-  const cleanerPayoutPence = Math.round(customerPaysPence * economics.cleanerShareBasisPoints / basisPointDivisor);
-  const paymentFeePence = economics.paymentFeeFixedPence + Math.ceil(customerPaysPence * economics.paymentFeeBasisPoints / basisPointDivisor);
-  const platformRevenuePence = customerPaysPence - cleanerPayoutPence;
-  const grossMarginPence = platformRevenuePence - paymentFeePence;
-  const grossMarginBasisPoints = customerPaysPence > 0
-    ? Math.round((grossMarginPence / customerPaysPence) * basisPointDivisor)
-    : 0;
-
-  const hours = Math.max(estimatedMinutes, 1) / 60;
-  const effectiveCleanerHourlyPence = Math.round(cleanerPayoutPence / hours);
-
-  let reason = "";
-  if (grossMarginPence < economics.minimumContributionPence) {
-    reason = `it contributes ${formatPounds(grossMarginPence)} against a ${formatPounds(economics.minimumContributionPence)} minimum`;
-  } else if (grossMarginBasisPoints < economics.targetGrossMarginBasisPoints) {
-    reason = `its margin is ${(grossMarginBasisPoints / 100).toFixed(1)}% against a ${(economics.targetGrossMarginBasisPoints / 100).toFixed(1)}% target`;
-  } else if (effectiveCleanerHourlyPence < economics.cleanerHourlyFloorPence) {
-    // Not a margin failure — the opposite. The booking is profitable but pays
-    // the cleaner too little per hour to be accepted, which is a supply failure
-    // and shows up as unfilled jobs rather than lost money.
-    reason = `it would pay the cleaner ${formatPounds(effectiveCleanerHourlyPence)}/hour against a ${formatPounds(economics.cleanerHourlyFloorPence)}/hour floor`;
-  }
-
-  return Object.freeze({
-    customerPaysPence,
-    cleanerPayoutPence,
-    paymentFeePence,
-    platformRevenuePence,
-    grossMarginPence,
-    grossMarginBasisPoints,
-    estimatedMinutes,
-    effectiveCleanerHourlyPence,
-    cleanerShareBasisPoints: economics.cleanerShareBasisPoints,
-    healthy: reason === "",
-    reason
+    estimatedMinutes
   });
 }
 
