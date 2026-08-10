@@ -25,6 +25,10 @@ const requestComplete = document.querySelector("[data-request-complete]");
 const requestCompleteLead = document.querySelector("[data-request-complete-lead]");
 const requestCompleteReference = document.querySelector("[data-request-complete-reference]");
 const requestCompleteCounts = document.querySelector("[data-request-complete-counts]");
+const requestCompleteQuote = document.querySelector("[data-request-complete-quote]");
+const requestCompletePrice = document.querySelector("[data-request-complete-price]");
+const requestCompleteDuration = document.querySelector("[data-request-complete-duration]");
+const requestCompleteQuoteNote = document.querySelector("[data-request-complete-quote-note]");
 const requestCompleteWarning = document.querySelector("[data-request-complete-warning]");
 const requestCompleteNext = document.querySelector("[data-request-complete-next]");
 const propertyForm = document.querySelector("[data-property-form]");
@@ -435,11 +439,30 @@ function renderTaskPreview() {
   }
 }
 
+function formatQuotedDuration(minutes) {
+  const value = Number(minutes);
+  if (!Number.isInteger(value) || value < 1) return "";
+  const hours = Math.floor(value / 60);
+  const remainingMinutes = value % 60;
+  if (!hours) return `${remainingMinutes} ${remainingMinutes === 1 ? "minute" : "minutes"}`;
+  if (!remainingMinutes) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  return `${hours} ${hours === 1 ? "hour" : "hours"} ${remainingMinutes} ${remainingMinutes === 1 ? "minute" : "minutes"}`;
+}
+
 function showRequestCompletion(submission, { automaticDispatch = false, automaticMaximumPricePence = null, selectedCleanerInvited = false, selectedCleanerPricePence = null, warning = "" } = {}) {
   const photos = Number(submission?.photoCount);
   const tasks = Number(submission?.taskCount);
+  const quotedTotalPence = Number(submission?.quotedTotalPence);
+  const quotedDuration = formatQuotedDuration(submission?.quotedMinutes);
+  const quoteReady = Number.isInteger(quotedTotalPence) && quotedTotalPence >= 1 && Boolean(quotedDuration);
   requestCompleteReference.textContent = submission?.cleaningRequestId || "Recorded privately";
   requestCompleteCounts.textContent = `${Number.isInteger(photos) ? photos : 0} room ${photos === 1 ? "photo" : "photos"} · ${Number.isInteger(tasks) ? tasks : 0} concise Cleaner ${tasks === 1 ? "task" : "tasks"}`;
+  requestCompleteQuote.hidden = !quoteReady;
+  requestCompleteQuoteNote.hidden = !quoteReady;
+  if (quoteReady) {
+    requestCompletePrice.textContent = formatBookingMoney(quotedTotalPence);
+    requestCompleteDuration.textContent = quotedDuration;
+  }
   requestCompleteLead.textContent = warning
     ? "Your reviewed scan is submitted for matching. No booking or payment exists yet."
     : selectedCleanerInvited
@@ -1608,7 +1631,17 @@ function requestScanPanel(request) {
       let selectedCleanerPricePence = null;
       try {
         const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/submit`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ scopeReviewed: true, cleanerPreviewAuthorized: preview.checked }) });
-        submission = result.submission;
+        // Creation is the authoritative pricing boundary. The submit function
+        // returns scan counts, while the request already carries the frozen
+        // platform quote returned by that creation call. Keep both together so
+        // the confirmation never hides the price and time the Landlord just
+        // approved merely because the submission projection is intentionally
+        // narrow.
+        submission = {
+          ...result.submission,
+          quotedTotalPence: request.quotedTotalPence,
+          quotedMinutes: request.quotedMinutes
+        };
         submitted = submission?.status === "searching-for-cleaner";
         if (!submitted) throw new Error("The submitted request could not be verified.");
         const index = requests.findIndex((item) => item.requestId === request.requestId);
