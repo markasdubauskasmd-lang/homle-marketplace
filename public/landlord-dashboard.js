@@ -26,6 +26,7 @@ const requestCompleteLead = document.querySelector("[data-request-complete-lead]
 const requestCompleteReference = document.querySelector("[data-request-complete-reference]");
 const requestCompleteCounts = document.querySelector("[data-request-complete-counts]");
 const requestCompleteQuote = document.querySelector("[data-request-complete-quote]");
+const requestCompletePriceLabel = document.querySelector("[data-request-complete-price-label]");
 const requestCompletePrice = document.querySelector("[data-request-complete-price]");
 const requestCompleteDuration = document.querySelector("[data-request-complete-duration]");
 const requestCompleteQuoteNote = document.querySelector("[data-request-complete-quote-note]");
@@ -452,6 +453,49 @@ function formatQuotedDuration(minutes) {
   return `${hours} ${hours === 1 ? "hour" : "hours"} ${remainingMinutes} ${remainingMinutes === 1 ? "minute" : "minutes"}`;
 }
 
+function renderCompletionQuote(quote, { saved = false } = {}) {
+  const totalPence = Number(quote?.quotedTotalPence ?? quote?.totalPence);
+  const duration = formatQuotedDuration(quote?.quotedMinutes ?? quote?.estimatedMinutes);
+  if (!Number.isInteger(totalPence) || totalPence < 1 || !duration) return false;
+  requestCompletePriceLabel.textContent = saved ? "Saved price estimate" : "Current price estimate";
+  requestCompletePrice.textContent = formatBookingMoney(totalPence);
+  requestCompleteDuration.textContent = duration;
+  requestCompleteQuote.hidden = false;
+  requestCompleteQuoteNote.hidden = false;
+  requestCompleteQuoteNote.textContent = saved
+    ? "This estimate is saved with this request. Stripe checkout opens only after a Cleaner accepts the exact scope, time and total."
+    : "This current estimate was recovered from your confirmed tasks. Choose a Cleaner to freeze the final total. Real Stripe checkout opens after they accept.";
+  return true;
+}
+
+async function recoverCompletionQuote(requestId) {
+  const source = requests.find((request) => request.requestId === requestId);
+  if (!source || !Array.isArray(source.tasks) || !source.tasks.length) return;
+  const csrf = storedCsrf();
+  if (!csrf) return;
+  requestCompleteQuote.hidden = false;
+  requestCompleteQuoteNote.hidden = false;
+  requestCompletePriceLabel.textContent = "Current price estimate";
+  requestCompletePrice.textContent = "Calculating…";
+  requestCompleteDuration.textContent = "Calculating…";
+  requestCompleteQuoteNote.textContent = "Checking the current Homle price for the confirmed rooms and tasks…";
+  try {
+    const pricingRequest = pricingRequestFromManualTasks(source.tasks, { cleaningType: source.cleaningType, frequency: source.frequency });
+    const result = await requestJson("/api/marketplace/pricing/quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify(pricingRequest)
+    });
+    if (completedRequestId !== requestId) return;
+    if (!renderCompletionQuote(result.quote)) throw new Error(result.quote?.reason || "A current estimate is unavailable.");
+  } catch (error) {
+    if (completedRequestId !== requestId) return;
+    requestCompleteQuote.hidden = true;
+    requestCompleteQuoteNote.hidden = false;
+    requestCompleteQuoteNote.textContent = `${error.message} Your request is saved; choose a Cleaner to calculate and approve the exact booking total.`;
+  }
+}
+
 function showRequestCompletion(submission, { automaticDispatch = false, automaticMaximumPricePence = null, selectedCleanerInvited = false, selectedCleanerPricePence = null, warning = "" } = {}) {
   const photos = Number(submission?.photoCount);
   const tasks = Number(submission?.taskCount);
@@ -460,12 +504,9 @@ function showRequestCompletion(submission, { automaticDispatch = false, automati
   const quoteReady = Number.isInteger(quotedTotalPence) && quotedTotalPence >= 1 && Boolean(quotedDuration);
   requestCompleteReference.textContent = submission?.cleaningRequestId || "Recorded privately";
   requestCompleteCounts.textContent = `${Number.isInteger(photos) ? photos : 0} room ${photos === 1 ? "photo" : "photos"} · ${Number.isInteger(tasks) ? tasks : 0} concise Cleaner ${tasks === 1 ? "task" : "tasks"}`;
-  requestCompleteQuote.hidden = !quoteReady;
-  requestCompleteQuoteNote.hidden = !quoteReady;
-  if (quoteReady) {
-    requestCompletePrice.textContent = formatBookingMoney(quotedTotalPence);
-    requestCompleteDuration.textContent = quotedDuration;
-  }
+  requestCompleteQuote.hidden = true;
+  requestCompleteQuoteNote.hidden = true;
+  if (quoteReady) renderCompletionQuote({ quotedTotalPence, quotedMinutes: submission?.quotedMinutes }, { saved: true });
   requestCompleteLead.textContent = warning
     ? "Your reviewed scan is submitted for matching. No booking or payment exists yet."
     : selectedCleanerInvited
@@ -478,6 +519,7 @@ function showRequestCompletion(submission, { automaticDispatch = false, automati
   requestCompleteSandbox.hidden = !paymentsReady;
   requestCompleteSandboxNote.hidden = !paymentsReady;
   completedRequestId = String(submission?.cleaningRequestId || "");
+  if (!quoteReady && completedRequestId) void recoverCompletionQuote(completedRequestId);
   requestCompleteNext.textContent = selectedCleanerInvited || automaticDispatch ? "Track Cleaner response" : "Choose Cleaner & exact price";
   state.hidden = true;
   workspace.hidden = true;
