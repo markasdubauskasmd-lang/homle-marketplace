@@ -9,6 +9,7 @@ const supplierLinks = {
   beautician: "https://www.protectivity.com/product/beauty-therapist-insurance/"
 };
 let serviceType = "cleaner";
+let presentationType = "cleaner";
 
 function renderRail(progress) {
   const steps = new Map(progress.steps.map((step) => [step.key, step]));
@@ -38,12 +39,28 @@ function selectedServiceType(value) {
 }
 
 function setInsurancePresentation() {
-  const beautician = serviceType === "beautician";
+  const beautician = presentationType === "beautician";
   document.querySelectorAll("[data-insurance-requirements]").forEach((panel) => {
-    panel.hidden = panel.dataset.insuranceRequirements !== serviceType;
+    panel.hidden = panel.dataset.insuranceRequirements !== presentationType;
   });
   const badge = document.querySelector("[data-insurance-profession-badge]");
-  if (badge) badge.textContent = beautician ? "Beautician cover" : "Cleaner cover";
+  if (badge) badge.textContent = beautician ? "Viewing Beautician cover" : "Viewing Cleaner cover";
+  document.querySelectorAll("[data-insurance-view-switch]").forEach((button) => {
+    const active = button.dataset.insuranceViewSwitch === presentationType;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  document.querySelectorAll("[data-insurance-cover-option]").forEach((option) => {
+    option.hidden = option.dataset.insuranceCoverOption !== presentationType;
+  });
+  const selectionNote = document.querySelector("[data-insurance-selection-note]");
+  if (selectionNote) {
+    const savedProfession = serviceType === "beautician" ? "Beautician" : "Cleaner";
+    const viewedProfession = beautician ? "Beautician" : "Cleaner";
+    selectionNote.textContent = serviceType === presentationType
+      ? `Your saved onboarding service is ${savedProfession}.`
+      : `Viewing ${viewedProfession} guidance only. Your saved onboarding service remains ${savedProfession}.`;
+  }
   const professionalLabel = document.querySelector("[data-insurance-professional-label]");
   if (professionalLabel) professionalLabel.textContent = beautician
     ? "Treatment / professional liability policy"
@@ -53,11 +70,14 @@ function setInsurancePresentation() {
     ? "Protectivity offers specialist cover for self-employed and mobile beauty therapists."
     : "Protectivity offers specialist cleaning insurance with online quotes.";
   const supplierLink = document.querySelector("[data-insurance-supplier-link]");
-  if (supplierLink instanceof HTMLAnchorElement) supplierLink.href = supplierLinks[serviceType];
+  if (supplierLink instanceof HTMLAnchorElement) supplierLink.href = supplierLinks[presentationType];
   const requirementCopy = document.querySelector("[data-insurance-requirement-copy]");
-  if (requirementCopy) requirementCopy.textContent = beautician
-    ? "Public liability and treatment / professional liability must be selected before you continue."
-    : "Public liability must be selected before you continue.";
+  if (requirementCopy) {
+    const savedBeautician = serviceType === "beautician";
+    requirementCopy.textContent = savedBeautician
+      ? "For your saved Beautician application, public liability and treatment / professional liability must be selected before you continue."
+      : "For your saved Cleaner application, public liability must be selected before you continue.";
+  }
 }
 
 function selectedCoverTypes(form) {
@@ -118,10 +138,18 @@ export async function setupInsurance({ account, showFeedback, requestJson }) {
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   const businessData = businessResult.status === "fulfilled" ? businessResult.value.section?.data : null;
   serviceType = selectedServiceType(businessData?.serviceType);
+  presentationType = serviceType;
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
   await loadOnboardingForm(requestJson, "insurance", form).catch(() => null);
   await hydrateOnboardingDocumentInputs(requestJson, "insurance", form, "[data-insurance-file]", renderStoredDocument).catch(() => null);
   setInsurancePresentation();
+
+  document.querySelectorAll("[data-insurance-view-switch]").forEach((button) => {
+    button.addEventListener("click", () => {
+      presentationType = selectedServiceType(button.dataset.insuranceViewSwitch);
+      setInsurancePresentation();
+    });
+  });
 
   document.querySelectorAll("[data-insurance-file]").forEach((fileInput) => {
     fileInput.addEventListener("change", () => {

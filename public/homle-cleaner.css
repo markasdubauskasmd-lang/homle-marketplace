@@ -4387,6 +4387,70 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   font-weight: 700;
 }
 
+.hc-insurance-view-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #eadfce;
+  border-radius: 12px;
+  background: #fffdfa;
+}
+
+.hc-insurance-view-controls > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.hc-insurance-view-controls strong {
+  color: var(--hc-ink);
+  font-size: 10px;
+}
+
+.hc-insurance-view-controls p {
+  margin: 0;
+  color: var(--hc-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.hc-insurance-view-switch {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(96px, 1fr));
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid #ead8bd;
+  border-radius: 999px;
+  background: #f8f0e2;
+}
+
+.hc-insurance-view-switch button {
+  min-height: 32px;
+  padding: 0 14px;
+  color: var(--hc-ink);
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 9.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hc-insurance-view-switch button.is-active {
+  color: #fff;
+  background: var(--hc-red);
+  box-shadow: 0 8px 18px rgba(198, 42, 26, .18);
+}
+
+.hc-insurance-view-switch button:focus-visible {
+  outline: 2px solid var(--hc-red);
+  outline-offset: 2px;
+}
+
 .hc-insurance-requirements {
   margin-top: 12px;
   padding: 16px;
@@ -4433,7 +4497,7 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 
 .hc-insurance-cover-types {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 12px 0;
 }
@@ -4453,10 +4517,31 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   cursor: pointer;
 }
 
+.hc-insurance-cover-types label {
+  min-height: 48px;
+  align-items: center;
+}
+
+.hc-insurance-cover-types label[hidden] {
+  display: none;
+}
+
+.hc-insurance-cover-types label > span,
+.hc-insurance-confirmations label > span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .hc-insurance-cover-types input,
 .hc-insurance-confirmations input {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
   flex: 0 0 auto;
   margin: 1px 0 0;
+  padding: 0 !important;
   accent-color: var(--hc-red);
 }
 
@@ -4596,7 +4681,14 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 
 .hc-insurance-confirmations {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.hc-insurance-confirmations label {
+  min-height: 62px;
+  align-items: center;
+  padding: 10px 12px;
 }
 
 .hc-insurance-details {
@@ -6638,8 +6730,11 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-insurance-form { padding-left: 20px; padding-right: 20px; }
   .hc-insurance-policies,
   .hc-insurance-cover-types,
+  .hc-insurance-confirmations,
   .hc-insurance-details { grid-template-columns: 1fr; }
   .hc-insurance-responsibility { display: grid; }
+  .hc-insurance-view-controls { align-items: stretch; flex-direction: column; }
+  .hc-insurance-view-switch { width: 100%; }
   .hc-banking-form { padding-left: 20px; padding-right: 20px; }
   .hc-banking-account-primary,
   .hc-banking-account-secondary,
