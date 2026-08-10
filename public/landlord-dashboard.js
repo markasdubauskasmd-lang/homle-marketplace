@@ -79,6 +79,10 @@ const propertyArchiveCancel = document.querySelector("[data-property-archive-can
 const propertyArchiveConfirm = document.querySelector("[data-property-archive-confirm]");
 const propertySave = document.querySelector("[data-save-property]");
 const requestSave = document.querySelector("[data-save-request]");
+const manualQuote = document.querySelector("[data-manual-quote]");
+const manualQuotePrice = document.querySelector("[data-manual-quote-price]");
+const manualQuoteDuration = document.querySelector("[data-manual-quote-duration]");
+const manualQuoteStatus = document.querySelector("[data-manual-quote-status]");
 const speechButton = document.querySelector("[data-speech-toggle]");
 const scanPropertyStatus = document.querySelector("[data-scan-property-status]");
 const speechStatus = document.querySelector("[data-speech-status]");
@@ -149,6 +153,9 @@ let automaticDispatchReady = false;
 let paymentsReady = false;
 let requestRecoveryChecked = false;
 let requestRecoveryTimer = null;
+let manualQuoteTimer = null;
+let manualQuoteGeneration = 0;
+let manualQuoteSignature = "";
 let completedRequestId = "";
 let invitationStream = null;
 let invitationStreamKey = "";
@@ -451,6 +458,76 @@ function formatQuotedDuration(minutes) {
   if (!hours) return `${remainingMinutes} ${remainingMinutes === 1 ? "minute" : "minutes"}`;
   if (!remainingMinutes) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
   return `${hours} ${hours === 1 ? "hour" : "hours"} ${remainingMinutes} ${remainingMinutes === 1 ? "minute" : "minutes"}`;
+}
+
+function clearManualQuote(message = "Review and confirm the room checklist to see a server-calculated estimate before submission.") {
+  manualQuoteGeneration += 1;
+  manualQuoteSignature = "";
+  window.clearTimeout(manualQuoteTimer);
+  manualQuote.hidden = true;
+  manualQuoteStatus.textContent = message;
+}
+
+function currentManualPricingRequest() {
+  if (!pricingReady) return { message: "Price estimates are temporarily unavailable. You can keep your draft and retry before matching." };
+  if (!requestForm.elements.scopeReviewed.checked) return { message: "Review and confirm the room checklist to see a server-calculated estimate before submission." };
+  const cleaningType = String(requestForm.elements.cleaningType.value || "");
+  if (!cleaningType) return { message: "Choose a cleaning service to calculate the current estimate." };
+  try {
+    const tasks = requestTasksFromLines(requestForm.elements.tasks.value);
+    return { pricingRequest: pricingRequestFromManualTasks(tasks, { cleaningType, frequency: String(requestForm.elements.frequency.value || "one-time") }) };
+  } catch (error) {
+    return { message: error.message };
+  }
+}
+
+async function refreshManualQuote(generation, pricingRequest, signature) {
+  manualQuote.hidden = false;
+  manualQuotePrice.textContent = "Calculating…";
+  manualQuoteDuration.textContent = "Calculating…";
+  manualQuoteStatus.textContent = "Checking the current Homle price for these confirmed rooms and tasks…";
+  const csrf = await recoverCsrf(manualQuoteStatus, "calculating this estimate");
+  if (!csrf || generation !== manualQuoteGeneration) return;
+  try {
+    const result = await requestJson("/api/marketplace/pricing/quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify(pricingRequest)
+    });
+    if (generation !== manualQuoteGeneration) return;
+    const totalPence = Number(result.quote?.totalPence);
+    const duration = formatQuotedDuration(result.quote?.estimatedMinutes);
+    if (result.quote?.priceable !== true || !Number.isInteger(totalPence) || totalPence < 1 || !duration) {
+      throw new Error(result.quote?.reason || "A current estimate is unavailable.");
+    }
+    manualQuoteSignature = signature;
+    manualQuotePrice.textContent = formatBookingMoney(totalPence);
+    manualQuoteDuration.textContent = duration;
+    manualQuoteStatus.textContent = "Server-calculated estimate. The final total is frozen when you approve a Cleaner.";
+  } catch (error) {
+    if (generation !== manualQuoteGeneration) return;
+    manualQuote.hidden = true;
+    manualQuoteStatus.textContent = `${error.message} Your entries are still here; you can retry before matching.`;
+  }
+}
+
+function scheduleManualQuote() {
+  window.clearTimeout(manualQuoteTimer);
+  const generation = ++manualQuoteGeneration;
+  const candidate = currentManualPricingRequest();
+  if (!candidate.pricingRequest) {
+    manualQuoteSignature = "";
+    manualQuote.hidden = true;
+    manualQuoteStatus.textContent = candidate.message;
+    return;
+  }
+  const signature = JSON.stringify(candidate.pricingRequest);
+  if (signature === manualQuoteSignature && !manualQuote.hidden) return;
+  manualQuote.hidden = false;
+  manualQuotePrice.textContent = "Calculating…";
+  manualQuoteDuration.textContent = "Calculating…";
+  manualQuoteStatus.textContent = "Preparing the current estimate…";
+  manualQuoteTimer = window.setTimeout(() => { void refreshManualQuote(generation, candidate.pricingRequest, signature); }, 450);
 }
 
 function renderCompletionQuote(quote, { saved = false } = {}) {
@@ -2823,6 +2900,7 @@ async function loadWorkspace() {
     });
     ({ mediaReady, pricingReady, geocodingReady, matchingReady, automaticDispatchReady } = capabilities);
     paymentsReady = healthResult.status === "fulfilled" && healthResult.value?.marketplace?.paymentsReady === true;
+    scheduleManualQuote();
     mediaReadiness.hidden = capabilities.notice === null;
     if (capabilities.notice) {
       capabilityTitle.textContent = capabilities.notice.title;
@@ -3263,8 +3341,9 @@ requestForm.elements.transcript.addEventListener("input", () => { invalidateScop
 requestForm.elements.tasks.addEventListener("input", () => { tasksManuallyEdited = true; clearTimeout(liveSummariseTimer); renderTaskPreview(); invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });
 propertyForm.addEventListener("input", () => { propertyDirty = true; });
 landlordProfileForm.addEventListener("input", () => { landlordProfileDirty = true; });
-requestForm.addEventListener("input", () => { requestDirty = true; scheduleWorkingRequestRecovery(); });
-requestForm.addEventListener("change", () => { requestDirty = true; scheduleWorkingRequestRecovery(); });
+requestForm.addEventListener("input", () => { requestDirty = true; scheduleWorkingRequestRecovery(); scheduleManualQuote(); });
+requestForm.addEventListener("change", () => { requestDirty = true; scheduleWorkingRequestRecovery(); scheduleManualQuote(); });
+requestForm.addEventListener("reset", () => { window.setTimeout(() => clearManualQuote(), 0); });
 propertyForm.addEventListener("submit", saveProperty);
 landlordProfileForm.addEventListener("submit", saveLandlordProfile);
 requestForm.addEventListener("submit", createRequestDraft);
