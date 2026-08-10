@@ -14,6 +14,11 @@ const complete = document.querySelector("[data-sandbox-complete]");
 let stripe;
 let elements;
 let loading = false;
+let stripeLoadPromise = null;
+
+function browserOffline() {
+  return navigator.onLine === false;
+}
 
 function saveCsrf(token) {
   try { sessionStorage.setItem("tideway_csrf", token); return sessionStorage.getItem("tideway_csrf") === token; } catch { return false; }
@@ -21,10 +26,22 @@ function saveCsrf(token) {
 
 async function requestJson(path, options = {}) {
   const { headers = {}, ...rest } = options;
-  const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers } });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(result.error || result.message || "Stripe test checkout could not be prepared."), { statusCode: response.status, code: result.code });
-  return result;
+  const mutation = String(rest.method || "GET").toUpperCase() !== "GET";
+  if (browserOffline()) throw Object.assign(new Error("You are offline. Reconnect before opening the Stripe test."), { code: "browser-offline", uncertain: false });
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 30_000);
+  try {
+    const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, signal: controller.signal, headers: { Accept: "application/json", ...headers } });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw Object.assign(new Error(result.error || result.message || "Stripe test checkout could not be prepared."), { statusCode: response.status, code: result.code, uncertain: false });
+    return result;
+  } catch (error) {
+    if (error?.name === "AbortError") throw Object.assign(new Error(mutation ? "The connection took too long. A Stripe test may already have been prepared; retrying will safely recover the same test." : "The Stripe configuration took too long to load. Check the connection and try again."), { code: "request-timeout", uncertain: mutation });
+    if (browserOffline()) throw Object.assign(new Error("The connection was lost. Reconnect before continuing the Stripe test."), { code: "browser-offline", uncertain: mutation });
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 async function csrfToken() {
@@ -49,20 +66,32 @@ function retryKey() {
 
 async function loadStripe() {
   if (globalThis.Stripe) return globalThis.Stripe;
-  return new Promise((resolve, reject) => {
+  if (stripeLoadPromise) return stripeLoadPromise;
+  stripeLoadPromise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = stripeScriptUrl;
     script.async = true;
-    script.addEventListener("load", () => resolve(globalThis.Stripe), { once: true });
-    script.addEventListener("error", () => reject(new Error("The Stripe test form could not load.")), { once: true });
+    const timer = window.setTimeout(() => {
+      script.remove();
+      reject(new Error("The Stripe test form took too long to load. Check the connection and try again."));
+    }, 20_000);
+    script.addEventListener("load", () => { window.clearTimeout(timer); resolve(globalThis.Stripe); }, { once: true });
+    script.addEventListener("error", () => { window.clearTimeout(timer); reject(new Error("The Stripe test form could not load. Check the connection and try again.")); }, { once: true });
     document.head.append(script);
+  }).then((Stripe) => {
+    if (typeof Stripe !== "function") throw new Error("The Stripe test form is unavailable.");
+    return Stripe;
+  }).catch((error) => {
+    stripeLoadPromise = null;
+    throw error;
   });
+  return stripeLoadPromise;
 }
 
 function showError(error) {
   state.dataset.kind = "error";
   state.hidden = false;
-  stateTitle.textContent = error.statusCode === 401 ? "Sign in to test Stripe" : "Stripe test checkout could not open";
+  stateTitle.textContent = error.statusCode === 401 ? "Sign in to test Stripe" : error.code === "browser-offline" ? "You are offline" : "Stripe test checkout could not open";
   stateCopy.textContent = error.message;
   signIn.hidden = error.statusCode !== 401;
   retry.hidden = error.statusCode === 401;
@@ -95,22 +124,43 @@ async function start() {
   finally { loading = false; retry.disabled = false; }
 }
 
+async function confirmStripeTest() {
+  let timer;
+  try {
+    return await Promise.race([
+      stripe.confirmPayment({ elements, redirect: "if_required" }),
+      new Promise((_, reject) => {
+        timer = window.setTimeout(() => reject(Object.assign(new Error("Stripe took too long to confirm the test. Its result may still be processing; check the Stripe test dashboard before trying again."), { code: "payment-confirmation-timeout", uncertain: true })), 60_000);
+      })
+    ]);
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (loading || !stripe || !elements) return;
+  if (browserOffline()) {
+    feedback.textContent = "You are offline. Reconnect before submitting the Stripe test.";
+    feedback.hidden = false;
+    return;
+  }
   loading = true;
   submit.disabled = true;
   submit.textContent = "Completing Stripe test…";
   feedback.hidden = true;
   try {
-    const result = await stripe.confirmPayment({ elements, redirect: "if_required" });
+    const result = await confirmStripeTest();
     if (result.error) throw new Error(result.error.message || "Stripe could not complete the test payment.");
     if (result.paymentIntent?.status !== "succeeded") throw new Error("Stripe is still processing the test payment. Check the Stripe test dashboard before trying again.");
     try { sessionStorage.removeItem("homle_stripe_sandbox_retry"); } catch {}
     form.hidden = true;
     complete.hidden = false;
   } catch (error) {
-    feedback.textContent = error.message;
+    feedback.textContent = error.uncertain === true
+      ? `${error.message} Do not submit again until you have checked the Stripe test dashboard.`
+      : error.message;
     feedback.hidden = false;
   } finally {
     loading = false;
@@ -120,4 +170,10 @@ form.addEventListener("submit", async (event) => {
 });
 
 retry.addEventListener("click", start);
+window.addEventListener("offline", () => {
+  if (!form.hidden) {
+    feedback.textContent = "The connection was lost. Reconnect before submitting the Stripe test.";
+    feedback.hidden = false;
+  }
+});
 start();
