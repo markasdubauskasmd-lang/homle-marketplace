@@ -37,7 +37,10 @@ function configureCleanerShell() {
   accountGroup?.remove();
   const role = document.querySelector(".hc-brand-role");
   if (role) role.textContent = "ONBOARDING";
-  if (onboardingGroup) onboardingGroup.open = true;
+  if (onboardingGroup) {
+    onboardingGroup.open = true;
+    onboardingGroup.querySelector(":scope > .hc-nav-group-summary")?.remove();
+  }
 }
 
 function icon(name) {
