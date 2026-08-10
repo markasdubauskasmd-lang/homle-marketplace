@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260723-4">
   <!-- The v2 composition, last so it wins without !important. -->
   <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260808-3">
-  <script src="/landlord-dashboard.js?v=20260810-2" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260810-3" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -72,8 +72,8 @@
         </ol>
       </section>
       <p class="landlord-completion-warning" data-request-complete-warning hidden></p>
-      <div class="completion-actions"><a class="button" href="/stripe-sandbox?start=1" data-request-complete-sandbox hidden>Open Stripe test checkout (&pound;0.30)</a><button class="button button-outline" type="button" data-request-complete-next>Choose Cleaner &amp; exact price</button><button class="button button-outline" type="button" data-request-complete-another>Prepare another clean</button></div>
-      <p class="landlord-completion-test-note" data-request-complete-sandbox-note hidden>The 30p Stripe test opens Stripe immediately in test mode. It verifies the payment integration but does not confirm this cleaning booking. Real booking checkout opens after a Cleaner accepts the exact total.</p>
+      <div class="completion-actions"><a class="button" href="/stripe-sandbox?start=1" data-request-complete-sandbox>Test Stripe checkout (&pound;0.30)</a><button class="button button-outline" type="button" data-request-complete-next>Choose Cleaner &amp; exact price</button><button class="button button-outline" type="button" data-request-complete-another>Prepare another clean</button></div>
+      <p class="landlord-completion-test-note" data-request-complete-sandbox-note>The 30p Stripe test opens Stripe immediately in test mode. It verifies the payment integration but does not confirm this cleaning booking. Real booking checkout opens after a Cleaner accepts the exact total.</p>
     </section>
 
     <div data-landlord-workspace hidden>

@@ -490,9 +490,11 @@ async function recoverCompletionQuote(requestId) {
     if (!renderCompletionQuote(result.quote)) throw new Error(result.quote?.reason || "A current estimate is unavailable.");
   } catch (error) {
     if (completedRequestId !== requestId) return;
-    requestCompleteQuote.hidden = true;
+    requestCompleteQuote.hidden = false;
     requestCompleteQuoteNote.hidden = false;
-    requestCompleteQuoteNote.textContent = `${error.message} Your request is saved; choose a Cleaner to calculate and approve the exact booking total.`;
+    requestCompletePrice.textContent = "Unavailable";
+    requestCompleteDuration.textContent = "Unavailable";
+    requestCompleteQuoteNote.textContent = `${error.message} Your request is saved, but Homle could not verify an estimate. Please retry from Bookings before choosing a Cleaner.`;
   }
 }
 
@@ -516,8 +518,11 @@ function showRequestCompletion(submission, { automaticDispatch = false, automati
     : "Your reviewed scan is submitted for matching. No Cleaner has been invited automatically.";
   requestCompleteWarning.textContent = warning;
   requestCompleteWarning.hidden = !warning;
-  requestCompleteSandbox.hidden = !paymentsReady;
-  requestCompleteSandboxNote.hidden = !paymentsReady;
+  // Keep the isolated 30p Stripe test visible on completion. Its server route
+  // performs the authoritative payment-readiness check and fails closed, so a
+  // stale health request must not make a configured checkout appear missing.
+  requestCompleteSandbox.hidden = false;
+  requestCompleteSandboxNote.hidden = false;
   completedRequestId = String(submission?.cleaningRequestId || "");
   if (!quoteReady && completedRequestId) void recoverCompletionQuote(completedRequestId);
   requestCompleteNext.textContent = selectedCleanerInvited || automaticDispatch ? "Track Cleaner response" : "Choose Cleaner & exact price";
@@ -1686,8 +1691,10 @@ function requestScanPanel(request) {
         // narrow.
         submission = {
           ...result.submission,
-          quotedTotalPence: request.quotedTotalPence,
-          quotedMinutes: request.quotedMinutes
+          quotedTotalPence: result.submission?.quotedTotalPence ?? request.quotedTotalPence,
+          quotedMinutes: result.submission?.quotedMinutes ?? request.quotedMinutes,
+          pricingConfigVersion: result.submission?.pricingConfigVersion ?? request.pricingConfigVersion,
+          quotedAt: result.submission?.quotedAt ?? request.quotedAt
         };
         submitted = submission?.status === "searching-for-cleaner";
         if (!submitted) throw new Error("The submitted request could not be verified.");
