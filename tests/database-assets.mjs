@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 96);
-  assert.equal(repositoryResult.migrations.at(-1), "096_insurance_policy_document_types.sql");
+  assert.equal(repositoryResult.migrations.length, 97);
+  assert.equal(repositoryResult.migrations.at(-1), "097_optional_request_photos.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
@@ -44,6 +44,7 @@ try {
   const bookingSummaryVerificationMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "091_booking_summary_verification_markers.sql"), "utf8");
   const rightToWorkBirthCertificateMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "093_right_to_work_birth_certificate.sql"), "utf8");
   const insurancePolicyDocumentTypesMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "096_insurance_policy_document_types.sql"), "utf8");
+  const optionalRequestPhotosMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "097_optional_request_photos.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
   const publicCleanerProfileBehaviour = await readFile(path.join(sourceDatabaseDirectory, "integration", "public-cleaner-profile-behaviour.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
@@ -113,6 +114,13 @@ try {
   assert(onboardingDocumentMigration.includes("content_ciphertext bytea") && onboardingDocumentMigration.includes("save_my_cleaner_onboarding_document") && onboardingDocumentMigration.includes("cleaner-onboarding-document-saved"), "Migration 89 must store encrypted Cleaner document bytes through an audited owner-only function.");
   assert(rightToWorkBirthCertificateMigration.includes("rightToWorkPassport") && rightToWorkBirthCertificateMigration.includes("rightToWorkBirthCertificate") && rightToWorkBirthCertificateMigration.includes("cleaner-onboarding-document-saved"), "Migration 93 must admit both Right to Work evidence types without weakening the encrypted audited writer.");
   assert(["publicLiabilityPolicy", "productLiabilityPolicy", "treatmentProfessionalLiabilityPolicy", "employersLiabilityPolicy", "businessUseMotorPolicy"].every((documentType) => insurancePolicyDocumentTypesMigration.includes(`'${documentType}'`)) && insurancePolicyDocumentTypesMigration.includes("content_ciphertext=supplied_content_ciphertext") && insurancePolicyDocumentTypesMigration.includes("cleaner-onboarding-document-saved"), "Migration 96 must admit every per-type Insurance document without weakening encrypted storage or its audit record.");
+  assert(optionalRequestPhotosMigration.includes("CREATE OR REPLACE FUNCTION tideway_private.submit_cleaning_request(target_request_id uuid,scope_reviewed boolean,preview_authorized boolean)")
+    && optionalRequestPhotosMigration.includes("task_count<1 OR photo_count>10 OR pending_count>0")
+    && !optionalRequestPhotosMigration.includes("photo_count<1")
+    && optionalRequestPhotosMigration.includes("'no-room-photos'")
+    && optionalRequestPhotosMigration.includes("'photoCount',photo_count")
+    && optionalRequestPhotosMigration.includes("REVOKE ALL ON FUNCTION tideway_private.submit_cleaning_request(uuid,boolean,boolean) FROM PUBLIC"),
+  "Migration 97 must keep an actionable Cleaner brief and upload safety while allowing a reviewed request with zero photos.");
   assert.match(deploymentVerifier, /migration_order = 93/, "Deployment verification must detect encrypted Right to Work alternative evidence support.");
   assert(deploymentVerifier.includes("Right-to-work passport or birth-certificate storage is missing from the encrypted document boundary"), "Deployment verification must prove both Right to Work evidence types remain inside encrypted document storage.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 90\)'/, "Deployment verification must detect privacy-limited Cleaner client names dynamically.");

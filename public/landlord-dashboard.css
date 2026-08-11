@@ -1378,6 +1378,15 @@ body.landlord-dashboard-page .landlord-simple-instructions-actions {
   gap: 12px;
 }
 body.landlord-dashboard-page .landlord-simple-instructions-actions .button { min-width: 150px; }
+body.landlord-dashboard-page .landlord-optional-scope-note {
+  margin: 0;
+  color: var(--ld-muted);
+  font-size: 13px;
+}
+body.landlord-dashboard-page .landlord-photo-skip {
+  width: 100%;
+  margin-top: 12px;
+}
 body.landlord-dashboard-page .landlord-simple-instructions [data-speech-status] {
   margin: 0;
   color: var(--ld-muted);
@@ -1462,6 +1471,9 @@ body.landlord-dashboard-page .landlord-photo-dialog .landlord-request-scan-copy 
   body.landlord-dashboard-page .landlord-simple-instructions-actions .button {
     width: 100%;
     min-width: 0;
+  }
+  body.landlord-dashboard-page .landlord-simple-instructions-actions [data-continue-request] {
+    grid-column: 1 / -1;
   }
 }
 

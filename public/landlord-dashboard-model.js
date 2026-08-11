@@ -32,6 +32,41 @@ export function requestTasksFromLines(value, options = {}) {
   });
 }
 
+const optionalScopeDefaults = Object.freeze({
+  "regular-domestic": "Clean the agreed property areas for this regular domestic service.",
+  "rental-turnovers": "Clean the agreed property areas for this rental turnover service.",
+  "end-of-tenancy": "Clean the agreed property areas for this end-of-tenancy service.",
+  workplaces: "Clean the agreed workplace areas for this service.",
+  "communal-areas": "Clean the agreed communal areas for this service.",
+  "deep-cleans": "Clean the agreed property areas for this deep-cleaning service."
+});
+
+// Notes are useful context, but they are not a safe substitute for an
+// actionable Cleaner checklist. If the optional field is empty or contains a
+// short note rather than a task, keep that text as a note and create one
+// explicit service-level task. This lets a Landlord continue without typing
+// while preserving the Cleaner dashboard's existing checklist contract.
+export function optionalRequestScope(value, options = {}) {
+  const note = String(value || "").trim();
+  if (note.length > 5000) throw new TypeError("Optional cleaning notes must be 5,000 characters or fewer.");
+  if (note) {
+    try {
+      return { tasks: requestTasksFromLines(note, options), supplementalNote: "" };
+    } catch {
+      // A natural note such as "key is with reception" must not block the
+      // booking or be misrepresented as an actionable Cleaner task.
+    }
+  }
+  const cleaningType = String(options.cleaningType || "").trim();
+  return {
+    tasks: [{
+      roomName: String(options.defaultRoomName || "Property").trim().slice(0, 120) || "Property",
+      description: optionalScopeDefaults[cleaningType] || "Clean the agreed property areas for this service."
+    }],
+    supplementalNote: note
+  };
+}
+
 export function tasksToLines(tasks) {
   return (Array.isArray(tasks) ? tasks : []).filter((task) => task?.roomName && task?.description).map((task) => `${task.roomName}: ${task.description}`).join("\n");
 }
@@ -164,8 +199,8 @@ export function landlordMarketplaceCapabilityState(input = {}) {
   if (!mediaReady) {
     notice = Object.freeze({
       key: "private-media",
-      title: "Private room-photo storage is being connected.",
-      copy: "You can save the property, speak naturally and review the concise room checklist now. Camera upload and matching submission stay locked until Homle can store every photo privately."
+      title: "Private room-photo storage is temporarily unavailable.",
+      copy: "Room photos are optional. You can still save the property, add notes and submit a cleaning request; only private image upload is unavailable."
     });
   } else if (!pricingReady) {
     notice = Object.freeze({
