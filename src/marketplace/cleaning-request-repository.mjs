@@ -56,7 +56,7 @@ export function createCleaningRequestRepository(database) {
             "request-not-found": [404, "request-not-found", "The cleaning-request draft was not found."],
             "request-review-required": [422, "request-review-required", "Review and confirm the room scan before submission."],
             "request-not-submittable": [409, "request-not-submittable", "Only a future private draft can be submitted."],
-            "request-scan-incomplete": [409, "request-scan-incomplete", "Finish at least one private room photo and wait for every upload to complete."],
+            "request-scan-incomplete": [409, "request-scan-incomplete", "Add a clear Cleaner task and wait for any selected photo upload to complete."],
             "request-scan-room-mismatch": [409, "request-scan-room-mismatch", "Every room photo must use a room from the reviewed cleaner checklist."]
           }[error?.message];
           if (!mapped) throw error;

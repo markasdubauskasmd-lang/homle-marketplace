@@ -7,7 +7,7 @@ import { consumeRoomPhotoInputFiles, maximumRoomPhotos, validatedRoomPhotoSelect
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, pricingRequestFromManualTasks, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260810-1";
+import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260811-1";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260723-3";
 import { activeBookingChangeRequestFor, supportRequestPage, supportStatusLabels } from "./landlord-help-model.js?v=20260804-1";
 import { storedCsrf } from "./session-csrf.js";
@@ -79,6 +79,7 @@ const propertyArchiveCancel = document.querySelector("[data-property-archive-can
 const propertyArchiveConfirm = document.querySelector("[data-property-archive-confirm]");
 const propertySave = document.querySelector("[data-save-property]");
 const requestSave = document.querySelector("[data-save-request]");
+const requestContinue = document.querySelector("[data-continue-request]");
 const manualQuote = document.querySelector("[data-manual-quote]");
 const manualQuotePrice = document.querySelector("[data-manual-quote-price]");
 const manualQuoteDuration = document.querySelector("[data-manual-quote-duration]");
@@ -158,6 +159,7 @@ let manualQuoteGeneration = 0;
 let manualQuoteSignature = "";
 let completedRequestId = "";
 let activeRequestPhotoDialog = null;
+let currentRequestDraft = null;
 let invitationStream = null;
 let invitationStreamKey = "";
 let bookingTransitionRefresh = null;
@@ -414,11 +416,15 @@ function renderTaskPreview() {
   renderChecklistChanges(lines);
   const confirmation = requestForm.elements.scopeReviewed;
   try {
-    const reviewedTasks = requestTasksFromLines(lines.join("\n"));
+    const reviewedTasks = optionalRequestScope(lines.join("\n"), {
+      cleaningType: requestForm.elements.cleaningType.value
+    }).tasks;
     const roomCount = new Set(reviewedTasks.map((task) => task.roomName.toLowerCase())).size;
     confirmation.disabled = false;
     taskReviewStatus.dataset.kind = "ready";
-    taskReviewStatus.textContent = `${reviewedTasks.length} clear ${reviewedTasks.length === 1 ? "task" : "tasks"} across ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. Review the bullets, then confirm.`;
+    taskReviewStatus.textContent = lines.length
+      ? `${reviewedTasks.length} clear ${reviewedTasks.length === 1 ? "task" : "tasks"} across ${roomCount} ${roomCount === 1 ? "room" : "rooms"}. Review the bullets, then confirm.`
+      : "Notes are optional. Homle will use the selected cleaning service as the Cleaner brief.";
   } catch (error) {
     confirmation.checked = false;
     confirmation.disabled = true;
@@ -471,11 +477,10 @@ function clearManualQuote(message = "Review and confirm the room checklist to se
 
 function currentManualPricingRequest() {
   if (!pricingReady) return { message: "Price estimates are temporarily unavailable. You can keep your draft and retry before matching." };
-  if (!requestForm.elements.scopeReviewed.checked) return { message: "Review and confirm the room checklist to see a server-calculated estimate before submission." };
   const cleaningType = String(requestForm.elements.cleaningType.value || "");
   if (!cleaningType) return { message: "Choose a cleaning service to calculate the current estimate." };
   try {
-    const tasks = requestTasksFromLines(requestForm.elements.tasks.value);
+    const tasks = optionalRequestScope(requestForm.elements.tasks.value, { cleaningType }).tasks;
     return { pricingRequest: pricingRequestFromManualTasks(tasks, { cleaningType, frequency: String(requestForm.elements.frequency.value || "one-time") }) };
   } catch (error) {
     return { message: error.message };
@@ -578,6 +583,12 @@ async function recoverCompletionQuote(requestId) {
 
 function showRequestCompletion(submission, { automaticDispatch = false, automaticMaximumPricePence = null, selectedCleanerInvited = false, selectedCleanerPricePence = null, warning = "" } = {}) {
   closeRequestPhotoDialog();
+  currentRequestDraft = null;
+  requestForm.reset();
+  delete cleaningTypeSelect.dataset.selectionSource;
+  initialiseRequestDefaults();
+  renderTaskPreview();
+  requestDirty = false;
   const photos = Number(submission?.photoCount);
   const tasks = Number(submission?.taskCount);
   const quotedTotalPence = Number(submission?.quotedTotalPence);
@@ -1374,6 +1385,24 @@ function closeRequestPhotoDialog() {
   dialog.remove();
 }
 
+function enableRequestPhotoDialogDismissal(dialog) {
+  if (dialog.dataset.dismissalReady === "true") return;
+  dialog.dataset.dismissalReady = "true";
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeRequestPhotoDialog();
+  });
+  // Backdrop pointer events arrive on the dialog element. Close only when the
+  // pointer is outside its rendered box so taps inside never discard entries.
+  dialog.addEventListener("click", (event) => {
+    if (event.target !== dialog) return;
+    const bounds = dialog.getBoundingClientRect();
+    const outside = event.clientX < bounds.left || event.clientX > bounds.right
+      || event.clientY < bounds.top || event.clientY > bounds.bottom;
+    if (outside) closeRequestPhotoDialog();
+  });
+}
+
 function showRequestContinuation(request, options = {}) {
   if (request?.status !== "draft") return false;
   requestFeedback.hidden = true;
@@ -1391,17 +1420,14 @@ function showRequestContinuation(request, options = {}) {
   close.addEventListener("click", closeRequestPhotoDialog);
   const heading = element("div", "landlord-request-continuation-heading");
   heading.append(
-    element("p", "eyebrow", "Add images"),
-    element("h3", "", "Add room photos"),
-    element("p", "", "Choose the room, take a photo or select one from your phone. Your request stays on this page.")
+    element("p", "eyebrow", "Review request"),
+    element("h3", "", "Photos and notes are optional"),
+    element("p", "", "Add a room photo if it helps, or review and submit the selected cleaning service without one.")
   );
   const scan = requestScanPanel(request, options);
   dialog.append(close, heading, scan);
   scan.open = true;
-  dialog.addEventListener("cancel", (event) => {
-    event.preventDefault();
-    closeRequestPhotoDialog();
-  });
+  enableRequestPhotoDialogDismissal(dialog);
   if (!dialog.open) dialog.showModal();
   queueMicrotask(() => {
     scan.querySelector('select[name="roomName"]')?.focus({ preventScroll: true });
@@ -1415,7 +1441,7 @@ function requestScanPanel(request, options = {}) {
   const summary = element("summary", "", request.status === "draft" ? (mediaReady ? "Add room photos and submit" : "Test the room camera") : "View reviewed room scan");
   details.append(summary);
   const panel = element("div", "landlord-request-scan-body");
-  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? (mediaReady ? "Choose the checklist room and take a current photo or short room video. Homle turns video into private still frames on this device, strips image metadata and keeps only sanitized JPEGs." : "Test the real phone camera or a short room video now. The visual previews stay only on this device and disappear when you leave; secure upload and matching submission remain locked until private storage is connected.") : "This is the reviewed room-scan handoff attached to the request.");
+  const intro = element("p", "landlord-request-scan-copy", request.status === "draft" ? (mediaReady ? "Room photos are optional. Add one if it helps explain the clean, or review and submit without images." : "Room photos are optional and secure upload is temporarily unavailable. You can still review and submit this request without images.") : "This is the reviewed room-scan handoff attached to the request.");
   const feedback = element("div", "landlord-form-feedback");
   feedback.hidden = true;
   feedback.tabIndex = -1;
@@ -1431,21 +1457,18 @@ function requestScanPanel(request, options = {}) {
 
   function refreshSubmissionAvailability() {
     if (!submit) return;
-    const hasStoredPhoto = requestScans.get(request.requestId)?.photos?.length > 0;
-    submit.disabled = !mediaReady;
-    submit.type = hasStoredPhoto ? "submit" : "button";
-    submit.textContent = !mediaReady
-      ? "Room photos required before submission"
-      : hasStoredPhoto
-      ? "Submit cleaning request"
-      : selectedPhotoCount
+    submit.disabled = false;
+    submit.type = selectedPhotoCount ? "button" : "submit";
+    submit.textContent = selectedPhotoCount
       ? `Upload ${selectedPhotoCount} selected ${selectedPhotoCount === 1 ? "photo" : "photos"} to continue`
-      : "Choose a room photo to continue";
+      : "Submit cleaning request";
   }
 
   async function loadScan() {
     if (!mediaReady) {
       count.textContent = "Private room-photo storage not connected";
+      requestScans.set(request.requestId, { photos: [] });
+      refreshSubmissionAvailability();
       loaded = true;
       return;
     }
@@ -1721,7 +1744,7 @@ function requestScanPanel(request, options = {}) {
     confirm.type = "checkbox";
     confirm.required = true;
     confirm.name = "scopeReviewed";
-    confirmLabel.append(confirm, element("span", "", "I reviewed the concise Cleaner checklist and every attached room photo. This is the exact work I want Homle to match and quote."));
+    confirmLabel.append(confirm, element("span", "", "I reviewed the Cleaner brief and any attached room photos. This is the exact service I want Homle to match and quote."));
     const previewLabel = element("label", "checkbox");
     const preview = element("input");
     preview.type = "checkbox";
@@ -1755,13 +1778,10 @@ function requestScanPanel(request, options = {}) {
     submit = element("button", "button", "Submit cleaning request");
     submit.type = "button";
     submit.addEventListener("click", () => {
-      if (requestScans.get(request.requestId)?.photos?.length > 0 || !mediaReady) return;
       if (selectedPhotoCount > 0) uploadSelectedPhotos?.();
-      else choosePhoto?.();
     });
-    for (const control of [confirm, preview]) control.disabled = !mediaReady;
-    preferred.disabled = !mediaReady || !matchingReady;
-    auto.disabled = !mediaReady || !automaticDispatchReady || automaticMaximumPricePence == null;
+    preferred.disabled = !matchingReady;
+    auto.disabled = !automaticDispatchReady || automaticMaximumPricePence == null;
     attempts.disabled = true;
     refreshSubmissionAvailability();
     submitForm.append(confirmLabel, previewLabel, ...(selectedCleanerReady ? [preferredLabel] : [autoLabel, attemptsLabel]), submit);
@@ -1769,7 +1789,6 @@ function requestScanPanel(request, options = {}) {
       event.preventDefault();
       feedback.hidden = true;
       if (!submitForm.reportValidity()) return;
-      if (!(requestScans.get(request.requestId)?.photos?.length > 0)) return showFeedback(feedback, "Upload and finish at least one current room photo before submission.");
       if (auto.checked && !automaticDispatchReady) return showFeedback(feedback, "Automatic matching is temporarily unavailable. Leave it off and submit the request for Homle review.");
       if (auto.checked && !(await approveAutomaticDispatchPrice(automaticMaximumPricePence, Number(attempts.value)))) return;
       setPending(submit, true, "Submitting reviewed scan…");
@@ -3034,6 +3053,10 @@ async function saveProperty(event) {
 function openNewRequestPhotoDialog() {
   requestFeedback.hidden = true;
   if (!requestForm.reportValidity()) return;
+  if (currentRequestDraft?.status === "draft") {
+    showRequestContinuation(currentRequestDraft);
+    return;
+  }
   closeRequestPhotoDialog();
   const dialog = element("dialog", "landlord-photo-dialog landlord-photo-room-dialog");
   activeRequestPhotoDialog = dialog;
@@ -3042,7 +3065,7 @@ function openNewRequestPhotoDialog() {
   close.setAttribute("aria-label", "Close add images window");
   close.addEventListener("click", closeRequestPhotoDialog);
   const heading = element("div", "landlord-request-continuation-heading");
-  heading.append(element("p", "eyebrow", "Add images"), element("h3", "", "Which room is this?"), element("p", "", "Choose a room, then take a photo or select one from this device."));
+  heading.append(element("p", "eyebrow", "Add images (optional)"), element("h3", "", "Which room is this?"), element("p", "", "Choose a room to add a photo, or continue without one."));
   const room = element("select");
   room.required = true;
   room.setAttribute("aria-label", "Room for these images");
@@ -3066,7 +3089,9 @@ function openNewRequestPhotoDialog() {
   const actions = element("div", "landlord-photo-room-actions");
   const camera = element("button", "button", "Take photo");
   const library = element("button", "button button-outline", "Choose photos");
+  const continueWithoutImages = element("button", "button button-outline landlord-photo-skip", "Continue without images");
   camera.type = library.type = "button";
+  continueWithoutImages.type = "button";
   camera.disabled = library.disabled = true;
   room.addEventListener("change", () => { camera.disabled = library.disabled = !room.value; });
   camera.addEventListener("click", () => cameraInput.click());
@@ -3090,9 +3115,15 @@ function openNewRequestPhotoDialog() {
   }
   cameraInput.addEventListener("change", choose);
   libraryInput.addEventListener("change", choose);
+  continueWithoutImages.addEventListener("click", () => createRequestDraft(null, {
+    defaultRoomName: "Property",
+    dialog,
+    feedback,
+    triggerButton: continueWithoutImages
+  }));
   actions.append(camera, library, cameraInput, libraryInput);
-  dialog.append(close, heading, room, actions, feedback);
-  dialog.addEventListener("cancel", (event) => { event.preventDefault(); closeRequestPhotoDialog(); });
+  dialog.append(close, heading, room, actions, continueWithoutImages, feedback);
+  enableRequestPhotoDialogDismissal(dialog);
   document.body.append(dialog);
   dialog.showModal();
   room.focus();
@@ -3111,10 +3142,16 @@ async function createRequestDraft(event, options = {}) {
   scopeConfirmation.checked = true;
   const data = new FormData(requestForm);
   let tasks;
+  let supplementalNote = "";
   let window;
   let budgetPence;
   try {
-    tasks = requestTasksFromLines(data.get("tasks"), { defaultRoomName: options.defaultRoomName });
+    const optionalScope = optionalRequestScope(data.get("tasks"), {
+      defaultRoomName: options.defaultRoomName,
+      cleaningType: data.get("cleaningType")
+    });
+    tasks = optionalScope.tasks;
+    supplementalNote = optionalScope.supplementalNote;
     window = requestedWindow(data.get("requestedDate"), data.get("requestedTime"), data.get("durationMinutes"));
     budgetPence = moneyToPence(data.get("budget"));
   } catch (error) {
@@ -3136,7 +3173,7 @@ async function createRequestDraft(event, options = {}) {
     ...window,
     cleaningType,
     requiredServices,
-    specialInstructions: String(data.get("specialInstructions") || ""),
+    specialInstructions: [String(data.get("specialInstructions") || "").trim(), supplementalNote].filter(Boolean).join("\n\n"),
     budgetPence,
     frequency,
     tasks,
@@ -3145,19 +3182,18 @@ async function createRequestDraft(event, options = {}) {
     pricingRequest: pricingRequestFromManualTasks(tasks, { cleaningType, frequency }),
     submit: false
   };
-  setPending(requestSave, true, "Saving draft…");
+  const triggerButton = options.triggerButton || requestSave;
+  const triggerLabel = triggerButton === requestContinue ? "Continue" : triggerButton.textContent;
+  setPending(triggerButton, true, "Saving draft…");
   try {
     const result = await requestJson("/api/marketplace/cleaning-requests", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
     if (!result.cleaningRequest?.requestId) throw new Error("The saved cleaning-request draft could not be verified.");
     requests.unshift(result.cleaningRequest);
+    currentRequestDraft = result.cleaningRequest;
     renderRequests();
-    requestForm.reset();
     try { clearLandlordRequestDraft(window.sessionStorage); } catch {}
     requestRecoveryStatus.removeAttribute("data-kind");
     requestRecoveryStatus.textContent = "An unfinished walkthrough stays only in this browser tab for up to 30 minutes. Approval and photos are never restored.";
-    delete cleaningTypeSelect.dataset.selectionSource;
-    initialiseRequestDefaults();
-    renderTaskPreview();
     requestDirty = false;
     showRequestContinuation(result.cleaningRequest, options);
     return true;
@@ -3165,7 +3201,7 @@ async function createRequestDraft(event, options = {}) {
     showFeedback(operationFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message);
     return false;
   }
-  finally { setPending(requestSave, false, "Add images"); }
+  finally { setPending(triggerButton, false, triggerLabel); }
 }
 
 function setPending(button, pending, label) {
@@ -3361,23 +3397,6 @@ function configureSpeech() {
 window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "home"));
 selectWorkspaceTab(workspaceTabFromHash() || "home");
 
-/**
- * Scan / Manual.
- *
- * The tab does not hide either card — both stay on screen, as the design has
- * them, and the tab only marks which route is in focus. Choosing Manual also
- * warms the stepped wizard, so the builder is ready by the time the card's
- * button is pressed.
- */
-const startTabs = [...document.querySelectorAll("[data-ld-tab]")];
-function selectStartTab(name) {
-  const selected = name === "manual" ? "manual" : "scan";
-  for (const tab of startTabs) tab.setAttribute("aria-selected", String(tab.dataset.ldTab === selected));
-  for (const card of document.querySelectorAll("[data-ld-card]")) card.classList.toggle("is-active", card.dataset.ldCard === selected);
-  if (selected === "manual") loadPrepareWizard();
-}
-for (const tab of startTabs) tab.addEventListener("click", () => selectStartTab(tab.dataset.ldTab));
-selectStartTab("scan");
 document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link.addEventListener("click", (event) => {
   event.preventDefault();
   const selected = link.dataset.openLandlordSection;
@@ -3450,13 +3469,16 @@ requestForm.elements.transcript.addEventListener("input", () => { invalidateScop
 requestForm.elements.tasks.addEventListener("input", () => { tasksManuallyEdited = true; clearTimeout(liveSummariseTimer); renderTaskPreview(); invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });
 propertyForm.addEventListener("input", () => { propertyDirty = true; });
 landlordProfileForm.addEventListener("input", () => { landlordProfileDirty = true; });
-requestForm.addEventListener("input", () => { requestDirty = true; scheduleWorkingRequestRecovery(); scheduleManualQuote(); });
-requestForm.addEventListener("change", () => { requestDirty = true; scheduleWorkingRequestRecovery(); scheduleManualQuote(); });
+requestForm.addEventListener("input", () => { currentRequestDraft = null; requestDirty = true; scheduleWorkingRequestRecovery(); scheduleManualQuote(); });
+requestForm.addEventListener("change", () => { currentRequestDraft = null; requestDirty = true; scheduleWorkingRequestRecovery(); scheduleManualQuote(); });
 requestForm.addEventListener("reset", () => { window.setTimeout(() => clearManualQuote(), 0); });
 propertyForm.addEventListener("submit", saveProperty);
 landlordProfileForm.addEventListener("submit", saveLandlordProfile);
 requestSave.addEventListener("click", openNewRequestPhotoDialog);
-requestForm.addEventListener("submit", (event) => { event.preventDefault(); openNewRequestPhotoDialog(); });
+requestForm.addEventListener("submit", (event) => createRequestDraft(event, {
+  defaultRoomName: "Property",
+  triggerButton: requestContinue
+}));
 requestWithdrawForm.addEventListener("submit", withdrawRequest);
 requestWithdrawCancel.addEventListener("click", () => { if (!withdrawalPending) requestWithdrawDialog.close(); });
 requestWithdrawDialog.addEventListener("cancel", (event) => { if (withdrawalPending) event.preventDefault(); });

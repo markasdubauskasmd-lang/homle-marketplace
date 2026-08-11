@@ -284,35 +284,6 @@ body.landlord-dashboard-page .ld-home-question {
   text-align: center;
 }
 
-body.landlord-dashboard-page .ld-tabs {
-  display: flex;
-  justify-content: center;
-  width: max-content;
-  margin: 0 auto 18px;
-  padding: 5px;
-  background: var(--ld-paper);
-  border-radius: 14px;
-  box-shadow: var(--ld-card-shadow);
-}
-body.landlord-dashboard-page .ld-tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  width: 172px;
-  padding: 11px 0;
-  border: 0;
-  border-bottom: 2.5px solid transparent;
-  background: transparent;
-  font-family: inherit;
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--ld-dim);
-  cursor: pointer;
-  transition: color .16s ease, border-color .16s ease;
-}
-body.landlord-dashboard-page .ld-tab[aria-selected="true"] { color: var(--ld-coral); border-bottom-color: var(--ld-coral); }
-
 body.landlord-dashboard-page .ld-start-cards { display: flex; gap: 16px; align-items: stretch; }
 body.landlord-dashboard-page .ld-start-card {
   flex: 1;
@@ -1521,8 +1492,6 @@ body.landlord-dashboard-page .ld-art-pen {
   body.landlord-dashboard-page .ld-topbar-copy { grid-area: copy; min-width: 0; }
   body.landlord-dashboard-page .ld-topbar-actions { grid-area: actions; justify-self: end; gap: 9px; }
   body.landlord-dashboard-page .ld-topbar-copy h1 { font-size: 25px; }
-  body.landlord-dashboard-page .ld-tabs { width: 100%; }
-  body.landlord-dashboard-page .ld-tab { width: auto; flex: 1; }
   body.landlord-dashboard-page .ld-start-card { gap: 13px; padding: 13px; }
   body.landlord-dashboard-page .ld-start-art { width: 100px; height: 118px; }
   body.landlord-dashboard-page .ld-start-body h3 { font-size: 15px; }
