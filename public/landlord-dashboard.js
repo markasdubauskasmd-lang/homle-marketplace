@@ -3560,6 +3560,39 @@ function configureSpeech() {
   speechStatus.textContent = "Speech is available. Your browser may use its own speech-to-text service.";
 }
 
+/**
+ * The account menu behaves like a popover.
+ *
+ * <details> gives none of this for free: it stays open until its own summary is
+ * clicked again, which on a menu anchored to an avatar reads as broken. The
+ * design is explicit — clicking anywhere outside, pressing Escape, or choosing a
+ * row closes it, and whichever view you are on stays where it is.
+ *
+ * Deliberately bound here rather than in account-menu.js: that file is shared by
+ * every workspace and owns sign-out, and this is presentation for one dashboard.
+ */
+for (const menu of document.querySelectorAll("[data-account-menu]")) {
+  // Choosing a row closes the menu. The row's own handler still runs — this
+  // listener only collapses the popover around it.
+  menu.querySelector(".account-menu-panel")?.addEventListener("click", (event) => {
+    if (event.target.closest("a, button")) menu.open = false;
+  });
+}
+document.addEventListener("click", (event) => {
+  for (const menu of document.querySelectorAll("[data-account-menu][open]")) {
+    if (!menu.contains(event.target)) menu.open = false;
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  for (const menu of document.querySelectorAll("[data-account-menu][open]")) {
+    menu.open = false;
+    // Focus goes back to the control that opened it, or the menu becomes a
+    // keyboard trap that drops you at the top of the document.
+    menu.querySelector("summary")?.focus();
+  }
+});
+
 // Home is the landing view in the v2 design, so an address with no view in it
 // opens Home rather than Properties.
 window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "home"));
