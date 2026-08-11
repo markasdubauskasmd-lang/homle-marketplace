@@ -1354,9 +1354,8 @@ body.landlord-dashboard-page .landlord-task-preview [role="listitem"]::before {
   background: var(--ld-coral);
 }
 
-/* One text box and the two actions the Landlord actually needs. Speech still
-   writes the same validated room-labelled tasks into this field; Add images
-   saves the private draft and opens the existing protected photo flow. */
+/* One text box and the two actions the Landlord actually needs. Natural task
+   descriptions remain valid; Add images opens a focused room/photo window. */
 body.landlord-dashboard-page .landlord-simple-instructions {
   display: grid;
   gap: 16px;
@@ -1383,6 +1382,76 @@ body.landlord-dashboard-page .landlord-simple-instructions [data-speech-status] 
   margin: 0;
   color: var(--ld-muted);
   font-size: 13px;
+}
+
+body.landlord-dashboard-page .landlord-photo-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: min(820px, calc(100dvh - 32px));
+  margin: auto;
+  padding: 28px;
+  overflow: auto;
+  color: var(--ld-ink);
+  background: #fff;
+  border: 1px solid var(--ld-line);
+  border-radius: 24px;
+  box-shadow: 0 28px 80px rgb(40 24 16 / 0.24);
+}
+body.landlord-dashboard-page .landlord-photo-dialog::backdrop {
+  background: rgb(29 20 15 / 0.56);
+  backdrop-filter: blur(5px);
+}
+body.landlord-dashboard-page .landlord-photo-dialog-close {
+  float: right;
+  padding: 8px 0 8px 16px;
+  color: var(--ld-muted);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+body.landlord-dashboard-page .landlord-photo-dialog .landlord-request-continuation-heading {
+  margin: 0 64px 22px 0;
+}
+body.landlord-dashboard-page .landlord-photo-dialog .landlord-request-continuation-heading h3 {
+  margin: 5px 0 7px;
+  font: 800 clamp(24px, 5vw, 34px)/1.08 var(--ld-display);
+}
+body.landlord-dashboard-page .landlord-photo-room-dialog > select {
+  width: 100%;
+  min-height: 52px;
+  margin-bottom: 16px;
+}
+body.landlord-dashboard-page .landlord-photo-room-actions,
+body.landlord-dashboard-page .landlord-photo-dialog .landlord-scan-picker-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+body.landlord-dashboard-page .landlord-photo-dialog .landlord-request-scan > summary {
+  display: none;
+}
+body.landlord-dashboard-page .landlord-photo-dialog .landlord-request-scan-body {
+  padding: 0;
+  border: 0;
+}
+body.landlord-dashboard-page .landlord-photo-dialog .landlord-scan-video-privacy,
+body.landlord-dashboard-page .landlord-photo-dialog .landlord-request-scan-copy {
+  color: var(--ld-muted);
+}
+
+@media (max-width: 560px) {
+  body.landlord-dashboard-page .landlord-photo-dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    padding: 20px;
+    border-radius: 20px;
+  }
+  body.landlord-dashboard-page .landlord-photo-room-actions,
+  body.landlord-dashboard-page .landlord-photo-dialog .landlord-scan-picker-actions {
+    grid-template-columns: 1fr;
+  }
+  body.landlord-dashboard-page .landlord-photo-dialog .button { width: 100%; }
 }
 
 @media (max-width: 720px) {

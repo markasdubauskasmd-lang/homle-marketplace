@@ -14,7 +14,7 @@
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/landlord-dashboard.css?v=20260810-3">
+  <link rel="stylesheet" href="/landlord-dashboard.css?v=20260811-1">
   <!-- The v2 composition, last so it wins without !important. -->
   <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260808-3">
   <script src="/landlord-dashboard.js?v=20260810-4" type="module"></script>
@@ -399,7 +399,7 @@
               <label>Access instructions <span>(kept protected)</span><textarea name="accessInstructions" rows="3" maxlength="3000" placeholder="Do not include access codes until needed. These details are encrypted and shared with the selected Cleaner only after acceptance."></textarea></label>
               <label>Parking instructions <span>(optional)</span><textarea name="parkingInstructions" rows="2" maxlength="1200"></textarea></label>
               <label>Cleaning preferences <span>(optional)</span><textarea name="cleaningPreferences" rows="3" maxlength="3000"></textarea></label>
-              <label>Reusable room checklist <span>(optional)</span><textarea name="savedChecklist" rows="5" placeholder="Kitchen: Wipe worktops&#10;Bathroom: Remove limescale"></textarea><small>One room-labelled task per line. A request still requires a fresh room-scan review.</small></label>
+              <label>Reusable cleaning checklist <span>(optional)</span><textarea name="savedChecklist" rows="5" placeholder="Wipe the kitchen worktops&#10;Remove bathroom limescale"></textarea><small>One clear cleaning action per line. A request still requires a fresh room-scan review.</small></label>
               <label>Special notes <span>(optional)</span><textarea name="specialNotes" rows="3" maxlength="3000"></textarea></label>
             </div></details>
             <div class="landlord-form-feedback" data-property-feedback role="status" aria-live="polite" hidden></div>
@@ -571,10 +571,10 @@
             <section class="landlord-simple-instructions" aria-labelledby="request-tasks-title">
               <p class="landlord-scan-property-status" data-scan-property-status role="status" hidden>You can start speaking before adding a property.</p>
               <label class="landlord-simple-instructions-label" id="request-tasks-title" for="request-tasks">What needs cleaning?</label>
-              <textarea id="request-tasks" name="tasks" rows="8" required placeholder="Kitchen: Wipe the worktops&#10;Bathroom: Remove limescale from the shower screen"></textarea>
+              <textarea id="request-tasks" name="tasks" rows="8" required placeholder="Wipe the kitchen worktops&#10;Remove limescale from the shower screen"></textarea>
               <div class="landlord-simple-instructions-actions">
                 <button class="button button-outline" type="button" data-speech-toggle>Speak</button>
-                <button class="button" type="submit" data-save-request>Add images</button>
+                <button class="button" type="button" data-save-request>Add images</button>
               </div>
               <p data-speech-status role="status" aria-live="polite">Checking speech support…</p>
             </section>
@@ -586,7 +586,7 @@
               <button type="button" data-use-saved-checklist>Use saved checklist</button>
               <div data-task-preview role="list" aria-live="polite"><p role="listitem">No tasks yet.</p></div>
               <section data-checklist-changes hidden aria-labelledby="checklist-changes-title"><h4 id="checklist-changes-title" data-checklist-changes-title>Checklist changes</h4><div data-checklist-changes-body></div><button type="button" data-checklist-restore>Restore checklist</button></section>
-              <p data-task-review-status role="status">Add at least one room-labelled cleaning action.</p>
+              <p data-task-review-status role="status">Add at least one clear cleaning action.</p>
               <input name="scopeReviewed" type="checkbox" disabled>
               <select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select>
               <input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01">
