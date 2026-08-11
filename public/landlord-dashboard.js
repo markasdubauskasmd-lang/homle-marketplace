@@ -157,6 +157,7 @@ let manualQuoteTimer = null;
 let manualQuoteGeneration = 0;
 let manualQuoteSignature = "";
 let completedRequestId = "";
+let activeRequestPhotoDialog = null;
 let invitationStream = null;
 let invitationStreamKey = "";
 let bookingTransitionRefresh = null;
@@ -576,6 +577,7 @@ async function recoverCompletionQuote(requestId) {
 }
 
 function showRequestCompletion(submission, { automaticDispatch = false, automaticMaximumPricePence = null, selectedCleanerInvited = false, selectedCleanerPricePence = null, warning = "" } = {}) {
+  closeRequestPhotoDialog();
   const photos = Number(submission?.photoCount);
   const tasks = Number(submission?.taskCount);
   const quotedTotalPence = Number(submission?.quotedTotalPence);
@@ -1357,39 +1359,57 @@ function openRequestScan(requestId) {
 }
 
 function resetRequestContinuation() {
+  closeRequestPhotoDialog();
   if (!requestContinuation) return;
   requestContinuation.replaceChildren();
   requestContinuation.hidden = true;
   requestForm.hidden = false;
 }
 
-function showRequestContinuation(request) {
-  if (!requestContinuation || request?.status !== "draft") return false;
-  requestForm.hidden = true;
+function closeRequestPhotoDialog() {
+  if (!activeRequestPhotoDialog) return;
+  const dialog = activeRequestPhotoDialog;
+  activeRequestPhotoDialog = null;
+  if (dialog.open) dialog.close();
+  dialog.remove();
+}
+
+function showRequestContinuation(request, options = {}) {
+  if (request?.status !== "draft") return false;
   requestFeedback.hidden = true;
+  let dialog = options.dialog;
+  if (!dialog) {
+    closeRequestPhotoDialog();
+    dialog = element("dialog", "landlord-photo-dialog");
+    document.body.append(dialog);
+  }
+  activeRequestPhotoDialog = dialog;
+  dialog.replaceChildren();
+  const close = element("button", "landlord-photo-dialog-close", "Close");
+  close.type = "button";
+  close.setAttribute("aria-label", "Close room photo window");
+  close.addEventListener("click", closeRequestPhotoDialog);
   const heading = element("div", "landlord-request-continuation-heading");
   heading.append(
-    element("p", "eyebrow", "Draft saved privately · continue here"),
-    element("h3", "", "Add room photos and send for matching"),
-    element("p", "", "Choose the checklist room, add at least one current photo, review the handoff, then submit this same request.")
+    element("p", "eyebrow", "Add images"),
+    element("h3", "", "Add room photos"),
+    element("p", "", "Choose the room, take a photo or select one from your phone. Your request stays on this page.")
   );
-  const scan = requestScanPanel(request);
-  requestContinuation.replaceChildren(heading, scan);
-  requestContinuation.hidden = false;
+  const scan = requestScanPanel(request, options);
+  dialog.append(close, heading, scan);
   scan.open = true;
-  // The continuation is the next step of the request that was just saved, so the
-  // builder is revealed as well as expanded — it is hidden outside its own view.
-  if (requestBuilderPanel) requestBuilderPanel.hidden = false;
-  requestBuilderPanel?.classList.remove("pac-collapsed");
-  requestBuilderPanel?.querySelector("[data-pac-toggle]")?.setAttribute("aria-expanded", "true");
+  dialog.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeRequestPhotoDialog();
+  });
+  if (!dialog.open) dialog.showModal();
   queueMicrotask(() => {
-    requestContinuation.scrollIntoView({ behavior: "smooth", block: "start" });
     scan.querySelector('select[name="roomName"]')?.focus({ preventScroll: true });
   });
   return true;
 }
 
-function requestScanPanel(request) {
+function requestScanPanel(request, options = {}) {
   const details = element("details", "landlord-request-scan");
   details.dataset.requestScanId = request.requestId;
   const summary = element("summary", "", request.status === "draft" ? (mediaReady ? "Add room photos and submit" : "Test the room camera") : "View reviewed room scan");
@@ -1445,13 +1465,15 @@ function requestScanPanel(request) {
   if (request.status === "draft") {
     const form = element("form", "landlord-scan-upload-form");
     form.noValidate = true;
-    const roomLabel = element("label", "", "Checklist room");
+    const roomLabel = element("label", "", "Which room is this?");
     const room = element("select");
     room.name = "roomName";
     room.required = true;
     room.append(element("option", "", "Choose a room"));
     room.firstElementChild.value = "";
-    for (const name of roomNames(request)) { const option = element("option", "", name); option.value = name; room.append(option); }
+    const availableRooms = [...new Set([...roomNames(request), "Kitchen", "Bathroom", "Bedroom", "Living Room", "Hallway", "Other"])];
+    for (const name of availableRooms) { const option = element("option", "", name); option.value = name; room.append(option); }
+    if (options.initialRoomName && availableRooms.includes(options.initialRoomName)) room.value = options.initialRoomName;
     roomLabel.append(room);
     const noteLabel = element("label", "", "Photo note (optional)");
     const note = element("textarea");
@@ -1488,7 +1510,7 @@ function requestScanPanel(request) {
     selectionPreview.setAttribute("role", "list");
     selectionPreview.setAttribute("aria-label", "Room photos selected for review");
     selectionPreview.hidden = true;
-    let files = [];
+    let files = validatedRoomPhotoSelection(options.initialFiles || []);
     let previewUrls = [];
     const pendingPhotoCompletions = new WeakMap();
     let uploadPending = false;
@@ -1689,6 +1711,8 @@ function requestScanPanel(request) {
         renderSelection();
       }
     });
+    renderSelection();
+    if (options.autoUpload && files.length) queueMicrotask(() => form.requestSubmit(upload));
     panel.append(form);
 
     const submitForm = element("form", "landlord-request-submit-form");
@@ -3007,10 +3031,78 @@ async function saveProperty(event) {
   finally { setPending(propertySave, false, editingPropertyId ? "Update protected details" : "Save property privately"); }
 }
 
-async function createRequestDraft(event) {
-  event.preventDefault();
+function openNewRequestPhotoDialog() {
   requestFeedback.hidden = true;
   if (!requestForm.reportValidity()) return;
+  closeRequestPhotoDialog();
+  const dialog = element("dialog", "landlord-photo-dialog landlord-photo-room-dialog");
+  activeRequestPhotoDialog = dialog;
+  const close = element("button", "landlord-photo-dialog-close", "Close");
+  close.type = "button";
+  close.setAttribute("aria-label", "Close add images window");
+  close.addEventListener("click", closeRequestPhotoDialog);
+  const heading = element("div", "landlord-request-continuation-heading");
+  heading.append(element("p", "eyebrow", "Add images"), element("h3", "", "Which room is this?"), element("p", "", "Choose a room, then take a photo or select one from this device."));
+  const room = element("select");
+  room.required = true;
+  room.setAttribute("aria-label", "Room for these images");
+  room.append(element("option", "", "Choose a room"));
+  room.firstElementChild.value = "";
+  for (const name of ["Kitchen", "Bathroom", "Bedroom", "Living Room", "Hallway", "Other"]) {
+    const option = element("option", "", name);
+    option.value = name;
+    room.append(option);
+  }
+  const cameraInput = element("input");
+  cameraInput.type = "file";
+  cameraInput.accept = "image/*";
+  cameraInput.setAttribute("capture", "environment");
+  cameraInput.hidden = true;
+  const libraryInput = element("input");
+  libraryInput.type = "file";
+  libraryInput.accept = "image/jpeg,image/png,image/webp,image/heic,.heic";
+  libraryInput.multiple = true;
+  libraryInput.hidden = true;
+  const actions = element("div", "landlord-photo-room-actions");
+  const camera = element("button", "button", "Take photo");
+  const library = element("button", "button button-outline", "Choose photos");
+  camera.type = library.type = "button";
+  camera.disabled = library.disabled = true;
+  room.addEventListener("change", () => { camera.disabled = library.disabled = !room.value; });
+  camera.addEventListener("click", () => cameraInput.click());
+  library.addEventListener("click", () => libraryInput.click());
+  const feedback = element("p", "landlord-form-feedback");
+  feedback.hidden = true;
+  async function choose(event) {
+    const selectedFiles = consumeRoomPhotoInputFiles(event.target);
+    if (!selectedFiles.length) return;
+    try {
+      validatedRoomPhotoSelection(selectedFiles);
+    } catch (error) {
+      return showFeedback(feedback, error.message);
+    }
+    camera.disabled = library.disabled = true;
+    showFeedback(feedback, "Saving your private draft and opening the secure photo upload…", "success");
+    const saved = await createRequestDraft(null, { defaultRoomName: room.value, initialFiles: selectedFiles, initialRoomName: room.value, dialog, autoUpload: true, feedback });
+    if (!saved) {
+      camera.disabled = library.disabled = false;
+    }
+  }
+  cameraInput.addEventListener("change", choose);
+  libraryInput.addEventListener("change", choose);
+  actions.append(camera, library, cameraInput, libraryInput);
+  dialog.append(close, heading, room, actions, feedback);
+  dialog.addEventListener("cancel", (event) => { event.preventDefault(); closeRequestPhotoDialog(); });
+  document.body.append(dialog);
+  dialog.showModal();
+  room.focus();
+}
+
+async function createRequestDraft(event, options = {}) {
+  event?.preventDefault();
+  const operationFeedback = options.feedback || requestFeedback;
+  operationFeedback.hidden = true;
+  if (!requestForm.reportValidity()) return false;
   // "Add images" is the one deliberate approval action in the simplified
   // final step. Keep the existing server payload and validation boundary, but
   // do not ask the Landlord to repeat approval in a separate checkbox.
@@ -3022,19 +3114,23 @@ async function createRequestDraft(event) {
   let window;
   let budgetPence;
   try {
-    tasks = requestTasksFromLines(data.get("tasks"));
+    tasks = requestTasksFromLines(data.get("tasks"), { defaultRoomName: options.defaultRoomName });
     window = requestedWindow(data.get("requestedDate"), data.get("requestedTime"), data.get("durationMinutes"));
     budgetPence = moneyToPence(data.get("budget"));
   } catch (error) {
     scopeConfirmation.checked = false;
-    return showFeedback(requestFeedback, error.message);
+    showFeedback(operationFeedback, error.message);
+    return false;
   }
   const cleaningType = String(data.get("cleaningType") || "");
   const frequency = String(data.get("frequency") || "one-time");
   const requiredServices = [cleaningType];
-  if (data.get("scopeReviewed") !== "on") return showFeedback(requestFeedback, "Review and confirm the concise room checklist before saving this draft.");
-  const csrf = await recoverCsrf(requestFeedback, "saving this cleaning-request draft");
-  if (!csrf) return;
+  if (data.get("scopeReviewed") !== "on") {
+    showFeedback(operationFeedback, "Review and confirm the concise checklist before saving this draft.");
+    return false;
+  }
+  const csrf = await recoverCsrf(operationFeedback, "saving this cleaning-request draft");
+  if (!csrf) return false;
   const body = {
     propertyId: String(data.get("propertyId") || ""),
     ...window,
@@ -3063,8 +3159,12 @@ async function createRequestDraft(event) {
     initialiseRequestDefaults();
     renderTaskPreview();
     requestDirty = false;
-    showRequestContinuation(result.cleaningRequest);
-  } catch (error) { showFeedback(requestFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message); }
+    showRequestContinuation(result.cleaningRequest, options);
+    return true;
+  } catch (error) {
+    showFeedback(operationFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message);
+    return false;
+  }
   finally { setPending(requestSave, false, "Add images"); }
 }
 
@@ -3355,7 +3455,8 @@ requestForm.addEventListener("change", () => { requestDirty = true; scheduleWork
 requestForm.addEventListener("reset", () => { window.setTimeout(() => clearManualQuote(), 0); });
 propertyForm.addEventListener("submit", saveProperty);
 landlordProfileForm.addEventListener("submit", saveLandlordProfile);
-requestForm.addEventListener("submit", createRequestDraft);
+requestSave.addEventListener("click", openNewRequestPhotoDialog);
+requestForm.addEventListener("submit", (event) => { event.preventDefault(); openNewRequestPhotoDialog(); });
 requestWithdrawForm.addEventListener("submit", withdrawRequest);
 requestWithdrawCancel.addEventListener("click", () => { if (!withdrawalPending) requestWithdrawDialog.close(); });
 requestWithdrawDialog.addEventListener("cancel", (event) => { if (withdrawalPending) event.preventDefault(); });

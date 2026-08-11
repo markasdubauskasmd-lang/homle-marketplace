@@ -1,14 +1,28 @@
 import { cleanerTaskGuidance, cleanerTaskQuality } from "./task-quality.js?v=20260716-1";
 
-export function requestTasksFromLines(value) {
+const naturalTaskRooms = Object.freeze([
+  ["Kitchen", /\bkitchen\b/i],
+  ["Bathroom", /\bbathroom\b|\bshower room\b|\ben[ -]?suite\b|\btoilet\b|\bwc\b/i],
+  ["Bedroom", /\bbed ?room\b/i],
+  ["Living Room", /\bliving room\b|\blounge\b|\bsitting room\b/i],
+  ["Hallway", /\bhallway\b|\bcorridor\b|\blanding\b|\bentrance hall\b/i]
+]);
+
+function inferredTaskRoom(description, fallbackRoomName = "Other") {
+  return naturalTaskRooms.find(([, pattern]) => pattern.test(description))?.[0]
+    || String(fallbackRoomName || "Other").trim().slice(0, 120)
+    || "Other";
+}
+
+export function requestTasksFromLines(value, options = {}) {
   const lines = String(value || "").split(/\r?\n/).map((line) => line.trim().replace(/^[-*•\d.)\s]+/, "")).filter(Boolean);
-  if (!lines.length || lines.length > 200) throw new TypeError("Add between 1 and 200 room-labelled cleaning tasks.");
+  if (!lines.length || lines.length > 200) throw new TypeError("Add between 1 and 200 cleaning tasks.");
   const seen = new Set();
   return lines.map((line, index) => {
     const separator = line.indexOf(":");
-    if (separator < 1) throw new TypeError(`Task ${index + 1} must start with a room, for example “Kitchen: Wipe the worktops”.`);
-    const roomName = line.slice(0, separator).trim();
-    const description = line.slice(separator + 1).trim();
+    const explicitRoom = separator > 0 ? line.slice(0, separator).trim() : "";
+    const description = separator > 0 ? line.slice(separator + 1).trim() : line;
+    const roomName = explicitRoom || inferredTaskRoom(description, options.defaultRoomName);
     if (!roomName || roomName.length > 120 || !description || description.length > 1000) throw new TypeError(`Task ${index + 1} is incomplete or too long.`);
     if (!cleanerTaskQuality(description).clear) throw new TypeError(`Task ${index + 1} needs a specific Cleaner action. ${cleanerTaskGuidance}`);
     const key = `${roomName.toLowerCase()}\0${description.toLowerCase()}`;
@@ -103,7 +117,7 @@ function manualTaskPriceCode(description, index) {
 // customer supplies only confirmed rooms/tasks; the server applies its active
 // price list and freezes the result on the private request.
 export function pricingRequestFromManualTasks(tasks, options = {}) {
-  if (!Array.isArray(tasks) || !tasks.length) throw new TypeError("Add at least one room-labelled cleaning task before pricing.");
+  if (!Array.isArray(tasks) || !tasks.length) throw new TypeError("Add at least one cleaning task before pricing.");
   const grouped = new Map();
   tasks.forEach((task, index) => {
     const roomName = String(task?.roomName || "").trim();
