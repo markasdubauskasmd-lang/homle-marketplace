@@ -1425,3 +1425,377 @@ body.landlord-dashboard-page .landlord-account-menu[open] > summary .account-ava
   }
   @keyframes ld-account-sheet { from { transform: translateY(101%); } to { transform: none; } }
 }
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   Hub components the script builds
+   â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   renderNextClean(), renderBookStats(), renderPastCleans() and
+   renderProperties() construct this markup, but the rules for it never landed
+   alongside the script. Every class below was reaching the page with no
+   declaration at all, so the next clean, the account totals, the completed
+   grid and the dashed add-a-place tile rendered as unstyled runs of text â€”
+   which is why the live hub read as a broken page rather than the design.
+
+   Nothing here changes markup or behaviour. It supplies only the missing
+   presentation, using the same tokens and shapes as the sections above.
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+
+/* â”€â”€ Next clean â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+body.landlord-dashboard-page .ld-next {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  margin-top: 14px;
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-line);
+  border-radius: 18px;
+  box-shadow: var(--ld-card-shadow);
+  overflow: hidden;
+}
+
+body.landlord-dashboard-page .ld-next-main { padding: 20px 22px 22px; min-width: 0; }
+
+body.landlord-dashboard-page .ld-next-eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ld-faint);
+}
+
+body.landlord-dashboard-page .ld-next-head { display: flex; align-items: center; gap: 14px; }
+
+body.landlord-dashboard-page .ld-next-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  background: var(--ld-cream);
+  border-radius: 13px;
+  color: var(--ld-muted);
+}
+body.landlord-dashboard-page .ld-next-icon svg { width: 22px; height: 22px; }
+
+body.landlord-dashboard-page .ld-next-headings { min-width: 0; }
+body.landlord-dashboard-page .ld-next-address {
+  font-family: var(--ld-display);
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1.15;
+}
+body.landlord-dashboard-page .ld-next-meta { margin-top: 3px; font-size: 13.5px; color: var(--ld-muted); }
+
+/* The Cleaner strip only appears once someone has accepted, so it carries a
+   rule above it rather than a card of its own. */
+body.landlord-dashboard-page .ld-next-cleaner {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ld-line);
+}
+body.landlord-dashboard-page .ld-next-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  background: var(--ld-cream);
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ld-muted);
+}
+body.landlord-dashboard-page .ld-next-cleaner-copy { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+body.landlord-dashboard-page .ld-next-cleaner-copy strong { font-size: 14.5px; font-weight: 700; }
+body.landlord-dashboard-page .ld-next-cleaner-copy small { font-size: 12.5px; color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-next-message {
+  flex: none;
+  padding: 8px 15px;
+  border: 1px solid var(--ld-quiet-border);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+}
+body.landlord-dashboard-page .ld-next-message:hover { border-color: var(--ld-coral); color: var(--ld-coral); }
+
+/* â”€â”€ Stage rail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+body.landlord-dashboard-page .ld-stages {
+  display: flex;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+body.landlord-dashboard-page .ld-stage {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  text-align: center;
+  min-width: 0;
+}
+/* The rail is drawn by every step except the first, so it always spans exactly
+   the gap between two dots and never overhangs either end of the row. */
+body.landlord-dashboard-page .ld-stage + .ld-stage::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  right: 50%;
+  left: -50%;
+  height: 2px;
+  background: var(--ld-line);
+}
+body.landlord-dashboard-page .ld-stage.is-done + .ld-stage::before,
+body.landlord-dashboard-page .ld-stage.is-now::before { background: var(--ld-success-rail); }
+
+body.landlord-dashboard-page .ld-stage-dot {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  background: var(--ld-paper);
+  border: 2px solid var(--ld-line);
+  border-radius: 50%;
+  color: transparent;
+}
+body.landlord-dashboard-page .ld-stage-dot svg { width: 8px; height: 8px; }
+body.landlord-dashboard-page .ld-stage.is-done .ld-stage-dot { background: var(--ld-success-tint); border-color: var(--ld-success-ring); color: var(--ld-success-ink); }
+body.landlord-dashboard-page .ld-stage.is-now .ld-stage-dot { width: 16px; height: 16px; background: var(--ld-warn-ink); border-color: var(--ld-warn-ink); }
+
+body.landlord-dashboard-page .ld-stage-label { font-size: 11.5px; font-weight: 600; color: var(--ld-dim); line-height: 1.25; }
+body.landlord-dashboard-page .ld-stage.is-now .ld-stage-label { color: var(--ld-warn-ink); }
+body.landlord-dashboard-page .ld-stage.is-done .ld-stage-label { color: var(--ld-ink-soft); }
+body.landlord-dashboard-page .ld-stage-time { font-size: 10.5px; color: var(--ld-faint); }
+
+/* â”€â”€ Cleaning plan column â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+body.landlord-dashboard-page .ld-next-plan {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  background: #fbfaf9;
+  border-left: 1px solid var(--ld-line);
+}
+body.landlord-dashboard-page .ld-next-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ld-faint);
+}
+body.landlord-dashboard-page .ld-next-plan-body { flex: 1; margin-top: 14px; display: flex; flex-direction: column; gap: 12px; }
+
+body.landlord-dashboard-page .ld-plan-row { display: flex; align-items: center; gap: 9px; font-size: 13.5px; }
+body.landlord-dashboard-page .ld-plan-name { flex: 1; min-width: 0; font-weight: 600; }
+body.landlord-dashboard-page .ld-plan-track {
+  flex: none;
+  width: 74px;
+  height: 5px;
+  background: var(--ld-line);
+  border-radius: 99px;
+  overflow: hidden;
+}
+body.landlord-dashboard-page .ld-plan-note { margin: 0; font-size: 12.5px; color: var(--ld-dim); line-height: 1.45; }
+
+body.landlord-dashboard-page .ld-next-plan-actions { display: flex; flex-direction: column; gap: 9px; margin-top: 16px; }
+body.landlord-dashboard-page .ld-next-plan-actions .ld-btn { width: 100%; justify-content: center; }
+
+body.landlord-dashboard-page .ld-btn-dark { background: var(--ld-coral); color: #fff; }
+body.landlord-dashboard-page .ld-btn-dark:hover { background: var(--ld-coral-dark); color: #fff; }
+
+/* â”€â”€ Account totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+body.landlord-dashboard-page .ld-book-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+body.landlord-dashboard-page .ld-book-stat {
+  padding: 15px 17px;
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-line);
+  border-radius: 14px;
+}
+body.landlord-dashboard-page .ld-book-stat-key {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ld-faint);
+}
+/* The count and its qualifier are separate spans, so they need an explicit gap
+   here or they render as one run-together word. */
+body.landlord-dashboard-page .ld-book-stat-value { display: flex; align-items: baseline; gap: 7px; margin-top: 5px; }
+body.landlord-dashboard-page .ld-book-stat-value strong { font-family: var(--ld-display); font-size: 25px; font-weight: 700; letter-spacing: -.03em; }
+body.landlord-dashboard-page .ld-book-stat-value span { font-size: 12.5px; color: var(--ld-muted); }
+
+/* â”€â”€ Past cleans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+body.landlord-dashboard-page .ld-past-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 26px 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ld-faint);
+}
+body.landlord-dashboard-page .ld-past-head span:last-child { letter-spacing: normal; text-transform: none; font-weight: 500; font-size: 12.5px; color: var(--ld-muted); }
+
+body.landlord-dashboard-page .ld-past-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 14px;
+}
+body.landlord-dashboard-page .ld-past {
+  display: flex;
+  flex-direction: column;
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+body.landlord-dashboard-page .ld-past-banner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 44px;
+  padding: 9px 12px;
+  background: var(--ld-cream);
+  border-bottom: 1px solid var(--ld-line);
+}
+body.landlord-dashboard-page .ld-past-actions { display: flex; gap: 7px; }
+body.landlord-dashboard-page .ld-past-actions .ld-btn { padding: 7px 13px; font-size: 12.5px; }
+
+body.landlord-dashboard-page .ld-past-body { padding: 14px 16px; }
+body.landlord-dashboard-page .ld-past-address { font-size: 15.5px; font-weight: 700; letter-spacing: -.015em; }
+body.landlord-dashboard-page .ld-past-meta { margin-top: 3px; font-size: 12.5px; color: var(--ld-muted); }
+
+body.landlord-dashboard-page .ld-past-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-top: 1px solid var(--ld-line);
+  font-size: 12.5px;
+}
+body.landlord-dashboard-page .ld-past-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  background: var(--ld-cream);
+  border-radius: 50%;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ld-muted);
+}
+body.landlord-dashboard-page .ld-past-cleaner { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ld-muted); }
+body.landlord-dashboard-page .ld-past-state {
+  flex: none;
+  padding: 4px 9px;
+  background: var(--ld-success-tint);
+  border-radius: 99px;
+  font-weight: 600;
+  color: var(--ld-success-ink);
+}
+body.landlord-dashboard-page .ld-past-issue {
+  flex: none;
+  padding: 4px 9px;
+  background: var(--ld-coral-tint);
+  border-radius: 99px;
+  font-weight: 600;
+  color: var(--ld-coral-dark);
+}
+
+/* â”€â”€ Place cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+body.landlord-dashboard-page .ld-prop-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  background: var(--ld-cream);
+  border-radius: 11px;
+  color: var(--ld-muted);
+}
+body.landlord-dashboard-page .ld-prop-icon svg { width: 19px; height: 19px; }
+
+body.landlord-dashboard-page .ld-prop-main { min-width: 0; flex: 1; }
+body.landlord-dashboard-page .ld-prop-dates { margin-top: 2px; font-size: 12.5px; color: var(--ld-muted); }
+
+body.landlord-dashboard-page .ld-prop-rooms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+body.landlord-dashboard-page .ld-prop-room {
+  padding: 4px 9px;
+  background: var(--ld-cream);
+  border-radius: 99px;
+  font-size: 11.5px;
+  color: var(--ld-muted);
+}
+
+/* The dashed tile that closes the grid. Its three children are inline spans,
+   so they have to be stacked here â€” otherwise the title and the copy beneath
+   it run together into one unbroken sentence. */
+body.landlord-dashboard-page .ld-prop-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 150px;
+  padding: 22px;
+  background: transparent;
+  border: 1.5px dashed #dedad5;
+  border-radius: 16px;
+  font-family: inherit;
+  color: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .16s ease, background .16s ease;
+}
+body.landlord-dashboard-page .ld-prop-add:hover { background: var(--ld-paper); border-color: var(--ld-coral); }
+body.landlord-dashboard-page .ld-prop-add svg { width: 22px; height: 22px; margin-bottom: 6px; color: var(--ld-muted); }
+body.landlord-dashboard-page .ld-prop-add-title { font-size: 14.5px; font-weight: 700; }
+body.landlord-dashboard-page .ld-prop-add-copy { font-size: 12.5px; color: var(--ld-dim); line-height: 1.4; }
+
+body.landlord-dashboard-page .ld-booking-main { min-width: 0; flex: 1; }
+
+/* â”€â”€ Narrow screens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+@media (max-width: 900px) {
+  body.landlord-dashboard-page .ld-next { grid-template-columns: minmax(0, 1fr); }
+  body.landlord-dashboard-page .ld-next-plan { border-left: 0; border-top: 1px solid var(--ld-line); }
+  body.landlord-dashboard-page .ld-next-main { padding: 18px; }
+  body.landlord-dashboard-page .ld-next-address { font-size: 20px; }
+  /* Five labelled steps do not fit across a phone. The rail keeps its dots and
+     scrolls sideways rather than crushing every label to two characters. */
+  body.landlord-dashboard-page .ld-stages { overflow-x: auto; padding-bottom: 4px; }
+  body.landlord-dashboard-page .ld-stage { min-width: 74px; }
+  body.landlord-dashboard-page .ld-past-grid { grid-template-columns: minmax(0, 1fr); }
+  body.landlord-dashboard-page .ld-next-message { padding: 7px 12px; font-size: 12.5px; }
+}
