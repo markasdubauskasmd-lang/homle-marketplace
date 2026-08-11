@@ -759,7 +759,9 @@ async function refreshSelectedCleanerProfile() {
  */
 function workspaceTabFromLocation() {
   const path = /^\/landlord\/(home|properties|bookings|messages|requests|account|payments)\/?$/.exec(location.pathname);
-  if (path) return path[1];
+  // Properties is part of Bookings now. The old address still resolves rather
+  // than 404ing a link someone bookmarked or sent to a colleague.
+  if (path) return path[1] === "properties" ? "bookings" : path[1];
   // /landlord/dashboard is the canonical entry point and now opens Home, which
   // is the view the v2 design leads with.
   if (/^\/landlord\/dashboard\/?$/.test(location.pathname)) return "home";
@@ -779,6 +781,14 @@ function workspaceTabFromHash() {
 const requestBuilderMount = document.querySelector("[data-request-builder-mount]");
 const requestBuilderPanel = document.querySelector('[data-landlord-panel="requests"]');
 if (requestBuilderMount && requestBuilderPanel) requestBuilderMount.replaceWith(requestBuilderPanel);
+
+// Properties merged into Bookings. The panel moves into the hub between the
+// account totals and the completed work, which is the order the design puts it
+// in; nothing inside it changes, so the property form, the archive dialog and
+// every data hook keep working exactly as before.
+const placesMount = document.querySelector("[data-places-mount]");
+const placesPanel = document.querySelector('[data-landlord-panel="properties"]');
+if (placesMount && placesPanel) placesMount.replaceWith(placesPanel);
 
 function setRequestBuilderExpanded(expanded) {
   if (!requestBuilderPanel) return;
@@ -869,7 +879,10 @@ function markCurrentNavigation(selected) {
   // Both navs point at the same destinations, so both are marked from one place.
   for (const link of document.querySelectorAll(".landlord-dashboard-nav a, .ld-mobile-nav a")) {
     const section = link.dataset.openLandlordSection;
-    const current = section === selected || (selected === "requests" && section === "properties") || (selected === "payments" && section === "account");
+    const current = section === selected
+    || (selected === "requests" && section === "bookings")
+    || (selected === "properties" && section === "bookings")
+    || (selected === "payments" && section === "account");
     if (current) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   }
@@ -882,8 +895,18 @@ let currentWorkspaceTab = "";
 function selectWorkspaceTab(name, { historyMode = "" } = {}) {
   const selected = ["home", "properties", "bookings", "messages", "requests", "account", "payments"].includes(name) ? name : "home";
   currentWorkspaceTab = selected;
+  // Properties merged into Bookings: one connected flow rather than a separate
+  // tab holding the places the bookings are for. The panel still exists — its
+  // form, archive dialog and every data hook are unchanged — it is simply shown
+  // as part of the hub instead of on its own.
   document.querySelectorAll('[data-landlord-panel]:not([data-landlord-panel="requests"])').forEach((panel) => {
-    panel.hidden = selected === "requests" ? panel.dataset.landlordPanel !== "properties" : panel.dataset.landlordPanel !== selected;
+    const panelName = panel.dataset.landlordPanel;
+    const visible = selected === "requests"
+      ? panelName === "properties"
+      : selected === "bookings"
+        ? panelName === "bookings" || panelName === "properties"
+        : panelName === selected;
+    panel.hidden = !visible;
   });
   setRequestBuilderExpanded(selected === "requests");
   if (selected === "requests") loadPrepareWizard();

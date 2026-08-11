@@ -986,3 +986,181 @@ body.landlord-dashboard-page .ld-art-pen {
   body.landlord-dashboard-page .ld-plan-copy { flex-basis: calc(100% - 61px); }
   body.landlord-dashboard-page .ld-plan-price { margin-left: 61px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Bookings hub — Properties merged in
+   ───────────────────────────────────────────────────────────────────────────
+   One tab, one button, and everything below it follows booking state. The
+   Properties tab is gone as a destination: the places it held now sit inside
+   the hub, between the account totals and the completed work, because a place
+   only means anything in relation to the cleans booked for it.
+
+   Home is deliberately untouched by everything in this block — every selector
+   is scoped to the hub's own classes or to the bookings panel.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+body.landlord-dashboard-page .hub-label {
+  margin: 30px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ld-dim);
+}
+
+/* ── Book a clean ─────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page .hub-cta {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  width: 100%;
+  margin-top: 24px;
+  padding: 26px 30px;
+  border: 0;
+  border-radius: 26px;
+  background: linear-gradient(103deg, var(--ld-coral), color-mix(in oklch, var(--ld-coral) 80%, #6f0d12));
+  color: #fff;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  animation: hub-breathe 4.6s ease-in-out infinite;
+  transition: transform .26s cubic-bezier(.2, .8, .2, 1);
+}
+body.landlord-dashboard-page .hub-cta:hover { transform: translateY(-3px) scale(1.006); color: #fff; }
+body.landlord-dashboard-page .hub-cta:active { transform: scale(.988); }
+
+/* The mop sweeps, the colour washes back in behind it and the specks lift. It
+   is the product's own promise in one loop, and it is why the button is worth
+   this much room. Purely decorative: aria-hidden, and stilled entirely under
+   prefers-reduced-motion. */
+body.landlord-dashboard-page .hub-cta-wash {
+  position: absolute;
+  inset: 0;
+  background: #6b6b70;
+  mix-blend-mode: saturation;
+  animation: hub-wash 7.4s cubic-bezier(.4, 0, .2, 1) infinite;
+  pointer-events: none;
+}
+body.landlord-dashboard-page .hub-cta-mop {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  animation: hub-mop 7.4s cubic-bezier(.4, 0, .2, 1) infinite;
+  pointer-events: none;
+}
+body.landlord-dashboard-page .hub-cta-mop-trail {
+  position: absolute;
+  right: 46%;
+  top: 0;
+  bottom: 0;
+  width: 230px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, .07) 62%, rgba(255, 255, 255, .19) 100%);
+}
+body.landlord-dashboard-page .hub-cta-mop-head {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 52px;
+  display: grid;
+  place-items: center;
+  animation: hub-bob 1.1s ease-in-out infinite;
+}
+body.landlord-dashboard-page .hub-cta-mop-head svg { width: 52px; height: 78px; opacity: .4; }
+body.landlord-dashboard-page .hub-cta-speck {
+  position: absolute;
+  border: 1.4px solid #fff;
+  pointer-events: none;
+  animation: hub-speck 7.4s ease-in-out infinite;
+}
+body.landlord-dashboard-page .hub-cta-speck-1 { left: 29%; top: 50%; width: 7px; height: 7px; border-radius: 999px; animation-delay: .2s; }
+body.landlord-dashboard-page .hub-cta-speck-2 { left: 52%; top: 34%; width: 9px; height: 6px; border-radius: 2px; animation-delay: .85s; }
+body.landlord-dashboard-page .hub-cta-speck-3 { left: 73%; top: 62%; width: 11px; height: 1.4px; border: 0; border-radius: 999px; background: #fff; animation-delay: 1.45s; }
+
+body.landlord-dashboard-page .hub-cta-icon {
+  position: relative;
+  width: 66px;
+  height: 66px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .16);
+}
+body.landlord-dashboard-page .hub-cta-icon svg { width: 30px; height: 30px; }
+body.landlord-dashboard-page .hub-cta-copy { position: relative; flex: 1; min-width: 0; display: grid; }
+body.landlord-dashboard-page .hub-cta-copy strong { font-size: 27px; font-weight: 700; letter-spacing: -.03em; }
+body.landlord-dashboard-page .hub-cta-copy small { margin-top: 5px; font-size: 14.5px; color: rgba(255, 255, 255, .84); }
+body.landlord-dashboard-page .hub-cta-go {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .16);
+  font-size: 18px;
+}
+
+@keyframes hub-breathe {
+  0%, 100% { box-shadow: 0 18px 40px rgba(225, 27, 34, .26), 0 0 0 0 rgba(225, 27, 34, .16); }
+  50% { box-shadow: 0 24px 54px rgba(225, 27, 34, .32), 0 0 0 15px rgba(225, 27, 34, .05); }
+}
+@keyframes hub-bob { 0%, 100% { transform: translateY(-3px); } 50% { transform: translateY(3px); } }
+@keyframes hub-mop { 0% { transform: translateX(-14%); } 30%, 100% { transform: translateX(104%); } }
+@keyframes hub-wash {
+  0% { clip-path: inset(0 0 0 0); opacity: .42; }
+  28% { clip-path: inset(0 0 0 100%); opacity: .42; }
+  31% { opacity: 0; }
+  90% { clip-path: inset(0 0 0 100%); opacity: 0; }
+  92% { clip-path: inset(0 0 0 0); opacity: .42; }
+  100% { clip-path: inset(0 0 0 0); opacity: .42; }
+}
+@keyframes hub-speck {
+  0%, 18% { opacity: .55; transform: none; }
+  30% { opacity: 0; transform: translateY(-14px) scale(.6); }
+  88% { opacity: 0; transform: translateY(-14px) scale(.6); }
+  100% { opacity: .55; transform: none; }
+}
+
+/* ── The places, now part of the hub ──────────────────────────────────────── */
+
+/* Relocated into the bookings flow, so it must not also draw itself as a
+   separate top-level panel with its own heading block. */
+body.landlord-dashboard-page [data-landlord-panel="bookings"] ~ *,
+body.landlord-dashboard-page .ld-book-stats + [data-landlord-panel="properties"] {
+  margin-top: 0;
+}
+body.landlord-dashboard-page [data-landlord-panel="properties"] .landlord-panel-heading:not(.pac-card-head) h2 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ld-dim);
+}
+body.landlord-dashboard-page [data-landlord-panel="properties"] .landlord-panel-heading .eyebrow { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  body.landlord-dashboard-page .hub-cta,
+  body.landlord-dashboard-page .hub-cta-wash,
+  body.landlord-dashboard-page .hub-cta-mop,
+  body.landlord-dashboard-page .hub-cta-mop-head,
+  body.landlord-dashboard-page .hub-cta-speck { animation: none; }
+  body.landlord-dashboard-page .hub-cta { transition: none; }
+  body.landlord-dashboard-page .hub-cta-wash { opacity: 0; }
+}
+
+@media (max-width: 700px) {
+  body.landlord-dashboard-page .hub-cta { gap: 14px; padding: 20px; border-radius: 22px; }
+  body.landlord-dashboard-page .hub-cta-icon { width: 52px; height: 52px; border-radius: 18px; }
+  body.landlord-dashboard-page .hub-cta-icon svg { width: 24px; height: 24px; }
+  body.landlord-dashboard-page .hub-cta-copy strong { font-size: 21px; }
+  body.landlord-dashboard-page .hub-cta-copy small { font-size: 13px; }
+  body.landlord-dashboard-page .hub-cta-go { display: none; }
+}
