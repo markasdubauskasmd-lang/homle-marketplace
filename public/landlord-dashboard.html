@@ -367,7 +367,7 @@
       </section>
 
       <section id="landlord-panel-properties" data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title">
-        <div class="landlord-panel-heading"><div><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your properties</h2></div><button class="button button-outline" type="button" data-toggle-property-form>Add property</button></div>
+        <div class="landlord-panel-heading"><div><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your places</h2></div><button class="button button-outline" type="button" data-toggle-property-form>Add a place</button></div>
         <!-- Cloned by renderProperties(). Same reason as the plan icons: the
              script is held to "no innerHTML anywhere in this file". -->
         <template data-ld-icon="property"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4.5l8 6V20H4z"></path><rect x="10" y="14" width="4" height="6"></rect></svg></template>
@@ -662,6 +662,11 @@
           <button type="button" data-book-clean-manual><span class="hub-book-method-icon hub-book-method-icon-quiet" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5H5.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V12"></path><path d="M18.4 2.6a2 2 0 0 1 3 3L12 15l-4 1 1-4Z"></path></svg></span><strong>Manual request</strong><small>No camera. Write or speak the instructions yourself.</small></button>
         </div>
       </section>
+      <!-- The design closes the panel with the boundary in plain words, so the
+           chooser never reads like a commitment. -->
+      <div class="hub-book-foot">
+        <p class="hub-book-note">Nothing is submitted from this panel and no payment is taken.</p>
+      </div>
     </div>
   </dialog>
 
