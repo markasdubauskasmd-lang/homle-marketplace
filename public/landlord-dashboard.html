@@ -126,25 +126,15 @@
         <span aria-hidden="true">i</span><div><strong data-landlord-capability-title>Private room-photo storage is temporarily unavailable.</strong><p data-landlord-capability-copy>Room photos are optional. You can still add notes and submit a cleaning request; only private image upload is unavailable.</p></div>
       </section>
 
-      <!-- Home. The two ways to start a clean sit side by side as equals, which is
-           the whole point of the v2 design: the tab above only marks which one is
-           in focus, it never hides the other. Scan opens the guided journey at
-           /landlord/book; Manual expands the request builder that lives further
-           down this same page, through the existing data-open-request-tab hook. -->
+      <!-- Home. The two ways to start a clean sit side by side as equal, direct
+           actions. Scan opens the guided journey at /landlord/book; Manual
+           expands the request builder further down this page through the
+           existing data-open-request-tab hook. -->
       <section id="landlord-panel-home" data-landlord-panel="home" class="landlord-workspace-panel ld-home" aria-labelledby="ld-home-title">
         <h2 class="ld-home-question" id="ld-home-title">What do you need cleaned?</h2>
 
-        <div class="ld-tabs" role="tablist" aria-label="How to start a clean">
-          <button class="ld-tab" type="button" role="tab" id="ld-tab-scan" data-ld-tab="scan" aria-selected="true" aria-controls="ld-card-scan">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5"></path><path d="M4 12h16"></path></svg>Scan
-          </button>
-          <button class="ld-tab" type="button" role="tab" id="ld-tab-manual" data-ld-tab="manual" aria-selected="false" aria-controls="ld-card-manual">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5H5.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V12"></path><path d="M18.4 2.6a2 2 0 0 1 3 3L12 15l-4 1 1-4Z"></path></svg>Manual
-          </button>
-        </div>
-
         <div class="ld-start-cards">
-          <article class="ld-start-card" id="ld-card-scan" data-ld-card="scan" role="tabpanel" aria-labelledby="ld-tab-scan">
+          <article class="ld-start-card" id="ld-card-scan" data-ld-card="scan">
             <span class="ld-start-art ld-start-art-scan" aria-hidden="true">
               <svg viewBox="0 0 120 130" fill="none" preserveAspectRatio="xMidYMid meet">
                 <rect x="33" y="13" width="54" height="105" rx="11" fill="#fff" stroke="#E6E2DE" stroke-width="1.6"></rect>
@@ -173,7 +163,7 @@
             </div>
           </article>
 
-          <article class="ld-start-card" id="ld-card-manual" data-ld-card="manual" role="tabpanel" aria-labelledby="ld-tab-manual">
+          <article class="ld-start-card" id="ld-card-manual" data-ld-card="manual">
             <span class="ld-start-art ld-start-art-manual" aria-hidden="true">
               <svg viewBox="0 0 120 130" fill="none" preserveAspectRatio="xMidYMid meet">
                 <rect x="24" y="18" width="72" height="98" rx="10" fill="#fff" stroke="#E6E2DE" stroke-width="1.6"></rect>

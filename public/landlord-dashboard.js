@@ -3397,23 +3397,6 @@ function configureSpeech() {
 window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "home"));
 selectWorkspaceTab(workspaceTabFromHash() || "home");
 
-/**
- * Scan / Manual.
- *
- * The tab does not hide either card — both stay on screen, as the design has
- * them, and the tab only marks which route is in focus. Choosing Manual also
- * warms the stepped wizard, so the builder is ready by the time the card's
- * button is pressed.
- */
-const startTabs = [...document.querySelectorAll("[data-ld-tab]")];
-function selectStartTab(name) {
-  const selected = name === "manual" ? "manual" : "scan";
-  for (const tab of startTabs) tab.setAttribute("aria-selected", String(tab.dataset.ldTab === selected));
-  for (const card of document.querySelectorAll("[data-ld-card]")) card.classList.toggle("is-active", card.dataset.ldCard === selected);
-  if (selected === "manual") loadPrepareWizard();
-}
-for (const tab of startTabs) tab.addEventListener("click", () => selectStartTab(tab.dataset.ldTab));
-selectStartTab("scan");
 document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link.addEventListener("click", (event) => {
   event.preventDefault();
   const selected = link.dataset.openLandlordSection;

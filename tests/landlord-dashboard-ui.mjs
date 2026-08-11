@@ -156,11 +156,9 @@ assert(styles.includes(".landlord-dashboard-page") && styles.includes(".landlord
 assert(!/(Jane|Sarah|Maria|John|five-star|fully insured|background checked|DBS checked)/i.test(`${page}\n${script}\n${model}`), "The real Landlord workspace contains an invented person or unsupported trust claim.");
 
 /* ── Starting a clean leads the dashboard ──────────────────────────────────
-   The v2 design replaced the full-width scan banner with two equal cards on
-   Home: Scan and Manual, with a tab marking which is in focus. The guarantees
-   the banner carried are unchanged and are checked here against the cards —
-   scanning still leads, it still opens the guided journey in one click, and its
-   motion is still decoration that reduced motion can remove. */
+   Home exposes Scan and Manual as two equal, direct cards. A duplicate mode
+   switch must not sit above those same actions. Scanning still leads, opens the
+   guided journey in one click, and its motion remains optional decoration. */
 {
   const homeAt = page.indexOf('data-landlord-panel="home"');
   const scanCardAt = page.indexOf('data-ld-card="scan"');
@@ -178,9 +176,7 @@ assert(!/(Jane|Sarah|Maria|John|five-star|fully insured|background checked|DBS c
   // Motion is decoration; it must never be the thing that makes the card work.
   const reducedMotion = v2Styles.slice(v2Styles.indexOf("prefers-reduced-motion"));
   assert(reducedMotion.includes(".ld-art-beam") && reducedMotion.includes("animation: none"), "Reduced motion does not still the scan artwork.");
-  // The tab marks focus. It must never be the thing that hides the other route,
-  // or choosing Scan would bury Manual behind an interaction.
-  assert(!/\.ld-start-card(?!\.is-active)[^{]*\{[^}]*display:\s*none/.test(v2Styles), "The Scan/Manual tab hides a card instead of marking which one is in focus.");
+  assert(!page.includes("data-ld-tab") && !page.includes('class="ld-tabs"') && !script.includes("selectStartTab"), "The duplicate Scan/Manual mode switch is still present above the two working action cards.");
 }
 
 assert(page.includes("Secure landlord access") && !page.includes("landlord-prepare-card") && page.includes("data-request-builder-mount") && page.includes("Not sent for matching · private draft") && page.includes('class="landlord-workspace-panel pac-collapsed"') && page.includes('aria-expanded="false"') && page.includes("Reveal builder ↓"), "The Landlord dashboard still has the duplicate teaser or the real clean builder is not mounted in its approved collapsed position.");
