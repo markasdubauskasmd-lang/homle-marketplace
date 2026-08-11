@@ -233,8 +233,11 @@ assert(page.includes('class="ld-mobile-brand" href="/"') && /\.ld-mobile-brand\s
 assert(page.includes('class="ld-topbar-avatar" href="/landlord/account"') && v2Styles.includes(".ld-topbar-avatar img") && v2Styles.includes("border-radius: inherit;") && v2Styles.includes("object-fit: cover;"), "The signed-in profile photo is not a useful Account link or can still render as an unclipped square.");
 assert(!page.includes('class="account-footer"') && !v2Styles.includes(".account-footer") && !script.includes('querySelector("[data-year]")'), "The desktop or mobile Landlord dashboard still renders or initializes the removed public-site footer inside the private application workspace.");
 assert(page.includes('data-open-landlord-section="messages"') && page.includes('data-landlord-panel="messages"'), "The Messages destination in the sidebar has no panel to select.");
-// Messaging has no backend. It must say so rather than present a dead composer.
-assert(page.includes("Messaging is coming soon") && /<input[^>]+disabled[^>]*aria-label="Message composer, not yet available"/.test(page), "The Messages placeholder presents a working-looking composer for a feature with no backend.");
+// Messaging is real now: the endpoint, the service and migration 015 were
+// always there, and only this view was missing. The guarantee inverts — the
+// composer must NOT be disabled, and the panel must not claim to be unbuilt.
+// tests/landlord-messages-ui.mjs covers the conversation behaviour itself.
+assert(!page.includes("Messaging is coming soon") && /data-messages-input/.test(page) && !/data-messages-input[^>]*\sdisabled/.test(page), "The Landlord Messages panel is still a placeholder, so a Cleaner can write to someone who cannot reply.");
 // The guide prices are not quotes and there is no pricing endpoint behind them.
 assert(script.includes("LD_INDICATIVE_PLANS") && page.includes("Indicative") && page.includes("not a quote"), "The recommended-plan prices are presented as real quotes.");
 assert(designStyles.includes("grid-template-columns: minmax(0, 1fr) 180px") && designStyles.includes("landlordPhoneScan") && designStyles.includes("@media (max-width: 700px)") && designStyles.includes("overflow-x: auto"), "The reference dashboard styling lost its desktop scan composition or mobile adaptation.");

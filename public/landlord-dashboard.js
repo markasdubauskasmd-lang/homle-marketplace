@@ -874,8 +874,13 @@ function markCurrentNavigation(selected) {
   }
 }
 
+// Which view is on screen. Needed because bookings arrive AFTER first paint,
+// and the Messages view has to be rebuilt when they do.
+let currentWorkspaceTab = "";
+
 function selectWorkspaceTab(name, { historyMode = "" } = {}) {
   const selected = ["home", "properties", "bookings", "messages", "requests", "account", "payments"].includes(name) ? name : "home";
+  currentWorkspaceTab = selected;
   document.querySelectorAll('[data-landlord-panel]:not([data-landlord-panel="requests"])').forEach((panel) => {
     panel.hidden = selected === "requests" ? panel.dataset.landlordPanel !== "properties" : panel.dataset.landlordPanel !== selected;
   });
@@ -884,6 +889,10 @@ function selectWorkspaceTab(name, { historyMode = "" } = {}) {
   renderWorkspaceHeading(selected);
   markCurrentNavigation(selected);
   if (selected === "home") renderHomeView();
+  // Loaded when the view is opened rather than on every dashboard visit: most
+  // visits never open Messages, and the conversation list needs bookings that
+  // have already been fetched anyway.
+  if (selected === "messages") void openMessages();
   // A real path, not a fragment, so the address bar names where the Landlord
   // is, Back returns to the previous panel, and the link can be shared.
   const url = `/landlord/${selected}`;
@@ -907,6 +916,31 @@ function continueBookingStart() {
   applySuggestedCleaningType();
   requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
+}
+
+/**
+ * Opens the Messages view against the bookings already in memory.
+ *
+ * Imported on demand for the same reason the stepped wizard is: a Landlord who
+ * only checks a booking should not parse a conversation client they never open.
+ * A failed import leaves the panel with its own empty state rather than a blank
+ * screen.
+ */
+let landlordMessagesLoad = null;
+async function openMessages() {
+  if (!landlordMessagesLoad) {
+    landlordMessagesLoad = import("./landlord-messages.js?v=20260811-1").catch((error) => {
+      console.warn("The Messages view could not be loaded.", error);
+      return null;
+    });
+  }
+  const module = await landlordMessagesLoad;
+  if (!module) return;
+  await module.openLandlordMessages({
+    requestJson,
+    bookings,
+    selectBookingId: new URLSearchParams(location.search).get("bookingId") || ""
+  });
 }
 
 async function requestJson(path, options = {}) {
@@ -2703,6 +2737,11 @@ function renderBookings() {
   // from the one place rather than polling separately.
   renderUpcomingClean();
   renderNextClean();
+  // Conversations are built from these bookings. At first paint there were none
+  // — selectWorkspaceTab runs before loadWorkspace resolves — so a Landlord who
+  // deep-linked to /landlord/messages saw an empty list until they navigated
+  // away and back.
+  if (currentWorkspaceTab === "messages") void openMessages();
   renderBookStats(historySummary);
   renderPastCleans(buckets);
   syncInvitationStream();

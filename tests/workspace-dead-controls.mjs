@@ -25,7 +25,7 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 const workspaces = [
   {
     page: "public/landlord-dashboard.html",
-    scripts: ["public/landlord-dashboard.js", "public/landlord-prepare-wizard.js", "public/account-menu.js", "public/notification-badge.js"],
+    scripts: ["public/landlord-dashboard.js", "public/landlord-prepare-wizard.js", "public/landlord-messages.js", "public/account-menu.js", "public/notification-badge.js"],
   },
   {
     page: "public/cleaner-dashboard.html",

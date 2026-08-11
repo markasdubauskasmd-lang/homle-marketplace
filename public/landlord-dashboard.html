@@ -404,25 +404,41 @@
            built as an announced placeholder rather than a shell that looks broken
            or, worse, looks like it sent something. The composer is disabled and
            says so. When a messaging API lands, this markup is what it fills. -->
+      <!-- Messages.
+           A conversation exists per BOOKING, which is the only point at which a
+           Landlord and a Cleaner are actually connected — before a Cleaner
+           accepts there is nobody to talk to, and the database enforces the same
+           rule (migration 015 checks landlord_user_id or cleaner_user_id against
+           the actor). The same endpoint serves both sides, so the Cleaner's
+           Messages tab and this one are two views of one thread. -->
       <section id="landlord-panel-messages" data-landlord-panel="messages" class="landlord-workspace-panel ld-messages" aria-labelledby="landlord-messages-title" hidden>
-        <div class="ld-messages-list" aria-label="Conversations">
-          <p class="ld-messages-list-empty">No conversations yet.</p>
+        <h2 id="landlord-messages-title" class="ld-visually-hidden">Messages</h2>
+        <div class="ld-messages-list" data-messages-list aria-label="Conversations">
+          <p class="ld-messages-list-empty" data-messages-list-empty>Loading your conversations…</p>
         </div>
         <div class="ld-messages-thread">
-          <div class="ld-messages-soon">
-            <span class="ld-messages-soon-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12.5" rx="3"></rect><path d="M8 21l3.2-3.5"></path></svg>
-            </span>
-            <h2 id="landlord-messages-title">Messaging is coming soon</h2>
-            <p>You’ll be able to talk to the Cleaner working on your property from here. Until then, Homle keeps you updated about a booking by notification, and support can pass on anything urgent.</p>
-            <div class="ld-messages-soon-actions">
-              <a class="ld-btn ld-btn-quiet" href="/notifications">Open notifications</a>
-              <a class="ld-btn ld-btn-quiet" href="/landlord/help">Contact support</a>
+          <div class="ld-messages-head" data-messages-head hidden>
+            <span class="ld-messages-avatar" data-messages-head-initial aria-hidden="true"></span>
+            <div class="ld-messages-head-copy">
+              <strong data-messages-head-name></strong>
+              <small data-messages-head-meta></small>
+            </div>
+            <a class="ld-btn ld-btn-quiet" data-messages-head-booking href="/landlord/bookings">View booking</a>
+          </div>
+          <div class="ld-messages-body" data-messages-body role="log" aria-live="polite">
+            <div class="ld-messages-empty" data-messages-empty>
+              <span class="ld-messages-empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="12.5" rx="3"></rect><path d="M8 21l3.2-3.5"></path></svg>
+              </span>
+              <p data-messages-empty-copy>Your conversations appear here once a Cleaner accepts a booking.</p>
             </div>
           </div>
-          <div class="ld-messages-composer">
-            <input type="text" placeholder="Messaging is not available yet" disabled aria-label="Message composer, not yet available">
-          </div>
+          <div class="landlord-form-feedback" data-messages-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
+          <form class="ld-messages-composer" data-messages-form hidden>
+            <label class="ld-visually-hidden" for="landlord-message-body">Message the Cleaner</label>
+            <input id="landlord-message-body" name="body" type="text" maxlength="2000" autocomplete="off" placeholder="Write a message…" data-messages-input>
+            <button class="ld-btn ld-btn-primary" type="submit">Send</button>
+          </form>
         </div>
       </section>
 
