@@ -329,6 +329,77 @@ body.landlord-dashboard-page .landlord-property-archive {
   color: var(--ld-coral);
   border-color: color-mix(in oklch, var(--ld-coral) 42%, transparent);
 }
+body.landlord-dashboard-page .landlord-property-work {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid color-mix(in oklch, var(--ld-coral) 28%, var(--ld-line));
+  border-radius: 16px;
+  background: color-mix(in oklch, var(--ld-coral) 6%, #fff);
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+body.landlord-dashboard-page .landlord-property-work-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+body.landlord-dashboard-page .landlord-property-work-heading h4 {
+  margin: 7px 0 0;
+  font-size: 1rem;
+}
+body.landlord-dashboard-page .landlord-property-work-status {
+  max-width: 13rem;
+  color: var(--ld-coral);
+  font-size: .78rem;
+  text-align: right;
+}
+body.landlord-dashboard-page .landlord-property-work-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0 0;
+}
+body.landlord-dashboard-page .landlord-property-work-facts > div {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 11px;
+  background: #fff;
+}
+body.landlord-dashboard-page .landlord-property-work-facts dt {
+  color: var(--ld-muted);
+  font-size: .64rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+body.landlord-dashboard-page .landlord-property-work-facts dd {
+  margin: 4px 0 0;
+  font-size: .78rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+body.landlord-dashboard-page .landlord-property-work-copy {
+  margin: 12px 0 0;
+  color: var(--ld-muted);
+  font-size: .82rem;
+  line-height: 1.55;
+}
+body.landlord-dashboard-page .landlord-property-work-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 13px;
+}
+body.landlord-dashboard-page .landlord-property-work-actions .button {
+  min-height: 42px;
+}
+body.landlord-dashboard-page .landlord-property-cancel-request {
+  background: var(--ld-coral);
+  color: #fff;
+}
+body.landlord-dashboard-page .landlord-linked-record-focus {
+  border-color: var(--ld-coral) !important;
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--ld-coral) 16%, transparent), var(--ld-card-shadow) !important;
+}
 body.landlord-dashboard-page .landlord-archived-properties {
   margin-top: 22px;
   padding: 16px;
@@ -400,6 +471,18 @@ body.landlord-dashboard-page [class*="status"] .pill { border-radius: 999px; }
   body.landlord-dashboard-page .landlord-dashboard-main,
   body.landlord-dashboard-page .account-footer { margin-left: 0; }
   body.landlord-dashboard-page .landlord-dashboard-main { padding: 24px 18px 60px; }
+}
+
+@media (max-width: 620px) {
+  body.landlord-dashboard-page .landlord-property-work-heading { display: block; }
+  body.landlord-dashboard-page .landlord-property-work-status {
+    display: block;
+    max-width: none;
+    margin-top: 8px;
+    text-align: left;
+  }
+  body.landlord-dashboard-page .landlord-property-work-facts { grid-template-columns: 1fr; }
+  body.landlord-dashboard-page .landlord-property-work-actions .button { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

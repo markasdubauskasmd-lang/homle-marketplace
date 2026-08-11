@@ -174,6 +174,43 @@ export function requestStatusLabel(status) {
   return labels[status] || "Status unavailable";
 }
 
+const propertyBlockingRequestStatuses = new Set(["draft", "searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "matched"]);
+const finishedPropertyBookingStatuses = new Set(["completed", "cancelled"]);
+
+/**
+ * Returns the one piece of live work that currently prevents a property from
+ * leaving the active workspace. The database remains the final authority; this
+ * projection exists so the Landlord sees the same boundary before pressing
+ * Delete instead of receiving an unexplained conflict afterwards.
+ *
+ * Participant booking summaries intentionally avoid exposing property ids for
+ * unfinished work. We therefore join a booking to its owner-scoped request by
+ * its request id when available, and otherwise by the frozen time window. The
+ * latter is safe here because the request already carries the owner-verified
+ * property id and this function never grants access or changes data.
+ */
+export function propertyCleaningBlocker(property, cleaningRequests, bookingSummaries) {
+  const propertyId = String(property?.propertyId || "");
+  if (!propertyId || !Array.isArray(cleaningRequests) || !Array.isArray(bookingSummaries)) return null;
+  const request = cleaningRequests
+    .filter((item) => item?.propertyId === propertyId && propertyBlockingRequestStatuses.has(item.status))
+    .sort((left, right) => String(left.requestedStartAt || "").localeCompare(String(right.requestedStartAt || "")))[0];
+  if (!request) return null;
+  const booking = bookingSummaries.find((item) => {
+    if (!item || finishedPropertyBookingStatuses.has(item.status)) return false;
+    if (item.cleaningRequestId && item.cleaningRequestId === request.requestId) return true;
+    return Date.parse(item.scheduledStartAt || "") === Date.parse(request.requestedStartAt || "")
+      && Date.parse(item.scheduledEndAt || "") === Date.parse(request.requestedEndAt || "");
+  }) || null;
+  return Object.freeze({
+    kind: booking ? "booking" : "request",
+    request,
+    booking,
+    canWithdraw: !booking && ["draft", "searching-for-cleaner"].includes(request.status),
+    canRequestCancellation: booking?.status === "confirmed" && Date.parse(booking.scheduledStartAt || "") > Date.now()
+  });
+}
+
 export function landlordDispatchAction(request) {
   if (request?.status !== "searching-for-cleaner") return Object.freeze({ kind: "none", attemptLimit: null });
   const dispatch = request.automaticDispatch && typeof request.automaticDispatch === "object" ? request.automaticDispatch : {};
