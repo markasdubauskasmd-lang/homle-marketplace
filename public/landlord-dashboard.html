@@ -16,8 +16,8 @@
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260811-1">
   <!-- The v2 composition, last so it wins without !important. -->
-  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260808-3">
-  <script src="/landlord-dashboard.js?v=20260810-4" type="module"></script>
+  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260811-1">
+  <script src="/landlord-dashboard.js?v=20260811-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -252,10 +252,10 @@
            Bookings entry has somewhere to land. The contents, every data hook and
            both collapsible toggles are unchanged. -->
       <section id="landlord-bookings" data-landlord-panel="bookings" class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
-        <!-- Keep the new single hub card while preserving both established ways
-             to begin: the guided room scanner and the in-place manual builder.
-             Both stay one tap away even when booking records already exist. -->
-        <div class="hub-cta">
+        <!-- One tab, one button. It expands into the place-and-method chooser
+             over this page, matching the reviewed concept without discarding
+             either the guided scanner or the working manual builder. -->
+        <button class="hub-cta" type="button" data-book-clean-open aria-haspopup="dialog">
           <span class="hub-cta-wash" aria-hidden="true"></span>
           <span class="hub-cta-mop" aria-hidden="true">
             <span class="hub-cta-mop-trail"></span>
@@ -269,13 +269,10 @@
           <span class="hub-cta-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
           <span class="hub-cta-copy">
             <strong>Book a clean</strong>
-            <small>Pick a place, scan the rooms or write the request yourself.</small>
-            <span class="hub-cta-actions">
-              <a class="hub-cta-primary" href="/landlord/book">Start scan</a>
-              <a class="hub-cta-secondary" href="/landlord/requests" data-open-request-tab>Manual request</a>
-            </span>
+            <small>Pick a place, scan the rooms or write it yourself. Two minutes, no page change.</small>
           </span>
-        </div>
+          <span class="hub-cta-go" aria-hidden="true">&rarr;</span>
+        </button>
 
         <p class="hub-label" data-hub-now-label hidden>Happening now</p>
         <button class="landlord-section-toggle" type="button" data-landlord-section-toggle aria-expanded="false" aria-controls="landlord-booking-content"><span id="landlord-bookings-title">Active and upcoming bookings</span><span class="landlord-section-toggle-meta"><span data-landlord-booking-reveal-count>0</span><span aria-hidden="true">↓</span></span></button>
@@ -641,6 +638,32 @@
       </section>
     </div>
   </main>
+
+  <!-- The approved Bookings concept keeps the Landlord in context: the large
+       action expands into this chooser, first for a saved place and then for
+       Scan or Manual. Both destinations keep their existing implementation. -->
+  <dialog class="hub-book-dialog" data-book-clean-dialog aria-labelledby="hub-book-title">
+    <div class="hub-book-shell">
+      <header class="hub-book-head">
+        <span class="hub-book-plus" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
+        <div><h2 id="hub-book-title">Book a clean</h2><p data-book-clean-step>First, choose the place you want cleaned.</p></div>
+        <button class="hub-book-close" type="button" data-book-clean-close aria-label="Close booking chooser">&times;</button>
+      </header>
+      <section class="hub-book-step" aria-labelledby="hub-book-place-title">
+        <p class="hub-book-label" id="hub-book-place-title">1 &middot; Which place?</p>
+        <div class="hub-book-places" data-book-clean-places></div>
+        <button class="hub-book-new" type="button" data-book-clean-new-place><span aria-hidden="true">+</span><span><strong>Add a new place</strong><small>Type, address and postcode</small></span></button>
+      </section>
+      <section class="hub-book-step hub-book-methods" data-book-clean-methods hidden aria-labelledby="hub-book-method-title">
+        <p class="hub-book-label" id="hub-book-method-title">2 &middot; How should we scope it?</p>
+        <p class="hub-book-selected" data-book-clean-selected></p>
+        <div class="hub-book-method-grid">
+          <button type="button" data-book-clean-scan><span class="hub-book-method-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5"></path><path d="M4 12h16"></path></svg></span><strong>Scan rooms</strong><small>Walk through and talk. We create the room-by-room checklist.</small></button>
+          <button type="button" data-book-clean-manual><span class="hub-book-method-icon hub-book-method-icon-quiet" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5H5.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V12"></path><path d="M18.4 2.6a2 2 0 0 1 3 3L12 15l-4 1 1-4Z"></path></svg></span><strong>Manual request</strong><small>No camera. Write or speak the instructions yourself.</small></button>
+        </div>
+      </section>
+    </div>
+  </dialog>
 
   <!-- Who is going to be in the property. The Landlord could favourite and invite
        a Cleaner while only ever seeing a name and a thumbnail; both endpoints

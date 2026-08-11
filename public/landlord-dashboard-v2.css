@@ -1023,11 +1023,16 @@ body.landlord-dashboard-page .hub-cta {
   border-radius: 26px;
   background: linear-gradient(103deg, var(--ld-coral), color-mix(in oklch, var(--ld-coral) 80%, #6f0d12));
   color: #fff;
+  font: inherit;
   text-align: left;
   text-decoration: none;
+  cursor: pointer;
   animation: hub-breathe 4.6s ease-in-out infinite;
   transition: transform .26s cubic-bezier(.2, .8, .2, 1);
 }
+body.landlord-dashboard-page .hub-cta:hover { transform: translateY(-3px) scale(1.006); color: #fff; }
+body.landlord-dashboard-page .hub-cta:active { transform: scale(.988); }
+body.landlord-dashboard-page .hub-cta:focus-visible { outline: 4px solid color-mix(in oklch, var(--ld-coral) 35%, #fff); outline-offset: 4px; }
 
 /* The mop sweeps, the colour washes back in behind it and the specks lift. It
    is the product's own promise in one loop, and it is why the button is worth
@@ -1093,33 +1098,129 @@ body.landlord-dashboard-page .hub-cta-icon svg { width: 30px; height: 30px; }
 body.landlord-dashboard-page .hub-cta-copy { position: relative; flex: 1; min-width: 0; display: grid; }
 body.landlord-dashboard-page .hub-cta-copy strong { font-size: 27px; font-weight: 700; letter-spacing: -.03em; }
 body.landlord-dashboard-page .hub-cta-copy small { margin-top: 5px; font-size: 14.5px; color: rgba(255, 255, 255, .84); }
-body.landlord-dashboard-page .hub-cta-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 18px;
-}
-body.landlord-dashboard-page .hub-cta-actions a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding: 0 20px;
-  border: 1px solid rgba(255, 255, 255, .7);
+body.landlord-dashboard-page .hub-cta-go {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
   border-radius: 999px;
+  background: rgba(255, 255, 255, .16);
+  font-size: 18px;
+}
+
+/* The review export used a contextual chooser rather than permanent buttons
+   inside the animated card. A native dialog supplies focus trapping and Escape
+   handling; the custom surface reproduces the reviewed desktop modal and
+   becomes a bottom sheet on phones. */
+body.landlord-dashboard-page .hub-book-dialog {
+  width: min(700px, calc(100vw - 32px));
+  max-width: none;
+  max-height: min(760px, calc(100dvh - 32px));
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 28px;
+  background: #fff;
+  color: var(--ld-ink);
+  box-shadow: 0 40px 90px rgba(26, 26, 26, .3);
+  overflow: auto;
+}
+body.landlord-dashboard-page .hub-book-dialog[open] { animation: hub-book-in .42s cubic-bezier(.2, .9, .25, 1.02) both; }
+body.landlord-dashboard-page .hub-book-dialog::backdrop {
+  background: rgba(26, 26, 26, .36) !important;
+  backdrop-filter: blur(7px);
+}
+body.landlord-dashboard-page .hub-book-shell { padding: 26px 28px 28px; }
+body.landlord-dashboard-page .hub-book-head { display: flex; align-items: flex-start; gap: 16px; }
+body.landlord-dashboard-page .hub-book-head > div { flex: 1; min-width: 0; }
+body.landlord-dashboard-page .hub-book-head h2 { margin: 0; font-size: 23px; letter-spacing: -.03em; }
+body.landlord-dashboard-page .hub-book-head p { margin: 5px 0 0; color: var(--ld-dim); font-size: 13.5px; }
+body.landlord-dashboard-page .hub-book-plus {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--ld-coral);
   color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  text-decoration: none;
-  transition: transform .2s ease, background .2s ease, color .2s ease;
 }
-body.landlord-dashboard-page .hub-cta-actions a:hover { transform: translateY(-2px); }
-body.landlord-dashboard-page .hub-cta-primary { background: #fff; color: var(--ld-ink) !important; }
-body.landlord-dashboard-page .hub-cta-secondary { background: rgba(255, 255, 255, .1); }
-body.landlord-dashboard-page .hub-cta-actions a:focus-visible {
-  outline: 3px solid #fff;
-  outline-offset: 3px;
+body.landlord-dashboard-page .hub-book-plus svg { width: 22px; height: 22px; }
+body.landlord-dashboard-page .hub-book-close {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e7e4e0;
+  border-radius: 12px;
+  background: #fff;
+  color: #6a6a6a;
+  font: inherit;
+  font-size: 21px;
+  cursor: pointer;
 }
+body.landlord-dashboard-page .hub-book-close:hover { background: #f7f6f5; }
+body.landlord-dashboard-page .hub-book-step { padding-top: 22px; }
+body.landlord-dashboard-page .hub-book-label { margin: 0 0 12px; color: var(--ld-dim); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+body.landlord-dashboard-page .hub-book-places { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+body.landlord-dashboard-page .hub-book-place,
+body.landlord-dashboard-page .hub-book-new,
+body.landlord-dashboard-page .hub-book-method-grid > button {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-width: 0;
+  padding: 15px 16px;
+  border: 1.5px solid #e7e4e0;
+  border-radius: 17px;
+  background: #fff;
+  color: var(--ld-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .16s ease, border-color .16s ease, background .16s ease;
+}
+body.landlord-dashboard-page .hub-book-place:hover,
+body.landlord-dashboard-page .hub-book-new:hover,
+body.landlord-dashboard-page .hub-book-method-grid > button:hover { transform: translateY(-1px); border-color: color-mix(in oklch, var(--ld-coral) 48%, #e7e4e0); }
+body.landlord-dashboard-page .hub-book-place[aria-pressed="true"] { border-color: var(--ld-coral); background: color-mix(in oklch, var(--ld-coral) 7%, #fff); }
+body.landlord-dashboard-page .hub-book-place-icon,
+body.landlord-dashboard-page .hub-book-new > span:first-child {
+  width: 42px;
+  height: 42px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: #f6f4f2;
+  color: #4a4a4a;
+  font-size: 22px;
+}
+body.landlord-dashboard-page .hub-book-place-icon svg { width: 19px; height: 19px; }
+body.landlord-dashboard-page .hub-book-place-copy,
+body.landlord-dashboard-page .hub-book-new > span:last-child { flex: 1; min-width: 0; display: grid; }
+body.landlord-dashboard-page .hub-book-place-copy strong,
+body.landlord-dashboard-page .hub-book-new strong { overflow: hidden; font-size: 14.5px; text-overflow: ellipsis; white-space: nowrap; }
+body.landlord-dashboard-page .hub-book-place-copy small,
+body.landlord-dashboard-page .hub-book-new small { margin-top: 2px; color: var(--ld-dim); font-size: 12px; }
+body.landlord-dashboard-page .hub-book-place-tick { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 999px; background: #eeeae6; color: transparent; font-size: 12px; }
+body.landlord-dashboard-page .hub-book-place[aria-pressed="true"] .hub-book-place-tick { background: var(--ld-coral); color: #fff; }
+body.landlord-dashboard-page .hub-book-new { width: 100%; margin-top: 10px; border-style: dashed; }
+body.landlord-dashboard-page .hub-book-methods { animation: hub-book-step-in .34s cubic-bezier(.2, .9, .25, 1) both; }
+body.landlord-dashboard-page .hub-book-selected { margin: -4px 0 12px; color: var(--ld-muted); font-size: 13px; }
+body.landlord-dashboard-page .hub-book-method-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+body.landlord-dashboard-page .hub-book-method-grid > button { display: grid; align-items: start; gap: 9px; padding: 18px; }
+body.landlord-dashboard-page .hub-book-method-grid > button strong { font-size: 15.5px; }
+body.landlord-dashboard-page .hub-book-method-grid > button small { color: var(--ld-dim); font-size: 12.5px; line-height: 1.5; }
+body.landlord-dashboard-page .hub-book-method-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; background: color-mix(in oklch, var(--ld-coral) 10%, #fff); color: var(--ld-coral); }
+body.landlord-dashboard-page .hub-book-method-icon-quiet { background: #f4f2f0; color: #4a4a4a; }
+body.landlord-dashboard-page .hub-book-method-icon svg { width: 20px; height: 20px; }
+
+@keyframes hub-book-in { from { opacity: 0; transform: translateY(-18px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes hub-book-step-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 @keyframes hub-breathe {
   0%, 100% { box-shadow: 0 18px 40px rgba(225, 27, 34, .26), 0 0 0 0 rgba(225, 27, 34, .16); }
@@ -1175,8 +1276,16 @@ body.landlord-dashboard-page [data-landlord-panel="properties"] .landlord-panel-
   body.landlord-dashboard-page .hub-cta-icon svg { width: 24px; height: 24px; }
   body.landlord-dashboard-page .hub-cta-copy strong { font-size: 21px; }
   body.landlord-dashboard-page .hub-cta-copy small { font-size: 13px; }
-  body.landlord-dashboard-page .hub-cta-actions { display: grid; grid-template-columns: 1fr 1fr; }
-  body.landlord-dashboard-page .hub-cta-actions a { padding: 0 12px; }
+  body.landlord-dashboard-page .hub-cta-go { display: none; }
+  body.landlord-dashboard-page .hub-book-dialog {
+    width: 100%;
+    max-height: min(82dvh, 760px);
+    margin: auto 0 0;
+    border-radius: 26px 26px 0 0;
+  }
+  body.landlord-dashboard-page .hub-book-shell { padding: 22px 18px calc(24px + env(safe-area-inset-bottom)); }
+  body.landlord-dashboard-page .hub-book-places,
+  body.landlord-dashboard-page .hub-book-method-grid { grid-template-columns: 1fr; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

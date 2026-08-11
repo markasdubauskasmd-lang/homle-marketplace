@@ -77,6 +77,16 @@ const propertyArchiveName = document.querySelector("[data-property-archive-name]
 const propertyArchiveFeedback = document.querySelector("[data-property-archive-feedback]");
 const propertyArchiveCancel = document.querySelector("[data-property-archive-cancel]");
 const propertyArchiveConfirm = document.querySelector("[data-property-archive-confirm]");
+const bookCleanOpen = document.querySelector("[data-book-clean-open]");
+const bookCleanDialog = document.querySelector("[data-book-clean-dialog]");
+const bookCleanClose = document.querySelector("[data-book-clean-close]");
+const bookCleanPlaces = document.querySelector("[data-book-clean-places]");
+const bookCleanMethods = document.querySelector("[data-book-clean-methods]");
+const bookCleanSelected = document.querySelector("[data-book-clean-selected]");
+const bookCleanStep = document.querySelector("[data-book-clean-step]");
+const bookCleanNewPlace = document.querySelector("[data-book-clean-new-place]");
+const bookCleanScan = document.querySelector("[data-book-clean-scan]");
+const bookCleanManual = document.querySelector("[data-book-clean-manual]");
 const propertySave = document.querySelector("[data-save-property]");
 const requestSave = document.querySelector("[data-save-request]");
 const requestContinue = document.querySelector("[data-continue-request]");
@@ -174,6 +184,7 @@ let selectedCleanerId = "";
 let selectedPropertyId = "";
 let selectedCleanerProfile = null;
 let selectedCleanerVerificationState = "none";
+let bookCleanPropertyId = "";
 try { if (bookingStart) selectedCleanerId = readSelectedCleaner(localStorage); } catch {}
 try { if (bookingStart) selectedPropertyId = readSelectedProperty(sessionStorage); } catch {}
 
@@ -234,6 +245,67 @@ function element(name, className, text) {
   if (className) node.className = className;
   if (text != null) node.textContent = text;
   return node;
+}
+
+function renderBookCleanChooser() {
+  if (!bookCleanPlaces || !bookCleanMethods) return;
+  if (!properties.some((property) => property.propertyId === bookCleanPropertyId)) bookCleanPropertyId = "";
+  bookCleanPlaces.replaceChildren();
+  for (const property of properties) {
+    const button = element("button", "hub-book-place");
+    button.type = "button";
+    button.setAttribute("aria-pressed", String(property.propertyId === bookCleanPropertyId));
+    const icon = element("span", "hub-book-place-icon");
+    icon.append(cloneIcon("home"));
+    icon.setAttribute("aria-hidden", "true");
+    const copy = element("span", "hub-book-place-copy");
+    copy.append(element("strong", "", property.name || "Saved property"), element("small", "", propertySubtitle(property)));
+    button.append(icon, copy, element("span", "hub-book-place-tick", "✓"));
+    button.addEventListener("click", () => {
+      bookCleanPropertyId = property.propertyId;
+      bookCleanStep.textContent = "Now choose the quickest way to describe this clean.";
+      renderBookCleanChooser();
+      bookCleanMethods.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+    bookCleanPlaces.append(button);
+  }
+  bookCleanMethods.hidden = !bookCleanPropertyId;
+  if (bookCleanPropertyId) {
+    const property = properties.find((item) => item.propertyId === bookCleanPropertyId);
+    bookCleanSelected.textContent = `${property?.name || "Saved property"} is selected.`;
+  } else bookCleanSelected.textContent = "";
+}
+
+function openBookCleanChooser() {
+  if (!bookCleanDialog) return;
+  try {
+    const remembered = readSelectedProperty(sessionStorage);
+    if (remembered && properties.some((property) => property.propertyId === remembered)) bookCleanPropertyId = remembered;
+  } catch {}
+  bookCleanStep.textContent = properties.length
+    ? "First, choose the place you want cleaned."
+    : "Add your first place, then choose Scan or Manual.";
+  renderBookCleanChooser();
+  if (!bookCleanDialog.open) bookCleanDialog.showModal();
+}
+
+function keepBookCleanProperty() {
+  const property = properties.find((item) => item.propertyId === bookCleanPropertyId);
+  if (!property) return null;
+  saveSelectedProperty(sessionStorage, property.propertyId);
+  selectedPropertyId = property.propertyId;
+  return property;
+}
+
+function beginManualCleanFromChooser() {
+  const property = keepBookCleanProperty();
+  if (!property) return;
+  bookCleanDialog.close();
+  selectWorkspaceTab("requests", { historyMode: "push" });
+  propertySelect.value = property.propertyId;
+  applySuggestedCleaningType();
+  requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  requestForm.elements.requestedDate.focus({ preventScroll: true });
 }
 
 function showState(title, copy, { kind = "info", allowSignIn = false, allowRetry = false, workspaceDestination = "", workspaceLabel = "" } = {}) {
@@ -1294,6 +1366,9 @@ function renderProperties() {
     ? "Your room scan can be saved to the selected private property."
     : "Start speaking now. Add a property before saving the request; your unfinished walkthrough stays in this tab.";
   document.querySelector("[data-property-count]").textContent = String(properties.length);
+  // If the contextual chooser is open while a place is added or restored, keep
+  // it in sync without closing the dialog or losing the Landlord's position.
+  if (bookCleanDialog?.open) renderBookCleanChooser();
 }
 
 function renderArchivedProperties() {
@@ -3619,6 +3694,30 @@ document.querySelectorAll("[data-open-request-tab]").forEach((button) => button.
   resetRequestContinuation();
   if (requestBuilderPanel) requestBuilderPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }));
+
+bookCleanOpen?.addEventListener("click", openBookCleanChooser);
+bookCleanClose?.addEventListener("click", () => bookCleanDialog.close());
+bookCleanNewPlace?.addEventListener("click", () => {
+  bookCleanDialog.close();
+  openPropertyEditor();
+});
+bookCleanScan?.addEventListener("click", () => {
+  if (!keepBookCleanProperty()) return;
+  location.assign("/landlord/book");
+});
+bookCleanManual?.addEventListener("click", beginManualCleanFromChooser);
+bookCleanDialog?.addEventListener("click", (event) => {
+  // Native dialog backdrop clicks target the dialog itself. Check coordinates
+  // as well so a click in the white surface never closes the chooser.
+  if (event.target !== bookCleanDialog) return;
+  const box = bookCleanDialog.getBoundingClientRect();
+  const inside = event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;
+  if (!inside) bookCleanDialog.close();
+});
+bookCleanDialog?.addEventListener("close", () => {
+  bookCleanPropertyId = "";
+  if (bookCleanStep) bookCleanStep.textContent = "First, choose the place you want cleaned.";
+});
 
 // A completed room scan hands its checklist and spoken note back here. Without
 // this the scan would finish, say "use this checklist", and deliver nothing.
