@@ -33,7 +33,6 @@
            Account view lists them, which is where the design puts them. -->
       <nav class="directory-nav landlord-dashboard-nav" aria-label="Landlord dashboard navigation" data-landlord-private-navigation hidden>
         <a href="/landlord/home" data-open-landlord-section="home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.8 12 4l8 6.8V20h-5.2v-5.2h-5.6V20H4z"></path></svg><span>Home</span></a>
-        <a href="/landlord/properties" data-open-landlord-section="properties"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4.5l8 6v9.5H4z"></path><circle cx="12" cy="12.5" r="1.6"></circle><path d="M12 14.5V17"></path></svg><span>Properties</span></a>
         <a href="/landlord/bookings" data-open-landlord-section="bookings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2.5"></rect><path d="M4 10.5h16M8.5 4v4M15.5 4v4"></path></svg><span>Bookings</span></a>
         <a href="/landlord/messages" data-open-landlord-section="messages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="12.5" rx="3"></rect><path d="M8 21l3.2-3.5"></path></svg><span>Messages</span></a>
         <a href="/landlord/account" data-open-landlord-section="account"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="3.4"></circle><path d="M5.2 20c1.4-3.1 3.9-4.7 6.8-4.7s5.4 1.6 6.8 4.7"></path></svg><span>Account</span></a>
@@ -253,26 +252,32 @@
            Bookings entry has somewhere to land. The contents, every data hook and
            both collapsible toggles are unchanged. -->
       <section id="landlord-bookings" data-landlord-panel="bookings" class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
-        <!-- Starting another clean should never require returning to Home. These
-             are the same two working routes used there: Scan opens the guided
-             camera journey, while Manual reveals the existing in-place builder. -->
-        <section class="ld-booking-entry" aria-labelledby="ld-booking-entry-title">
-          <div>
-            <p class="eyebrow">Book another clean</p>
-            <h2 id="ld-booking-entry-title">How would you like to start?</h2>
-            <p>Scan the rooms for a faster checklist, or enter the request yourself.</p>
-          </div>
-          <div class="ld-booking-entry-actions">
-            <a class="ld-btn ld-btn-primary" href="/landlord/book">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5"></path><path d="M4 12h16"></path></svg>
-              Start scan
-            </a>
-            <a class="ld-btn ld-btn-quiet" href="/landlord/requests" data-open-request-tab>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5H5.5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V12"></path><path d="M18.4 2.6a2 2 0 0 1 3 3L12 15l-4 1 1-4Z"></path></svg>
-              Manual request
-            </a>
-          </div>
-        </section>
+        <!-- Keep the new single hub card while preserving both established ways
+             to begin: the guided room scanner and the in-place manual builder.
+             Both stay one tap away even when booking records already exist. -->
+        <div class="hub-cta">
+          <span class="hub-cta-wash" aria-hidden="true"></span>
+          <span class="hub-cta-mop" aria-hidden="true">
+            <span class="hub-cta-mop-trail"></span>
+            <span class="hub-cta-mop-head">
+              <svg viewBox="0 0 46 70" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M23 5v29"></path><rect x="16.5" y="34" width="13" height="6.5" rx="2.4"></rect><path d="M13.5 40.5h19l-3.2 17.5H16.7z"></path><path d="M18.5 58v7M23 58v8M27.5 58v7"></path></svg>
+            </span>
+          </span>
+          <span class="hub-cta-speck hub-cta-speck-1" aria-hidden="true"></span>
+          <span class="hub-cta-speck hub-cta-speck-2" aria-hidden="true"></span>
+          <span class="hub-cta-speck hub-cta-speck-3" aria-hidden="true"></span>
+          <span class="hub-cta-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
+          <span class="hub-cta-copy">
+            <strong>Book a clean</strong>
+            <small>Pick a place, scan the rooms or write the request yourself.</small>
+            <span class="hub-cta-actions">
+              <a class="hub-cta-primary" href="/landlord/book">Start scan</a>
+              <a class="hub-cta-secondary" href="/landlord/requests" data-open-request-tab>Manual request</a>
+            </span>
+          </span>
+        </div>
+
+        <p class="hub-label" data-hub-now-label hidden>Happening now</p>
         <button class="landlord-section-toggle" type="button" data-landlord-section-toggle aria-expanded="false" aria-controls="landlord-booking-content"><span id="landlord-bookings-title">Active and upcoming bookings</span><span class="landlord-section-toggle-meta"><span data-landlord-booking-reveal-count>0</span><span aria-hidden="true">↓</span></span></button>
         <!-- Cloned by renderBookingCard(). -->
         <template data-ld-icon="booking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2.5"></rect><path d="M4 10.5h16M8.5 4v4M15.5 4v4"></path></svg></template>
@@ -329,6 +334,12 @@
         </div>
 
         <div class="ld-book-stats" data-ld-book-stats></div>
+
+        <!-- Properties merged into Bookings. The Properties panel is relocated
+             here on load, the same way the request builder is mounted into
+             position — it keeps its own markup, form, archive dialog and every
+             data hook, so this is a change of place rather than a rewrite. -->
+        <div data-places-mount></div>
 
         <div class="ld-past-head">
           <span>PAST CLEANS</span>
@@ -697,9 +708,6 @@
   <nav class="ld-mobile-nav" aria-label="Landlord dashboard navigation" data-landlord-private-navigation hidden>
     <a href="/landlord/home" data-open-landlord-section="home" aria-current="page">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.8 12 4l8 6.8V20h-5.2v-5.2h-5.6V20H4z"></path></svg><span>Home</span>
-    </a>
-    <a href="/landlord/properties" data-open-landlord-section="properties">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4.5l8 6v9.5H4z"></path><circle cx="12" cy="12.5" r="1.6"></circle></svg><span>Properties</span>
     </a>
     <a class="ld-mobile-scan" href="/landlord/book" aria-label="Start a room scan">
       <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5"></path><path d="M4 12h16"></path></svg></span>
