@@ -252,11 +252,10 @@
            Bookings entry has somewhere to land. The contents, every data hook and
            both collapsible toggles are unchanged. -->
       <section id="landlord-bookings" data-landlord-panel="bookings" class="booking-dashboard-section landlord-booking-section" aria-labelledby="landlord-bookings-title">
-        <!-- One tab, one button. The design puts a single large action at the top
-             of the hub and lets everything below it follow booking state, so a
-             Landlord never has to choose between entry points. It opens the
-             request builder that already exists — no new flow behind it. -->
-        <a class="hub-cta" href="/landlord/requests" data-open-request-tab>
+        <!-- Keep the new single hub card while preserving both established ways
+             to begin: the guided room scanner and the in-place manual builder.
+             Both stay one tap away even when booking records already exist. -->
+        <div class="hub-cta">
           <span class="hub-cta-wash" aria-hidden="true"></span>
           <span class="hub-cta-mop" aria-hidden="true">
             <span class="hub-cta-mop-trail"></span>
@@ -270,10 +269,13 @@
           <span class="hub-cta-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
           <span class="hub-cta-copy">
             <strong>Book a clean</strong>
-            <small>Pick a place, scan the rooms or write it yourself. Two minutes, no page change.</small>
+            <small>Pick a place, scan the rooms or write the request yourself.</small>
+            <span class="hub-cta-actions">
+              <a class="hub-cta-primary" href="/landlord/book">Start scan</a>
+              <a class="hub-cta-secondary" href="/landlord/requests" data-open-request-tab>Manual request</a>
+            </span>
           </span>
-          <span class="hub-cta-go" aria-hidden="true">→</span>
-        </a>
+        </div>
 
         <p class="hub-label" data-hub-now-label hidden>Happening now</p>
         <button class="landlord-section-toggle" type="button" data-landlord-section-toggle aria-expanded="false" aria-controls="landlord-booking-content"><span id="landlord-bookings-title">Active and upcoming bookings</span><span class="landlord-section-toggle-meta"><span data-landlord-booking-reveal-count>0</span><span aria-hidden="true">↓</span></span></button>

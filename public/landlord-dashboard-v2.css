@@ -1025,12 +1025,9 @@ body.landlord-dashboard-page .hub-cta {
   color: #fff;
   text-align: left;
   text-decoration: none;
-  cursor: pointer;
   animation: hub-breathe 4.6s ease-in-out infinite;
   transition: transform .26s cubic-bezier(.2, .8, .2, 1);
 }
-body.landlord-dashboard-page .hub-cta:hover { transform: translateY(-3px) scale(1.006); color: #fff; }
-body.landlord-dashboard-page .hub-cta:active { transform: scale(.988); }
 
 /* The mop sweeps, the colour washes back in behind it and the specks lift. It
    is the product's own promise in one loop, and it is why the button is worth
@@ -1096,16 +1093,32 @@ body.landlord-dashboard-page .hub-cta-icon svg { width: 30px; height: 30px; }
 body.landlord-dashboard-page .hub-cta-copy { position: relative; flex: 1; min-width: 0; display: grid; }
 body.landlord-dashboard-page .hub-cta-copy strong { font-size: 27px; font-weight: 700; letter-spacing: -.03em; }
 body.landlord-dashboard-page .hub-cta-copy small { margin-top: 5px; font-size: 14.5px; color: rgba(255, 255, 255, .84); }
-body.landlord-dashboard-page .hub-cta-go {
-  position: relative;
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
+body.landlord-dashboard-page .hub-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+body.landlord-dashboard-page .hub-cta-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid rgba(255, 255, 255, .7);
   border-radius: 999px;
-  background: rgba(255, 255, 255, .16);
-  font-size: 18px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform .2s ease, background .2s ease, color .2s ease;
+}
+body.landlord-dashboard-page .hub-cta-actions a:hover { transform: translateY(-2px); }
+body.landlord-dashboard-page .hub-cta-primary { background: #fff; color: var(--ld-ink) !important; }
+body.landlord-dashboard-page .hub-cta-secondary { background: rgba(255, 255, 255, .1); }
+body.landlord-dashboard-page .hub-cta-actions a:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
 }
 
 @keyframes hub-breathe {
@@ -1162,7 +1175,8 @@ body.landlord-dashboard-page [data-landlord-panel="properties"] .landlord-panel-
   body.landlord-dashboard-page .hub-cta-icon svg { width: 24px; height: 24px; }
   body.landlord-dashboard-page .hub-cta-copy strong { font-size: 21px; }
   body.landlord-dashboard-page .hub-cta-copy small { font-size: 13px; }
-  body.landlord-dashboard-page .hub-cta-go { display: none; }
+  body.landlord-dashboard-page .hub-cta-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  body.landlord-dashboard-page .hub-cta-actions a { padding: 0 12px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
