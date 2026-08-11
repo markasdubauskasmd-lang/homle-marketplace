@@ -7,7 +7,7 @@ import { consumeRoomPhotoInputFiles, maximumRoomPhotos, validatedRoomPhotoSelect
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260811-1";
+import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, propertyCleaningBlocker, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260811-2";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260723-3";
 import { activeBookingChangeRequestFor, supportRequestPage, supportStatusLabels } from "./landlord-help-model.js?v=20260804-1";
 import { storedCsrf } from "./session-csrf.js";
@@ -141,6 +141,7 @@ let requestDirty = false;
 let landlordProfileDirty = false;
 let editingPropertyId = "";
 let withdrawingRequestId = "";
+let withdrawingFromPropertyId = "";
 let withdrawalPending = false;
 let archivingPropertyId = "";
 let propertyArchivePending = false;
@@ -1098,6 +1099,78 @@ function propertyCleaningDates(property) {
   };
 }
 
+function propertyBlockerCopy(blocker) {
+  if (!blocker) return "";
+  if (blocker.booking) {
+    if (blocker.booking.status === "pending-cleaner-acceptance") return "A Cleaner invitation is awaiting a response. Open it to see the deadline and exact price.";
+    if (["cleaner-en-route", "cleaner-arrived", "cleaning-in-progress"].includes(blocker.booking.status)) return "This clean is underway. Open the booking to see its live status before removing the property.";
+    if (blocker.booking.status === "awaiting-review") return "This clean is awaiting your review. Finish the booking record before removing the property.";
+    return "An accepted booking is linked to this property. View it or request cancellation before removing the property.";
+  }
+  return blocker.canWithdraw
+    ? "This cleaning request is keeping the property active. You can view or cancel it here."
+    : "This request has entered the Cleaner workflow. Open it to see its current status and the next safe action.";
+}
+
+function focusCleaningRequest(requestId) {
+  selectWorkspaceTab("bookings", { historyMode: "push" });
+  const card = [...requestList.querySelectorAll("[data-cleaning-request-id]")].find((item) => item.dataset.cleaningRequestId === requestId);
+  if (!card) return;
+  card.classList.add("landlord-linked-record-focus");
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  card.setAttribute("tabindex", "-1");
+  card.focus({ preventScroll: true });
+  window.setTimeout(() => card.classList.remove("landlord-linked-record-focus"), 1800);
+}
+
+function renderPropertyBlocker(property, blocker) {
+  if (!blocker) return null;
+  const request = blocker.request;
+  const booking = blocker.booking;
+  const section = element("section", "landlord-property-work");
+  section.dataset.propertyCleaningBlocker = property.propertyId;
+  section.setAttribute("aria-label", `Cleaning activity for ${property.name || "this property"}`);
+  const heading = element("div", "landlord-property-work-heading");
+  const title = element("div");
+  title.append(
+    element("span", "landlord-private-pill", "Property in use"),
+    element("h4", "", booking ? "Active or upcoming booking" : "Active cleaning request")
+  );
+  const status = element("strong", "landlord-property-work-status", booking
+    ? bookingSummaryStatusLabels[booking.status] || "Booking active"
+    : requestStatusLabel(request.status));
+  heading.append(title, status);
+  const facts = element("dl", "landlord-property-work-facts");
+  facts.append(
+    propertyFact("Status", booking ? bookingSummaryStatusLabels[booking.status] || "Booking active" : requestStatusLabel(request.status)),
+    propertyFact("Date", formatBookingMoment(booking?.scheduledStartAt || request.requestedStartAt)),
+    propertyFact("Cleaner", booking?.counterpartyName && booking.counterpartyName !== "Assigned Cleaner" ? booking.counterpartyName : booking ? "Assigned Cleaner" : "Not assigned yet")
+  );
+  if (booking?.pricePence) facts.append(propertyFact("Agreed total", formatBookingMoney(booking.pricePence)));
+  const copy = element("p", "landlord-property-work-copy", propertyBlockerCopy(blocker));
+  const actions = element("div", "landlord-property-work-actions");
+  const view = element("button", "button button-outline", booking ? "View booking" : "View cleaning request");
+  view.type = "button";
+  view.addEventListener("click", () => {
+    if (booking?.activeJobAvailable) location.assign(`/bookings/${encodeURIComponent(booking.bookingId)}`);
+    else focusCleaningRequest(request.requestId);
+  });
+  actions.append(view);
+  if (blocker.canWithdraw) {
+    const cancel = element("button", "button landlord-property-cancel-request", "Cancel cleaning request");
+    cancel.type = "button";
+    cancel.addEventListener("click", () => openRequestWithdrawal(request.requestId, property.propertyId));
+    actions.append(cancel);
+  } else if (blocker.canRequestCancellation) {
+    const activeChangeRequest = activeBookingChangeRequestFor(supportRequests, booking.bookingId);
+    const cancel = element("a", "button landlord-property-cancel-request", activeChangeRequest ? "View cancellation request" : "Request cancellation");
+    cancel.href = `/landlord/help?bookingId=${encodeURIComponent(booking.bookingId)}${activeChangeRequest ? "#support-history" : ""}`;
+    actions.append(cancel);
+  }
+  section.append(heading, facts, copy, actions);
+  return section;
+}
+
 function renderProperties() {
   propertyList.replaceChildren();
   propertySelect.replaceChildren(element("option", "", properties.length ? "Choose a property" : "Add a property first"));
@@ -1146,6 +1219,8 @@ function renderProperties() {
     });
     actions.append(scanAgain, book);
 
+    const blocker = propertyCleaningBlocker(property, requests, bookings);
+    const linkedWork = renderPropertyBlocker(property, blocker);
     const details = element("details", "landlord-property-details");
     details.append(element("summary", "", "View protected property details"));
     const notes = element("dl");
@@ -1156,14 +1231,17 @@ function renderProperties() {
     edit.type = "button";
     edit.setAttribute("aria-label", `${property.accessInstructions ? "Edit access and details for" : "Add access details for"} ${property.name || "saved property"}`);
     edit.addEventListener("click", () => openPropertyEditor(property));
-    const archive = element("button", "button button-outline landlord-property-archive", "Archive property");
+    const archive = element("button", "button button-outline landlord-property-archive", "Delete property");
     archive.type = "button";
-    archive.setAttribute("aria-label", `Archive ${property.name || "saved property"}`);
+    archive.setAttribute("aria-label", `Delete ${property.name || "saved property"} from active properties`);
     archive.addEventListener("click", () => openPropertyArchive(property));
-    secondary.append(edit, archive);
+    secondary.append(edit);
+    actions.append(archive);
     details.append(secondary);
 
-    card.append(heading, rooms, actions, details);
+    card.append(heading, rooms, actions);
+    if (linkedWork) card.append(linkedWork);
+    card.append(details);
     propertyList.append(card);
     const option = element("option", "", property.name || "Saved property");
     option.value = property.propertyId;
@@ -1259,7 +1337,19 @@ async function restoreProperty(property) {
 
 function openPropertyArchive(property) {
   if (!property?.propertyId || propertyArchivePending) return;
-  if (editingPropertyId === property.propertyId && propertyDirty && !window.confirm("Discard the unsaved property changes and continue to the archive confirmation?")) return;
+  const blocker = propertyCleaningBlocker(property, requests, bookings);
+  if (blocker) {
+    const linkedWork = [...propertyList.querySelectorAll("[data-property-cleaning-blocker]")].find((item) => item.dataset.propertyCleaningBlocker === property.propertyId);
+    showFeedback(propertyStatus, blocker.canWithdraw
+      ? "This property has an active cleaning request. View or cancel it on the property card, then delete the property."
+      : "This property has active cleaning work. Use the action shown on the property card before deleting it.");
+    propertyStatus.focus({ preventScroll: true });
+    linkedWork?.scrollIntoView({ behavior: "smooth", block: "center" });
+    linkedWork?.classList.add("landlord-linked-record-focus");
+    window.setTimeout(() => linkedWork?.classList.remove("landlord-linked-record-focus"), 1800);
+    return;
+  }
+  if (editingPropertyId === property.propertyId && propertyDirty && !window.confirm("Discard the unsaved property changes and continue to the delete confirmation?")) return;
   if (editingPropertyId === property.propertyId) {
     propertyForm.hidden = true;
     propertyForm.reset();
@@ -1277,11 +1367,11 @@ async function archiveProperty(event) {
   if (!archivingPropertyId || propertyArchivePending) return;
   const property = properties.find((item) => item.propertyId === archivingPropertyId);
   if (!property) return propertyArchiveDialog.close();
-  const csrf = await recoverCsrf(propertyArchiveFeedback, "archiving this property");
+  const csrf = await recoverCsrf(propertyArchiveFeedback, "deleting this property");
   if (!csrf) return;
   propertyArchivePending = true;
   propertyArchiveCancel.disabled = true;
-  setPending(propertyArchiveConfirm, true, "Archiving…");
+  setPending(propertyArchiveConfirm, true, "Deleting…");
   try {
     const result = await requestJson(`/api/marketplace/properties/${encodeURIComponent(archivingPropertyId)}/archive`, {
       method: "POST",
@@ -1295,15 +1385,23 @@ async function archiveProperty(event) {
     propertyArchiveDialog.close();
     renderProperties();
     renderArchivedProperties();
-    showFeedback(propertyStatus, `${property.name || "Property"} archived. Completed and cancelled booking history is unchanged.`, "success");
+    showFeedback(propertyStatus, `${property.name || "Property"} was removed from active Properties. Completed and cancelled booking history is unchanged.`, "success");
     propertyStatus.focus({ preventScroll: true });
   } catch (error) {
-    showFeedback(propertyArchiveFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot archive this property. Sign in again." : error.message);
-    propertyArchiveFeedback.focus({ preventScroll: true });
+    if (["property-has-active-request", "property-has-active-booking"].includes(error.code)) {
+      propertyArchiveDialog.close();
+      await refreshBookingTransition();
+      renderProperties();
+      showFeedback(propertyStatus, "This property still has active cleaning work. Its status and the action needed are now shown on the property card.");
+      propertyStatus.focus({ preventScroll: true });
+    } else {
+      showFeedback(propertyArchiveFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot delete this property. Sign in again." : error.message);
+      propertyArchiveFeedback.focus({ preventScroll: true });
+    }
   } finally {
     propertyArchivePending = false;
     propertyArchiveCancel.disabled = false;
-    setPending(propertyArchiveConfirm, false, "Archive property");
+    setPending(propertyArchiveConfirm, false, "Delete property");
   }
 }
 
@@ -2187,10 +2285,11 @@ function syncInvitationStream() {
   stream.addEventListener("error", () => setBookingLiveStatus("Reconnecting securely for the Cleaner’s response. The last verified status remains shown.", "attention"));
 }
 
-function openRequestWithdrawal(requestId) {
+function openRequestWithdrawal(requestId, propertyId = "") {
   const request = requests.find((item) => item.requestId === requestId);
   if (!request || !["draft", "searching-for-cleaner"].includes(request.status)) return;
   withdrawingRequestId = requestId;
+  withdrawingFromPropertyId = propertyId;
   requestWithdrawForm.reset();
   requestWithdrawFeedback.hidden = true;
   requestStatus.hidden = true;
@@ -2216,9 +2315,16 @@ async function withdrawRequest(event) {
       body: JSON.stringify({ reasonCode: requestWithdrawForm.elements.reasonCode.value })
     });
     requests = requests.map((request) => request.requestId === requestId ? { ...request, status: result.withdrawal.status } : request);
+    const propertyReturnId = withdrawingFromPropertyId;
     withdrawingRequestId = "";
     requestWithdrawDialog.close();
     renderRequests();
+    renderProperties();
+    if (propertyReturnId) {
+      const property = properties.find((item) => item.propertyId === propertyReturnId);
+      showFeedback(propertyStatus, `${property?.name || "Property"} is no longer blocked by that cleaning request. You can now delete it.`, "success");
+      propertyStatus.focus({ preventScroll: true });
+    }
     showFeedback(requestStatus, "Request withdrawn. Matching is closed and no booking or payment was changed.", "success");
   } catch (error) {
     showFeedback(requestWithdrawFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot withdraw this request. Sign in again." : error.message);
@@ -3524,6 +3630,7 @@ requestWithdrawDialog.addEventListener("cancel", (event) => { if (withdrawalPend
 requestWithdrawDialog.addEventListener("close", () => {
   if (withdrawalPending) return;
   withdrawingRequestId = "";
+  withdrawingFromPropertyId = "";
   requestWithdrawForm.reset();
   requestWithdrawFeedback.hidden = true;
 });
