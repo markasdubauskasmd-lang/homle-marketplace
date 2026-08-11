@@ -116,6 +116,9 @@ const bookingLiveStatus = document.querySelector("[data-landlord-booking-live]")
 const bookingRefresh = document.querySelector("[data-landlord-booking-refresh]");
 const landlordSectionToggles = document.querySelectorAll("[data-landlord-section-toggle]");
 const upcomingSectionToggle = document.querySelector('[data-landlord-section-toggle][aria-controls="landlord-booking-content"]');
+// Set once the bookings section has opened itself, so a later refresh never
+// reopens a section the Landlord closed on purpose.
+let upcomingSectionAutoExpanded = false;
 const selectedCleanerSummary = document.querySelector("[data-landlord-selected-cleaner]");
 const selectedCleanerAvatar = document.querySelector("[data-landlord-selected-cleaner-avatar]");
 const selectedCleanerName = document.querySelector("[data-landlord-selected-cleaner-name]");
@@ -263,7 +266,7 @@ function renderBookCleanChooser() {
     button.append(icon, copy, element("span", "hub-book-place-tick", "✓"));
     button.addEventListener("click", () => {
       bookCleanPropertyId = property.propertyId;
-      bookCleanStep.textContent = "Now choose the quickest way to describe this clean.";
+      bookCleanStep.textContent = "Step 2 of 2 · choose a method";
       renderBookCleanChooser();
       bookCleanMethods.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
@@ -283,7 +286,7 @@ function openBookCleanChooser() {
     if (remembered && properties.some((property) => property.propertyId === remembered)) bookCleanPropertyId = remembered;
   } catch {}
   bookCleanStep.textContent = properties.length
-    ? "First, choose the place you want cleaned."
+    ? "Step 1 of 2 · choose a place"
     : "Add your first place, then choose Scan or Manual.";
   renderBookCleanChooser();
   if (!bookCleanDialog.open) bookCleanDialog.showModal();
@@ -1347,7 +1350,7 @@ function renderProperties() {
   if (properties.length) {
     const add = element("button", "ld-prop-add");
     add.type = "button";
-    add.append(cloneIcon("add"), element("span", "ld-prop-add-title", "Add another property"), element("span", "ld-prop-add-copy", "Scan it once and we remember the rooms"));
+    add.append(cloneIcon("add"), element("span", "ld-prop-add-title", "Add a place"), element("span", "ld-prop-add-copy", "Four facts, then scan"));
     add.addEventListener("click", () => openPropertyEditor());
     propertyList.append(add);
   }
@@ -2972,7 +2975,18 @@ function updateUpcomingRevealCount() {
   const visibleRequestCount = requests.filter((request) => request.status !== "cancelled").length;
   const buckets = bookingSummaryBuckets(bookings, "landlord");
   const bookingCount = buckets.active.length + buckets.upcoming.length + buckets.waiting.length;
-  document.querySelector("[data-landlord-booking-reveal-count]").textContent = String(visibleRequestCount + bookingCount);
+  const total = visibleRequestCount + bookingCount;
+  document.querySelector("[data-landlord-booking-reveal-count]").textContent = String(total);
+  // The design shows what is happening now and what is upcoming as plain
+  // sections, not as something to go looking for. A collapsed control over real
+  // bookings hides the one thing this page exists to answer, so the section
+  // opens itself the first time it has anything in it. It stays collapsible,
+  // and this runs once: re-expanding on every refresh would reopen a section a
+  // Landlord had deliberately closed.
+  if (total > 0 && !upcomingSectionAutoExpanded) {
+    upcomingSectionAutoExpanded = true;
+    setLandlordSectionExpanded(upcomingSectionToggle, true);
+  }
 }
 
 /**
@@ -3716,7 +3730,7 @@ bookCleanDialog?.addEventListener("click", (event) => {
 });
 bookCleanDialog?.addEventListener("close", () => {
   bookCleanPropertyId = "";
-  if (bookCleanStep) bookCleanStep.textContent = "First, choose the place you want cleaned.";
+  if (bookCleanStep) bookCleanStep.textContent = "Step 1 of 2 · choose a place";
 });
 
 // A completed room scan hands its checklist and spoken note back here. Without
