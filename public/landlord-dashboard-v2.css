@@ -1690,7 +1690,7 @@ body.landlord-dashboard-page .ld-next {
   margin-top: 14px;
   background: var(--ld-paper);
   border: 1px solid var(--ld-line);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: var(--ld-card-shadow);
   overflow: hidden;
 }
@@ -1707,7 +1707,7 @@ body.landlord-dashboard-page .ld-next-eyebrow {
   font-weight: 700;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: var(--ld-faint);
+  color: var(--ld-dim);
 }
 
 body.landlord-dashboard-page .ld-next-head { display: flex; align-items: center; gap: 14px; }
@@ -1727,7 +1727,7 @@ body.landlord-dashboard-page .ld-next-icon svg { width: 22px; height: 22px; }
 body.landlord-dashboard-page .ld-next-headings { min-width: 0; }
 body.landlord-dashboard-page .ld-next-address {
   font-family: var(--ld-display);
-  font-size: 23px;
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: -.03em;
   line-height: 1.15;
@@ -1842,7 +1842,7 @@ body.landlord-dashboard-page .ld-next-plan-head {
   font-weight: 700;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: var(--ld-faint);
+  color: var(--ld-dim);
 }
 body.landlord-dashboard-page .ld-next-plan-body { flex: 1; margin-top: 14px; display: flex; flex-direction: column; gap: 12px; }
 
@@ -1903,7 +1903,7 @@ body.landlord-dashboard-page .ld-past-head {
   font-weight: 700;
   letter-spacing: .12em;
   text-transform: uppercase;
-  color: var(--ld-faint);
+  color: var(--ld-dim);
 }
 body.landlord-dashboard-page .ld-past-head span:last-child { letter-spacing: normal; text-transform: none; font-weight: 500; font-size: 12.5px; color: var(--ld-muted); }
 
@@ -1917,7 +1917,7 @@ body.landlord-dashboard-page .ld-past {
   flex-direction: column;
   background: var(--ld-paper);
   border: 1px solid var(--ld-line);
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
 }
 body.landlord-dashboard-page .ld-past-banner {
@@ -1933,7 +1933,7 @@ body.landlord-dashboard-page .ld-past-actions { display: flex; gap: 7px; }
 body.landlord-dashboard-page .ld-past-actions .ld-btn { padding: 7px 13px; font-size: 12.5px; }
 
 body.landlord-dashboard-page .ld-past-body { padding: 14px 16px; }
-body.landlord-dashboard-page .ld-past-address { font-size: 15.5px; font-weight: 700; letter-spacing: -.015em; }
+body.landlord-dashboard-page .ld-past-address { font-size: 15.5px; font-weight: 700; letter-spacing: -.02em; }
 body.landlord-dashboard-page .ld-past-meta { margin-top: 3px; font-size: 12.5px; color: var(--ld-muted); }
 
 body.landlord-dashboard-page .ld-past-footer {
@@ -2039,7 +2039,7 @@ body.landlord-dashboard-page .ld-prop-add {
 }
 body.landlord-dashboard-page .ld-prop-add:hover { background: var(--ld-paper); border-color: var(--ld-coral); }
 body.landlord-dashboard-page .ld-prop-add svg { width: 22px; height: 22px; margin-bottom: 6px; color: var(--ld-muted); }
-body.landlord-dashboard-page .ld-prop-add-title { font-size: 14.5px; font-weight: 700; }
+body.landlord-dashboard-page .ld-prop-add-title { font-size: 15px; font-weight: 600; }
 body.landlord-dashboard-page .ld-prop-add-copy { font-size: 12.5px; color: var(--ld-dim); line-height: 1.4; }
 
 body.landlord-dashboard-page .ld-booking-main { min-width: 0; flex: 1; }
@@ -2281,10 +2281,10 @@ body.landlord-dashboard-page .ld-builder-dialog [data-landlord-panel="requests"]
 body.landlord-dashboard-page .ld-next-place {
   flex: none;
   align-self: flex-start;
-  padding: 8px 14px;
+  padding: 9px 14px;
   background: var(--ld-paper);
   border: 1px solid var(--ld-quiet-border);
-  border-radius: 9px;
+  border-radius: 11px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
