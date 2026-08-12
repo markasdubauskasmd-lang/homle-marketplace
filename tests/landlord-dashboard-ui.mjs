@@ -316,3 +316,37 @@ assert(script.includes("do-not") && script.includes("safety ${entry.count === 1"
   "The walkthrough status does not tell the Landlord that restrictions were understood as restrictions.");
 
 console.log("Landlord dashboard UI tests passed: simplified navigation, selected-Cleaner continuation, voice-first scope, grouped bullet review, accessible fallbacks, owner APIs, direct room-scan continuation, safe rendering and mobile accessibility.");
+
+/* ── The workspace loads in one burst, not three ── */
+
+// loadWorkspace used to take three sequential round trips: the access check,
+// then the workspace batch, then Saved Cleaners on its own at the end. On a
+// phone at ~200ms a trip that is most of a second spent waiting on latency
+// rather than data. None of the three depend on each other's response, so they
+// are one burst now. These assertions exist because the shape is easy to undo:
+// adding an await between them looks harmless in review and silently restores
+// the waterfall.
+const dashboardSource = await readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8");
+const workspaceLoad = /async function loadWorkspace\(\)[\s\S]*?\n}/.exec(dashboardSource);
+assert(workspaceLoad, "loadWorkspace is gone, so the dashboard load path cannot be checked.");
+const loadBody = workspaceLoad[0];
+
+// The burst is started before the access check is awaited.
+assert(
+  loadBody.indexOf("const workspaceData = Promise.allSettled") < loadBody.indexOf('await requestJson("/api/marketplace/account")'),
+  "The workspace batch is started after the access check is awaited, which puts a whole round trip back on the path every Landlord takes."
+);
+
+// Saved Cleaners ride in the same burst rather than trailing it.
+assert(loadBody.includes('requestJson("/api/marketplace/landlord/favourite-cleaners")'), "Saved Cleaners left the workspace burst.");
+assert(!loadBody.includes("await refreshFavouriteCleaners()"), "Saved Cleaners are fetched again after the burst, which is the third round trip this removed.");
+
+// One await for the whole burst. A second would mean two trips again.
+assert((loadBody.match(/await Promise\.allSettled/g) || []).length === 0, "loadWorkspace awaits allSettled inline, so the burst is no longer started early.");
+assert((loadBody.match(/await workspaceData/g) || []).length === 1, "The workspace burst is awaited more than once, so the calls are no longer in flight together.");
+
+// A Cleaner directory blip renders its own message and must not put properties
+// and requests into the degraded state alongside it.
+assert(!/const results = \[[^\]]*favouriteResult/.test(loadBody), "Saved Cleaners were added to the workspace failure set, so an unavailable Cleaner directory now degrades properties and requests too.");
+
+console.log("Landlord workspace loads in a single burst: access check and all eight workspace reads in flight together.");
