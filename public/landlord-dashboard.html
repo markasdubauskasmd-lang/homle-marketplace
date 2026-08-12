@@ -16,8 +16,8 @@
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260811-1">
   <!-- The v2 composition, last so it wins without !important. -->
-  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260811-1">
-  <script src="/landlord-dashboard.js?v=20260811-1" type="module"></script>
+  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260812-1">
+  <script src="/landlord-dashboard.js?v=20260812-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -26,7 +26,7 @@
   <header class="site-header">
     <div class="shell nav-wrap">
       <div class="workspace-brand"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo-128-4f82ebad.png" alt="" width="44" height="44"><span class="workspace-brand-copy"><strong>Homle</strong><small>Landlord</small></span></a></div>
-      <!-- Five destinations, in the order the v2 design puts them. Every one is a
+      <!-- Four destinations, in the order the reviewed desktop design puts them. Every one is a
            real path the server serves, so a refresh or a shared link lands on the
            same view; landlord-dashboard.js intercepts the click and swaps panels
            without a navigation. Payments and Help are no longer top-level — the
@@ -41,7 +41,7 @@
            sidebar: the design gives manual its own card beside Scan on Home, and
            the bell sits in the top bar. Neither hook is lost — landlord-dashboard.js
            and notification-badge.js both bind with querySelectorAll. -->
-      <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span><span class="account-summary-copy"><strong data-account-name>Landlord</strong><small>Signed in · secure</small></span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="/landlord/account" data-open-landlord-section="account">Landlord profile</a><a href="/landlord/properties" data-open-landlord-section="properties">Manage properties</a><a href="/landlord/help">Help and support</a><a href="/settings">Sign-in and privacy</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details>
+      <details class="account-menu landlord-account-menu" data-account-menu hidden><summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span><span class="account-summary-copy"><strong data-account-name>Landlord</strong><small>Signed in · secure</small></span></summary><div class="account-menu-panel"><p class="eyebrow">Landlord account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="/landlord/account" data-open-landlord-section="account">Landlord profile</a><a href="/landlord/bookings#your-places" data-open-landlord-section="places">Your places</a><a href="/landlord/help">Help and support</a><a href="/settings">Sign-in and privacy</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details>
     </div>
   </header>
 
@@ -344,8 +344,6 @@
           <details class="booking-history-section" data-landlord-history-section hidden><summary>Completed and closed bookings <span data-landlord-history-count>0</span></summary><div class="booking-dashboard-list" data-landlord-history-list></div></details>
         </div>
 
-        <div class="ld-book-stats" data-ld-book-stats></div>
-
         <!-- Properties merged into Bookings. The Properties panel is relocated
              here on load, the same way the request builder is mounted into
              position — it keeps its own markup, form, archive dialog and every
@@ -361,8 +359,8 @@
           <strong>No completed cleans yet</strong>
           <p>Finished cleans appear here with the record of what was done.</p>
         </div>
-        <button class="landlord-section-toggle" type="button" data-landlord-section-toggle aria-expanded="false" aria-controls="landlord-history-content"><span>A clear record of completed work</span><span class="landlord-section-toggle-meta"><span data-landlord-history-reveal-count>0</span><span aria-hidden="true">↓</span></span></button>
-        <section id="landlord-history-content" class="landlord-history-overview" data-landlord-section-content aria-labelledby="landlord-history-overview-title" hidden>
+        <button class="landlord-section-toggle ld-legacy-history-control" type="button" data-landlord-section-toggle aria-expanded="false" aria-controls="landlord-history-content"><span>A clear record of completed work</span><span class="landlord-section-toggle-meta"><span data-landlord-history-reveal-count>0</span><span aria-hidden="true">↓</span></span></button>
+        <section id="landlord-history-content" class="landlord-history-overview ld-legacy-history-control" data-landlord-section-content aria-labelledby="landlord-history-overview-title" hidden>
           <div class="landlord-history-heading"><div><p class="eyebrow">Your cleaning history</p><h3 id="landlord-history-overview-title">Completed work</h3></div><p>Only booking information from this Landlord account appears here.</p></div>
           <dl class="landlord-history-stats"><div><dt>Completed cleans</dt><dd data-landlord-completed-count>0</dd></div><div><dt>Awaiting your confirmation</dt><dd data-landlord-awaiting-count>0</dd></div><div><dt>Completed booking value</dt><dd data-landlord-completed-value>&pound;0.00</dd></div><div><dt>Cleaner visits</dt><dd data-landlord-previous-count>0</dd></div></dl>
           <div class="landlord-previous-cleaners"><strong>Cleaners you have booked before</strong><div class="landlord-previous-cleaner-list" data-landlord-previous-cleaners></div><p data-landlord-previous-empty>Previous Cleaners appear here after a completed clean. Their personal contact details are never shown.</p></div>
@@ -370,8 +368,8 @@
         </section>
       </section>
 
-      <section id="landlord-panel-properties" data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title">
-        <div class="landlord-panel-heading"><div><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your places</h2></div><button class="button button-outline" type="button" data-toggle-property-form>Add a place</button></div>
+      <section id="landlord-panel-properties" data-landlord-panel="properties" class="landlord-workspace-panel" aria-labelledby="properties-title" data-places-section>
+        <div class="landlord-panel-heading"><div class="ld-places-heading"><p class="eyebrow">Saved privately</p><h2 id="properties-title">Your places</h2><p class="ld-places-note">Nothing booked — ready whenever you are.</p></div><button class="button button-outline" type="button" data-toggle-property-form>Add a place</button></div>
         <!-- Cloned by renderProperties(). Same reason as the plan icons: the
              script is held to "no innerHTML anywhere in this file". -->
         <template data-ld-icon="property"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4.5l8 6V20H4z"></path><rect x="10" y="14" width="4" height="6"></rect></svg></template>
@@ -740,6 +738,9 @@
   <nav class="ld-mobile-nav" aria-label="Landlord dashboard navigation" data-landlord-private-navigation hidden>
     <a href="/landlord/home" data-open-landlord-section="home" aria-current="page">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.8 12 4l8 6.8V20h-5.2v-5.2h-5.6V20H4z"></path></svg><span>Home</span>
+    </a>
+    <a href="/landlord/bookings#your-places" data-open-landlord-section="places">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5 12 4.5l8 6V20H4z"></path><circle cx="12" cy="12.5" r="1.6"></circle><path d="M12 14.5V17"></path></svg><span>Places</span>
     </a>
     <a class="ld-mobile-scan" href="/landlord/book" aria-label="Start a room scan">
       <span aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5"></path><path d="M4 12h16"></path></svg></span>
