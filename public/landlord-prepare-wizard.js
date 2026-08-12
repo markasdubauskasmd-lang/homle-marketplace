@@ -258,17 +258,11 @@
     if (form.elements.propertyId) new MutationObserver(updateBasket).observe(form.elements.propertyId, { childList: true });
   }
 
-  // Collapse / expand the whole builder, matching the design's reveal toggle.
-  function setBuilderExpanded(next) {
-    if (!toggle) return;
-    toggle.setAttribute("aria-expanded", String(next));
-    panel.classList.toggle("pac-collapsed", !next);
-    toggle.textContent = next ? "Hide ↑" : "Reveal builder ↓";
-  }
+  // The main dashboard controller owns the modal and its collapsed state. This
+  // enhancement must not install a second listener on the same button: two
+  // handlers would expand and immediately collapse it again. The large-card
+  // pointer shortcut delegates to that canonical accessible control instead.
   if (toggle) {
-    toggle.addEventListener("click", function () {
-      setBuilderExpanded(toggle.getAttribute("aria-expanded") === "false");
-    });
     // Collapsed, the card is a regular banner and the WHOLE banner expands it —
     // a tap target the size of the card instead of one small button. Expanded,
     // only the button collapses, so a click on the heading text while working
@@ -279,7 +273,7 @@
       head.addEventListener("click", function (event) {
         if (!panel.classList.contains("pac-collapsed")) return;
         if (toggle.contains(event.target)) return;
-        setBuilderExpanded(true);
+        toggle.click();
       });
     }
   }

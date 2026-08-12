@@ -248,6 +248,7 @@ assert(page.includes("Secure landlord access") && !page.includes("landlord-prepa
 // itself expands on click while the reveal button stays the accessible control.
 {
   const wizard = await readFile(new URL("../public/landlord-prepare-wizard.js", import.meta.url), "utf8");
+  assert(script.includes('requestBuilderToggle?.addEventListener("click"') && script.includes("setRequestBuilderExpanded(!expanded)") && script.includes("if (!expanded) void loadPrepareWizard()") && !wizard.includes('toggle.addEventListener("click"'), "Reveal/Hide is not owned by the main modal controller, so the delayed wizard can leave the dialog on its collapsed cover or double-toggle it closed.");
   assert(designStyles.includes(".pac-collapsed .pac-body { display: none; }"), "The collapsed builder still shows the form's empty shell as a stray box under the banner.");
   // Two ways to start a clean share the screen, so each has to announce which
   // it is at a glance. The scan banner is red, camera-led and animated; this
@@ -279,7 +280,7 @@ assert(page.includes("Secure landlord access") && !page.includes("landlord-prepa
   // — indistinguishable, to whoever arrived at that moment, from a broken one.
   assert(!/\.pac-art-doc i \{[^}]*animation:/.test(designStyles), "The draft lines animate themselves away again, so the hero periodically shows an empty document.");
   assert(/\.pac-collapsed \.pac-card-head \{[^}]*cursor: pointer/.test(designStyles), "The collapsed banner does not present itself as clickable.");
-  assert(wizard.includes("function setBuilderExpanded(next)") && wizard.includes('if (!panel.classList.contains("pac-collapsed")) return;') && wizard.includes("if (toggle.contains(event.target)) return;"), "The banner head cannot expand the builder, or a click on the heading while working collapses it / double-fires through the button.");
+  assert(wizard.includes('if (!panel.classList.contains("pac-collapsed")) return;') && wizard.includes("if (toggle.contains(event.target)) return;") && wizard.includes("toggle.click();"), "The banner head cannot delegate expansion to the canonical modal control, or a click on the heading while working collapses it / double-fires through the button.");
 }
 /* The v2 shell: a sidebar of five destinations, a top bar carrying the bell and
    avatar, and a bottom bar that takes over below 900px. The scanning-phone
