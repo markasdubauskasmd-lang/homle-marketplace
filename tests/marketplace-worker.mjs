@@ -162,6 +162,7 @@ assert.equal(verificationPoolClosed, 1);
   const serverSource = await readFile(new URL("../server.mjs", import.meta.url), "utf8");
   assert.ok(serverSource.includes('createMarketplaceWorkerAttachment') && serverSource.includes('MARKETPLACE_INLINE_WORKERS'), "The web process cannot host the marketplace background workers.");
   assert.ok(serverSource.includes('!== "true") return null;'), "Inline marketplace workers are not strictly opt-in, so a second process could run every job twice.");
+  assert.ok(serverSource.includes('TIDEWAY_EXPECT_RELEASE: releaseIdentity.sourceCommit'), "An inline worker can be disabled by a stale external release lock even though it necessarily shares the verified web package.");
   assert.ok(serverSource.includes('inlineWorkerAttachment.close(),'), "Inline marketplace workers are not closed during shutdown.");
   const inlineIndex = serverSource.indexOf('Inline marketplace workers could not start.');
   assert.ok(inlineIndex > 0 && serverSource.slice(inlineIndex - 400, inlineIndex).includes('catch'), "A background worker that cannot start would take the whole site down with it.");
