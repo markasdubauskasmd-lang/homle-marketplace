@@ -178,15 +178,40 @@ const propertyBlockingRequestStatuses = new Set(["draft", "searching-for-cleaner
 const finishedPropertyBookingStatuses = new Set(["completed", "cancelled"]);
 
 /**
+ * The live booking a cleaning request has already become, or null while it is
+ * still only a request.
+ *
+ * Participant booking summaries intentionally avoid exposing property ids and
+ * request ids for unfinished work: `list_my_booking_summaries` gives a Landlord
+ * bookingId, status, the schedule and the price, and nothing that identifies
+ * the request behind it. So `cleaningRequestId` is matched when a caller does
+ * have it, and otherwise the frozen time window is the honest join — a booking
+ * copies its request's window when it is created and neither moves afterwards.
+ * A window that cannot be parsed yields NaN, which never equals itself, so a
+ * request with no window cannot collide with a booking that has none either.
+ *
+ * One owner for this rule, because two callers need the same answer: the
+ * property blocker below, and the request list deciding whether the booking has
+ * taken the clean over.
+ */
+export function liveBookingForRequest(request, bookingSummaries) {
+  if (!request || !Array.isArray(bookingSummaries)) return null;
+  return bookingSummaries.find((item) => {
+    if (!item || finishedPropertyBookingStatuses.has(item.status)) return false;
+    if (item.cleaningRequestId && item.cleaningRequestId === request.requestId) return true;
+    return Date.parse(item.scheduledStartAt || "") === Date.parse(request.requestedStartAt || "")
+      && Date.parse(item.scheduledEndAt || "") === Date.parse(request.requestedEndAt || "");
+  }) || null;
+}
+
+/**
  * Returns the one piece of live work that currently prevents a property from
  * leaving the active workspace. The database remains the final authority; this
  * projection exists so the Landlord sees the same boundary before pressing
  * Delete instead of receiving an unexplained conflict afterwards.
  *
- * Participant booking summaries intentionally avoid exposing property ids for
- * unfinished work. We therefore join a booking to its owner-scoped request by
- * its request id when available, and otherwise by the frozen time window. The
- * latter is safe here because the request already carries the owner-verified
+ * Joining a booking to its owner-scoped request is liveBookingForRequest's job.
+ * That is safe here because the request already carries the owner-verified
  * property id and this function never grants access or changes data.
  */
 export function propertyCleaningBlocker(property, cleaningRequests, bookingSummaries) {
@@ -196,12 +221,7 @@ export function propertyCleaningBlocker(property, cleaningRequests, bookingSumma
     .filter((item) => item?.propertyId === propertyId && propertyBlockingRequestStatuses.has(item.status))
     .sort((left, right) => String(left.requestedStartAt || "").localeCompare(String(right.requestedStartAt || "")))[0];
   if (!request) return null;
-  const booking = bookingSummaries.find((item) => {
-    if (!item || finishedPropertyBookingStatuses.has(item.status)) return false;
-    if (item.cleaningRequestId && item.cleaningRequestId === request.requestId) return true;
-    return Date.parse(item.scheduledStartAt || "") === Date.parse(request.requestedStartAt || "")
-      && Date.parse(item.scheduledEndAt || "") === Date.parse(request.requestedEndAt || "");
-  }) || null;
+  const booking = liveBookingForRequest(request, bookingSummaries);
   return Object.freeze({
     kind: booking ? "booking" : "request",
     request,

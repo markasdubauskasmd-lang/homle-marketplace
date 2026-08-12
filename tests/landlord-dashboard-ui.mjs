@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, propertyCleaningBlocker, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "../public/landlord-dashboard-model.js";
+import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, liveBookingForRequest, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, propertyCleaningBlocker, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "../public/landlord-dashboard-model.js";
 import "./landlord-request-draft.mjs";
 import "./room-photo-selection.mjs";
 
@@ -134,8 +134,25 @@ assert(script.includes('const visibleRequests = requests.filter((request) => req
 // clean on screen twice under two rails that disagreed — the request rail is
 // hardcoded to "Matching in progress", so a booking already On the way sat
 // beneath a card insisting a Cleaner was still being found.
-assert(script.includes("const bookedRequestIds = new Set(bookings.map((booking) => booking.requestId).filter(Boolean))") && script.includes('!(request.status === "matched" && bookedRequestIds.has(request.requestId))'),
-  "A request that already became a booking still renders its own card, so one clean appears twice with contradictory progress rails.");
+//
+// Asserted against the join itself rather than the filter's source text. A
+// Landlord's booking summary carries no request id — list_my_booking_summaries
+// returns bookingId, status, schedule and price and nothing that names the
+// request — so an earlier version of this fix read booking.requestId, matched
+// nothing, and left both cards on screen while every source-text assertion
+// passed. These fixtures carry exactly what the endpoint really returns.
+const matchedRequest = { requestId: "88888888-8888-4888-8888-888888888888", propertyId: blockerProperty.propertyId, status: "matched", requestedStartAt: "2099-09-14T09:00:00.000Z", requestedEndAt: "2099-09-14T12:00:00.000Z" };
+const matchedBooking = { bookingId: "99999999-9999-4999-8999-999999999999", status: "cleaner-en-route", scheduledStartAt: matchedRequest.requestedStartAt, scheduledEndAt: matchedRequest.requestedEndAt };
+assert(liveBookingForRequest(matchedRequest, [matchedBooking])?.bookingId === matchedBooking.bookingId,
+  "A booking is not recognised as its request's own without a request id on the summary, so one clean renders twice under contradictory progress rails.");
+assert(liveBookingForRequest(matchedRequest, [{ ...matchedBooking, scheduledStartAt: "2099-09-15T09:00:00.000Z" }]) === null
+  && liveBookingForRequest({ ...matchedRequest, requestedStartAt: "", requestedEndAt: "" }, [{ ...matchedBooking, scheduledStartAt: "", scheduledEndAt: "" }]) === null,
+  "An unrelated booking, or a pair with no readable window, is treated as the request's own booking and silently hides a live request.");
+assert(liveBookingForRequest(matchedRequest, [{ ...matchedBooking, status: "cancelled" }]) === null
+  && liveBookingForRequest(matchedRequest, [{ bookingId: matchedBooking.bookingId, status: "confirmed", cleaningRequestId: matchedRequest.requestId }])?.bookingId === matchedBooking.bookingId,
+  "A cancelled booking still suppresses its request, or an explicit cleaningRequestId is ignored where the surface does carry one.");
+assert(script.includes('!(request.status === "matched" && liveBookingForRequest(request, bookings))'),
+  "The request list no longer stands down once the booking owns the clean, so one clean appears twice with contradictory progress rails.");
 // A request still being prepared is not upcoming work: it has no Cleaner, no
 // frozen price and no booking behind it. It is listed under Your places,
 // against the place it is for, and Upcoming counts confirmed bookings only.

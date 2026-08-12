@@ -7,7 +7,7 @@ import { consumeRoomPhotoInputFiles, maximumRoomPhotos, validatedRoomPhotoSelect
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, propertyCleaningBlocker, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260811-2";
+import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, liveBookingForRequest, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, propertyCleaningBlocker, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260811-2";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260723-3";
 import { activeBookingChangeRequestFor, supportRequestPage, supportStatusLabels } from "./landlord-help-model.js?v=20260804-1";
 import { storedCsrf } from "./session-csrf.js";
@@ -2293,9 +2293,12 @@ function renderRequests() {
   // rails that disagreed: this one is hardcoded to "Matching in progress", so a
   // booking already marked On the way sat directly beneath a card insisting a
   // Cleaner was still being found. Once a booking exists, the booking owns it.
-  const bookedRequestIds = new Set(bookings.map((booking) => booking.requestId).filter(Boolean));
+  //
+  // liveBookingForRequest owns the join. A Landlord's booking summary carries no
+  // request id at all, so reading one off the booking finds nothing and leaves
+  // both cards on screen; the frozen time window is what actually matches here.
   const visibleRequests = requests.filter((request) => request.status !== "cancelled"
-    && !(request.status === "matched" && bookedRequestIds.has(request.requestId)));
+    && !(request.status === "matched" && liveBookingForRequest(request, bookings)));
   for (const request of visibleRequests) {
     const submitted = request.status !== "draft";
     const card = element("article", submitted ? "landlord-request-card ld-request-now" : "landlord-request-card");
