@@ -320,4 +320,24 @@ assert(script.includes('["restriction", "safety"]'),
 assert(script.includes("do-not") && script.includes("safety ${entry.count === 1"),
   "The walkthrough status does not tell the Landlord that restrictions were understood as restrictions.");
 
-console.log("Landlord dashboard UI tests passed: simplified navigation, selected-Cleaner continuation, voice-first scope, grouped bullet review, accessible fallbacks, owner APIs, direct room-scan continuation, safe rendering and mobile accessibility.");
+/* ── Closing the request builder lands on a real view ─────────────────── */
+
+// The builder is a view, reached at /landlord/requests. Closing it used to hide
+// the builder without selecting anything in its place, so Escape or a backdrop
+// click left the address on /landlord/requests with an empty main region, the
+// heading reading "Properties" and the navigation still marking Bookings.
+assert(/requestBuilderDialog\?\.addEventListener\("close"[\s\S]{0,700}?currentWorkspaceTab === "requests"[\s\S]{0,120}?selectWorkspaceTab\("bookings"/.test(script),
+  "Closing the request builder no longer returns the Landlord to a real view, so /landlord/requests can render an empty page.");
+
+/* ── The saved walkthrough is cleared once its draft is stored ─────────── */
+
+// `let window` inside the draft-saving function shadowed the global for the
+// whole function, so `window.sessionStorage` resolved to the requested-time
+// window object. Clearing is a no-op on undefined storage, so the saved
+// walkthrough survived its own save and was offered back as unfinished work.
+assert(!/\blet window\b|\bconst window\b|\bvar window\b/.test(script),
+  "A local declaration shadows the global window, so storage reached through window inside that scope is silently undefined.");
+assert(script.includes("clearLandlordRequestDraft(window.sessionStorage)") && script.includes("...requestedTimeWindow,"),
+  "The saved walkthrough is no longer cleared from this tab's storage after its draft is saved.");
+
+console.log("Landlord dashboard UI tests passed: simplified navigation, selected-Cleaner continuation, voice-first scope, grouped bullet review, accessible fallbacks, owner APIs, direct room-scan continuation, safe rendering, builder close-out, draft clearing and mobile accessibility.");

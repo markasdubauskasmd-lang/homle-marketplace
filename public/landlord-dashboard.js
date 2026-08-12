@@ -984,6 +984,13 @@ function hideRequestCompletion() {
 requestBuilderDialog?.addEventListener("close", () => {
   hideRequestCompletion();
   if (requestBuilderPanel && !requestBuilderPanel.hidden) setRequestBuilderExpanded(false);
+  // The builder is a view, so closing it has to land on a real one. Without
+  // this, Escape or the backdrop leaves the address on /landlord/requests with
+  // the builder hidden and nothing in its place: an empty page whose heading
+  // reads "Properties" while the navigation still marks Bookings.
+  // selectWorkspaceTab assigns currentWorkspaceTab before it closes this
+  // dialog, so switching to another view never reaches this branch.
+  if (currentWorkspaceTab === "requests") selectWorkspaceTab("bookings", { historyMode: "replace" });
 });
 requestBuilderDialog?.addEventListener("click", (event) => {
   // A modal backdrop click targets the dialog itself. Keep clicks inside the
@@ -3832,7 +3839,12 @@ async function createRequestDraft(event, options = {}) {
   const data = new FormData(requestForm);
   let tasks;
   let supplementalNote = "";
-  let window;
+  // Named for what it holds rather than `window`: the previous name shadowed the
+  // global for this whole function, so the `window.sessionStorage` used below to
+  // clear the saved walkthrough resolved to this object instead. The clear is a
+  // no-op on undefined storage, so a saved draft silently stayed in the tab and
+  // was offered back on the next load as unfinished work.
+  let requestedTimeWindow;
   let budgetPence;
   try {
     const optionalScope = optionalRequestScope(data.get("tasks"), {
@@ -3841,7 +3853,7 @@ async function createRequestDraft(event, options = {}) {
     });
     tasks = optionalScope.tasks;
     supplementalNote = optionalScope.supplementalNote;
-    window = requestedWindow(data.get("requestedDate"), data.get("requestedTime"), data.get("durationMinutes"));
+    requestedTimeWindow = requestedWindow(data.get("requestedDate"), data.get("requestedTime"), data.get("durationMinutes"));
     budgetPence = moneyToPence(data.get("budget"));
   } catch (error) {
     scopeConfirmation.checked = false;
@@ -3859,7 +3871,7 @@ async function createRequestDraft(event, options = {}) {
   if (!csrf) return false;
   const body = {
     propertyId: String(data.get("propertyId") || ""),
-    ...window,
+    ...requestedTimeWindow,
     cleaningType,
     requiredServices,
     specialInstructions: [String(data.get("specialInstructions") || "").trim(), supplementalNote].filter(Boolean).join("\n\n"),
