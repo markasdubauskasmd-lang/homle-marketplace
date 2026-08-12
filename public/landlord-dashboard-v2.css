@@ -70,6 +70,7 @@ body.landlord-dashboard-page .site-header {
   box-shadow: none;
 }
 body.landlord-dashboard-page .site-header .shell.nav-wrap { gap: 22px; padding: 22px 16px 20px; }
+body.landlord-dashboard-page .site-header .shell.nav-wrap { min-height: 100%; }
 body.landlord-dashboard-page .workspace-brand .brand img { width: 38px; height: 38px; border-radius: 11px; box-shadow: none; }
 body.landlord-dashboard-page .workspace-brand-copy strong { font-family: var(--ld-body); font-size: 23px; font-weight: 700; letter-spacing: -.03em; }
 body.landlord-dashboard-page .workspace-brand-copy small { color: var(--ld-dim); font-weight: 600; letter-spacing: .1em; }
@@ -128,6 +129,28 @@ body.landlord-dashboard-page .site-header .account-avatar img {
   object-position: center;
 }
 body.landlord-dashboard-page .site-header .account-summary-copy { flex: 1; }
+body.landlord-dashboard-page .site-header .account-summary-copy strong {
+  display: block;
+  max-width: none;
+  overflow: visible;
+  white-space: normal;
+  line-height: 1.2;
+}
+body.landlord-dashboard-page .site-header .account-summary-copy small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  color: var(--ld-dim);
+  white-space: nowrap;
+}
+body.landlord-dashboard-page .account-status-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ld-success);
+}
 body.landlord-dashboard-page .site-header .account-menu summary::after { color: var(--ld-dim); font-size: 12px; }
 
 /* ── Main column ──────────────────────────────────────────────────────────── */
@@ -556,6 +579,120 @@ body.landlord-dashboard-page .ld-empty strong { font-size: 15.5px; font-weight: 
 body.landlord-dashboard-page .ld-empty p { margin: 5px 0 0; font-size: 13.5px; color: var(--ld-dim); }
 
 /* ── Account rows ─────────────────────────────────────────────────────────── */
+
+body.landlord-dashboard-page #landlord-panel-account {
+  max-width: 980px;
+  margin: 0 auto;
+}
+body.landlord-dashboard-page .ld-account-heading { margin-bottom: 18px; }
+body.landlord-dashboard-page .ld-account-heading .landlord-secure-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: var(--ld-success-ink);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+body.landlord-dashboard-page .ld-account-heading .landlord-secure-badge span { color: var(--ld-success); font-size: 8px; }
+body.landlord-dashboard-page .ld-account-heading h2 { margin: 0; font-size: clamp(30px, 4vw, 42px); }
+body.landlord-dashboard-page .ld-account-heading p { margin: 7px 0 0; color: var(--ld-muted); font-size: 15px; }
+
+body.landlord-dashboard-page .ld-account-identity-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 24px;
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-line);
+  border-radius: 20px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .ld-account-photo { position: relative; width: 88px; height: 88px; }
+body.landlord-dashboard-page .ld-account-photo .landlord-role-avatar {
+  width: 88px;
+  height: 88px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 4px solid #fff;
+  border-radius: 50%;
+  background: var(--ld-ink);
+  color: #fff;
+  box-shadow: 0 0 0 1px var(--ld-border), 0 9px 26px rgba(26, 26, 26, .13);
+  font-size: 24px;
+  font-weight: 700;
+}
+body.landlord-dashboard-page .ld-account-photo img { width: 100%; height: 100%; object-fit: cover; }
+body.landlord-dashboard-page .ld-account-online {
+  position: absolute;
+  right: 3px;
+  bottom: 5px;
+  width: 17px;
+  height: 17px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--ld-success);
+}
+body.landlord-dashboard-page .ld-account-identity-copy { min-width: 0; display: grid; }
+body.landlord-dashboard-page .ld-account-identity-copy > strong { font-size: 23px; line-height: 1.15; }
+body.landlord-dashboard-page .ld-account-identity-copy > small {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--ld-muted);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body.landlord-dashboard-page .ld-account-identity-copy > div { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+body.landlord-dashboard-page .ld-account-identity-copy > div span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--ld-success-tint);
+  color: var(--ld-success-ink);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+body.landlord-dashboard-page .ld-account-identity-copy > div span + span { background: #f5f2ef; color: var(--ld-ink-soft); }
+
+body.landlord-dashboard-page .ld-account-sections { margin-top: 16px; }
+body.landlord-dashboard-page .ld-account-section,
+body.landlord-dashboard-page .ld-account-section-link {
+  display: block;
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-line);
+  border-radius: 16px;
+  color: inherit;
+  box-shadow: var(--ld-card-shadow);
+  text-decoration: none;
+  overflow: hidden;
+}
+body.landlord-dashboard-page .ld-account-section + .ld-account-section-link { margin-top: 10px; }
+body.landlord-dashboard-page .ld-account-section > summary,
+body.landlord-dashboard-page .ld-account-section-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 72px;
+  padding: 14px 18px;
+  list-style: none;
+  cursor: pointer;
+}
+body.landlord-dashboard-page .ld-account-section > summary::-webkit-details-marker { display: none; }
+body.landlord-dashboard-page .ld-account-section[open] > summary { border-bottom: 1px solid var(--ld-line); }
+body.landlord-dashboard-page .ld-account-section[open] .ld-acct-chev { transform: rotate(90deg); }
+body.landlord-dashboard-page .ld-account-section .landlord-profile-form {
+  margin: 0;
+  padding: 22px;
+  border: 0;
+  border-radius: 0;
+  background: #fbfaf9;
+  box-shadow: none;
+}
+body.landlord-dashboard-page .ld-account-section .landlord-profile-form fieldset { display: grid; gap: 16px; }
 
 body.landlord-dashboard-page .ld-acct-rows {
   display: block;
@@ -1543,6 +1680,7 @@ body.landlord-dashboard-page [data-landlord-panel="properties"] .landlord-panel-
    ═════════════════════════════════════════════════════════════════════════ */
 
 body.landlord-dashboard-page .landlord-account-menu { position: relative; }
+body.landlord-dashboard-page .landlord-sidebar-account-menu { margin-top: auto; }
 body.landlord-dashboard-page .landlord-account-menu > summary { list-style: none; cursor: pointer; }
 body.landlord-dashboard-page .landlord-account-menu > summary::-webkit-details-marker { display: none; }
 
@@ -1562,6 +1700,92 @@ body.landlord-dashboard-page .landlord-account-menu .account-menu-panel {
   transform-origin: top right;
   animation: ld-account-pop .2s cubic-bezier(.2, .9, .25, 1) both;
 }
+/* The sidebar is 240px wide while the reviewed menu is 284px. Anchoring that
+   panel to the summary's right edge clips it into the app canvas. The sidebar
+   entry instead opens beside its large profile target, exactly like the design;
+   the independent top-bar menu keeps the normal top-right anchor. */
+body.landlord-dashboard-page .landlord-sidebar-account-menu .account-menu-panel {
+  position: fixed;
+  left: 14px;
+  right: auto;
+  top: auto;
+  bottom: 88px;
+  transform-origin: bottom left;
+}
+body.landlord-dashboard-page .landlord-topbar-account-menu .account-menu-panel {
+  right: 0;
+  left: auto;
+  top: calc(100% + 10px);
+}
+body.landlord-dashboard-page .landlord-topbar-account-menu > summary {
+  list-style: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+body.landlord-dashboard-page .landlord-topbar-account-menu > summary::after { display: none; }
+
+body.landlord-dashboard-page .account-menu-identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 10px 9px;
+}
+body.landlord-dashboard-page .account-menu-identity > span:last-child {
+  min-width: 0;
+  display: grid;
+}
+body.landlord-dashboard-page .account-menu-identity strong { font-size: 14px; line-height: 1.2; }
+body.landlord-dashboard-page .account-menu-identity small {
+  overflow: hidden;
+  color: var(--ld-dim);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body.landlord-dashboard-page .account-menu-identity em {
+  width: max-content;
+  margin-top: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--ld-success-tint);
+  color: var(--ld-success-ink);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+}
+body.landlord-dashboard-page .account-menu-avatar { width: 44px; height: 44px; flex-basis: 44px; }
+body.landlord-dashboard-page .account-menu-primary {
+  display: block;
+  margin: 2px 8px 7px;
+  padding: 9px 12px;
+  border: 1px solid var(--ld-quiet-border);
+  border-radius: 11px;
+  color: var(--ld-ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+body.landlord-dashboard-page .landlord-account-menu .account-menu-panel nav {
+  padding: 5px 0;
+  border-top: 1px solid var(--ld-line);
+  border-bottom: 1px solid var(--ld-line);
+}
+body.landlord-dashboard-page .landlord-account-menu .account-menu-panel nav a {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--ld-ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+body.landlord-dashboard-page .landlord-account-menu .account-menu-panel nav a:hover { background: #f7f5f3; color: var(--ld-ink); }
 @keyframes ld-account-pop {
   from { opacity: 0; transform: scale(.96) translateY(-6px); }
   to { opacity: 1; transform: none; }
@@ -1612,6 +1836,15 @@ body.landlord-dashboard-page .landlord-account-menu .account-menu-panel > a::aft
   font-size: 13px;
 }
 body.landlord-dashboard-page .landlord-account-menu .account-menu-panel > a:hover { background: #fbfaf9; color: var(--ld-ink); }
+body.landlord-dashboard-page .landlord-account-menu .account-menu-panel > .account-menu-primary {
+  display: block;
+  margin: 2px 8px 7px;
+  padding: 9px 12px;
+  border: 1px solid var(--ld-quiet-border);
+  border-radius: 11px;
+  text-align: center;
+}
+body.landlord-dashboard-page .landlord-account-menu .account-menu-panel > .account-menu-primary::after { display: none; }
 
 /* Sign out is the one destructive row, and reads like it without shouting. */
 body.landlord-dashboard-page .landlord-account-menu .account-sign-out {
@@ -1665,7 +1898,39 @@ body.landlord-dashboard-page .landlord-account-menu[open] > summary .account-ava
     transform-origin: bottom center;
     animation: ld-account-sheet .22s cubic-bezier(.2, .9, .25, 1) both;
   }
+  body.landlord-dashboard-page .landlord-account-menu[open]::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: rgba(26, 26, 26, .32);
+    backdrop-filter: blur(4px);
+  }
+  body.landlord-dashboard-page .landlord-account-menu .account-menu-panel { z-index: 40; max-height: 86dvh; overflow-y: auto; }
   @keyframes ld-account-sheet { from { transform: translateY(101%); } to { transform: none; } }
+}
+
+@media (max-width: 700px) {
+  body.landlord-dashboard-page #landlord-panel-account { max-width: none; }
+  body.landlord-dashboard-page .ld-account-heading h2 { font-size: 32px; }
+  body.landlord-dashboard-page .ld-account-heading p { font-size: 14px; }
+  body.landlord-dashboard-page .ld-account-identity-card {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 14px;
+    padding: 18px;
+    border-radius: 18px;
+  }
+  body.landlord-dashboard-page .ld-account-photo,
+  body.landlord-dashboard-page .ld-account-photo .landlord-role-avatar { width: 68px; height: 68px; }
+  body.landlord-dashboard-page .ld-account-online { right: 1px; bottom: 2px; width: 15px; height: 15px; }
+  body.landlord-dashboard-page .ld-account-identity-copy > strong { font-size: 19px; }
+  body.landlord-dashboard-page .ld-account-identity-copy > div { margin-top: 8px; }
+  body.landlord-dashboard-page .ld-account-identity-card > .button { grid-column: 1 / -1; width: 100%; }
+  body.landlord-dashboard-page .ld-account-section > summary,
+  body.landlord-dashboard-page .ld-account-section-link,
+  body.landlord-dashboard-page .ld-acct-row { min-height: 66px; padding: 12px 14px; }
+  body.landlord-dashboard-page .ld-acct-copy small { white-space: normal; }
+  body.landlord-dashboard-page .ld-account-section .landlord-profile-form { padding: 18px 14px; }
 }
 
 /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•

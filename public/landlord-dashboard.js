@@ -938,7 +938,7 @@ const workspaceTabCopy = {
   bookings: { title: "Bookings", subtitle: "Everything for every place you own." },
   places: { title: "Bookings", subtitle: "Everything for every place you own." },
   messages: { title: "Messages", subtitle: "Talk to the Cleaner working on your property." },
-  account: { title: "Account", subtitle: "Your details, payments and preferences." },
+  account: { title: "Your account", subtitle: "Details, security, payments and preferences — one place, opened as needed." },
   payments: { title: "Payments", subtitle: "What each booking costs, and where its authorisation has reached." },
   requests: { title: "Properties", subtitle: "The locations saved privately to your account." }
 };
@@ -3814,6 +3814,37 @@ document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link
   if (accountMenu) accountMenu.open = false;
   document.querySelector(`[data-landlord-panel="${selected}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }));
+
+/**
+ * Account is one system with two doors: the large Account view and the compact
+ * avatar menu. Personal details therefore opens the same disclosure in the
+ * same panel from either entry point instead of navigating to a competing form.
+ */
+function openPersonalAccountDetails({ focus = false } = {}) {
+  selectWorkspaceTab("account", { historyMode: "push" });
+  const personal = document.querySelector('[data-account-section="personal"]');
+  if (!personal) return;
+  personal.open = true;
+  personal.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (focus) personal.querySelector("input, textarea, button")?.focus({ preventScroll: true });
+}
+
+document.querySelectorAll("[data-account-destination=\"personal\"]").forEach((link) => link.addEventListener("click", (event) => {
+  event.preventDefault();
+  link.closest("[data-account-menu]")?.removeAttribute("open");
+  openPersonalAccountDetails();
+}));
+document.querySelector("[data-account-personal-toggle]")?.addEventListener("click", () => openPersonalAccountDetails({ focus: true }));
+
+for (const section of document.querySelectorAll("[data-account-section]")) {
+  section.addEventListener("toggle", () => {
+    if (!section.open) return;
+    for (const peer of document.querySelectorAll("[data-account-section][open]")) {
+      if (peer !== section) peer.open = false;
+    }
+  });
+}
+if (location.hash === "#account-personal") openPersonalAccountDetails();
 // The redesigned dashboard sends its scan hero straight to the guided booking
 // journey, so the legacy in-page request button is not present on every layout.
 // Keep the old progressive-enhancement hook when that button exists without
