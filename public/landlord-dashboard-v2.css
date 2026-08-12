@@ -999,6 +999,12 @@ body.landlord-dashboard-page .ld-art-pen {
     flex-direction: column;
     align-items: center;
     gap: 4px;
+    /* Five labelled tabs plus the scan control. `width` is the comfortable size
+       and `flex` lets them give ground together on a narrow handset rather than
+       the last one wrapping onto its own line. `min-width: 0` is what allows
+       the shrink to happen at all inside a flex row. */
+    flex: 0 1 58px;
+    min-width: 0;
     width: 58px;
     padding: 4px 0;
     font-size: 10px;
@@ -1009,7 +1015,10 @@ body.landlord-dashboard-page .ld-art-pen {
   }
   body.landlord-dashboard-page .ld-mobile-nav a svg { width: 21px; height: 21px; }
   body.landlord-dashboard-page .ld-mobile-nav a[aria-current="page"] { color: var(--ld-coral); }
-  body.landlord-dashboard-page .ld-mobile-nav .ld-mobile-scan { width: 62px; margin: 0 2px -6px; }
+  body.landlord-dashboard-page .ld-mobile-nav .ld-mobile-scan { flex: 0 0 62px; width: 62px; margin: 0 2px -6px; }
+  /* The narrowest handsets still in use are 320px wide. Tighten the label and
+     the padding rather than let the bar scroll or drop a destination. */
+  body.landlord-dashboard-page .ld-mobile-nav a span:not([aria-hidden]) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   body.landlord-dashboard-page .ld-mobile-nav .ld-mobile-scan span {
     width: 58px;
     height: 58px;

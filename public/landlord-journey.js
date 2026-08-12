@@ -48,6 +48,7 @@ const el = {
   rail: $("[data-rail]"),
   stepLabel: $("[data-step-label]"),
   back: $("[data-back]"),
+  exit: $("[data-journey-exit]"),
   postcode: $("[data-postcode]"),
   postcodeError: $("[data-postcode-error]"),
   supply: $("[data-supply]"),
@@ -266,7 +267,13 @@ function show(stepId) {
   const index = stepIndex(stepId);
   el.rail.setAttribute("aria-valuenow", String(Math.max(1, index + 1)));
   el.stepLabel.textContent = stepId === "done" ? "Complete" : stepLabel(stepId);
-  el.back.hidden = !previousStep(stepId) || stepId === "done";
+  // Exactly one leading control. Inside the journey it steps back; on the first
+  // question, where there is nothing to step back to, it leaves for the
+  // dashboard rather than vanishing and stranding the reader. The completion
+  // step keeps neither, because it already offers its own way onward.
+  const hasPreviousStep = Boolean(previousStep(stepId));
+  el.back.hidden = !hasPreviousStep || stepId === "done";
+  if (el.exit) el.exit.hidden = hasPreviousStep || stepId === "done";
   window.scrollTo({ top: 0, behavior: "instant" });
   saveDraft();
   if (stepId === "results") renderResults();

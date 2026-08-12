@@ -180,4 +180,12 @@ assert(script.includes("function guideRange") && script.includes("–"), "Guide 
 
 assert(server.includes('"/landlord/book": "landlord-journey.html"'), "The journey page is not served.");
 
+// The first question has no previous step, so the rail's back control was
+// hidden and the page offered no visible way out at all: a Landlord who opened
+// the scan from the dashboard could only use the browser's own Back button.
+assert(page.includes('data-journey-exit') && page.includes('href="/landlord/bookings"') && page.includes('aria-label="Back to your dashboard"'),
+  "The journey's first step has no visible way back to the dashboard.");
+assert(script.includes("el.exit.hidden = hasPreviousStep || stepId === \"done\"") && script.includes("el.back.hidden = !hasPreviousStep || stepId === \"done\""),
+  "The rail does not swap its back control for a dashboard exit on the first step, so it shows both or neither.");
+
 console.log("Landlord journey UI tests passed: six approved steps from the postcode, honest coverage from the live directory, gated progress with reasons, future-only days, scan handoff both ways, draft recovery and a checkout that states what will really happen.");

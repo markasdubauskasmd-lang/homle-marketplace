@@ -37,6 +37,13 @@
     <button class="rail-back" type="button" data-back aria-label="Go back a step">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
     </button>
+    <!-- The first question has no previous step, which used to leave the rail
+         with no leading control at all: a Landlord who opened the scan from the
+         dashboard had nothing to press to get back there. This takes that slot
+         instead, so the rail always offers exactly one way backwards. -->
+    <a class="rail-back" data-journey-exit href="/landlord/bookings" aria-label="Back to your dashboard" hidden>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
+    </a>
     <div class="rail-steps" data-rail role="progressbar" aria-valuemin="1" aria-valuemax="6" aria-valuenow="1"></div>
     <span class="rail-lbl" data-step-label>Step 1 / 6</span>
   </div>

@@ -320,6 +320,17 @@ assert(script.includes('["restriction", "safety"]'),
 assert(script.includes("do-not") && script.includes("safety ${entry.count === 1"),
   "The walkthrough status does not tell the Landlord that restrictions were understood as restrictions.");
 
+/* ── Messages is reachable on a phone ─────────────────────────────────── */
+
+// The sidebar that carries Messages on a laptop is inside .site-header, which
+// landlord-dashboard-v2.css hides below 900px. The mobile bar listed Home,
+// Places, Scan, Bookings and Account, so a phone had no route to the view where
+// the Cleaner working in the property is reached — only a typed URL.
+assert([...page.matchAll(/data-open-landlord-section="messages"/g)].length >= 2,
+  "Messages has no entry in the mobile tab bar, so it is unreachable below 900px where the sidebar is hidden.");
+assert(v2Styles.includes("flex: 0 1 58px") && v2Styles.includes("flex: 0 0 62px"),
+  "The mobile tab bar cannot shrink its tabs, so the sixth destination overflows or wraps on a narrow handset.");
+
 /* ── Closing the request builder lands on a real view ─────────────────── */
 
 // The builder is a view, reached at /landlord/requests. Closing it used to hide
