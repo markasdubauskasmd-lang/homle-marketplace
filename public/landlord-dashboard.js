@@ -1355,8 +1355,11 @@ function renderProperties() {
     archive.type = "button";
     archive.setAttribute("aria-label", `Delete ${property.name || "saved property"} from active properties`);
     archive.addEventListener("click", () => openPropertyArchive(property));
-    secondary.append(edit);
-    actions.append(archive);
+    // The design gives a place card three controls: Book clean, Scan and the
+    // overflow. Deleting a place is neither common nor reversible, so it
+    // belongs behind the overflow with Edit access rather than sitting in the
+    // row as a third button competing with the two real actions.
+    secondary.append(edit, archive);
     detailsPanel.append(secondary);
     details.append(detailsPanel);
 
@@ -2781,6 +2784,20 @@ function renderNextClean() {
       bookedDuration(booking),
       `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`
     ].filter(Boolean).join(" · ");
+  }
+
+  // A place with a clean booked no longer appears under Your places, so this is
+  // the only route left to its access details, saved rooms and archiving. It is
+  // hidden when the booking cannot be matched back to an owned property, rather
+  // than opening an editor for nothing.
+  const placeDetails = card.querySelector("[data-ld-next-place]");
+  if (placeDetails) {
+    const property = properties.find((item) => item.propertyId === booking.propertyId);
+    placeDetails.hidden = !property;
+    if (property) {
+      placeDetails.setAttribute("aria-label", `Place details for ${property.name || "saved property"}`);
+      placeDetails.onclick = () => openPropertyEditor(property);
+    }
   }
 
   const cleanerRow = card.querySelector("[data-ld-next-cleaner]");

@@ -2273,3 +2273,59 @@ body.landlord-dashboard-page .ld-builder-dialog [data-landlord-panel="requests"]
     border-radius: 99px;
   }
 }
+
+/* â”€â”€ Place details, and the CTA's two subtitles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+/* The design's route from the booked card into that place's own sheet. It sits
+   opposite the address, quiet enough not to compete with the stage rail. */
+body.landlord-dashboard-page .ld-next-place {
+  flex: none;
+  align-self: flex-start;
+  padding: 8px 14px;
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-quiet-border);
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .16s ease, color .16s ease;
+}
+body.landlord-dashboard-page .ld-next-place:hover { border-color: var(--ld-coral); color: var(--ld-coral); }
+body.landlord-dashboard-page .ld-next-head { justify-content: space-between; }
+
+/* One subtitle is shown at a time. The narrow line is the design's phone copy;
+   the wide one is its desktop copy. */
+body.landlord-dashboard-page .hub-cta-sub-narrow { display: none; }
+
+@media (max-width: 900px) {
+  body.landlord-dashboard-page .hub-cta-sub-wide { display: none; }
+  body.landlord-dashboard-page .hub-cta-sub-narrow { display: block; }
+  /* On a phone the design keeps the card to name, meta and the rail. The place
+     route moves under the heading rather than squeezing the address. */
+  body.landlord-dashboard-page .ld-next-head { flex-wrap: wrap; }
+  body.landlord-dashboard-page .ld-next-place { width: 100%; text-align: center; margin-top: 4px; }
+}
+
+/* The place card's overflow panel. It now carries Edit access and Delete
+   place, so it needs a surface of its own rather than spilling the saved
+   facts and both controls straight onto the card. */
+body.landlord-dashboard-page .ld-prop-menu {
+  margin-top: 10px;
+  padding: 14px;
+  background: #fbfaf9;
+  border: 1px solid var(--ld-line);
+  border-radius: 13px;
+}
+body.landlord-dashboard-page .ld-prop-menu dl {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0 0 12px;
+  font-size: 12.5px;
+}
+body.landlord-dashboard-page .ld-prop-menu dt { color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-prop-menu dd { margin: 0; overflow-wrap: anywhere; }
+body.landlord-dashboard-page .ld-prop-menu .landlord-property-actions-secondary { display: flex; flex-wrap: wrap; gap: 8px; }
