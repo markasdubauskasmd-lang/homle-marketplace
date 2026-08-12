@@ -115,10 +115,6 @@ const loadRetry = document.querySelector("[data-landlord-load-retry]");
 const bookingLiveStatus = document.querySelector("[data-landlord-booking-live]");
 const bookingRefresh = document.querySelector("[data-landlord-booking-refresh]");
 const landlordSectionToggles = document.querySelectorAll("[data-landlord-section-toggle]");
-const upcomingSectionToggle = document.querySelector('[data-landlord-section-toggle][aria-controls="landlord-booking-content"]');
-// Set once the bookings section has opened itself, so a later refresh never
-// reopens a section the Landlord closed on purpose.
-let upcomingSectionAutoExpanded = false;
 const selectedCleanerSummary = document.querySelector("[data-landlord-selected-cleaner]");
 const selectedCleanerAvatar = document.querySelector("[data-landlord-selected-cleaner-avatar]");
 const selectedCleanerName = document.querySelector("[data-landlord-selected-cleaner-name]");
@@ -1273,7 +1269,16 @@ function renderProperties() {
   propertyList.replaceChildren();
   propertySelect.replaceChildren(element("option", "", properties.length ? "Choose a property" : "Add a property first"));
   propertySelect.firstElementChild.value = "";
+  // Every owned property remains selectable for a future clean, but the hub
+  // gives each place one visual home: active work belongs under Upcoming and
+  // only places with nothing booked belong under Your places.
   for (const property of properties) {
+    const option = element("option", "", property.name || "Saved property");
+    option.value = property.propertyId;
+    propertySelect.append(option);
+  }
+  const availableProperties = properties.filter((property) => !propertyCleaningBlocker(property, requests, bookings));
+  for (const property of availableProperties) {
     // The v2 property card: address, what the property is, when it was last
     // cleaned and what is next, the rooms, then the two things a Landlord
     // actually does from here. The protected details and the access/archive
@@ -1317,8 +1322,6 @@ function renderProperties() {
     });
     actions.append(scanAgain, book);
 
-    const blocker = propertyCleaningBlocker(property, requests, bookings);
-    const linkedWork = renderPropertyBlocker(property, blocker);
     const details = element("details", "landlord-property-details");
     details.append(element("summary", "", "View protected property details"));
     const notes = element("dl");
@@ -1338,16 +1341,12 @@ function renderProperties() {
     details.append(secondary);
 
     card.append(heading, rooms, actions);
-    if (linkedWork) card.append(linkedWork);
     card.append(details);
     propertyList.append(card);
-    const option = element("option", "", property.name || "Saved property");
-    option.value = property.propertyId;
-    propertySelect.append(option);
   }
   // The design closes the grid with a dashed tile rather than leaving the last
   // row ragged. It opens the same property editor the heading button does.
-  if (properties.length) {
+  if (availableProperties.length) {
     const add = element("button", "ld-prop-add");
     add.type = "button";
     add.append(cloneIcon("add"), element("span", "ld-prop-add-title", "Add a place"), element("span", "ld-prop-add-copy", "Four facts, then scan"));
@@ -1362,8 +1361,12 @@ function renderProperties() {
     solePropertyName.textContent = properties[0].name || "Saved property";
   } else solePropertyName.textContent = "";
   applySuggestedCleaningType();
-  propertyEmpty.hidden = properties.length > 0;
-  propertyList.hidden = properties.length === 0;
+  propertyEmpty.replaceChildren(
+    element("strong", "", properties.length ? "Every saved place has cleaning work in progress." : "No account properties yet."),
+    element("p", "", properties.length ? "Manage those records under Upcoming. A place returns here as soon as its request is withdrawn or its booking is closed." : "Add a property to prepare a private request draft. Nothing is published to Cleaner search.")
+  );
+  propertyEmpty.hidden = availableProperties.length > 0;
+  propertyList.hidden = availableProperties.length === 0;
   scanPropertyStatus.dataset.kind = properties.length ? "ready" : "attention";
   scanPropertyStatus.textContent = properties.length
     ? "Your room scan can be saved to the selected private property."
@@ -2710,6 +2713,18 @@ function initialsFor(name) {
 }
 
 /**
+ * One accepted booking owns the prominent "Happening now" card. Returning the
+ * same record here and in Upcoming would make one place appear twice, so both
+ * renderers share this exact selection rule. Cleaner-decision records stay in
+ * Upcoming because their response deadline and actions live on that card.
+ */
+function featuredBooking(buckets) {
+  return [...buckets.active, ...buckets.upcoming]
+    .slice()
+    .sort((a, b) => String(a.scheduledStartAt || "").localeCompare(String(b.scheduledStartAt || "")))[0] || null;
+}
+
+/**
  * The "NEXT CLEAN" card.
  *
  * Every value is read from the booking record. The design also shows the
@@ -2721,15 +2736,15 @@ function initialsFor(name) {
 function renderNextClean() {
   const card = document.querySelector("[data-ld-next]");
   const empty = document.querySelector("[data-ld-next-empty]");
+  const label = document.querySelector("[data-hub-now-label]");
   if (!card || !empty) return;
 
   const buckets = bookingSummaryBuckets(bookings, "landlord");
-  const booking = [...buckets.active, ...buckets.upcoming, ...buckets.waiting]
-    .slice()
-    .sort((a, b) => String(a.scheduledStartAt || "").localeCompare(String(b.scheduledStartAt || "")))[0] || null;
+  const booking = featuredBooking(buckets);
 
   card.hidden = !booking;
   empty.hidden = Boolean(booking);
+  if (label) label.hidden = !booking;
   if (!booking) return;
 
   const icon = card.querySelector("[data-ld-next-icon]");
@@ -2920,11 +2935,14 @@ function renderPastCleans(buckets) {
 function renderBookings() {
   const buckets = bookingSummaryBuckets(bookings, "landlord");
   const historySummary = landlordDashboardSummary(bookings);
-  const current = [...buckets.active, ...buckets.upcoming];
+  const featured = featuredBooking(buckets);
+  const current = [...buckets.active, ...buckets.upcoming]
+    .filter((booking) => booking.bookingId !== featured?.bookingId);
   const list = document.querySelector("[data-landlord-booking-list]");
   list.replaceChildren(...current.map(renderBookingCard));
   list.hidden = current.length === 0;
-  document.querySelector("[data-landlord-booking-empty]").hidden = current.length > 0;
+  const visibleRequestCount = requests.filter((request) => request.status !== "cancelled").length;
+  document.querySelector("[data-landlord-booking-empty]").hidden = current.length > 0 || buckets.waiting.length > 0 || visibleRequestCount > 0;
   const waitingSection = document.querySelector("[data-landlord-waiting-section]");
   const waitingList = document.querySelector("[data-landlord-waiting-list]");
   waitingList.replaceChildren(...buckets.waiting.map(renderBookingCard));
@@ -2974,19 +2992,14 @@ function setLandlordSectionExpanded(button, expanded) {
 function updateUpcomingRevealCount() {
   const visibleRequestCount = requests.filter((request) => request.status !== "cancelled").length;
   const buckets = bookingSummaryBuckets(bookings, "landlord");
-  const bookingCount = buckets.active.length + buckets.upcoming.length + buckets.waiting.length;
+  const featured = featuredBooking(buckets);
+  const bookingCount = buckets.active.length + buckets.upcoming.length + buckets.waiting.length - (featured ? 1 : 0);
   const total = visibleRequestCount + bookingCount;
   document.querySelector("[data-landlord-booking-reveal-count]").textContent = String(total);
-  // The design shows what is happening now and what is upcoming as plain
-  // sections, not as something to go looking for. A collapsed control over real
-  // bookings hides the one thing this page exists to answer, so the section
-  // opens itself the first time it has anything in it. It stays collapsible,
-  // and this runs once: re-expanding on every refresh would reopen a section a
-  // Landlord had deliberately closed.
-  if (total > 0 && !upcomingSectionAutoExpanded) {
-    upcomingSectionAutoExpanded = true;
-    setLandlordSectionExpanded(upcomingSectionToggle, true);
-  }
+  const heading = document.querySelector("[data-landlord-upcoming-heading]");
+  const content = document.getElementById("landlord-booking-content");
+  if (heading) heading.hidden = total === 0;
+  if (content) content.hidden = total === 0;
 }
 
 /**

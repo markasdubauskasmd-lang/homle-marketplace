@@ -275,7 +275,6 @@
         </button>
 
         <p class="hub-label" data-hub-now-label hidden>Happening now</p>
-        <button class="landlord-section-toggle" type="button" data-landlord-section-toggle aria-expanded="false" aria-controls="landlord-booking-content"><span id="landlord-bookings-title">Active and upcoming bookings</span><span class="landlord-section-toggle-meta"><span data-landlord-booking-reveal-count>0</span><span aria-hidden="true">↓</span></span></button>
         <!-- Cloned by renderBookingCard(). -->
         <template data-ld-icon="booking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2.5"></rect><path d="M4 10.5h16M8.5 4v4M15.5 4v4"></path></svg></template>
         <template data-ld-icon="booking-done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"></path></svg></template>
@@ -330,6 +329,21 @@
           <a class="ld-btn ld-btn-primary" href="/landlord/book">Start scan</a>
         </div>
 
+        <!-- Live work is a flat section in the reviewed hub. Keeping it open
+             removes the extra click and stops the page from claiming that a
+             place has nothing booked while its request is hidden below. -->
+        <p class="hub-label hub-label-with-count" data-landlord-upcoming-heading id="landlord-bookings-title">Upcoming <span data-landlord-booking-reveal-count>0</span></p>
+        <div id="landlord-booking-content" data-landlord-section-content>
+          <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p></div><div class="landlord-booking-live"><span data-landlord-booking-live role="status" aria-live="polite">Checking private booking updates…</span><button class="text-button" type="button" data-landlord-booking-refresh>Refresh booking status</button></div></div>
+          <div class="landlord-empty-card" data-request-empty><strong>No requests or upcoming bookings yet.</strong><p>Saved cleaning requests appear here first, then become confirmed bookings only after a Cleaner accepts the frozen time, scope and price.</p></div>
+          <div class="landlord-request-list" data-request-list hidden></div>
+          <div class="landlord-form-feedback" data-request-status role="status" aria-live="polite" tabindex="-1" hidden></div>
+          <section class="landlord-waiting-section" data-landlord-waiting-section aria-labelledby="landlord-waiting-title" hidden><div><p class="eyebrow">Cleaner decision pending</p><h3 id="landlord-waiting-title">Waiting for a Cleaner response <span data-landlord-waiting-count>0</span></h3><p>The exact deadline below is private booking state shared with you. Homle updates this page when the Cleaner responds.</p></div><div class="booking-dashboard-list landlord-waiting-list" data-landlord-waiting-list></div></section>
+          <div class="booking-dashboard-list" data-landlord-booking-list></div>
+          <div class="booking-dashboard-empty" data-landlord-booking-empty><strong>No confirmed marketplace bookings yet.</strong><p>Private request drafts above do not become bookings until a Cleaner accepts the frozen time, scope and price.</p></div>
+          <details class="booking-history-section" data-landlord-history-section hidden><summary>Completed and closed bookings <span data-landlord-history-count>0</span></summary><div class="booking-dashboard-list" data-landlord-history-list></div></details>
+        </div>
+
         <div class="ld-book-stats" data-ld-book-stats></div>
 
         <!-- Properties merged into Bookings. The Properties panel is relocated
@@ -346,16 +360,6 @@
         <div class="ld-empty" data-ld-past-empty hidden>
           <strong>No completed cleans yet</strong>
           <p>Finished cleans appear here with the record of what was done.</p>
-        </div>
-        <div id="landlord-booking-content" data-landlord-section-content hidden>
-          <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p></div><div class="landlord-booking-live"><span data-landlord-booking-live role="status" aria-live="polite">Checking private booking updates…</span><button class="text-button" type="button" data-landlord-booking-refresh>Refresh booking status</button></div></div>
-          <div class="landlord-empty-card" data-request-empty><strong>No requests or upcoming bookings yet.</strong><p>Saved cleaning requests appear here first, then become confirmed bookings only after a Cleaner accepts the frozen time, scope and price.</p></div>
-          <div class="landlord-request-list" data-request-list hidden></div>
-          <div class="landlord-form-feedback" data-request-status role="status" aria-live="polite" tabindex="-1" hidden></div>
-          <section class="landlord-waiting-section" data-landlord-waiting-section aria-labelledby="landlord-waiting-title" hidden><div><p class="eyebrow">Cleaner decision pending</p><h3 id="landlord-waiting-title">Waiting for a Cleaner response <span data-landlord-waiting-count>0</span></h3><p>The exact deadline below is private booking state shared with you. Homle updates this page when the Cleaner responds.</p></div><div class="booking-dashboard-list landlord-waiting-list" data-landlord-waiting-list></div></section>
-          <div class="booking-dashboard-list" data-landlord-booking-list></div>
-          <div class="booking-dashboard-empty" data-landlord-booking-empty><strong>No confirmed marketplace bookings yet.</strong><p>Private request drafts below do not become bookings until a Cleaner accepts the frozen time, scope and price.</p></div>
-          <details class="booking-history-section" data-landlord-history-section hidden><summary>Completed and closed bookings <span data-landlord-history-count>0</span></summary><div class="booking-dashboard-list" data-landlord-history-list></div></details>
         </div>
         <button class="landlord-section-toggle" type="button" data-landlord-section-toggle aria-expanded="false" aria-controls="landlord-history-content"><span>A clear record of completed work</span><span class="landlord-section-toggle-meta"><span data-landlord-history-reveal-count>0</span><span aria-hidden="true">↓</span></span></button>
         <section id="landlord-history-content" class="landlord-history-overview" data-landlord-section-content aria-labelledby="landlord-history-overview-title" hidden>
