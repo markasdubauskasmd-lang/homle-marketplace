@@ -43,9 +43,38 @@ body.landlord-dashboard-page {
   --ld-warn-tint: #fbf1df;
   --ld-card-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
   --ld-sidebar-w: 240px;
+  --ld-focus: #2456e6;         /* matches --focus in styles.css */
 
   background: var(--ld-canvas);
   color: var(--ld-ink);
+}
+
+/* ── Keyboard focus ───────────────────────────────────────────────────────
+ *
+ * styles.css:60 declares the site-wide `:focus-visible { outline: 3px solid
+ * var(--focus) }`, but styles.css:210 then declares `input:focus, select:focus,
+ * textarea:focus { … outline: none }` — a higher specificity (0,1,1) than the
+ * (0,1,0) of `:focus-visible`, so the outline never applied to a field. That
+ * rule substituted a green border and glow of its own, and the landlord input
+ * styling later overrode both. The result was measurable: of 627 focusable
+ * controls across the dashboard's views, 252 rendered pixel-identical focused
+ * and unfocused. No indicator at all, on every form the Landlord fills in.
+ *
+ * This restores one, scoped to the landlord surface rather than editing the
+ * global sheet every other page depends on. It sits here, above the component
+ * rules, so anything with a designed focus treatment of its own (.hub-cta,
+ * .ld-topbar-avatar, the notification link) still wins on specificity.
+ */
+body.landlord-dashboard-page :is(a[href], button, summary, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 3px solid var(--ld-focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* Fields carry the offset inside their own box so the ring cannot be clipped by
+   a scrolling dialog body. */
+body.landlord-dashboard-page :is(input, select, textarea):focus-visible {
+  outline-offset: 1px;
+  border-color: var(--ld-coral);
 }
 
 /* v2 sets headings in the body face, not the display face: its weight and tight
