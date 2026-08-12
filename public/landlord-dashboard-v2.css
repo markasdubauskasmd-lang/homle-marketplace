@@ -2216,7 +2216,7 @@ body.landlord-dashboard-page .ld-past-grid {
    pushed the whole page down and lost the reader's place on the way back.
 
    It is the same panel element with the same fields and listeners; only its
-   parent changed. These rules give it the sheet the design draws â€” centred and
+   parent changed. These rules give it the sheet the design draws: centred and
    wide on a desktop, rising from the bottom edge on a phone.
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
@@ -2329,3 +2329,221 @@ body.landlord-dashboard-page .ld-prop-menu dl {
 body.landlord-dashboard-page .ld-prop-menu dt { color: var(--ld-dim); }
 body.landlord-dashboard-page .ld-prop-menu dd { margin: 0; overflow-wrap: anywhere; }
 body.landlord-dashboard-page .ld-prop-menu .landlord-property-actions-secondary { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Submitted requests are the design's live marketplace state, not a legacy
+   management record. The request remains the same authenticated record with
+   the same scan, matching and withdrawal controls; only its visual ownership
+   moves to Happening now. */
+body.landlord-dashboard-page .ld-active-request-list {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 26px;
+}
+body.landlord-dashboard-page .ld-request-now {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--ld-paper);
+  border: 0;
+  border-radius: 24px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .ld-request-now-main {
+  min-width: 0;
+  padding: 26px 28px 24px;
+}
+body.landlord-dashboard-page .ld-request-now-top,
+body.landlord-dashboard-page .ld-request-now-identity {
+  display: flex;
+  align-items: center;
+}
+body.landlord-dashboard-page .ld-request-now-top {
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+body.landlord-dashboard-page .ld-request-now-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #fff3da;
+  color: #8b5a00;
+  font-size: 12px;
+  font-weight: 700;
+}
+body.landlord-dashboard-page .ld-request-now-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e0a021;
+  box-shadow: 0 0 0 4px rgba(224, 160, 33, .12);
+}
+body.landlord-dashboard-page .ld-request-now-since {
+  color: var(--ld-faint);
+  font-size: 12px;
+}
+body.landlord-dashboard-page .ld-request-now-identity { gap: 14px; }
+body.landlord-dashboard-page .ld-request-now-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 52px;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  color: var(--ld-coral);
+  background: var(--ld-soft-coral);
+}
+body.landlord-dashboard-page .ld-request-now-icon svg { width: 27px; height: 27px; }
+body.landlord-dashboard-page .ld-request-now-identity-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+body.landlord-dashboard-page .ld-request-now-identity-copy strong {
+  font-family: var(--ld-display);
+  font-size: clamp(20px, 2vw, 27px);
+  letter-spacing: -.035em;
+}
+body.landlord-dashboard-page .ld-request-now-identity-copy span {
+  color: var(--ld-dim);
+  font-size: 13px;
+  line-height: 1.55;
+}
+body.landlord-dashboard-page .ld-request-now-place {
+  flex: none;
+  margin-left: auto;
+  padding: 9px 12px;
+  border: 1px solid var(--ld-quiet-border);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--ld-ink);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+body.landlord-dashboard-page .ld-request-now-stages {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+body.landlord-dashboard-page .ld-request-now-stage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: var(--ld-faint);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+body.landlord-dashboard-page .ld-request-now-stage::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #e4dfda;
+}
+body.landlord-dashboard-page .ld-request-now-stage:first-child::before { left: 50%; }
+body.landlord-dashboard-page .ld-request-now-stage:last-child::before { right: 50%; }
+body.landlord-dashboard-page .ld-request-now-stage-mark {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #d7d0ca;
+  border-radius: 50%;
+  background: #fff;
+  color: #fff;
+  font-size: 10px;
+}
+body.landlord-dashboard-page .ld-request-now-stage.is-done::before,
+body.landlord-dashboard-page .ld-request-now-stage.is-current::before { background: var(--ld-coral); }
+body.landlord-dashboard-page .ld-request-now-stage.is-done,
+body.landlord-dashboard-page .ld-request-now-stage.is-current { color: var(--ld-ink); }
+body.landlord-dashboard-page .ld-request-now-stage.is-done .ld-request-now-stage-mark {
+  border-color: var(--ld-coral);
+  background: var(--ld-coral);
+}
+body.landlord-dashboard-page .ld-request-now-stage.is-current .ld-request-now-stage-mark {
+  border: 5px solid var(--ld-coral);
+  background: #fff;
+}
+body.landlord-dashboard-page .ld-request-now > .landlord-dispatch-action {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  padding: 28px;
+  border: 0;
+  border-left: 1px solid var(--ld-line);
+  border-radius: 0;
+  background: #fbfaf8;
+}
+body.landlord-dashboard-page .ld-request-now > .landlord-dispatch-action strong::before {
+  content: "Cleaner";
+  display: block;
+  margin-bottom: 14px;
+  color: var(--ld-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+body.landlord-dashboard-page .ld-request-now > .landlord-request-scan {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0;
+  padding: 0 28px;
+  border-top: 1px solid var(--ld-line);
+}
+body.landlord-dashboard-page .ld-request-now > .landlord-request-actions {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+  border-top: 1px solid var(--ld-line);
+  background: #fbfaf8;
+  text-align: left;
+}
+
+@media (max-width: 900px) {
+  body.landlord-dashboard-page .ld-request-now { grid-template-columns: minmax(0, 1fr); }
+  body.landlord-dashboard-page .ld-request-now-main { padding: 20px 18px; }
+  body.landlord-dashboard-page .ld-request-now-top { align-items: flex-start; margin-bottom: 18px; }
+  body.landlord-dashboard-page .ld-request-now-identity { align-items: flex-start; flex-wrap: wrap; }
+  body.landlord-dashboard-page .ld-request-now-place { width: 100%; margin: 2px 0 0; text-align: center; }
+  body.landlord-dashboard-page .ld-request-now-identity-copy span { overflow-wrap: anywhere; }
+  body.landlord-dashboard-page .ld-request-now-stages { margin-top: 22px; }
+  body.landlord-dashboard-page .ld-request-now-stage { font-size: 9px; }
+  body.landlord-dashboard-page .ld-request-now > .landlord-dispatch-action {
+    grid-column: 1;
+    grid-row: auto;
+    padding: 20px 18px;
+    border-top: 1px solid var(--ld-line);
+    border-left: 0;
+  }
+  body.landlord-dashboard-page .ld-request-now > .landlord-request-scan { padding: 0 18px; }
+  body.landlord-dashboard-page .ld-request-now > .landlord-request-actions {
+    grid-column: 1;
+    grid-row: auto;
+    padding: 0 18px 20px;
+    border-top: 0;
+  }
+}
