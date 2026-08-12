@@ -34,6 +34,7 @@ const requestCompleteWarning = document.querySelector("[data-request-complete-wa
 const requestCompleteNext = document.querySelector("[data-request-complete-next]");
 const requestCompleteSandbox = document.querySelector("[data-request-complete-sandbox]");
 const requestCompleteSandboxNote = document.querySelector("[data-request-complete-sandbox-note]");
+const propertyDialog = document.querySelector("[data-property-dialog]");
 const propertyForm = document.querySelector("[data-property-form]");
 const requestForm = document.querySelector("[data-request-form]");
 const requestContinuation = document.querySelector("[data-request-continuation]");
@@ -863,6 +864,14 @@ if (requestBuilderMount && requestBuilderPanel) requestBuilderMount.replaceWith(
 requestBuilderDialog?.addEventListener("close", () => {
   if (requestBuilderPanel && !requestBuilderPanel.hidden) setRequestBuilderExpanded(false);
 });
+requestBuilderDialog?.addEventListener("click", (event) => {
+  // A modal backdrop click targets the dialog itself. Keep clicks inside the
+  // white sheet inert so form controls never close the request accidentally.
+  if (event.target !== requestBuilderDialog) return;
+  const box = requestBuilderDialog.getBoundingClientRect();
+  const inside = event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;
+  if (!inside) setRequestBuilderExpanded(false);
+});
 
 // Properties merged into Bookings. The panel moves into the hub between the
 // account totals and the completed work, which is the order the design puts it
@@ -1137,18 +1146,20 @@ function openPropertyEditor(property = null) {
   propertyForm.querySelector(".dashboard-optional-fields").open = Boolean(property);
   propertyForm.hidden = false;
   selectWorkspaceTab("properties");
-  propertyForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (propertyDialog && !propertyDialog.open) propertyDialog.showModal();
   (property ? propertyForm.elements.accessInstructions : propertyForm.elements.propertyType).focus({ preventScroll: true });
 }
 
 function closePropertyEditor() {
-  if (propertyDirty && !window.confirm("Close and discard these unsaved property changes?")) return;
+  if (propertyDirty && !window.confirm("Close and discard these unsaved property changes?")) return false;
   propertyForm.hidden = true;
   propertyForm.reset();
   editingPropertyId = "";
   propertyDirty = false;
   propertyFormTitle.textContent = "Add the cleaning location";
   propertySave.textContent = "Save property privately";
+  if (propertyDialog?.open) propertyDialog.close();
+  return true;
 }
 
 /* Cloned from a <template> in the markup, so no markup is ever parsed here. */
@@ -1481,6 +1492,7 @@ function openPropertyArchive(property) {
     propertyForm.reset();
     editingPropertyId = "";
     propertyDirty = false;
+    if (propertyDialog?.open) propertyDialog.close();
   }
   archivingPropertyId = property.propertyId;
   propertyArchiveName.textContent = property.name || "this property";
@@ -3402,6 +3414,7 @@ async function saveProperty(event) {
     propertyDirty = false;
     propertyFormTitle.textContent = "Add the cleaning location";
     propertySave.textContent = "Save property privately";
+    if (propertyDialog?.open) propertyDialog.close();
     showFeedback(propertyStatus, updating ? "Protected access and property details updated." : "Property saved privately.", "success");
     if (bookingStart && !updating) {
       selectWorkspaceTab("requests");
@@ -3877,7 +3890,18 @@ function adoptRoomScan() {
 }
 adoptRoomScan();
 document.querySelector("[data-toggle-property-form]").addEventListener("click", () => openPropertyEditor());
-document.querySelector("[data-close-property-form]").addEventListener("click", closePropertyEditor);
+document.querySelector("[data-close-property-form]").addEventListener("click", () => closePropertyEditor());
+propertyDialog?.addEventListener("cancel", (event) => {
+  // Route Escape through the same unsaved-change protection as Close.
+  event.preventDefault();
+  closePropertyEditor();
+});
+propertyDialog?.addEventListener("click", (event) => {
+  if (event.target !== propertyDialog) return;
+  const box = propertyDialog.getBoundingClientRect();
+  const inside = event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;
+  if (!inside) closePropertyEditor();
+});
 document.querySelector("[data-use-saved-checklist]").addEventListener("click", useSavedChecklist);
 checklistRestore?.addEventListener("click", restoreGeneratedChecklist);
 document.querySelector("[data-summarise-speech]").addEventListener("click", summariseSpeech);
