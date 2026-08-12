@@ -214,13 +214,18 @@
              not enough history for a figure the section says so instead of
              inventing a label. The old next-booking card is gone from Home:
              confirmed work lives in Bookings, which Home links to. -->
-        <div class="ld-care-divider" aria-hidden="true">
-          <span class="ld-care-divider-line"></span>
-          <span class="ld-care-divider-label">Your care record</span>
-          <span class="ld-care-divider-line"></span>
-        </div>
+        <section class="ld-care-zone" aria-label="Your Homle care record">
+          <div class="ld-care-divider" aria-hidden="true">
+            <span class="ld-care-divider-line"></span>
+            <span class="ld-care-divider-label">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"></path></svg>
+              <span>Care</span>
+              <small>Your care record</small>
+            </span>
+            <span class="ld-care-divider-line"></span>
+          </div>
 
-        <section class="ld-care-hero" aria-labelledby="ld-care-title">
+          <section class="ld-care-hero" aria-labelledby="ld-care-title">
           <span class="ld-care-bloom" aria-hidden="true"></span>
           <span class="ld-care-sheen" aria-hidden="true"></span>
           <div class="ld-care-hero-main">
@@ -233,9 +238,9 @@
             <button class="ld-care-share" type="button" data-ld-care-share>Share card</button>
             <small class="ld-care-share-status" data-ld-care-share-status role="status" aria-live="polite" hidden></small>
           </div>
-        </section>
+          </section>
 
-        <div class="ld-care-grid">
+          <div class="ld-care-grid">
           <section class="ld-care-card ld-care-streak" aria-labelledby="ld-care-streak-title">
             <div class="ld-care-streak-head">
               <div>
@@ -267,9 +272,10 @@
               <a class="ld-care-callout-btn" href="/landlord/book">Scan</a>
             </div>
           </section>
-        </div>
+          </div>
 
-        <p class="ld-care-note">Every figure comes from records the API already returns — completed bookings, scan results and booking timestamps. Nothing resets on a schedule, and no cleaner rating, photo or per-room progress appears here, because the API does not return them.</p>
+          <p class="ld-care-note">Every figure comes from records the API already returns — completed bookings, scan results and booking timestamps. Nothing resets on a schedule, and no cleaner rating, photo or per-room progress appears here, because the API does not return them.</p>
+        </section>
 
         <!-- Indicative guide prices only — now the closing block of Home, as the
              reviewed design orders it. Homle has no landlord-facing pricing

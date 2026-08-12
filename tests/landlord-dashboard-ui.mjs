@@ -229,7 +229,10 @@ assert(page.includes('id="landlord-panel-account"') && script.includes("Details,
   // The share card carries no address, tenant name or price.
   const shareBody = script.slice(script.indexOf("function careShareText"), script.indexOf("let careShareStatusTimer"));
   assert(page.includes("data-ld-care-share") && script.includes("navigator.share") && script.includes("navigator.clipboard") && shareBody.length > 0 && !shareBody.includes("bookedValuePence") && !shareBody.includes("propertyName"), "The care share card is missing, or it leaks money or property figures a public share must not carry.");
+  assert(page.includes('class="ld-care-zone"') && page.includes("<span>Care</span>") && v2Styles.includes(".ld-care-zone") && v2Styles.includes("border-top: 3px solid var(--ld-coral)"), "The care record is not clearly grouped and identified as Care.");
   assert(v2Styles.includes(".ld-care-hero") && v2Styles.includes("ld-care-bloom") && v2Styles.includes(".ld-care-cell.is-frozen") && v2Styles.includes(".ld-care-meter-fill"), "The care record has no presentation.");
+  const careHeroHeadingStyles = v2Styles.slice(v2Styles.indexOf(".ld-care-hero-main h3"), v2Styles.indexOf(".ld-care-lead"));
+  assert(careHeroHeadingStyles.includes("color: #fff"), "The Care identity heading can inherit dark text and disappear on the black hero.");
   const careReducedMotion = v2Styles.slice(v2Styles.lastIndexOf("prefers-reduced-motion"));
   assert(careReducedMotion.includes(".ld-care-bloom") && careReducedMotion.includes("animation: none"), "Reduced motion does not still the care record.");
 }
