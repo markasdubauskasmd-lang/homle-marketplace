@@ -104,7 +104,16 @@ const marketplaceAttachment = await createMarketplaceAttachment({ env: process.e
 const inlineWorkerAttachment = await (async () => {
   if (String(process.env.MARKETPLACE_INLINE_WORKERS || "false").trim().toLowerCase() !== "true") return null;
   try {
-    const attachment = await createMarketplaceWorkerAttachment({ releaseIdentity });
+    // An inline worker is loaded from the exact same immutable package as this
+    // web process, so its trustworthy expected release is the packaged identity
+    // already verified at startup. Keeping a separately configured commit here
+    // makes every routine web deploy disable matching until an operator updates
+    // a second value. Standalone worker services still require their explicit
+    // TIDEWAY_EXPECT_RELEASE boundary in worker-attachment.mjs.
+    const attachment = await createMarketplaceWorkerAttachment({
+      releaseIdentity,
+      env: { ...process.env, TIDEWAY_EXPECT_RELEASE: releaseIdentity.sourceCommit }
+    });
     if (!attachment.enabled || !attachment.ready) {
       console.error(`Inline marketplace workers were requested but are not ready: ${attachment.reason || "unavailable"}.`);
       await attachment.close();
