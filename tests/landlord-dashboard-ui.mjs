@@ -173,6 +173,8 @@ assert(styles.includes(".landlord-dashboard-page") && styles.includes(".landlord
 assert(!/(Jane|Sarah|Maria|John|five-star|fully insured|background checked|DBS checked)/i.test(`${page}\n${script}\n${model}`), "The real Landlord workspace contains an invented person or unsupported trust claim.");
 
 assert(page.includes("landlord-sidebar-account-menu") && page.includes("landlord-topbar-account-menu") && page.includes("Signed in securely") && [...page.matchAll(/data-account-destination="personal"/g)].length === 2 && v2Styles.includes(".landlord-sidebar-account-menu .account-menu-panel") && v2Styles.includes("bottom: 88px") && v2Styles.includes(".landlord-topbar-account-menu .account-menu-panel"), "The sidebar identity and top-bar avatar are not linked to one complete, unclipped account menu.");
+const desktopAccountControlRules = v2Styles.slice(v2Styles.indexOf("@media (min-width: 901px)"), v2Styles.indexOf("/* The bell kept"));
+assert(desktopAccountControlRules.includes(".landlord-topbar-account-menu") && desktopAccountControlRules.includes("display: none !important"), "Desktop still shows the mobile top-bar profile control beside the sidebar account control.");
 // The account menu no longer lists Saved properties or Cleaning preferences.
 // Both resolved to the same view already reachable from the sidebar and the
 // mobile tab bar, and "Cleaning preferences" named a field on an individual
