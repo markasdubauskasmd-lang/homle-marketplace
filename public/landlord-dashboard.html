@@ -16,8 +16,8 @@
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260811-1">
   <!-- The v2 composition, last so it wins without !important. -->
-  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260812-6">
-  <script src="/landlord-dashboard.js?v=20260812-6" type="module"></script>
+  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260812-7">
+  <script src="/landlord-dashboard.js?v=20260812-7" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -791,15 +791,29 @@
   </dialog>
 
   <dialog class="active-job-dialog landlord-match-outcome-dialog" data-match-outcome-dialog aria-labelledby="match-outcome-title">
-    <form method="dialog">
-      <div><p class="eyebrow">Cleaner and exact price</p><h2 id="match-outcome-title" data-match-outcome-title>No Cleaner is free at this time</h2><p data-match-outcome-copy>Homle cannot show a Cleaner-specific total until an eligible Cleaner is available.</p></div>
-      <dl class="landlord-match-outcome-facts">
-        <div><dt>Place</dt><dd data-match-outcome-place>Saved property</dd></div>
-        <div><dt>Requested</dt><dd data-match-outcome-time>Selected time</dd></div>
-      </dl>
-      <p class="landlord-match-outcome-boundary">Your request remains safely open. No Cleaner was invited and no payment or Stripe checkout was started.</p>
-      <div><button class="button button-outline" type="submit" value="close">Keep request open</button><button class="button" type="button" data-match-outcome-change-time>Try another time</button></div>
+    <form method="dialog" data-match-outcome-sequence>
+      <section class="landlord-match-outcome-step" data-match-outcome-result>
+        <div><p class="eyebrow">Cleaner and exact price &middot; 1 of 2</p><h2 id="match-outcome-title" data-match-outcome-title>No Cleaner is free at this time</h2><p data-match-outcome-copy>Homle cannot show a Cleaner-specific total until an eligible Cleaner is available.</p></div>
+        <dl class="landlord-match-outcome-facts">
+          <div><dt>Place</dt><dd data-match-outcome-place>Saved property</dd></div>
+          <div><dt>Requested</dt><dd data-match-outcome-time>Selected time</dd></div>
+        </dl>
+        <p class="landlord-match-outcome-boundary">Your request remains safely open. No Cleaner was invited and no payment or Stripe checkout was started.</p>
+        <div class="landlord-match-outcome-actions"><button class="button button-outline" type="submit" value="close">Keep request open</button><button class="button" type="button" data-match-outcome-change-time>Try another time</button></div>
+      </section>
+      <section class="landlord-match-outcome-step" data-match-outcome-timing hidden aria-labelledby="match-outcome-timing-title">
+        <div><p class="eyebrow">Cleaner and exact price &middot; 2 of 2</p><h2 id="match-outcome-timing-title">Choose another time</h2><p>Stay in this popup and choose the timing first. Homle will carry the saved place and cleaning details into the final review.</p></div>
+        <div class="landlord-match-outcome-timing-fields">
+          <label>Date<input type="date" data-match-outcome-date required></label>
+          <label>Start time<input type="time" data-match-outcome-start required></label>
+          <label>Duration<select data-match-outcome-duration required><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="300">5 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></label>
+        </div>
+        <p class="landlord-match-outcome-boundary">The original request remains open. Nothing changes until you review and submit the replacement request.</p>
+        <p class="landlord-form-feedback" data-match-outcome-feedback role="alert" hidden></p>
+        <div class="landlord-match-outcome-actions"><button class="button button-outline" type="button" data-match-outcome-back>Back</button><button class="button" type="button" data-match-outcome-continue>Continue with this time</button></div>
+      </section>
     </form>
+    <div class="landlord-match-outcome-builder" data-match-outcome-builder-mount hidden></div>
   </dialog>
 
   <dialog class="active-job-dialog landlord-invitation-quote-dialog" data-dispatch-price-dialog aria-labelledby="dispatch-price-title">
