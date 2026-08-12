@@ -2426,6 +2426,24 @@ body.landlord-dashboard-page .ld-builder-dialog [data-landlord-panel="requests"]
   background: transparent;
 }
 
+/* The accepted request is step six of the builder. It shares the same dialog
+   rather than replacing the dashboard, so dismissing it returns the user to
+   exactly the dashboard state where the booking journey began. */
+body.landlord-dashboard-page .ld-builder-dialog.is-completion-sequence {
+  width: min(980px, calc(100vw - 32px));
+}
+body.landlord-dashboard-page .ld-builder-dialog .landlord-request-complete {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: inherit;
+  box-shadow: none;
+  padding: clamp(26px, 5vw, 52px);
+}
+body.landlord-dashboard-page .ld-builder-dialog .landlord-request-complete h1 {
+  font-size: clamp(2rem, 5vw, 3.8rem);
+}
+
 /* Add and edit place use the same modal language as the booking chooser. The
    existing authenticated form stays mounted and keeps its values; the dialog
    only supplies the focused surface and dismissible backdrop. */
@@ -2469,6 +2487,10 @@ body.landlord-dashboard-page .ld-property-dialog .landlord-record-form {
     box-shadow: 0 -22px 60px rgba(26, 26, 26, .3);
   }
   body.landlord-dashboard-page .ld-builder-dialog[open] { animation: hub-book-sheet .34s cubic-bezier(.2, .9, .25, 1) both; }
+  body.landlord-dashboard-page .ld-builder-dialog.is-completion-sequence { width: 100%; }
+  body.landlord-dashboard-page .ld-builder-dialog .landlord-request-complete {
+    padding: 28px 18px calc(24px + env(safe-area-inset-bottom));
+  }
   body.landlord-dashboard-page .ld-builder-shell { padding: 10px 16px calc(16px + env(safe-area-inset-bottom)); }
   body.landlord-dashboard-page .ld-builder-shell::before {
     content: "";

@@ -706,10 +706,13 @@ function showRequestCompletion(submission, { automaticDispatch = false, automati
   completedRequestId = String(submission?.cleaningRequestId || "");
   if (!quoteReady && completedRequestId) void recoverCompletionQuote(completedRequestId);
   requestCompleteNext.textContent = selectedCleanerInvited || automaticDispatch ? "Track Cleaner response" : "Choose Cleaner & exact price";
-  state.hidden = true;
-  workspace.hidden = true;
+  // The dashboard remains the stable page. Replace the form inside its
+  // already-open modal with the completion step instead of revealing a
+  // separate full-page result.
+  requestBuilderPanel.hidden = true;
   requestComplete.hidden = false;
-  history.replaceState(null, "", "/landlord/dashboard");
+  requestBuilderDialog?.classList.add("is-completion-sequence");
+  if (requestBuilderDialog && !requestBuilderDialog.open) requestBuilderDialog.showModal();
   requestComplete.focus();
 }
 
@@ -965,9 +968,21 @@ const requestBuilderToggle = requestBuilderPanel?.querySelector("[data-pac-toggl
 // builder into the overlay. It is the same element with the same listeners and
 // the same form state — only its parent differs.
 if (requestBuilderMount && requestBuilderPanel) requestBuilderMount.replaceWith(requestBuilderPanel);
+// Submission is the last step of the same request journey, not a new page.
+// Keep the dashboard mounted underneath and move the existing completion card
+// into this dialog beside the working builder. This preserves the request,
+// quote and Stripe-test behaviour while preventing a full-page takeover.
+if (requestBuilderDialog && requestComplete) requestBuilderDialog.append(requestComplete);
+
+function hideRequestCompletion() {
+  if (!requestComplete || requestComplete.hidden) return;
+  requestComplete.hidden = true;
+  requestBuilderDialog?.classList.remove("is-completion-sequence");
+}
 // Closing by Escape or the backdrop has to run the same teardown as the Hide
 // control, or the panel would stay flagged as open and refuse to reopen.
 requestBuilderDialog?.addEventListener("close", () => {
+  hideRequestCompletion();
   if (requestBuilderPanel && !requestBuilderPanel.hidden) setRequestBuilderExpanded(false);
 });
 requestBuilderDialog?.addEventListener("click", (event) => {
@@ -4296,17 +4311,16 @@ landlordSectionToggles.forEach((button) => button.addEventListener("click", () =
 retry.addEventListener("click", loadWorkspace);
 bookingRefresh.addEventListener("click", () => { void refreshBookingTransition({ manual: true }); });
 document.querySelector("[data-request-complete-another]").addEventListener("click", () => {
-  requestComplete.hidden = true;
-  workspace.hidden = false;
-  selectWorkspaceTab("requests");
+  hideRequestCompletion();
+  if (requestBuilderDialog?.open) requestBuilderDialog.close();
+  selectWorkspaceTab("home");
   resetRequestContinuation();
-  requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
-  (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
+  openBookCleanChooser();
 });
 requestCompleteNext.addEventListener("click", () => {
-  requestComplete.hidden = true;
-  workspace.hidden = false;
-  selectWorkspaceTab("requests");
+  hideRequestCompletion();
+  if (requestBuilderDialog?.open) requestBuilderDialog.close();
+  selectWorkspaceTab("bookings");
   setLandlordSectionExpanded(upcomingSectionToggle, true);
   const requestCard = [...document.querySelectorAll("[data-cleaning-request-id]")]
     .find((card) => card.dataset.cleaningRequestId === completedRequestId);
