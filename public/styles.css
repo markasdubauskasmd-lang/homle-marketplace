@@ -2294,6 +2294,11 @@ textarea { resize: vertical; }
 .landlord-invitation-quote-dialog .landlord-invitation-quote-person span, .landlord-invitation-quote-dialog .landlord-invitation-quote-total span { color: var(--muted); font-size: .82rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .landlord-invitation-quote-dialog .landlord-invitation-quote-person strong { color: var(--green-dark); font-size: 1.1rem; }
 .landlord-invitation-quote-dialog .landlord-invitation-quote-total strong { color: var(--green-dark); font-size: clamp(1.7rem, 7vw, 2.4rem); line-height: 1; }
+.landlord-match-outcome-dialog .landlord-match-outcome-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.landlord-match-outcome-dialog .landlord-match-outcome-facts > div { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--homle-line, #dcd4d1); border-radius: 14px; background: #fff9f7; }
+.landlord-match-outcome-dialog dt { color: var(--muted); font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.landlord-match-outcome-dialog dd { margin: 0; color: var(--green-dark); font-weight: 800; }
+.landlord-match-outcome-dialog .landlord-match-outcome-boundary { padding: 14px 16px; border-radius: 12px; background: #fff1ee; color: #7d201b; font-weight: 700; }
 .active-photo-dialog .active-photo-preview { display: grid; grid-template-columns: 96px 1fr; gap: 13px; align-items: center; justify-content: stretch; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #f7faf8; }
 .active-photo-preview img { width: 96px; height: 96px; object-fit: cover; background: #dce8e4; }
 .active-photo-preview strong, .active-photo-preview small { display: block; overflow-wrap: anywhere; }
@@ -2358,6 +2363,7 @@ textarea { resize: vertical; }
   .active-primary-action { min-height: 66px; }
   .active-job-dialog form { padding: 22px 17px; }
   .active-job-dialog form > div { display: grid; }
+  .landlord-match-outcome-dialog .landlord-match-outcome-facts { grid-template-columns: 1fr; }
   .active-photo-dialog .active-photo-preview { grid-template-columns: 78px 1fr; }
   .active-photo-preview img { width: 78px; height: 78px; }
   .active-photo-viewer > div { padding: 18px 14px; }
