@@ -1008,6 +1008,34 @@ body.landlord-dashboard-page .hub-label {
   color: var(--ld-dim);
 }
 
+body.landlord-dashboard-page .hub-label-with-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body.landlord-dashboard-page .hub-label-with-count span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ld-coral-tint);
+  color: var(--ld-coral-dark);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+body.landlord-dashboard-page #landlord-booking-content {
+  display: grid;
+  gap: 14px;
+}
+
+body.landlord-dashboard-page #landlord-booking-content[hidden] {
+  display: none;
+}
+
 /* ── Book a clean ─────────────────────────────────────────────────────────── */
 
 body.landlord-dashboard-page .hub-cta {
