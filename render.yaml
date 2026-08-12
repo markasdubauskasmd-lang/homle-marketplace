@@ -91,14 +91,19 @@ services:
         value: "false"
       - key: STAGING_ACCOUNTS_ONLY
         value: "true"
+      # The free preview has no separate paid background-worker service. Run
+      # exactly one supervised worker set inside this single web process so
+      # explicitly authorised Cleaner matching can progress between requests.
+      - key: MARKETPLACE_INLINE_WORKERS
+        value: "true"
       - key: MARKETPLACE_WORKER_ENABLED
-        value: "false"
+        value: "true"
       - key: WORKER_EMAIL_ENABLED
         value: "false"
       - key: WORKER_MEDIA_ENABLED
         value: "false"
       - key: WORKER_AUTOMATIC_DISPATCH_ENABLED
-        value: "false"
+        value: "true"
       - key: PAYMENTS_ENABLED
         value: "false"
       - key: PUBLIC_PAYMENTS_APPROVED
