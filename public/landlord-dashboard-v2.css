@@ -1433,7 +1433,7 @@ body.landlord-dashboard-page .landlord-account-menu[open] > summary .account-ava
    renderProperties() construct this markup, but the rules for it never landed
    alongside the script. Every class below was reaching the page with no
    declaration at all, so the next clean, the account totals, the completed
-   grid and the dashed add-a-place tile rendered as unstyled runs of text â€”
+   grid and the dashed add-a-place tile rendered as unstyled runs of text —
    which is why the live hub read as a broken page rather than the design.
 
    Nothing here changes markup or behaviour. It supplies only the missing
@@ -1776,7 +1776,7 @@ body.landlord-dashboard-page .ld-prop-room {
 }
 
 /* The dashed tile that closes the grid. Its three children are inline spans,
-   so they have to be stacked here â€” otherwise the title and the copy beneath
+   so they have to be stacked here — otherwise the title and the copy beneath
    it run together into one unbroken sentence. */
 body.landlord-dashboard-page .ld-prop-add {
   display: flex;
@@ -1822,7 +1822,7 @@ body.landlord-dashboard-page .ld-booking-main { min-width: 0; flex: 1; }
    â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
    The chooser had no narrow-screen rules at all, so a phone got the desktop
    dialog: a centred box floating in the middle of the screen with its actions
-   out of thumb reach. The reviewed design opens it as a sheet instead â€” it
+   out of thumb reach. The reviewed design opens it as a sheet instead — it
    rises from the bottom to nine tenths of the viewport, the hub blurs behind
    it, and the choices stay near the thumb.
 
