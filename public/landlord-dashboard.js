@@ -855,6 +855,7 @@ function workspaceTabFromHash() {
 const requestBuilderMount = document.querySelector("[data-request-builder-mount]");
 const requestBuilderPanel = document.querySelector('[data-landlord-panel="requests"]');
 const requestBuilderDialog = document.querySelector("[data-request-builder-dialog]");
+const requestBuilderToggle = requestBuilderPanel?.querySelector("[data-pac-toggle]");
 // The mount now sits inside the dialog, so this single move puts the working
 // builder into the overlay. It is the same element with the same listeners and
 // the same form state — only its parent differs.
@@ -888,10 +889,9 @@ function setRequestBuilderExpanded(expanded) {
   // banner directly under the Manual card on Home offering the same thing.
   requestBuilderPanel.hidden = !expanded;
   requestBuilderPanel.classList.toggle("pac-collapsed", !expanded);
-  const toggle = requestBuilderPanel.querySelector("[data-pac-toggle]");
-  if (toggle) {
-    toggle.setAttribute("aria-expanded", String(expanded));
-    toggle.textContent = expanded ? "Hide ↑" : "Reveal builder ↓";
+  if (requestBuilderToggle) {
+    requestBuilderToggle.setAttribute("aria-expanded", String(expanded));
+    requestBuilderToggle.textContent = expanded ? "Hide ↑" : "Reveal builder ↓";
   }
   // The design opens this over the hub instead of pushing the page down, and
   // closing it leaves the reader where they were. showModal() does exactly
@@ -974,6 +974,18 @@ function renderWorkspaceHeading(selected) {
     viewTitle.textContent = copy.title;
   }
 }
+
+// Opening and closing the builder is core dashboard navigation, not optional
+// wizard decoration. Keeping this listener here means the visible Reveal/Hide
+// control works even while the progressively loaded wizard is still arriving
+// (or if that enhancement cannot load on a weak connection). The wizard owns
+// fields and steps; this controller alone owns the modal and collapsed state.
+requestBuilderToggle?.addEventListener("click", (event) => {
+  event.preventDefault();
+  const expanded = requestBuilderToggle.getAttribute("aria-expanded") === "true";
+  setRequestBuilderExpanded(!expanded);
+  if (!expanded) void loadPrepareWizard();
+});
 
 function markCurrentNavigation(selected) {
   // Both navs point at the same destinations, so both are marked from one place.

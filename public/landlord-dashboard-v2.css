@@ -205,6 +205,14 @@ body.landlord-dashboard-page .ld-topbar-copy h1 {
 body.landlord-dashboard-page .ld-topbar-copy p { margin: 6px 0 0; font-size: 15px; color: var(--ld-muted); }
 body.landlord-dashboard-page .ld-topbar-actions { display: flex; align-items: center; gap: 12px; flex: none; }
 
+/* Desktop already has the complete account control at the foot of the
+   sidebar. Showing the compact phone control here as well produced two profile
+   photos for the same action. Keep the top-bar account control in the DOM for
+   its mobile role, but remove it only while the desktop sidebar is present. */
+@media (min-width: 901px) {
+  body.landlord-dashboard-page .landlord-topbar-account-menu { display: none !important; }
+}
+
 /* The bell kept its landlord-notification-link class when it moved out of the
    sidebar, so these rules are scoped to .ld-topbar and reset the sidebar
    geometry that class still carries in landlord-dashboard.css. */
