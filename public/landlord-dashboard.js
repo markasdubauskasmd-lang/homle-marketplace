@@ -2287,7 +2287,15 @@ function requestScanPanel(request, options = {}) {
 function renderRequests() {
   requestList.replaceChildren();
   activeRequestList?.replaceChildren();
-  const visibleRequests = requests.filter((request) => request.status !== "cancelled");
+  // A matched request has become a booking, and the Happening now card below
+  // renders that booking from its real status and real timestamps. Keeping the
+  // request card too put the same clean on screen twice, under two progress
+  // rails that disagreed: this one is hardcoded to "Matching in progress", so a
+  // booking already marked On the way sat directly beneath a card insisting a
+  // Cleaner was still being found. Once a booking exists, the booking owns it.
+  const bookedRequestIds = new Set(bookings.map((booking) => booking.requestId).filter(Boolean));
+  const visibleRequests = requests.filter((request) => request.status !== "cancelled"
+    && !(request.status === "matched" && bookedRequestIds.has(request.requestId)));
   for (const request of visibleRequests) {
     const submitted = request.status !== "draft";
     const card = element("article", submitted ? "landlord-request-card ld-request-now" : "landlord-request-card");
