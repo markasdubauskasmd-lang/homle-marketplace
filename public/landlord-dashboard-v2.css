@@ -2206,3 +2206,126 @@ body.landlord-dashboard-page .ld-past-grid {
     width: 100%;
   }
 }
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   Request builder as an overlay
+   â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   The design states the rule plainly: booking never navigates away, the large
+   CTA grows into a panel over the page, and closing it returns you to the same
+   scroll position. The builder used to be mounted inline in the hub, which
+   pushed the whole page down and lost the reader's place on the way back.
+
+   It is the same panel element with the same fields and listeners; only its
+   parent changed. These rules give it the sheet the design draws â€” centred and
+   wide on a desktop, rising from the bottom edge on a phone.
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+
+body.landlord-dashboard-page .ld-builder-dialog {
+  width: min(1080px, calc(100vw - 32px));
+  max-width: none;
+  max-height: min(880px, calc(100dvh - 32px));
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 28px;
+  background: #fff;
+  color: var(--ld-ink);
+  box-shadow: 0 40px 90px rgba(26, 26, 26, .3);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+body.landlord-dashboard-page .ld-builder-dialog[open] { animation: hub-book-in .42s cubic-bezier(.2, .9, .25, 1.02) both; }
+body.landlord-dashboard-page .ld-builder-dialog::backdrop {
+  background: rgba(26, 26, 26, .36) !important;
+  backdrop-filter: blur(7px);
+}
+/* The panel arrives with the page's own card chrome. Inside an overlay that
+   would be a card within a card, so the outer frame is dropped and the dialog
+   supplies the surface. */
+body.landlord-dashboard-page .ld-builder-dialog [data-landlord-panel="requests"] {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+@media (max-width: 900px) {
+  body.landlord-dashboard-page .ld-builder-dialog {
+    position: fixed;
+    inset: auto 0 0 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 90dvh;
+    margin: 0;
+    border-radius: 26px 26px 0 0;
+    box-shadow: 0 -22px 60px rgba(26, 26, 26, .3);
+  }
+  body.landlord-dashboard-page .ld-builder-dialog[open] { animation: hub-book-sheet .34s cubic-bezier(.2, .9, .25, 1) both; }
+  body.landlord-dashboard-page .ld-builder-shell { padding: 10px 16px calc(16px + env(safe-area-inset-bottom)); }
+  body.landlord-dashboard-page .ld-builder-shell::before {
+    content: "";
+    display: block;
+    width: 38px;
+    height: 4px;
+    margin: 0 auto 12px;
+    background: #e0dcd8;
+    border-radius: 99px;
+  }
+}
+
+/* â”€â”€ Place details, and the CTA's two subtitles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+
+/* The design's route from the booked card into that place's own sheet. It sits
+   opposite the address, quiet enough not to compete with the stage rail. */
+body.landlord-dashboard-page .ld-next-place {
+  flex: none;
+  align-self: flex-start;
+  padding: 8px 14px;
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-quiet-border);
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .16s ease, color .16s ease;
+}
+body.landlord-dashboard-page .ld-next-place:hover { border-color: var(--ld-coral); color: var(--ld-coral); }
+body.landlord-dashboard-page .ld-next-head { justify-content: space-between; }
+
+/* One subtitle is shown at a time. The narrow line is the design's phone copy;
+   the wide one is its desktop copy. */
+body.landlord-dashboard-page .hub-cta-sub-narrow { display: none; }
+
+@media (max-width: 900px) {
+  body.landlord-dashboard-page .hub-cta-sub-wide { display: none; }
+  body.landlord-dashboard-page .hub-cta-sub-narrow { display: block; }
+  /* On a phone the design keeps the card to name, meta and the rail. The place
+     route moves under the heading rather than squeezing the address. */
+  body.landlord-dashboard-page .ld-next-head { flex-wrap: wrap; }
+  body.landlord-dashboard-page .ld-next-place { width: 100%; text-align: center; margin-top: 4px; }
+}
+
+/* The place card's overflow panel. It now carries Edit access and Delete
+   place, so it needs a surface of its own rather than spilling the saved
+   facts and both controls straight onto the card. */
+body.landlord-dashboard-page .ld-prop-menu {
+  margin-top: 10px;
+  padding: 14px;
+  background: #fbfaf9;
+  border: 1px solid var(--ld-line);
+  border-radius: 13px;
+}
+body.landlord-dashboard-page .ld-prop-menu dl {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0 0 12px;
+  font-size: 12.5px;
+}
+body.landlord-dashboard-page .ld-prop-menu dt { color: var(--ld-dim); }
+body.landlord-dashboard-page .ld-prop-menu dd { margin: 0; overflow-wrap: anywhere; }
+body.landlord-dashboard-page .ld-prop-menu .landlord-property-actions-secondary { display: flex; flex-wrap: wrap; gap: 8px; }

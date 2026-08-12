@@ -174,7 +174,13 @@ assert(!/(Jane|Sarah|Maria|John|five-star|fully insured|background checked|DBS c
   const propertiesAt = page.indexOf('data-landlord-panel="properties"');
   assert(homeAt > 0 && scanCardAt > 0, "The dashboard has no room-scan entry point.");
   assert(scanCardAt < manualCardAt, "The manual path is presented ahead of the scan, which is how a booking is meant to start.");
-  assert(homeAt < builderMountAt && builderMountAt < bookingsAt && bookingsAt < propertiesAt, `The dashboard order is wrong — home ${homeAt}, builder mount ${builderMountAt}, bookings ${bookingsAt}, properties ${propertiesAt}.`);
+  assert(homeAt < bookingsAt && bookingsAt < propertiesAt, `The dashboard order is wrong — home ${homeAt}, bookings ${bookingsAt}, properties ${propertiesAt}.`);
+  // The builder is an overlay, not a block in the page. Its mount sits inside
+  // the request-builder dialog so the panel opens over the hub and closing it
+  // leaves the reader where they were, instead of pushing the page down and
+  // losing their place on the way back.
+  const builderDialogAt = page.indexOf("data-request-builder-dialog");
+  assert(builderDialogAt > 0 && builderDialogAt < builderMountAt && builderMountAt < page.indexOf("</dialog>", builderDialogAt), `The request builder is not mounted inside its overlay dialog — dialog ${builderDialogAt}, mount ${builderMountAt}.`);
   // One click into the guided journey, not a scroll to a panel further down.
   assert(/<a class="ld-btn ld-btn-primary" href="\/landlord\/book">/.test(page), "The scan card does not open the guided journey directly.");
   assert(script.includes('requestBuilderMount.replaceWith(requestBuilderPanel)') && script.includes('document.querySelectorAll("[data-open-request-tab]").forEach'), "The real request builder is not mounted in the approved dashboard position or its entry actions do not expand it.");

@@ -244,9 +244,6 @@
         </div>
       </section>
 
-      <!-- The working builder is mounted here by landlord-dashboard.js. Keeping
-           one builder avoids a duplicate teaser that opens a detached form. -->
-      <div data-request-builder-mount></div>
 
       <!-- Now a routed view rather than an always-on block, so the sidebar's
            Bookings entry has somewhere to land. The contents, every data hook and
@@ -269,7 +266,12 @@
           <span class="hub-cta-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
           <span class="hub-cta-copy">
             <strong>Book a clean</strong>
-            <small>Pick a place, scan the rooms or write it yourself. Two minutes, no page change.</small>
+            <!-- The design writes this line twice: the full sentence on a
+                 desktop, and a short one on a phone where the long version
+                 wraps to three lines and pushes the card out of proportion.
+                 Both ship and CSS picks one, so neither is a truncation. -->
+            <small class="hub-cta-sub-wide">Pick a place, scan the rooms or write it yourself. Two minutes, no page change.</small>
+            <small class="hub-cta-sub-narrow">Pick a place &middot; scan or write it</small>
           </span>
           <span class="hub-cta-go" aria-hidden="true">&rarr;</span>
         </button>
@@ -299,6 +301,10 @@
                 <div class="ld-next-address" data-ld-next-address></div>
                 <div class="ld-next-meta" data-ld-next-meta></div>
               </div>
+              <!-- The design puts the way into a place's own sheet on the card
+                   itself, so access details and archiving stay reachable now
+                   that a booked place no longer appears under Your places. -->
+              <button class="ld-next-place" type="button" data-ld-next-place hidden>Place details <span aria-hidden="true">&rarr;</span></button>
             </div>
             <div class="ld-next-cleaner" data-ld-next-cleaner hidden>
               <span class="ld-next-avatar" data-ld-next-initials aria-hidden="true"></span>
@@ -670,6 +676,16 @@
         <p class="hub-book-note">Nothing is submitted from this panel and no payment is taken.</p>
       </div>
     </div>
+  </dialog>
+
+  <!-- The request builder opens over the hub rather than inside it. The design
+       is explicit that booking never navigates away: the CTA grows into a panel
+       over the page and closing it returns you to the same scroll position.
+       landlord-dashboard.js moves the working builder into this mount, so the
+       form, its fields, the wizard and every data hook are the same elements as
+       before — only their parent changes. -->
+  <dialog class="ld-builder-dialog" data-request-builder-dialog aria-label="Cleaning request">
+    <div class="ld-builder-shell" data-request-builder-mount></div>
   </dialog>
 
   <!-- Who is going to be in the property. The Landlord could favourite and invite

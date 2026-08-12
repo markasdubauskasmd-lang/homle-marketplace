@@ -852,7 +852,16 @@ function workspaceTabFromHash() {
 
 const requestBuilderMount = document.querySelector("[data-request-builder-mount]");
 const requestBuilderPanel = document.querySelector('[data-landlord-panel="requests"]');
+const requestBuilderDialog = document.querySelector("[data-request-builder-dialog]");
+// The mount now sits inside the dialog, so this single move puts the working
+// builder into the overlay. It is the same element with the same listeners and
+// the same form state — only its parent differs.
 if (requestBuilderMount && requestBuilderPanel) requestBuilderMount.replaceWith(requestBuilderPanel);
+// Closing by Escape or the backdrop has to run the same teardown as the Hide
+// control, or the panel would stay flagged as open and refuse to reopen.
+requestBuilderDialog?.addEventListener("close", () => {
+  if (requestBuilderPanel && !requestBuilderPanel.hidden) setRequestBuilderExpanded(false);
+});
 
 // Properties merged into Bookings. The panel moves into the hub between the
 // account totals and the completed work, which is the order the design puts it
@@ -874,6 +883,14 @@ function setRequestBuilderExpanded(expanded) {
     toggle.setAttribute("aria-expanded", String(expanded));
     toggle.textContent = expanded ? "Hide ↑" : "Reveal builder ↓";
   }
+  // The design opens this over the hub instead of pushing the page down, and
+  // closing it leaves the reader where they were. showModal() does exactly
+  // that: the page underneath keeps its scroll position, so nothing has to be
+  // recorded or restored by hand.
+  if (!requestBuilderDialog) return;
+  if (expanded) {
+    if (!requestBuilderDialog.open) requestBuilderDialog.showModal();
+  } else if (requestBuilderDialog.open) requestBuilderDialog.close();
 }
 
 // The stepped wizard is 23KB that only the Prepare-a-clean panel uses, and it
@@ -1338,8 +1355,11 @@ function renderProperties() {
     archive.type = "button";
     archive.setAttribute("aria-label", `Delete ${property.name || "saved property"} from active properties`);
     archive.addEventListener("click", () => openPropertyArchive(property));
-    secondary.append(edit);
-    actions.append(archive);
+    // The design gives a place card three controls: Book clean, Scan and the
+    // overflow. Deleting a place is neither common nor reversible, so it
+    // belongs behind the overflow with Edit access rather than sitting in the
+    // row as a third button competing with the two real actions.
+    secondary.append(edit, archive);
     detailsPanel.append(secondary);
     details.append(detailsPanel);
 
@@ -2766,6 +2786,20 @@ function renderNextClean() {
     ].filter(Boolean).join(" · ");
   }
 
+  // A place with a clean booked no longer appears under Your places, so this is
+  // the only route left to its access details, saved rooms and archiving. It is
+  // hidden when the booking cannot be matched back to an owned property, rather
+  // than opening an editor for nothing.
+  const placeDetails = card.querySelector("[data-ld-next-place]");
+  if (placeDetails) {
+    const property = properties.find((item) => item.propertyId === booking.propertyId);
+    placeDetails.hidden = !property;
+    if (property) {
+      placeDetails.setAttribute("aria-label", `Place details for ${property.name || "saved property"}`);
+      placeDetails.onclick = () => openPropertyEditor(property);
+    }
+  }
+
   const cleanerRow = card.querySelector("[data-ld-next-cleaner]");
   const cleaner = namedCleaner(booking);
   if (cleanerRow) {
@@ -3724,7 +3758,9 @@ document.querySelectorAll("[data-open-request-tab]").forEach((button) => button.
   // walkthrough step when they are ready.
   selectWorkspaceTab("requests", { historyMode: "push" });
   resetRequestContinuation();
-  if (requestBuilderPanel) requestBuilderPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  // The builder is an overlay now, so it is already in view and scrolling the
+  // page behind it would move the reader away from where they were.
+  if (requestBuilderPanel && !requestBuilderDialog) requestBuilderPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }));
 
 bookCleanOpen?.addEventListener("click", openBookCleanChooser);
