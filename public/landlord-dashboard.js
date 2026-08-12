@@ -3034,12 +3034,18 @@ function updateUpcomingRevealCount() {
   const buckets = bookingSummaryBuckets(bookings, "landlord");
   const featured = featuredBooking(buckets);
   const bookingCount = buckets.active.length + buckets.upcoming.length + buckets.waiting.length - (featured ? 1 : 0);
-  const total = visibleRequestCount + bookingCount;
-  document.querySelector("[data-landlord-booking-reveal-count]").textContent = String(total);
+  // Upcoming counts confirmed work only. A request still being prepared has no
+  // Cleaner, no frozen price and no booking behind it, so counting it here
+  // announced a commitment that does not exist. Those requests are listed under
+  // Your places instead, against the place they are for.
+  document.querySelector("[data-landlord-booking-reveal-count]").textContent = String(bookingCount);
   const heading = document.querySelector("[data-landlord-upcoming-heading]");
   const content = document.getElementById("landlord-booking-content");
-  if (heading) heading.hidden = total === 0;
-  if (content) content.hidden = total === 0;
+  if (heading) heading.hidden = bookingCount === 0;
+  if (content) content.hidden = bookingCount === 0;
+  // The drafts label only appears when there is something under it.
+  const draftsLabel = document.querySelector("[data-drafts-label]");
+  if (draftsLabel) draftsLabel.hidden = visibleRequestCount === 0;
 }
 
 /**
