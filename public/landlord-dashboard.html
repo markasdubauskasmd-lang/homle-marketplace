@@ -335,12 +335,9 @@
         <p class="hub-label hub-label-with-count" data-landlord-upcoming-heading id="landlord-bookings-title">Upcoming <span data-landlord-booking-reveal-count>0</span></p>
         <div id="landlord-booking-content" data-landlord-section-content>
           <div class="booking-section-heading"><div><p class="eyebrow">Your confirmed marketplace work</p></div><div class="landlord-booking-live"><span data-landlord-booking-live role="status" aria-live="polite">Checking private booking updates…</span><button class="text-button" type="button" data-landlord-booking-refresh>Refresh booking status</button></div></div>
-          <div class="landlord-empty-card" data-request-empty><strong>No requests or upcoming bookings yet.</strong><p>Saved cleaning requests appear here first, then become confirmed bookings only after a Cleaner accepts the frozen time, scope and price.</p></div>
-          <div class="landlord-request-list" data-request-list hidden></div>
-          <div class="landlord-form-feedback" data-request-status role="status" aria-live="polite" tabindex="-1" hidden></div>
           <section class="landlord-waiting-section" data-landlord-waiting-section aria-labelledby="landlord-waiting-title" hidden><div><p class="eyebrow">Cleaner decision pending</p><h3 id="landlord-waiting-title">Waiting for a Cleaner response <span data-landlord-waiting-count>0</span></h3><p>The exact deadline below is private booking state shared with you. Homle updates this page when the Cleaner responds.</p></div><div class="booking-dashboard-list landlord-waiting-list" data-landlord-waiting-list></div></section>
           <div class="booking-dashboard-list" data-landlord-booking-list></div>
-          <div class="booking-dashboard-empty" data-landlord-booking-empty><strong>No confirmed marketplace bookings yet.</strong><p>Private request drafts above do not become bookings until a Cleaner accepts the frozen time, scope and price.</p></div>
+          <div class="booking-dashboard-empty" data-landlord-booking-empty><strong>No confirmed bookings yet.</strong><p>A request becomes a booking only once a Cleaner accepts the frozen time, scope and price. Requests you are still preparing sit under Your places.</p></div>
           <details class="booking-history-section" data-landlord-history-section hidden><summary>Completed and closed bookings <span data-landlord-history-count>0</span></summary><div class="booking-dashboard-list" data-landlord-history-list></div></details>
         </div>
 
@@ -376,6 +373,16 @@
         <template data-ld-icon="add"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></template>
         <div class="landlord-empty-card" data-property-empty><strong>No account properties yet.</strong><p>Add a property to prepare a private request draft. Nothing is published to Cleaner search.</p></div>
         <div class="landlord-property-grid" data-property-list hidden></div>
+
+        <!-- Requests still being prepared belong to the place they are for, not
+             to Upcoming. Upcoming is confirmed work; a draft has no Cleaner, no
+             frozen price and no booking behind it, so listing it there claimed a
+             commitment that does not exist. landlord-dashboard.js moves the
+             working list here - same elements, same hooks, same actions. -->
+        <p class="hub-label" data-drafts-label hidden>Requests in progress</p>
+        <div class="landlord-empty-card" data-request-empty hidden><strong>No requests in progress.</strong><p>A request you start is saved privately here until you send it for matching. Nothing is published to Cleaner search.</p></div>
+        <div class="landlord-request-list" data-request-list hidden></div>
+        <div class="landlord-form-feedback" data-request-status role="status" aria-live="polite" tabindex="-1" hidden></div>
         <div class="landlord-form-feedback" data-property-status role="status" aria-live="polite" tabindex="-1" hidden></div>
         <form class="landlord-record-form" data-property-form hidden novalidate>
           <fieldset data-property-controls>
