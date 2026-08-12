@@ -244,9 +244,6 @@
         </div>
       </section>
 
-      <!-- The working builder is mounted here by landlord-dashboard.js. Keeping
-           one builder avoids a duplicate teaser that opens a detached form. -->
-      <div data-request-builder-mount></div>
 
       <!-- Now a routed view rather than an always-on block, so the sidebar's
            Bookings entry has somewhere to land. The contents, every data hook and
@@ -670,6 +667,16 @@
         <p class="hub-book-note">Nothing is submitted from this panel and no payment is taken.</p>
       </div>
     </div>
+  </dialog>
+
+  <!-- The request builder opens over the hub rather than inside it. The design
+       is explicit that booking never navigates away: the CTA grows into a panel
+       over the page and closing it returns you to the same scroll position.
+       landlord-dashboard.js moves the working builder into this mount, so the
+       form, its fields, the wizard and every data hook are the same elements as
+       before — only their parent changes. -->
+  <dialog class="ld-builder-dialog" data-request-builder-dialog aria-label="Cleaning request">
+    <div class="ld-builder-shell" data-request-builder-mount></div>
   </dialog>
 
   <!-- Who is going to be in the property. The Landlord could favourite and invite

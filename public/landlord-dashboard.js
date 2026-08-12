@@ -852,7 +852,16 @@ function workspaceTabFromHash() {
 
 const requestBuilderMount = document.querySelector("[data-request-builder-mount]");
 const requestBuilderPanel = document.querySelector('[data-landlord-panel="requests"]');
+const requestBuilderDialog = document.querySelector("[data-request-builder-dialog]");
+// The mount now sits inside the dialog, so this single move puts the working
+// builder into the overlay. It is the same element with the same listeners and
+// the same form state — only its parent differs.
 if (requestBuilderMount && requestBuilderPanel) requestBuilderMount.replaceWith(requestBuilderPanel);
+// Closing by Escape or the backdrop has to run the same teardown as the Hide
+// control, or the panel would stay flagged as open and refuse to reopen.
+requestBuilderDialog?.addEventListener("close", () => {
+  if (requestBuilderPanel && !requestBuilderPanel.hidden) setRequestBuilderExpanded(false);
+});
 
 // Properties merged into Bookings. The panel moves into the hub between the
 // account totals and the completed work, which is the order the design puts it
@@ -874,6 +883,14 @@ function setRequestBuilderExpanded(expanded) {
     toggle.setAttribute("aria-expanded", String(expanded));
     toggle.textContent = expanded ? "Hide ↑" : "Reveal builder ↓";
   }
+  // The design opens this over the hub instead of pushing the page down, and
+  // closing it leaves the reader where they were. showModal() does exactly
+  // that: the page underneath keeps its scroll position, so nothing has to be
+  // recorded or restored by hand.
+  if (!requestBuilderDialog) return;
+  if (expanded) {
+    if (!requestBuilderDialog.open) requestBuilderDialog.showModal();
+  } else if (requestBuilderDialog.open) requestBuilderDialog.close();
 }
 
 // The stepped wizard is 23KB that only the Prepare-a-clean panel uses, and it
@@ -3724,7 +3741,9 @@ document.querySelectorAll("[data-open-request-tab]").forEach((button) => button.
   // walkthrough step when they are ready.
   selectWorkspaceTab("requests", { historyMode: "push" });
   resetRequestContinuation();
-  if (requestBuilderPanel) requestBuilderPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  // The builder is an overlay now, so it is already in view and scrolling the
+  // page behind it would move the reader away from where they were.
+  if (requestBuilderPanel && !requestBuilderDialog) requestBuilderPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }));
 
 bookCleanOpen?.addEventListener("click", openBookCleanChooser);

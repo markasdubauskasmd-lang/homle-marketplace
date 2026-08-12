@@ -2206,3 +2206,70 @@ body.landlord-dashboard-page .ld-past-grid {
     width: 100%;
   }
 }
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   Request builder as an overlay
+   â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+   The design states the rule plainly: booking never navigates away, the large
+   CTA grows into a panel over the page, and closing it returns you to the same
+   scroll position. The builder used to be mounted inline in the hub, which
+   pushed the whole page down and lost the reader's place on the way back.
+
+   It is the same panel element with the same fields and listeners; only its
+   parent changed. These rules give it the sheet the design draws â€” centred and
+   wide on a desktop, rising from the bottom edge on a phone.
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+
+body.landlord-dashboard-page .ld-builder-dialog {
+  width: min(1080px, calc(100vw - 32px));
+  max-width: none;
+  max-height: min(880px, calc(100dvh - 32px));
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 28px;
+  background: #fff;
+  color: var(--ld-ink);
+  box-shadow: 0 40px 90px rgba(26, 26, 26, .3);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+body.landlord-dashboard-page .ld-builder-dialog[open] { animation: hub-book-in .42s cubic-bezier(.2, .9, .25, 1.02) both; }
+body.landlord-dashboard-page .ld-builder-dialog::backdrop {
+  background: rgba(26, 26, 26, .36) !important;
+  backdrop-filter: blur(7px);
+}
+/* The panel arrives with the page's own card chrome. Inside an overlay that
+   would be a card within a card, so the outer frame is dropped and the dialog
+   supplies the surface. */
+body.landlord-dashboard-page .ld-builder-dialog [data-landlord-panel="requests"] {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+@media (max-width: 900px) {
+  body.landlord-dashboard-page .ld-builder-dialog {
+    position: fixed;
+    inset: auto 0 0 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 90dvh;
+    margin: 0;
+    border-radius: 26px 26px 0 0;
+    box-shadow: 0 -22px 60px rgba(26, 26, 26, .3);
+  }
+  body.landlord-dashboard-page .ld-builder-dialog[open] { animation: hub-book-sheet .34s cubic-bezier(.2, .9, .25, 1) both; }
+  body.landlord-dashboard-page .ld-builder-shell { padding: 10px 16px calc(16px + env(safe-area-inset-bottom)); }
+  body.landlord-dashboard-page .ld-builder-shell::before {
+    content: "";
+    display: block;
+    width: 38px;
+    height: 4px;
+    margin: 0 auto 12px;
+    background: #e0dcd8;
+    border-radius: 99px;
+  }
+}
