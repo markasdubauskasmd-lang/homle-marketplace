@@ -1165,8 +1165,14 @@ function selectWorkspaceTab(name, { historyMode = "" } = {}) {
   // A real path, not a fragment, so the address bar names where the Landlord
   // is, Back returns to the previous panel, and the link can be shared.
   const url = selected === "places" ? "/landlord/bookings" : `/landlord/${selected}`;
-  if (historyMode === "push") history.pushState({ landlordTab: selected }, "", url);
-  if (historyMode === "replace") history.replaceState({ landlordTab: selected }, "", url);
+  // Only a move between views is worth a history entry. Tapping the view you
+  // are already on used to push a duplicate, so Back had to be pressed once per
+  // tap before anything moved and read as broken. Places and Bookings share an
+  // address, so this also covers scrolling to Your places from the Bookings hub.
+  const samePlace = url === location.pathname && history.state?.landlordTab === selected;
+  const mode = historyMode === "push" && samePlace ? "replace" : historyMode;
+  if (mode === "push") history.pushState({ landlordTab: selected }, "", url);
+  if (mode === "replace") history.replaceState({ landlordTab: selected }, "", url);
   if (selected === "places") {
     requestAnimationFrame(() => document.querySelector("[data-places-section]")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
@@ -4162,7 +4168,10 @@ document.addEventListener("keydown", (event) => {
 
 // Home is the landing view in the v2 design, so an address with no view in it
 // opens Home rather than Properties.
-window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash() || "home"));
+// The entry's own state is the honest answer to "which view was this?".
+// Reading only the address cannot tell Places from Bookings, because both are
+// /landlord/bookings, so going back between them moved nothing on screen.
+window.addEventListener("popstate", (event) => selectWorkspaceTab(event.state?.landlordTab || workspaceTabFromHash() || "home"));
 selectWorkspaceTab(workspaceTabFromHash() || "home");
 
 document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link.addEventListener("click", (event) => {
