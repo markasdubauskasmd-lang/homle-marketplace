@@ -106,7 +106,11 @@ body.landlord-dashboard-page .workspace-brand-copy small { color: var(--ld-dim);
 
 body.landlord-dashboard-page .landlord-dashboard-nav { gap: 3px; }
 body.landlord-dashboard-page .landlord-dashboard-nav a {
-  min-height: 0;
+  /* v1 set 43px here and v2's rewrite reset it to 0, which took every sidebar
+     destination under the 44px a finger can reliably hit. The padding above
+     already renders about 41px, so this is a floor rather than a resize. */
+  min-height: 44px;
+  align-items: center;
   gap: 13px;
   padding: 11px 13px;
   border-radius: 12px;
@@ -656,6 +660,9 @@ body.landlord-dashboard-page .ld-acct-row {
   position: relative;
   display: flex;
   align-items: center;
+  /* The row itself is tall, but the anchor inside it measured 38px. This is the
+     tappable element, so the floor belongs here. */
+  min-height: 44px;
   gap: 14px;
   width: 100%;
   padding: 14px 18px;

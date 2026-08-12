@@ -527,10 +527,12 @@
            reasonably treat as proof of payment in a dispute. Real receipts must
            come from the payment provider once payments are live. -->
       <section id="landlord-panel-payments" data-landlord-panel="payments" class="landlord-workspace-panel" aria-labelledby="landlord-payments-title" hidden>
-        <div class="landlord-panel-heading">
-          <div><p class="eyebrow">Money</p><h2 id="landlord-payments-title">Payments</h2></div>
-        </div>
-        <p class="landlord-payments-intro">What each booking costs and where its authorisation has reached. Homle takes no payment from this page.</p>
+        <!-- The view heading above already says "Payments" and carries the same
+             sentence as a subtitle. Repeating both inside the card made the page
+             introduce itself twice before showing a single figure, so the card
+             keeps only the boundary the view heading cannot state. -->
+        <h2 id="landlord-payments-title" class="ld-visually-hidden">Payments</h2>
+        <p class="landlord-payments-intro">Homle takes no payment from this page.</p>
         <div class="landlord-payments-list" data-landlord-payments-list></div>
         <p class="landlord-payments-empty" data-landlord-payments-empty hidden>No bookings with a price yet. Totals appear here once a Cleaner accepts a request.</p>
         <p class="landlord-payments-note">These are booking totals and authorisation states, not receipts. Final payment evidence is confirmed separately once the payment provider is connected.</p>

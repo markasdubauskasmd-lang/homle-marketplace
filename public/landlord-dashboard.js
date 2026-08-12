@@ -2800,10 +2800,14 @@ function updateLandlordWaitingDeadlines() {
  * that produces a real price instead of adding anything to a draft. When a
  * pricing endpoint exists, replace this array and the markup stays as it is.
  */
+// `code` is the marketplace service each card stands for, carried into the
+// journey so choosing "Deep clean" here does not mean answering "which service?"
+// again two steps later. The codes are the ones landlord-journey-model.js
+// already prices; the journey ignores anything it does not recognise.
 const LD_INDICATIVE_PLANS = Object.freeze([
-  Object.freeze({ name: "Standard clean", desc: "Living room, kitchen, bathroom", from: "£68", tone: "standard" }),
-  Object.freeze({ name: "Deep clean", desc: "Detailed kitchen and bathroom refresh", from: "£112", tone: "deep" }),
-  Object.freeze({ name: "End of tenancy", desc: "Full property clean", from: "£185", tone: "tenancy" })
+  Object.freeze({ name: "Standard clean", desc: "Living room, kitchen, bathroom", from: "£68", tone: "standard", code: "regular-domestic" }),
+  Object.freeze({ name: "Deep clean", desc: "Detailed kitchen and bathroom refresh", from: "£112", tone: "deep", code: "deep-cleans" }),
+  Object.freeze({ name: "End of tenancy", desc: "Full property clean", from: "£185", tone: "tenancy", code: "end-of-tenancy" })
 ]);
 
 /* Cloned from the <template>s in the markup — see the note beside them. */
@@ -2819,7 +2823,7 @@ function renderIndicativePlans() {
   if (!list || indicativePlansRendered) return;
   list.replaceChildren(...LD_INDICATIVE_PLANS.map((plan) => {
     const row = element("a", `ld-plan ld-plan-${plan.tone}`);
-    row.href = "/landlord/book";
+    row.href = `/landlord/book?service=${encodeURIComponent(plan.code)}`;
     const icon = element("span", "ld-plan-icon");
     icon.append(planArtwork(plan.tone));
     icon.setAttribute("aria-hidden", "true");
@@ -3293,9 +3297,14 @@ function renderNextClean() {
 
   const view = card.querySelector("[data-ld-next-view]");
   if (view) {
-    // The real booking record, when the server says one is available.
-    view.href = booking.activeJobAvailable ? `/bookings/${encodeURIComponent(booking.bookingId)}` : "/landlord/bookings";
-    view.hidden = false;
+    // The real booking record, when the server says one is available. Without
+    // one there is nowhere further to go: this card is already the booking, on
+    // the Bookings view. The control used to point at /landlord/bookings from
+    // /landlord/bookings — a button that visibly did nothing — so it is shown
+    // only when it actually leads somewhere.
+    const record = booking.activeJobAvailable ? `/bookings/${encodeURIComponent(booking.bookingId)}` : "";
+    view.href = record || "#";
+    view.hidden = !record;
   }
   const change = card.querySelector("[data-ld-next-change]");
   if (change) change.href = `/landlord/help?bookingId=${encodeURIComponent(booking.bookingId)}`;
@@ -4180,7 +4189,12 @@ document.addEventListener("keydown", (event) => {
 // Reading only the address cannot tell Places from Bookings, because both are
 // /landlord/bookings, so going back between them moved nothing on screen.
 window.addEventListener("popstate", (event) => selectWorkspaceTab(event.state?.landlordTab || workspaceTabFromHash() || "home"));
-selectWorkspaceTab(workspaceTabFromHash() || "home");
+// `replace` rather than a bare call, so an address that resolves to a view but
+// is not that view's own address is rewritten to the canonical one. Landing on
+// /landlord/properties showed the Bookings hub while the address bar still said
+// properties — a link shared from there took the reader somewhere the sender
+// never saw. Legacy #landlord-* anchors are normalised by the same line.
+selectWorkspaceTab(workspaceTabFromHash() || "home", { historyMode: "replace" });
 
 document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link.addEventListener("click", (event) => {
   event.preventDefault();

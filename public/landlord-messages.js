@@ -33,6 +33,13 @@ const state = {
 
 let deps = null;
 
+// One owner for the empty-Messages sentence. The list, the reading pane and the
+// markup each carried their own wording, so a Landlord with no conversations
+// read three different explanations of the same state on one screen. This is
+// the wording the markup ships, so the panel says the same thing before the
+// module loads as it does after.
+const MESSAGES_EMPTY_COPY = "Your conversations appear here once a Cleaner accepts a booking.";
+
 function element(name, className, text) {
   const node = document.createElement(name);
   if (className) node.className = className;
@@ -83,12 +90,13 @@ function renderConversations() {
   if (!list) return;
 
   if (!state.conversations.length) {
-    list.replaceChildren(empty || element("p", "ld-messages-list-empty", "No conversations yet."));
+    list.replaceChildren(empty || element("p", "ld-messages-list-empty", MESSAGES_EMPTY_COPY));
     const node = query("[data-messages-list-empty]");
     if (node) {
-      node.textContent = state.loaded
-        ? "No conversations yet. One opens when a Cleaner accepts a booking."
-        : "Loading your conversations…";
+      // One condition, one sentence. The list and the reading pane used to word
+      // this differently — and the markup shipped a third wording — so an empty
+      // Messages view said the same thing three ways at once.
+      node.textContent = state.loaded ? MESSAGES_EMPTY_COPY : "Loading your conversations…";
     }
     return;
   }
@@ -118,9 +126,7 @@ function renderThread() {
 
   if (!conversation) {
     const empty = element("div", "ld-messages-empty");
-    empty.append(element("p", "", state.loaded
-      ? "Your conversations appear here once a Cleaner accepts a booking."
-      : "Loading…"));
+    empty.append(element("p", "", state.loaded ? MESSAGES_EMPTY_COPY : "Loading…"));
     body.replaceChildren(empty);
     return;
   }

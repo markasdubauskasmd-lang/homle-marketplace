@@ -14,6 +14,7 @@ import {
   postcodeMessage,
   supplyMessage,
   services,
+  isKnownService,
   bookableDays,
   arrivalWindows,
   frequencies,
@@ -1711,6 +1712,13 @@ el.back.addEventListener("click", () => {
 });
 
 restoreDraft();
+// A service chosen on the dashboard arrives as ?service=. Honouring it here
+// means the Recommended-for-you cards stop being three links to the same blank
+// funnel, and the journey does not ask a question the Landlord just answered.
+// An unrecognised or absent code changes nothing, and a draft already carrying
+// a service wins — a restored walkthrough is a stronger signal than a link.
+const requestedService = new URLSearchParams(location.search).get("service") || "";
+if (!state.draft.serviceCode && isKnownService(requestedService)) state.draft.serviceCode = requestedService;
 if (!state.draft.cleanerId) {
   state.draft.cleanerId = "marketplace";
   state.draft.cleanerName = "Best available Cleaner";
