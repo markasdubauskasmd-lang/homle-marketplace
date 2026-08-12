@@ -121,8 +121,9 @@ assert(page.includes('data-landlord-panel="account"') && page.includes('data-lan
 // One Places entry, not two: the mobile tab bar keeps its Places tab, which the
 // design requires, while the account menu no longer repeats it. That menu entry
 // and "Cleaning preferences" both resolved to the same view already reachable
-// from the sidebar and the tab bar.
-assert([...page.matchAll(/data-open-landlord-section="bookings"/g)].length === 3 && [...page.matchAll(/data-open-landlord-section="places"/g)].length === 1 && !page.includes('data-open-landlord-section="properties"') && page.includes('href="/landlord/bookings"') && page.includes('href="/landlord/account"') && script.includes('document.querySelectorAll("[data-open-landlord-section]")') && script.includes("event.preventDefault()") && script.includes('historyMode: "push"') && script.includes('link.closest("[data-account-menu]")'), "Landlord header or account-menu links can target a hidden panel instead of activating the correct persistent hub section.");
+// from the sidebar and the tab bar. Two Bookings entries — sidebar and tab bar;
+// the third lived on Home's Upcoming card, which the Home + Care design removed.
+assert([...page.matchAll(/data-open-landlord-section="bookings"/g)].length === 2 && [...page.matchAll(/data-open-landlord-section="places"/g)].length === 1 && !page.includes('data-open-landlord-section="properties"') && page.includes('href="/landlord/bookings"') && page.includes('href="/landlord/account"') && script.includes('document.querySelectorAll("[data-open-landlord-section]")') && script.includes("event.preventDefault()") && script.includes('historyMode: "push"') && script.includes('link.closest("[data-account-menu]")'), "Landlord header or account-menu links can target a hidden panel instead of activating the correct persistent hub section.");
 assert(script.includes('/^#landlord-(properties|requests|account|bookings)$/') && !script.includes("clearLegacyRequestHash") && page.includes('data-open-request-tab') && page.includes('data-landlord-panel="requests"'), "The 'Manual request' builder is not reachable from the main dashboard actions, or a saved #landlord-requests link is stripped on load.");
 assert(page.includes("Favourite Cleaners") && page.includes("data-landlord-favourite-cleaners") && page.includes("Your saved Cleaner relationships appear here") && script.includes('requestJson("/api/marketplace/landlord/favourite-cleaners")') && script.includes('/api/marketplace/landlord/favourite-cleaners/${encodeURIComponent(cleanerId)}') && script.includes('saveSelectedCleaner(localStorage, cleaner.cleanerId)') && script.includes('location.assign("/landlord/dashboard?start=booking")') && script.includes("No removal will be retried automatically") && script.includes("refreshFavouriteCleaners({ quiet: true })") && styles.includes(".landlord-favourite-cleaner"), "The Landlord dashboard cannot list, remove or start a request from private favourite Cleaners with safe mutation recovery.");
 assert(script.includes('element("button", "button", "Book again")') && script.includes("saveSelectedProperty(sessionStorage, cleaner.propertyId)") && script.includes("readSelectedProperty(sessionStorage)") && script.includes("clearSelectedProperty(sessionStorage)") && script.includes("properties.some((property) => property.propertyId === selectedPropertyId)") && script.includes("applySuggestedCleaningType()"), "A completed visit cannot preselect the same owner-verified property and Cleaner without bypassing the fresh room-review journey.");
@@ -206,6 +207,31 @@ assert(page.includes('id="landlord-panel-account"') && script.includes("Details,
   const reducedMotion = v2Styles.slice(v2Styles.indexOf("prefers-reduced-motion"));
   assert(reducedMotion.includes(".ld-art-beam") && reducedMotion.includes("animation: none"), "Reduced motion does not still the scan artwork.");
   assert(!page.includes("data-ld-tab") && !page.includes('class="ld-tabs"') && !script.includes("selectStartTab"), "The duplicate Scan/Manual mode switch is still present above the two working action cards.");
+}
+
+/* The Home + Care design: everything on Home stays, Care joins it at the
+   bottom, and Recommended for you closes the page. Upcoming cleaning is gone
+   from Home — confirmed work lives in Bookings. Every care figure comes from
+   the care-summary endpoint (completed bookings, scan results and booking
+   timestamps); nothing is estimated and nothing resets on a schedule. */
+{
+  const startCardsAt = page.indexOf('data-ld-card="manual"');
+  const careDividerAt = page.indexOf("Your care record");
+  const careHeroAt = page.indexOf('class="ld-care-hero"');
+  const plansAt = page.indexOf('class="ld-plans"');
+  const homePanelEndAt = page.indexOf("landlord-booking-section");
+  assert(careDividerAt > startCardsAt && careHeroAt > careDividerAt && plansAt > careHeroAt && plansAt < homePanelEndAt, `Home does not run start cards -> care record -> Recommended for you — cards ${startCardsAt}, divider ${careDividerAt}, hero ${careHeroAt}, plans ${plansAt}.`);
+  assert(!page.includes("data-ld-upcoming") && !page.includes("Upcoming cleaning") && !script.includes("renderUpcomingClean"), "The removed Upcoming cleaning card is still on Home.");
+  assert(script.includes("/api/marketplace/landlord/care-summary") && script.includes("renderCareRecord"), "The care record is not fed by the account's own care-summary endpoint.");
+  // The honesty rules from the reviewed retention concept, kept in the copy.
+  assert(page.includes("Earned by using Homle, never sold") && script.includes("inventing a label") && script.includes("never an estimate"), "The care record lost its earned-freeze or no-invented-figures guarantees.");
+  assert(page.includes("booked inside 24 hours") && script.includes('"The Fast Turnaround"'), "The Ready streak boundary and the earned archetype are missing.");
+  // The share card carries no address, tenant name or price.
+  const shareBody = script.slice(script.indexOf("function careShareText"), script.indexOf("let careShareStatusTimer"));
+  assert(page.includes("data-ld-care-share") && script.includes("navigator.share") && script.includes("navigator.clipboard") && shareBody.length > 0 && !shareBody.includes("bookedValuePence") && !shareBody.includes("propertyName"), "The care share card is missing, or it leaks money or property figures a public share must not carry.");
+  assert(v2Styles.includes(".ld-care-hero") && v2Styles.includes("ld-care-bloom") && v2Styles.includes(".ld-care-cell.is-frozen") && v2Styles.includes(".ld-care-meter-fill"), "The care record has no presentation.");
+  const careReducedMotion = v2Styles.slice(v2Styles.lastIndexOf("prefers-reduced-motion"));
+  assert(careReducedMotion.includes(".ld-care-bloom") && careReducedMotion.includes("animation: none"), "Reduced motion does not still the care record.");
 }
 
 assert(page.includes("Secure landlord access") && !page.includes("landlord-prepare-card") && page.includes("data-request-builder-mount") && page.includes("Not sent for matching · private draft") && page.includes('class="landlord-workspace-panel pac-collapsed"') && page.includes('aria-expanded="false"') && page.includes("Reveal builder ↓"), "The Landlord dashboard still has the duplicate teaser or the real clean builder is not mounted in its approved collapsed position.");

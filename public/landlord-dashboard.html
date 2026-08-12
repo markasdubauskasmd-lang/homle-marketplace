@@ -16,8 +16,8 @@
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260811-1">
   <!-- The v2 composition, last so it wins without !important. -->
-  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260812-4">
-  <script src="/landlord-dashboard.js?v=20260812-4" type="module"></script>
+  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260812-5">
+  <script src="/landlord-dashboard.js?v=20260812-5" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -206,7 +206,73 @@
           </article>
         </div>
 
-        <!-- Indicative guide prices only. Homle has no landlord-facing pricing
+        <!-- The care record, from the reviewed Home + Care design. Every figure
+             is a record this account's API already returns — completed
+             bookings, scan results and booking timestamps — fetched from
+             /api/marketplace/landlord/care-summary and drawn by
+             renderCareRecord(). Nothing resets on a schedule, and when there is
+             not enough history for a figure the section says so instead of
+             inventing a label. The old next-booking card is gone from Home:
+             confirmed work lives in Bookings, which Home links to. -->
+        <div class="ld-care-divider" aria-hidden="true">
+          <span class="ld-care-divider-line"></span>
+          <span class="ld-care-divider-label">Your care record</span>
+          <span class="ld-care-divider-line"></span>
+        </div>
+
+        <section class="ld-care-hero" aria-labelledby="ld-care-title">
+          <span class="ld-care-bloom" aria-hidden="true"></span>
+          <span class="ld-care-sheen" aria-hidden="true"></span>
+          <div class="ld-care-hero-main">
+            <p class="ld-care-eyebrow"><span class="ld-care-eyebrow-wide">Your care profile · from your own booking timestamps</span><span class="ld-care-eyebrow-narrow">Your care profile</span></p>
+            <h3 id="ld-care-title" data-ld-care-title>Your care record</h3>
+            <p class="ld-care-lead" data-ld-care-lead>Your first booked clean starts this record — real figures only, never an estimate.</p>
+          </div>
+          <div class="ld-care-figures" data-ld-care-figures></div>
+          <div class="ld-care-share-wrap">
+            <button class="ld-care-share" type="button" data-ld-care-share>Share card</button>
+            <small class="ld-care-share-status" data-ld-care-share-status role="status" aria-live="polite" hidden></small>
+          </div>
+        </section>
+
+        <div class="ld-care-grid">
+          <section class="ld-care-card ld-care-streak" aria-labelledby="ld-care-streak-title">
+            <div class="ld-care-streak-head">
+              <div>
+                <p class="ld-care-label" id="ld-care-streak-title">Ready streak</p>
+                <strong class="ld-care-streak-count" data-ld-care-streak-count>0 turnarounds</strong>
+                <p class="ld-care-streak-sub">in a row, booked inside 24 hours</p>
+              </div>
+              <span class="ld-care-freeze-pill" data-ld-care-freeze-pill hidden></span>
+            </div>
+            <div class="ld-care-cells" data-ld-care-cells aria-hidden="true"></div>
+            <div class="ld-care-freeze">
+              <span class="ld-care-freeze-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 4v16M4.5 8l15 8M19.5 8l-15 8"></path></svg></span>
+              <span class="ld-care-freeze-copy"><strong data-ld-care-freeze-count>No freeze earned yet</strong><small>Earned by using Homle, never sold</small></span>
+            </div>
+          </section>
+
+          <section class="ld-care-card ld-care-scan" aria-labelledby="ld-care-scan-title">
+            <h3 id="ld-care-scan-title">What your last scan found</h3>
+            <p class="ld-care-card-sub" data-ld-care-scan-sub>No scans yet — your first walkthrough starts this record.</p>
+            <div class="ld-care-finds" data-ld-care-finds></div>
+          </section>
+
+          <section class="ld-care-card ld-care-bench" aria-labelledby="ld-care-bench-title">
+            <h3 id="ld-care-bench-title">Against landlords near you</h3>
+            <p class="ld-care-card-sub" data-ld-care-bench-sub>Anonymised — the benchmark unlocks as more portfolios join.</p>
+            <div class="ld-care-meters" data-ld-care-meters></div>
+            <div class="ld-care-callout">
+              <span class="ld-care-callout-copy" data-ld-care-callout-copy>Scanning every room before you book gives the Cleaner a complete brief.</span>
+              <a class="ld-care-callout-btn" href="/landlord/book">Scan</a>
+            </div>
+          </section>
+        </div>
+
+        <p class="ld-care-note">Every figure comes from records the API already returns — completed bookings, scan results and booking timestamps. Nothing resets on a schedule, and no cleaner rating, photo or per-room progress appears here, because the API does not return them.</p>
+
+        <!-- Indicative guide prices only — now the closing block of Home, as the
+             reviewed design orders it. Homle has no landlord-facing pricing
              endpoint yet, so these come from LD_INDICATIVE_PLANS in
              landlord-dashboard.js and are labelled as estimates everywhere they
              appear. Nothing here creates a request or commits to a price: the
@@ -231,33 +297,6 @@
             All cleans include vetted professionals and a satisfaction guarantee.
           </p>
         </section>
-
-        <!-- Real booking state, rendered by renderUpcomingClean() from the same
-             bookings the Bookings view lists. Hidden until there is one. -->
-        <section class="ld-upcoming" data-ld-upcoming hidden aria-labelledby="ld-upcoming-title">
-          <div class="ld-upcoming-head">
-            <h3 id="ld-upcoming-title">Upcoming cleaning</h3>
-            <span class="ld-status-pill" data-ld-upcoming-pill></span>
-          </div>
-          <div class="ld-upcoming-body">
-            <div class="ld-upcoming-where">
-              <div class="ld-upcoming-address" data-ld-upcoming-address></div>
-              <div class="ld-upcoming-when" data-ld-upcoming-when></div>
-            </div>
-            <div class="ld-upcoming-track">
-              <div class="ld-upcoming-eta" data-ld-upcoming-eta></div>
-              <ol class="ld-steps" data-ld-upcoming-steps></ol>
-            </div>
-            <div class="ld-upcoming-actions">
-              <a class="ld-btn ld-btn-quiet" href="/landlord/bookings" data-open-landlord-section="bookings">View booking</a>
-            </div>
-          </div>
-        </section>
-
-        <div class="ld-empty" data-ld-upcoming-empty hidden>
-          <strong>Nothing booked yet</strong>
-          <p>Scan your property and we’ll create the cleaning plan for you.</p>
-        </div>
       </section>
 
 

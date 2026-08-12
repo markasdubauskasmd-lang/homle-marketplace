@@ -2682,79 +2682,258 @@ function renderIndicativePlans() {
   indicativePlansRendered = true;
 }
 
-/* Design step order, mapped from the booking statuses that actually exist. */
-const upcomingStepDefinitions = Object.freeze([
-  Object.freeze({ key: "booked", label: "Booked" }),
-  Object.freeze({ key: "matched", label: "Matched" }),
-  Object.freeze({ key: "on-the-way", label: "On the way" }),
-  Object.freeze({ key: "cleaning", label: "Cleaning" }),
-  Object.freeze({ key: "complete", label: "Complete" })
-]);
-
-const upcomingStepByStatus = {
-  "pending-cleaner-acceptance": 0,
-  confirmed: 1,
-  "cleaner-en-route": 2,
-  "cleaner-arrived": 2,
-  "cleaning-in-progress": 3,
-  "awaiting-review": 4,
-  completed: 4
-};
-
 /**
- * The Home view's "Upcoming cleaning" card.
- *
- * Real booking state only — it reads the same `bookings` the Bookings view
- * lists, through the same buckets, so the two can never disagree. When there is
- * nothing live it shows the empty card instead, exactly as the design does.
+ * The Home view's "Your care record" section, from the reviewed Home + Care
+ * design. Every figure is a record the care-summary endpoint derives from this
+ * account — completed bookings, scan results and booking timestamps. The
+ * reviewed retention concept sets the rules rendered here: freezes are earned
+ * by using the service and never sold, nothing resets on a schedule, and when
+ * there is not enough history for a figure the section says so instead of
+ * inventing a label.
  */
-function renderUpcomingClean() {
-  const card = document.querySelector("[data-ld-upcoming]");
-  const empty = document.querySelector("[data-ld-upcoming-empty]");
-  if (!card || !empty) return;
+let careSummary = null;
 
-  const buckets = bookingSummaryBuckets(bookings, "landlord");
-  const candidates = [...buckets.active, ...buckets.upcoming, ...buckets.waiting];
-  const booking = candidates.slice().sort((a, b) => String(a.scheduledStartAt || "").localeCompare(String(b.scheduledStartAt || "")))[0] || null;
+const careWholePounds = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
+const careMonth = new Intl.DateTimeFormat("en-GB", { month: "long" });
+const careNumberWords = Object.freeze(["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"]);
 
-  card.hidden = !booking;
-  empty.hidden = Boolean(booking);
-  if (!booking) return;
+function careLagShort(hours) {
+  if (!Number.isFinite(hours)) return "—";
+  return hours < 48 ? `${Math.max(1, Math.round(hours))}h` : `${Math.round(hours / 24)}d`;
+}
 
-  const pill = card.querySelector("[data-ld-upcoming-pill]");
-  if (pill) pill.textContent = bookingSummaryStatusLabels[booking.status] || "Booking";
+function careLagSentence(hours) {
+  if (hours < 48) {
+    const rounded = Math.max(1, Math.round(hours));
+    return `${rounded} ${rounded === 1 ? "hour" : "hours"}`;
+  }
+  const days = Math.round(hours / 24);
+  return `${days} ${days === 1 ? "day" : "days"}`;
+}
 
-  const address = card.querySelector("[data-ld-upcoming-address]");
-  if (address) address.textContent = booking.propertyLabel || booking.propertyName || booking.propertyArea || "Saved property";
+function careRelativeTime(value) {
+  const parsed = Date.parse(value || "");
+  if (Number.isNaN(parsed)) return "";
+  const minutes = Math.max(0, Math.round((Date.now() - parsed) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} ${minutes === 1 ? "minute" : "minutes"} ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  return formatShortDate(value);
+}
 
-  const when = card.querySelector("[data-ld-upcoming-when]");
-  if (when) when.textContent = formatBookingWindow(booking.scheduledStartAt, booking.scheduledEndAt);
+function careFigure(value, label) {
+  const figure = element("span", "ld-care-figure");
+  figure.append(element("strong", "", value), element("small", "", label));
+  return figure;
+}
 
-  const eta = card.querySelector("[data-ld-upcoming-eta]");
-  if (eta) {
-    const who = booking.counterpartyName ? ` · ${booking.counterpartyName}` : "";
-    eta.textContent = `${bookingSummaryStatusLabels[booking.status] || "Booking"}${who}`;
+function careFindRow(tone, tag, title, detail) {
+  const row = element("div", "ld-care-find");
+  const badge = element("span", `ld-care-find-tag ld-care-find-tag-${tone}`, tag);
+  const copy = element("span", "ld-care-find-copy");
+  copy.append(element("strong", "", title), element("small", "", detail));
+  row.append(badge, copy);
+  return row;
+}
+
+/* "Top 18%" green, "Middle 40%" amber — the standing vocabulary the design
+   uses, mapped honestly onto the percentile the benchmark returns. */
+function careStanding(topPercent) {
+  if (topPercent <= 33) return { text: `Top ${topPercent}%`, tone: "good" };
+  if (topPercent <= 66) return { text: `Middle ${topPercent}%`, tone: "warn" };
+  return { text: `Behind ${topPercent}%`, tone: "quiet" };
+}
+
+function careMeter(wideLabel, narrowLabel, topPercent, tone) {
+  const meter = element("div", `ld-care-meter ld-care-meter-${tone}`);
+  const head = element("div", "ld-care-meter-head");
+  const label = element("span", "ld-care-meter-label");
+  label.append(element("span", "ld-care-meter-label-wide", wideLabel), element("span", "ld-care-meter-label-narrow", narrowLabel));
+  const standing = careStanding(topPercent);
+  head.append(label, element("strong", `ld-care-meter-standing is-${standing.tone}`, standing.text));
+  const track = element("div", "ld-care-meter-track");
+  const fill = element("span", `ld-care-meter-fill ld-care-meter-fill-${tone}`);
+  fill.style.width = `${Math.min(99, Math.max(1, 100 - topPercent))}%`;
+  track.append(fill);
+  meter.append(head, track);
+  return meter;
+}
+
+function renderCareRecord() {
+  const title = document.querySelector("[data-ld-care-title]");
+  if (!title) return;
+  const lead = document.querySelector("[data-ld-care-lead]");
+  const figures = document.querySelector("[data-ld-care-figures]");
+  const totals = careSummary?.totals || null;
+  const medianLag = Number.isFinite(careSummary?.medianLagHours) ? careSummary.medianLagHours : null;
+
+  // The identity card. "The Fast Turnaround" is the one archetype the
+  // retention concept defines, earned at the same 24-hour boundary the streak
+  // announces. Anything else states the record without inventing a label.
+  if (medianLag != null && medianLag <= 24) {
+    title.textContent = "The Fast Turnaround";
+    lead.textContent = `You book a clean a median ${careLagSentence(medianLag)} after a tenancy ends — your places spend more days ready and fewer days empty.`;
+  } else if (medianLag != null) {
+    title.textContent = "Your turnaround record";
+    lead.textContent = `You book a clean a median ${careLagSentence(medianLag)} after a tenancy ends. Bring that inside 24 hours and your places spend more days ready.`;
+  } else {
+    title.textContent = "Your care record";
+    lead.textContent = "Your first booked cleans start this record — real figures only, never an estimate.";
   }
 
-  const stepIndex = upcomingStepByStatus[booking.status] ?? 0;
-  const steps = card.querySelector("[data-ld-upcoming-steps]");
-  if (steps) {
-    steps.replaceChildren(...upcomingStepDefinitions.map((step, index) => {
-      const node = element("li", "ld-step");
-      if (index < stepIndex) node.classList.add("is-done");
-      if (index === stepIndex) node.classList.add("is-now");
-      const dot = element("span", "ld-step-dot");
-      dot.setAttribute("aria-hidden", "true");
-      node.append(dot, element("span", "ld-step-label", step.label));
-      if (index === stepIndex) node.setAttribute("aria-current", "step");
-      return node;
+  if (figures) {
+    figures.replaceChildren(
+      careFigure(String(totals?.completedCleanCount ?? 0), "Cleans completed"),
+      careFigure(String(totals?.roomsScannedCount ?? 0), "Rooms scanned"),
+      careFigure(careWholePounds.format((totals?.bookedValuePence ?? 0) / 100), "Booked to date"),
+      careFigure(careLagShort(medianLag), "Median lag")
+    );
+  }
+
+  const streak = careSummary?.streak || null;
+  const streakCount = document.querySelector("[data-ld-care-streak-count]");
+  if (streakCount) {
+    const turnarounds = streak?.turnaroundCount ?? 0;
+    streakCount.textContent = `${turnarounds} ${turnarounds === 1 ? "turnaround" : "turnarounds"}`;
+  }
+  const cellsHost = document.querySelector("[data-ld-care-cells]");
+  if (cellsHost) {
+    const cells = streak?.cells?.length ? streak.cells : Array.from({ length: 8 }, () => "empty");
+    cellsHost.replaceChildren(...cells.map((kind, index) => {
+      const cell = element("span", `ld-care-cell is-${kind}`);
+      cell.style.animationDelay = `${(0.12 + index * 0.05).toFixed(2)}s`;
+      return cell;
     }));
+  }
+  const freezesEarned = streak?.freezesEarned ?? 0;
+  const freezeCount = document.querySelector("[data-ld-care-freeze-count]");
+  if (freezeCount) freezeCount.textContent = freezesEarned > 0 ? `${freezesEarned} ${freezesEarned === 1 ? "freeze" : "freezes"} earned` : "No freeze earned yet";
+  const freezePill = document.querySelector("[data-ld-care-freeze-pill]");
+  if (freezePill) {
+    freezePill.hidden = freezesEarned < 1;
+    freezePill.textContent = freezesEarned > 0 ? `${freezesEarned} ${freezesEarned === 1 ? "freeze" : "freezes"}` : "";
+  }
+
+  // Discovery — the honest variable reward. The rows are what the latest scan
+  // actually returned; when it finds nothing new, it says nothing new.
+  const scanSub = document.querySelector("[data-ld-care-scan-sub]");
+  const finds = document.querySelector("[data-ld-care-finds]");
+  const lastScan = careSummary?.lastScan || null;
+  if (scanSub && finds) {
+    if (lastScan) {
+      scanSub.textContent = `${lastScan.propertyName} · ${lastScan.roomCount} ${lastScan.roomCount === 1 ? "room" : "rooms"} · ${careRelativeTime(lastScan.capturedAt)}`;
+      const rows = [];
+      for (const object of lastScan.newObjects) {
+        const previousMonth = lastScan.previousCapturedAt ? careMonth.format(new Date(lastScan.previousCapturedAt)) : "";
+        rows.push(careFindRow("new", "NEW", object.label, previousMonth ? `${object.roomName} · not present in your ${previousMonth} scan` : object.roomName));
+      }
+      if (lastScan.taskCount > 0) {
+        const word = careNumberWords[lastScan.taskCount] || String(lastScan.taskCount);
+        rows.push(careFindRow("add", `+${lastScan.taskCount}`, `${word} ${lastScan.taskCount === 1 ? "task" : "tasks"} added to the brief`, lastScan.taskRoomNames.join(", ") || "From your reviewed walkthrough"));
+      }
+      if (lastScan.unchangedRoomCount > 0) {
+        rows.push(careFindRow("ok", "OK", `${lastScan.unchangedRoomCount} ${lastScan.unchangedRoomCount === 1 ? "room" : "rooms"} unchanged`, "Nothing needed — no task created"));
+      }
+      if (rows.length === 0) rows.push(careFindRow("ok", "OK", "Nothing new found", "Rooms really do change — this scan found no new work"));
+      finds.replaceChildren(...rows.map((row, index) => {
+        row.style.animationDelay = `${(0.2 + index * 0.1).toFixed(2)}s`;
+        return row;
+      }));
+    } else {
+      scanSub.textContent = "No scans yet — your first walkthrough starts this record.";
+      finds.replaceChildren();
+    }
+  }
+
+  // The anonymised local benchmark: a percentile you can only move by doing
+  // the work — never a named leaderboard.
+  const benchSub = document.querySelector("[data-ld-care-bench-sub]");
+  const meters = document.querySelector("[data-ld-care-meters]");
+  const calloutCopy = document.querySelector("[data-ld-care-callout-copy]");
+  const bench = careSummary?.benchmark || null;
+  if (benchSub && meters) {
+    if (bench && bench.lagTopPercent != null) {
+      benchSub.textContent = `Anonymised · near you · ${bench.cohortSize} portfolios`;
+      const built = [careMeter("Booking lag after tenancy ends", "Booking lag near you", bench.lagTopPercent, "lag")];
+      if (bench.coverageTopPercent != null) built.push(careMeter("Rooms scanned before booking", "Rooms scanned", bench.coverageTopPercent, "coverage"));
+      meters.replaceChildren(...built);
+    } else {
+      benchSub.textContent = "Anonymised — the benchmark unlocks as more portfolios join.";
+      meters.replaceChildren();
+    }
+  }
+  if (calloutCopy) {
+    const scanned = bench?.latestScannedRooms;
+    const planned = bench?.latestPlannedRooms;
+    const gap = Number.isFinite(planned) && Number.isFinite(scanned) ? planned - scanned : 0;
+    if (gap > 0 && bench?.closingGapReachesTopQuarter === true) {
+      calloutCopy.textContent = `Scanning the last ${gap} ${gap === 1 ? "room" : "rooms"} moves you into the top quarter.`;
+    } else if (gap > 0) {
+      calloutCopy.textContent = `Scanning the last ${gap} ${gap === 1 ? "room" : "rooms"} gives the Cleaner a complete brief.`;
+    } else {
+      calloutCopy.textContent = "Scanning every room before you book gives the Cleaner a complete brief.";
+    }
   }
 }
 
+async function loadCareSummary() {
+  try {
+    const result = await requestJson("/api/marketplace/landlord/care-summary");
+    careSummary = result?.careSummary && typeof result.careSummary === "object" ? result.careSummary : null;
+  } catch {
+    // The section keeps its honest starting copy; the partial-load banner
+    // already tells the Landlord when a refresh did not complete.
+    careSummary = null;
+  }
+  renderCareRecord();
+}
+
+/* The flex-card rule from the reviewed concept: no addresses, tenant names or
+   prices — a landlord's share has to be safe to post. */
+function careShareText() {
+  const totals = careSummary?.totals || null;
+  const medianLag = Number.isFinite(careSummary?.medianLagHours) ? careSummary.medianLagHours : null;
+  const label = document.querySelector("[data-ld-care-title]")?.textContent || "Your care record";
+  const parts = [
+    `${totals?.completedCleanCount ?? 0} cleans completed`,
+    `${totals?.roomsScannedCount ?? 0} rooms scanned`
+  ];
+  if (medianLag != null) parts.push(`${careLagShort(medianLag)} median booking lag`);
+  return `My Homle care profile — ${label}. ${parts.join(" · ")}.`;
+}
+
+let careShareStatusTimer = 0;
+
+function showCareShareStatus(message) {
+  const status = document.querySelector("[data-ld-care-share-status]");
+  if (!status) return;
+  status.textContent = message;
+  status.hidden = false;
+  window.clearTimeout(careShareStatusTimer);
+  careShareStatusTimer = window.setTimeout(() => { status.hidden = true; }, 4_000);
+}
+
+document.querySelector("[data-ld-care-share]")?.addEventListener("click", async () => {
+  const text = careShareText();
+  try {
+    if (typeof navigator.share === "function") {
+      await navigator.share({ title: "Homle care profile", text });
+      showCareShareStatus("Shared.");
+    } else if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      showCareShareStatus("Copied to your clipboard.");
+    } else {
+      showCareShareStatus("Sharing is not available in this browser.");
+    }
+  } catch (error) {
+    if (error?.name !== "AbortError") showCareShareStatus("Could not share the card.");
+  }
+});
+
 function renderHomeView() {
   renderIndicativePlans();
-  renderUpcomingClean();
+  renderCareRecord();
 }
 
 const clockTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" });
@@ -3057,9 +3236,9 @@ function renderBookings() {
   document.querySelector("[data-landlord-history-reveal-count]").textContent = String(historySummary.completedCleanCount);
   renderLandlordHistory(historySummary);
   renderLandlordPayments(bookings);
-  // Home and the Bookings view read the same records, so all three are built
-  // from the one place rather than polling separately.
-  renderUpcomingClean();
+  // Home's care record is served by its own summary endpoint; refreshing it
+  // here keeps the section in step with the bookings it is derived from.
+  void loadCareSummary();
   renderNextClean();
   // Conversations are built from these bookings. At first paint there were none
   // — selectWorkspaceTab runs before loadWorkspace resolves — so a Landlord who

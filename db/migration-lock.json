@@ -486,12 +486,17 @@
       "order": 97,
       "file": "097_optional_request_photos.sql",
       "sha256": "2cab131161e9b6d2d785ed38fd224242e3dadff9fdeb932b8fc7d9950ce4ce82"
+    },
+    {
+      "order": 98,
+      "file": "098_landlord_care_summary.sql",
+      "sha256": "ca26b03e99f8c05854536a84628f23de7e1d4684d36516beed6c83f06ca4e312"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "00057f65c83a6451841c6bba9251954bd36a10d75e7d8b2e43c1f700c67cfe62"
+      "sha256": "e95fb80cad1c48e7fffc962328947948b4385b6d3112d79a3c122d7c8f00e3eb"
     },
     {
       "file": "worker-role-grants.sql",

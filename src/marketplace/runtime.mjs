@@ -81,6 +81,8 @@ import { createAdministratorCoverageRepository } from "./administrator-coverage-
 import { createAdministratorCoverageService } from "./administrator-coverage-service.mjs";
 import { createAdministratorFunnelRepository } from "./administrator-funnel-repository.mjs";
 import { createAdministratorFunnelService } from "./administrator-funnel-service.mjs";
+import { createLandlordCareRepository } from "./landlord-care-repository.mjs";
+import { createLandlordCareService } from "./landlord-care-service.mjs";
 import { createFavouriteCleanerRepository } from "./favourite-cleaner-repository.mjs";
 import { createFavouriteCleanerService } from "./favourite-cleaner-service.mjs";
 
@@ -241,9 +243,11 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const administratorCoverageService = createAdministratorCoverageService(administratorCoverageRepository);
   const administratorFunnelRepository = createAdministratorFunnelRepository(database);
   const administratorFunnelService = createAdministratorFunnelService(administratorFunnelRepository);
+  const landlordCareRepository = createLandlordCareRepository(database);
+  const landlordCareService = createLandlordCareService(landlordCareRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
     clientKey: options.clientKey,
     onUnexpectedError: options.onUnexpectedError,
     pricingConfiguration: (actor) => pricingConfigurationRepository.activeConfig(actor),
@@ -346,6 +350,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     administratorCoverageService,
     administratorFunnelRepository,
     administratorFunnelService,
+    landlordCareRepository,
+    landlordCareService,
     privacyRequestRepository,
     privacyRequestService,
     authenticationRouter,

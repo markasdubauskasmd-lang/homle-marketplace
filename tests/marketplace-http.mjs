@@ -321,7 +321,21 @@ const scanGroundTruthService = {
   async recordVerdict(actor, objectId, input) { calls.push({ kind: "truth-record", actor, objectId, input }); return { groundTruthId: "t", objectId, ...input }; },
   async getReport(actor) { calls.push({ kind: "truth-report", actor }); return { labelledTotal: 0 }; }
 };
-const dependencies = { security, scanGroundTruthService, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const landlordCareService = {
+  async get(actor) {
+    calls.push({ kind: "landlord-care-get", actor });
+    return {
+      generatedAt: "2026-08-12T12:00:00.000Z",
+      privacyScope: "Own records plus anonymised cohort standing only.",
+      totals: { completedCleanCount: 3, bookedValuePence: 19_800, roomsScannedCount: 41, propertyCount: 2, bookingCount: 4 },
+      medianLagHours: 6,
+      streak: { turnaroundCount: 3, cells: ["miss", "hit", "frozen", "hit", "hit", "empty", "empty", "empty"], freezesEarned: 1, freezesUsed: 1, freezesAvailable: 0 },
+      benchmark: { cohortSize: 214, lagTopPercent: 18, coverageCohortSize: 214, coverageTopPercent: 52, coverageShare: 83, latestScannedRooms: 10, latestPlannedRooms: 12, closingGapReachesTopQuarter: true },
+      lastScan: { propertyName: "House in London", capturedAt: "2026-08-12T11:56:00.000Z", roomCount: 12, taskCount: 2, taskRoomNames: ["Kitchen", "Hallway"], unchangedRoomCount: 10, newObjects: [], previousCapturedAt: null }
+    };
+  }
+};
+const dependencies = { security, scanGroundTruthService, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -496,6 +510,10 @@ const supportCreated = await dispatch(router, "POST", "/api/marketplace/landlord
 assert(supportList.response.statusCode === 200 && missingSupportCsrf.response.statusCode === 403 && supportCreated.response.statusCode === 201 && supportCreated.body.supportRequest.status === "open" && calls.slice(-2).map((call) => call.kind).join(",") === "support-list-own,support-create" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Landlord support routes lost role isolation, CSRF protection, pagination or current-account binding.");
 const bookingChangeCreated = await dispatch(router, "POST", "/api/marketplace/landlord/support-requests", { headers: authHeaders, body: { clientRequestId: "adadadad-adad-4dad-8dad-adadadadadad", category: "booking-change", bookingId: "55555555-5555-4555-8555-555555555555", bookingChangeKind: "reschedule", proposedStartAt: "2026-08-12T09:00:00.000Z", description: "Please move the confirmed visit to this proposed morning because the property will be available then.", confirmNoSensitiveData: true } });
 assert(bookingChangeCreated.response.statusCode === 201 && bookingChangeCreated.body.supportRequest.bookingChangeKind === "reschedule" && calls.at(-1).input.bookingId === "55555555-5555-4555-8555-555555555555", "The authenticated Landlord booking-change intake lost its booking-bound structured payload.");
+const unauthenticatedCareSummary = await dispatch(router, "GET", "/api/marketplace/landlord/care-summary");
+const careSummaryWrongMethod = await dispatch(router, "POST", "/api/marketplace/landlord/care-summary", { headers: authHeaders, body: {} });
+const careSummary = await dispatch(router, "GET", "/api/marketplace/landlord/care-summary", { headers: { cookie: authHeaders.cookie } });
+assert(unauthenticatedCareSummary.response.statusCode === 401 && careSummaryWrongMethod.response.statusCode === 405 && careSummary.response.statusCode === 200 && careSummary.body.careSummary.totals.completedCleanCount === 3 && careSummary.body.careSummary.streak.cells.length === 8 && careSummary.body.careSummary.benchmark.lagTopPercent === 18 && calls.at(-1).kind === "landlord-care-get" && calls.at(-1).actor.userId === sessions.landlord.user_id, "The Landlord care-summary route lost authentication, GET-only method safety or its account-bound projection.");
 const bookingList = await dispatch(router, "GET", "/api/marketplace/bookings?limit=25", { headers: { cookie: authHeaders.cookie } });
 assert(bookingList.response.statusCode === 200 && bookingList.body.bookings[0].pricePerspective === "customer-total" && calls.at(-1).kind === "booking-list" && calls.at(-1).input.limit === "25" && calls.at(-1).actor.userId === sessions.landlord.user_id, "Participant booking summaries lost account authorization, bounded pagination or role-specific price projection.");
 const unauthenticatedBookingList = await dispatch(router, "GET", "/api/marketplace/bookings");
