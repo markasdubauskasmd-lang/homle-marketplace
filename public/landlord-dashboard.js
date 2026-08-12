@@ -43,6 +43,7 @@ const landlordProfileSave = document.querySelector("[data-save-landlord-profile]
 const propertyList = document.querySelector("[data-property-list]");
 const propertyEmpty = document.querySelector("[data-property-empty]");
 const requestList = document.querySelector("[data-request-list]");
+const activeRequestList = document.querySelector("[data-active-request-list]");
 const requestEmpty = document.querySelector("[data-request-empty]");
 const propertySelect = document.querySelector("[data-property-select]");
 const propertySelectLabel = document.querySelector("[data-property-select-label]");
@@ -1231,7 +1232,7 @@ function propertyBlockerCopy(blocker) {
 
 function focusCleaningRequest(requestId) {
   selectWorkspaceTab("bookings", { historyMode: "push" });
-  const card = [...requestList.querySelectorAll("[data-cleaning-request-id]")].find((item) => item.dataset.cleaningRequestId === requestId);
+  const card = [...document.querySelectorAll("[data-cleaning-request-id]")].find((item) => item.dataset.cleaningRequestId === requestId);
   if (!card) return;
   card.classList.add("landlord-linked-record-focus");
   card.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1618,7 +1619,7 @@ function renderScanPhotos(requestId, scan, list, count) {
 function openRequestScan(requestId) {
   const request = requests.find((item) => item.requestId === requestId);
   if (request?.status === "draft") return showRequestContinuation(request);
-  const details = [...requestList.querySelectorAll("[data-request-scan-id]")].find((item) => item.dataset.requestScanId === requestId);
+  const details = [...document.querySelectorAll("[data-request-scan-id]")].find((item) => item.dataset.requestScanId === requestId);
   if (!details) return false;
   details.open = true;
   details.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2115,19 +2116,51 @@ function requestScanPanel(request, options = {}) {
 
 function renderRequests() {
   requestList.replaceChildren();
+  activeRequestList?.replaceChildren();
   const visibleRequests = requests.filter((request) => request.status !== "cancelled");
   for (const request of visibleRequests) {
-    const card = element("article", "landlord-request-card");
+    const submitted = request.status !== "draft";
+    const card = element("article", submitted ? "landlord-request-card ld-request-now" : "landlord-request-card");
     card.dataset.cleaningRequestId = request.requestId;
     const property = properties.find((item) => item.propertyId === request.propertyId);
     const heading = element("div", "landlord-request-card-heading");
     const title = element("div");
     title.append(element("span", "landlord-private-pill", requestStatusLabel(request.status)), element("h3", "", property?.name || "Saved property"));
     heading.append(title, element("strong", "", String(request.cleaningType || "Cleaning").replace(/-/g, " ")));
-    const facts = element("dl", "landlord-request-facts");
     const start = new Date(request.requestedStartAt);
     const end = new Date(request.requestedEndAt);
-    facts.append(propertyFact("Requested", Number.isNaN(start.getTime()) ? "Unavailable" : formatBookingMoment(start.toISOString())), propertyFact("Duration", Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) ? "Unavailable" : `${Math.round((end - start) / 3_600_000 * 10) / 10} hours`), propertyFact("Tasks", Array.isArray(request.tasks) ? request.tasks.length : 0), propertyFact("Frequency", String(request.frequency || "one-time").replace(/-/g, " ")));
+    const duration = Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) ? "Time unavailable" : `${Math.round((end - start) / 3_600_000 * 10) / 10} hours`;
+    let facts;
+    if (submitted) {
+      const nowTop = element("div", "ld-request-now-top");
+      const status = element("span", "ld-request-now-pill", request.status === "searching-for-cleaner" ? "Finding your cleaner" : requestStatusLabel(request.status));
+      status.prepend(element("span", "ld-request-now-dot"));
+      nowTop.append(status, element("span", "ld-request-now-since", "Matching in progress"));
+      const identity = element("div", "ld-request-now-identity");
+      const icon = element("span", "ld-request-now-icon");
+      icon.append(cloneIcon("home"));
+      const identityCopy = element("div", "ld-request-now-identity-copy");
+      identityCopy.append(
+        element("strong", "", property?.name || "Saved property"),
+        element("span", "", [Number.isNaN(start.getTime()) ? "Date unavailable" : formatBookingMoment(start.toISOString()), duration, String(request.cleaningType || "Cleaning").replace(/-/g, " "), `${Array.isArray(request.tasks) ? request.tasks.length : 0} ${Array.isArray(request.tasks) && request.tasks.length === 1 ? "task" : "tasks"}`].join(" · "))
+      );
+      const placeDetails = element("button", "ld-request-now-place", "Place details →");
+      placeDetails.type = "button";
+      placeDetails.hidden = !property;
+      if (property) placeDetails.addEventListener("click", () => openPropertyEditor(property));
+      identity.append(icon, identityCopy, placeDetails);
+      const stages = element("ol", "ld-request-now-stages");
+      for (const [label, state] of [["Booked", "done"], ["Matching", "current"], ["On the way", "future"], ["Cleaning", "future"], ["Complete", "future"]]) {
+        const item = element("li", `ld-request-now-stage is-${state}`);
+        item.append(element("span", "ld-request-now-stage-mark", state === "done" ? "✓" : ""), element("span", "", label));
+        stages.append(item);
+      }
+      facts = element("div", "ld-request-now-main");
+      facts.append(nowTop, identity, stages);
+    } else {
+      facts = element("dl", "landlord-request-facts");
+      facts.append(propertyFact("Requested", Number.isNaN(start.getTime()) ? "Unavailable" : formatBookingMoment(start.toISOString())), propertyFact("Duration", duration), propertyFact("Tasks", Array.isArray(request.tasks) ? request.tasks.length : 0), propertyFact("Frequency", String(request.frequency || "one-time").replace(/-/g, " ")));
+    }
     const boundaryCopy = request.status === "draft"
       ? "Private draft only — no Cleaner has been invited and no booking or payment exists."
       : request.status === "searching-for-cleaner"
@@ -2136,7 +2169,8 @@ function renderRequests() {
       ? "Withdrawn — matching is closed and no booking or payment was changed."
       : "This request has entered the account workflow.";
     const boundary = element("p", "landlord-request-boundary", boundaryCopy);
-    card.append(heading, facts, boundary);
+    if (submitted) card.append(facts);
+    else card.append(heading, facts, boundary);
     if (request.status === "draft") {
       const continueRequest = element("button", "button", "Continue photos and matching");
       continueRequest.type = "button";
@@ -2197,13 +2231,18 @@ function renderRequests() {
       actions.append(withdraw);
       card.append(actions);
     }
-    requestList.append(card);
+    (submitted && activeRequestList ? activeRequestList : requestList).append(card);
   }
-  requestEmpty.hidden = visibleRequests.length > 0;
-  requestList.hidden = visibleRequests.length === 0;
   const draftCount = visibleRequests.filter((request) => request.status === "draft").length;
+  const submittedCount = visibleRequests.length - draftCount;
+  // The reviewed hub has no empty "requests" card. With no private draft the
+  // entire shelf disappears; Your places already carries the next action.
+  requestEmpty.hidden = true;
+  requestList.hidden = draftCount === 0;
+  if (activeRequestList) activeRequestList.hidden = submittedCount === 0;
   document.querySelector("[data-draft-count]").textContent = String(draftCount);
   updateUpcomingRevealCount();
+  syncHappeningNowLabel();
 }
 
 async function inviteBestEligibleCleaner(requestId, button, feedback) {
@@ -2745,6 +2784,14 @@ function featuredBooking(buckets) {
     .sort((a, b) => String(a.scheduledStartAt || "").localeCompare(String(b.scheduledStartAt || "")))[0] || null;
 }
 
+function syncHappeningNowLabel() {
+  const label = document.querySelector("[data-hub-now-label]");
+  if (!label) return;
+  const hasSubmittedRequest = requests.some((request) => !["draft", "cancelled"].includes(request.status));
+  const hasFeaturedBooking = Boolean(featuredBooking(bookingSummaryBuckets(bookings, "landlord")));
+  label.hidden = !hasSubmittedRequest && !hasFeaturedBooking;
+}
+
 /**
  * The "NEXT CLEAN" card.
  *
@@ -2766,7 +2813,7 @@ function renderNextClean() {
   // section simply is not drawn, and Your places carries the way to start —
   // which also stops an empty state appearing above a card that does exist.
   card.hidden = !booking;
-  if (label) label.hidden = !booking;
+  if (label) syncHappeningNowLabel();
   if (!booking) return;
 
   const icon = card.querySelector("[data-ld-next-icon]");
@@ -3030,7 +3077,7 @@ function setLandlordSectionExpanded(button, expanded) {
 }
 
 function updateUpcomingRevealCount() {
-  const visibleRequestCount = requests.filter((request) => request.status !== "cancelled").length;
+  const draftRequestCount = requests.filter((request) => request.status === "draft").length;
   const buckets = bookingSummaryBuckets(bookings, "landlord");
   const featured = featuredBooking(buckets);
   const bookingCount = buckets.active.length + buckets.upcoming.length + buckets.waiting.length - (featured ? 1 : 0);
@@ -3045,7 +3092,7 @@ function updateUpcomingRevealCount() {
   if (content) content.hidden = bookingCount === 0;
   // The drafts label only appears when there is something under it.
   const draftsLabel = document.querySelector("[data-drafts-label]");
-  if (draftsLabel) draftsLabel.hidden = visibleRequestCount === 0;
+  if (draftsLabel) draftsLabel.hidden = draftRequestCount === 0;
 }
 
 /**
@@ -3888,7 +3935,7 @@ requestCompleteNext.addEventListener("click", () => {
   workspace.hidden = false;
   selectWorkspaceTab("requests");
   setLandlordSectionExpanded(upcomingSectionToggle, true);
-  const requestCard = [...requestList.querySelectorAll("[data-cleaning-request-id]")]
+  const requestCard = [...document.querySelectorAll("[data-cleaning-request-id]")]
     .find((card) => card.dataset.cleaningRequestId === completedRequestId);
   (requestCard || requestList).scrollIntoView({ behavior: "smooth", block: "start" });
   requestCard?.querySelector(".landlord-dispatch-action .button")?.focus({ preventScroll: true });

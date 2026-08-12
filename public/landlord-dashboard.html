@@ -16,8 +16,8 @@
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260811-1">
   <!-- The v2 composition, last so it wins without !important. -->
-  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260812-1">
-  <script src="/landlord-dashboard.js?v=20260812-1" type="module"></script>
+  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260812-2">
+  <script src="/landlord-dashboard.js?v=20260812-2" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -277,6 +277,10 @@
         </button>
 
         <p class="hub-label" data-hub-now-label hidden>Happening now</p>
+        <!-- Submitted requests are not drafts and are not yet bookings. They
+             belong in the design's Happening now area while Homle finds a
+             Cleaner, rather than in the Requests in progress shelf below. -->
+        <div class="ld-active-request-list" data-active-request-list hidden></div>
         <!-- Cloned by renderBookingCard(). -->
         <template data-ld-icon="booking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="16" height="14" rx="2.5"></rect><path d="M4 10.5h16M8.5 4v4M15.5 4v4"></path></svg></template>
         <template data-ld-icon="booking-done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"></path></svg></template>
