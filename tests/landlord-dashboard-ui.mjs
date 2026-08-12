@@ -320,6 +320,22 @@ assert(script.includes('["restriction", "safety"]'),
 assert(script.includes("do-not") && script.includes("safety ${entry.count === 1"),
   "The walkthrough status does not tell the Landlord that restrictions were understood as restrictions.");
 
+/* ── The Happening now card can actually draw its stages ──────────────── */
+
+// renderNextClean read `upcomingStepByStatus` and `upcomingStepDefinitions`,
+// neither of which was declared anywhere in the tree. Nothing showed while an
+// account had no accepted booking, because the function returns early without
+// one. The first confirmed booking reached those lines, threw a ReferenceError
+// into loadWorkspace's catch, and the whole workspace was replaced by "The
+// Landlord workspace is temporarily unavailable" — a connectivity message for
+// a bug that had nothing to do with the connection.
+assert(script.includes("const upcomingStepDefinitions = Object.freeze([") && script.includes("const upcomingStepByStatus = Object.freeze({"),
+  "The Happening now stage rail reads identifiers that are never declared, so the first accepted booking takes down the whole workspace.");
+for (const status of ["pending-cleaner-acceptance", "confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed"]) {
+  assert(new RegExp(`(^|[{,]\\s*)"?${status}"?:\\s*[0-4]`, "m").test(script.slice(script.indexOf("const upcomingStepByStatus"), script.indexOf("const upcomingStepByStatus") + 400)),
+    `The stage rail has no position for a booking in "${status}", so that status silently falls back to Booked.`);
+}
+
 /* ── Messages is reachable on a phone ─────────────────────────────────── */
 
 // The sidebar that carries Messages on a laptop is inside .site-header, which

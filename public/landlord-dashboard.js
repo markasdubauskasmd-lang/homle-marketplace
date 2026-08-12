@@ -3116,6 +3116,40 @@ function featuredBooking(buckets) {
     .sort((a, b) => String(a.scheduledStartAt || "").localeCompare(String(b.scheduledStartAt || "")))[0] || null;
 }
 
+/**
+ * The five stages the Happening now card draws, and where each booking status
+ * sits on them.
+ *
+ * These are the same five the request rail names while matching is still open,
+ * so one clean reads as one continuous line from the request to the finished
+ * job rather than restarting under a different vocabulary once a Cleaner
+ * accepts.
+ *
+ * The index is the stage in progress: everything before it is done, everything
+ * after is still to come. `confirmed` therefore points at "On the way" — the
+ * booking is agreed and the next thing that happens is the Cleaner travelling.
+ * Terminal records that never reach the card (cancelled, disputed) are absent
+ * on purpose; the `?? 0` at the call site keeps any unknown status on "Booked"
+ * instead of throwing.
+ */
+const upcomingStepDefinitions = Object.freeze([
+  Object.freeze({ id: "booked", label: "Booked" }),
+  Object.freeze({ id: "matching", label: "Matching" }),
+  Object.freeze({ id: "on-the-way", label: "On the way" }),
+  Object.freeze({ id: "cleaning", label: "Cleaning" }),
+  Object.freeze({ id: "complete", label: "Complete" })
+]);
+
+const upcomingStepByStatus = Object.freeze({
+  "pending-cleaner-acceptance": 1,
+  confirmed: 2,
+  "cleaner-en-route": 2,
+  "cleaner-arrived": 3,
+  "cleaning-in-progress": 3,
+  "awaiting-review": 4,
+  completed: 4
+});
+
 function syncHappeningNowLabel() {
   const label = document.querySelector("[data-hub-now-label]");
   if (!label) return;
