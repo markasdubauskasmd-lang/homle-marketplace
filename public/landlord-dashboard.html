@@ -16,8 +16,8 @@
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260811-1">
   <!-- The v2 composition, last so it wins without !important. -->
-  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260812-2">
-  <script src="/landlord-dashboard.js?v=20260812-2" type="module"></script>
+  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260812-3">
+  <script src="/landlord-dashboard.js?v=20260812-3" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
 </head>
@@ -388,9 +388,10 @@
         <div class="landlord-request-list" data-request-list hidden></div>
         <div class="landlord-form-feedback" data-request-status role="status" aria-live="polite" tabindex="-1" hidden></div>
         <div class="landlord-form-feedback" data-property-status role="status" aria-live="polite" tabindex="-1" hidden></div>
+        <dialog class="ld-property-dialog" data-property-dialog aria-labelledby="property-form-dialog-title">
         <form class="landlord-record-form" data-property-form hidden novalidate>
           <fieldset data-property-controls>
-            <div class="landlord-form-title"><div><p class="eyebrow">Protected property details</p><h3 data-property-form-title>Add the cleaning location</h3></div><button class="text-button" type="button" data-close-property-form>Close</button></div>
+            <div class="landlord-form-title"><div><p class="eyebrow">Protected property details</p><h3 id="property-form-dialog-title" data-property-form-title>Add the cleaning location</h3></div><button class="text-button" type="button" data-close-property-form>Close</button></div>
             <label>Property type<select name="propertyType" required><option value="">Choose one</option><option value="flat">Flat</option><option value="house">House</option><option value="studio">Studio</option><option value="office">Office</option><option value="retail">Retail</option><option value="clinic">Clinic</option><option value="communal">Communal area</option><option value="other">Other</option></select></label>
             <label>Address line 1<input name="addressLine1" autocomplete="address-line1" maxlength="240" required></label>
             <label>Town or locality<input name="locality" autocomplete="address-level2" maxlength="120" required></label>
@@ -410,6 +411,7 @@
             <button class="button" type="submit" data-save-property>Save property privately</button>
           </fieldset>
         </form>
+        </dialog>
       </section>
 
       <!-- Messages. The v2 design gives this a thread list and a conversation
