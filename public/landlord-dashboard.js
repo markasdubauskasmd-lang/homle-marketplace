@@ -832,15 +832,16 @@ function workspaceTabFromLocation() {
   const path = /^\/landlord\/(home|properties|bookings|messages|requests|account|payments)\/?$/.exec(location.pathname);
   // Properties is part of Bookings now. The old address still resolves rather
   // than 404ing a link someone bookmarked or sent to a colleague.
-  if (path) return path[1] === "properties" ? "bookings" : path[1];
+  if (path) return path[1] === "properties" ? "places" : path[1];
   // /landlord/dashboard is the canonical entry point and now opens Home, which
   // is the view the v2 design leads with.
   if (/^\/landlord\/dashboard\/?$/.test(location.pathname)) return "home";
   const hash = /^#landlord-(properties|requests|account|bookings)$/.exec(location.hash);
-  if (hash) return hash[1];
+  if (hash) return hash[1] === "properties" ? "places" : hash[1];
   // The Bookings section kept its original id, so the anchor that used to scroll
   // to it now selects the view instead of landing on a hidden panel.
   if (location.hash === "#landlord-bookings") return "bookings";
+  if (location.hash === "#your-places") return "places";
   return "";
 }
 
@@ -907,7 +908,8 @@ function loadPrepareWizard() {
 const workspaceTabCopy = {
   home: { title: "Hello, {name}", subtitle: "Let’s keep your property spotless." },
   properties: { title: "Properties", subtitle: "The locations saved privately to your account." },
-  bookings: { title: "Bookings", subtitle: "Everything upcoming and everything done." },
+  bookings: { title: "Bookings", subtitle: "Everything for every place you own." },
+  places: { title: "Bookings", subtitle: "Everything for every place you own." },
   messages: { title: "Messages", subtitle: "Talk to the Cleaner working on your property." },
   account: { title: "Account", subtitle: "Your details, payments and preferences." },
   payments: { title: "Payments", subtitle: "What each booking costs, and where its authorisation has reached." },
@@ -950,9 +952,10 @@ function markCurrentNavigation(selected) {
   // Both navs point at the same destinations, so both are marked from one place.
   for (const link of document.querySelectorAll(".landlord-dashboard-nav a, .ld-mobile-nav a")) {
     const section = link.dataset.openLandlordSection;
-    const current = section === selected
+    const current = (section === selected && selected !== "places")
     || (selected === "requests" && section === "bookings")
     || (selected === "properties" && section === "bookings")
+    || (selected === "places" && section === "bookings")
     || (selected === "payments" && section === "account");
     if (current) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
@@ -964,7 +967,7 @@ function markCurrentNavigation(selected) {
 let currentWorkspaceTab = "";
 
 function selectWorkspaceTab(name, { historyMode = "" } = {}) {
-  const selected = ["home", "properties", "bookings", "messages", "requests", "account", "payments"].includes(name) ? name : "home";
+  const selected = ["home", "properties", "bookings", "places", "messages", "requests", "account", "payments"].includes(name) ? name : "home";
   currentWorkspaceTab = selected;
   // Properties merged into Bookings: one connected flow rather than a separate
   // tab holding the places the bookings are for. The panel still exists — its
@@ -974,7 +977,7 @@ function selectWorkspaceTab(name, { historyMode = "" } = {}) {
     const panelName = panel.dataset.landlordPanel;
     const visible = selected === "requests"
       ? panelName === "properties"
-      : selected === "bookings"
+      : selected === "bookings" || selected === "places"
         ? panelName === "bookings" || panelName === "properties"
         : panelName === selected;
     panel.hidden = !visible;
@@ -990,9 +993,12 @@ function selectWorkspaceTab(name, { historyMode = "" } = {}) {
   if (selected === "messages") void openMessages();
   // A real path, not a fragment, so the address bar names where the Landlord
   // is, Back returns to the previous panel, and the link can be shared.
-  const url = `/landlord/${selected}`;
+  const url = selected === "places" ? "/landlord/bookings" : `/landlord/${selected}`;
   if (historyMode === "push") history.pushState({ landlordTab: selected }, "", url);
   if (historyMode === "replace") history.replaceState({ landlordTab: selected }, "", url);
+  if (selected === "places") {
+    requestAnimationFrame(() => document.querySelector("[data-places-section]")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
 }
 
 function continueBookingStart() {
@@ -1291,42 +1297,38 @@ function renderProperties() {
     icon.append(cloneIcon("property"));
     icon.setAttribute("aria-hidden", "true");
     const title = element("div", "ld-prop-main");
-    title.append(element("h3", "", property.name || "Saved property"), element("p", "", propertySubtitle(property)));
-    const timeline = element("div", "ld-prop-dates");
+    title.append(element("h3", "", property.name || "Saved property"));
     const cleaned = propertyCleaningDates(property);
-    for (const [label, value] of [["Last cleaned", cleaned.last], ["Next", cleaned.next]]) {
-      const item = element("span", "");
-      item.append(document.createTextNode(`${label} `), element("strong", "", value));
-      timeline.append(item);
-    }
-    title.append(timeline);
-    const chip = element("span", `ld-prop-chip${cleaned.booked ? " ld-prop-chip-booked" : ""}`, cleaned.booked ? "Clean booked" : "No clean booked");
-    heading.append(icon, title, chip);
-
-    const rooms = element("div", "ld-prop-rooms");
-    for (const room of propertyRoomLabels(property)) rooms.append(element("span", "ld-prop-room", room));
+    const taskCount = Array.isArray(property.savedChecklist) ? property.savedChecklist.length : 0;
+    const summary = cleaned.last && cleaned.last !== "—"
+      ? `Last cleaned ${cleaned.last}${taskCount ? ` · ${taskCount} ${taskCount === 1 ? "task" : "tasks"} saved` : ""}`
+      : taskCount ? `Nothing booked · ${taskCount} ${taskCount === 1 ? "task" : "tasks"} saved` : "No scan yet";
+    title.append(element("p", "ld-prop-summary", summary));
+    heading.append(icon, title);
 
     const actions = element("div", "landlord-property-actions");
-    const scanAgain = element("a", "button button-outline", "Scan again");
+    const scanAgain = element("a", "button button-outline", taskCount ? "Scan" : "Scan rooms");
     scanAgain.href = "/landlord/book";
     scanAgain.setAttribute("aria-label", `Scan ${property.name || "saved property"} again`);
-    const book = element("button", "button", "Book Clean");
+    scanAgain.addEventListener("click", () => saveSelectedProperty(sessionStorage, property.propertyId));
+    const book = element("button", "button", "Book clean");
     book.type = "button";
     book.setAttribute("aria-label", `Book a clean for ${property.name || "saved property"}`);
     book.addEventListener("click", () => {
-      saveSelectedProperty(sessionStorage, property.propertyId);
-      selectedPropertyId = property.propertyId;
-      selectWorkspaceTab("requests", { historyMode: "push" });
-      propertySelect.value = property.propertyId;
-      applySuggestedCleaningType();
+      bookCleanPropertyId = property.propertyId;
+      openBookCleanChooser();
     });
-    actions.append(scanAgain, book);
+    if (taskCount) actions.append(book, scanAgain);
+    else actions.append(scanAgain);
 
     const details = element("details", "landlord-property-details");
-    details.append(element("summary", "", "View protected property details"));
+    const detailsSummary = element("summary", "", "⋯");
+    detailsSummary.setAttribute("aria-label", `More options for ${property.name || "saved property"}`);
+    details.append(detailsSummary);
+    const detailsPanel = element("div", "ld-prop-menu");
     const notes = element("dl");
     notes.append(propertyFact("Exact address", exactAddress(property)), propertyFact("Access instructions", property.accessInstructions || "None saved"), propertyFact("Parking", property.parkingInstructions || "None saved"), propertyFact("Cleaning preferences", property.cleaningPreferences || "None saved"), propertyFact("Special notes", property.specialNotes || "None saved"), propertyFact("Size", property.approximateSizeSqM == null ? "Not supplied" : `${property.approximateSizeSqM} m²`), propertyFact("Saved tasks", Array.isArray(property.savedChecklist) ? property.savedChecklist.length : 0));
-    details.append(notes);
+    detailsPanel.append(notes);
     const secondary = element("div", "landlord-property-actions landlord-property-actions-secondary");
     const edit = element("button", "button button-outline", property.accessInstructions ? "Edit access and details" : "Add access details");
     edit.type = "button";
@@ -1338,21 +1340,20 @@ function renderProperties() {
     archive.addEventListener("click", () => openPropertyArchive(property));
     secondary.append(edit);
     actions.append(archive);
-    details.append(secondary);
+    detailsPanel.append(secondary);
+    details.append(detailsPanel);
 
-    card.append(heading, rooms, actions);
-    card.append(details);
+    actions.append(details);
+    card.append(heading, actions);
     propertyList.append(card);
   }
   // The design closes the grid with a dashed tile rather than leaving the last
   // row ragged. It opens the same property editor the heading button does.
-  if (availableProperties.length) {
-    const add = element("button", "ld-prop-add");
-    add.type = "button";
-    add.append(cloneIcon("add"), element("span", "ld-prop-add-title", "Add a place"), element("span", "ld-prop-add-copy", "Four facts, then scan"));
-    add.addEventListener("click", () => openPropertyEditor());
-    propertyList.append(add);
-  }
+  const add = element("button", "ld-prop-add");
+  add.type = "button";
+  add.append(cloneIcon("add"), element("span", "ld-prop-add-title", "Add a place"), element("span", "ld-prop-add-copy", "Four facts, then scan"));
+  add.addEventListener("click", () => openPropertyEditor());
+  propertyList.append(add);
   const hasSoleProperty = properties.length === 1;
   propertySelectLabel.hidden = hasSoleProperty;
   soleProperty.hidden = !hasSoleProperty;
@@ -1365,8 +1366,8 @@ function renderProperties() {
     element("strong", "", properties.length ? "Every saved place has cleaning work in progress." : "No account properties yet."),
     element("p", "", properties.length ? "Manage those records under Upcoming. A place returns here as soon as its request is withdrawn or its booking is closed." : "Add a property to prepare a private request draft. Nothing is published to Cleaner search.")
   );
-  propertyEmpty.hidden = availableProperties.length > 0;
-  propertyList.hidden = availableProperties.length === 0;
+  propertyEmpty.hidden = true;
+  propertyList.hidden = false;
   scanPropertyStatus.dataset.kind = properties.length ? "ready" : "attention";
   scanPropertyStatus.textContent = properties.length
     ? "Your room scan can be saved to the selected private property."
@@ -2887,49 +2888,53 @@ function renderPastCleans(buckets) {
   grid.hidden = past.length === 0;
   if (note) note.textContent = past.length ? "The record of what was done on each visit" : "";
 
-  grid.replaceChildren(...past.map((booking) => {
-    const card = element("article", "ld-past");
-    const banner = element("div", "ld-past-banner");
-    banner.setAttribute("aria-hidden", "true");
-    const actions = element("div", "ld-past-actions");
-    if (booking.activeJobAvailable) {
-      const report = element("a", "ld-btn ld-btn-quiet", "View report");
-      report.href = `/bookings/${encodeURIComponent(booking.bookingId)}`;
-      actions.append(report);
-    }
-    const again = element("button", "ld-btn ld-btn-primary", "Book again");
+  const groups = new Map();
+  past.forEach((booking) => {
+    const propertyName = booking.propertyName || "Saved property";
+    if (!groups.has(propertyName)) groups.set(propertyName, []);
+    groups.get(propertyName).push(booking);
+  });
+
+  const rows = [];
+  groups.forEach((propertyBookings, propertyName) => {
+    const heading = element("div", "ld-past-group-head");
+    const headingCopy = element("div", "ld-past-group-copy");
+    const completedValuePence = propertyBookings.reduce((total, booking) => total + (Number.isInteger(booking.pricePence) ? booking.pricePence : 0), 0);
+    const valueLabel = completedValuePence > 0 ? ` · ${formatBookingMoney(completedValuePence)}` : "";
+    headingCopy.append(
+      element("strong", "ld-past-group-name", propertyName),
+      element("span", "ld-past-group-summary", `${propertyBookings.length} ${propertyBookings.length === 1 ? "clean" : "cleans"}${valueLabel}`),
+    );
+    const again = element("button", "ld-btn ld-btn-quiet", "Book again");
     again.type = "button";
     again.addEventListener("click", () => {
-      const match = properties.find((property) => property.name === booking.propertyName);
+      const match = properties.find((property) => property.name === propertyName);
       if (match) {
+        bookCleanPropertyId = match.propertyId;
         saveSelectedProperty(sessionStorage, match.propertyId);
         selectedPropertyId = match.propertyId;
       }
-      selectWorkspaceTab("requests", { historyMode: "push" });
-      if (match) {
-        propertySelect.value = match.propertyId;
-        applySuggestedCleaningType();
-      }
+      openBookCleanChooser();
     });
-    actions.append(again);
-    banner.append(actions);
+    heading.append(headingCopy, again);
+    rows.push(heading);
 
-    const body = element("div", "ld-past-body");
-    body.append(element("div", "ld-past-address", booking.propertyName || "Saved property"));
-    body.append(element("div", "ld-past-meta", [formatShortDate(booking.scheduledStartAt), `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`, formatBookingMoney(booking.pricePence)].filter((part) => part && part !== "—").join(" · ")));
-
-    const footer = element("div", "ld-past-footer");
-    const cleaner = namedCleaner(booking);
-    if (cleaner) {
-      footer.append(element("span", "ld-past-avatar", initialsFor(cleaner)), element("span", "ld-past-cleaner", cleaner));
-    } else footer.append(element("span", "ld-past-cleaner", "Cleaner record kept privately"));
-    footer.append(element("span", "ld-past-state", bookingSummaryStatusLabels[booking.status] || "Completed"));
-    if (booking.status === "disputed") footer.append(element("span", "ld-past-issue", "1 issue"));
-    body.append(footer);
-
-    card.append(banner, body);
-    return card;
-  }));
+    propertyBookings.forEach((booking) => {
+      const row = element("article", "ld-past-row");
+      const cleaner = namedCleaner(booking);
+      const cleaningType = String(booking.cleaningType || "Cleaning").replace(/-/g, " ");
+      row.append(
+        element("time", "ld-past-date", formatShortDate(booking.scheduledStartAt)),
+        element("div", "ld-past-description", [cleaningType, `${booking.taskCount} ${booking.taskCount === 1 ? "task" : "tasks"}`, cleaner].filter(Boolean).join(" · ")),
+        element("span", "ld-past-state", `${booking.status === "disputed" ? "Issue open" : "✓ Completed"}`),
+      );
+      const report = element("a", "ld-past-report", "View report");
+      report.href = `/bookings/${encodeURIComponent(booking.bookingId)}`;
+      row.append(report);
+      rows.push(row);
+    });
+  });
+  grid.replaceChildren(...rows);
 }
 
 function renderBookings() {

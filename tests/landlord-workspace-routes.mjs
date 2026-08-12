@@ -44,7 +44,7 @@ assert(/selectWorkspaceTab\(workspaceTabFromHash\(\) \|\| "home"\);/.test(script
   "The first paint does not select the panel named by the URL.");
 
 // History entries must carry the path, not a fragment.
-assert(script.includes("const url = `/landlord/${selected}`") &&
+assert((script.includes("const url = `/landlord/${selected}`") || script.includes('const url = selected === "places" ? "/landlord/bookings" : `/landlord/${selected}`')) &&
   script.includes('history.pushState({ landlordTab: selected }, "", url)') &&
   script.includes('history.replaceState({ landlordTab: selected }, "", url)'),
   "Panel changes still write a #fragment, so the address bar does not name the panel.");
@@ -59,10 +59,12 @@ assert(/#landlord-\(properties\|requests\|account/.test(script),
    The href makes it a real link — middle-click, copy link, open in new tab all
    behave. The click handler must still preventDefault so an in-page switch does
    not become a full document load of the same 144KB script. */
-for (const panel of ["properties", "requests", "account"]) {
+for (const panel of ["requests", "account"]) {
   assert(markup.includes(`href="/landlord/${panel}"`),
     `Nothing navigates to /landlord/${panel}, so the route is unreachable from the UI.`);
 }
+assert(!markup.includes('href="/landlord/properties"') && markup.includes('href="/landlord/bookings#your-places"'),
+  "Properties returned as a separate destination instead of the reviewed Your places section inside Bookings.");
 assert(!markup.includes('href="#landlord-properties"') && !markup.includes('href="#landlord-account"') && !markup.includes('href="#landlord-requests"'),
   "A navigation entry still points at an in-page anchor instead of the panel route.");
 for (const hook of ["data-open-landlord-section", "data-open-request-tab"]) {
@@ -106,4 +108,4 @@ assert(/import\("\.\/landlord-prepare-wizard\.js[^)]*\)\.catch\(/.test(script),
 assert(script.includes('if (selected === "requests") loadPrepareWizard()'),
   "Opening the Prepare-a-clean panel does not trigger the wizard load.");
 
-console.log("Landlord workspace route tests passed: Properties, Requests and Account are served, bookmarkable paths that the first paint and Back both honour, old #landlord-* links still resolve, panel clicks stay in-page, and the workspace shows a reduced-motion-safe loading state instead of empty states standing in for data.");
+console.log("Landlord workspace route tests passed: old Properties links resolve into Bookings, Requests and Account remain bookmarkable, old #landlord-* links still resolve, panel clicks stay in-page, and the workspace shows a reduced-motion-safe loading state instead of empty states standing in for data.");
