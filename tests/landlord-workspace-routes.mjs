@@ -38,10 +38,18 @@ for (const panel of panels) {
 }
 
 // Both entry points into panel selection must use it: first paint and Back.
-assert(script.includes('window.addEventListener("popstate", () => selectWorkspaceTab(workspaceTabFromHash()'),
-  "Back does not reselect the panel for the URL being returned to.");
-assert(/selectWorkspaceTab\(workspaceTabFromHash\(\) \|\| "home"\);/.test(script),
-  "The first paint does not select the panel named by the URL.");
+// Back prefers the history entry's own landlordTab, because Places and Bookings
+// share the address /landlord/bookings and the pathname alone cannot tell them
+// apart; workspaceTabFromHash stays as the fallback for entries written before
+// that state existed, and for a cold load of a pasted URL.
+assert(/window\.addEventListener\("popstate", \(event\) => selectWorkspaceTab\(event\.state\?\.landlordTab \|\| workspaceTabFromHash\(\)/.test(script),
+  "Back does not reselect the panel for the entry being returned to.");
+// First paint replaces rather than pushes, so an address that resolves to a
+// view but is not that view's own address — /landlord/properties, the legacy
+// #landlord-* anchors — is rewritten to the canonical one instead of leaving a
+// shared link pointing somewhere the sender never saw.
+assert(/selectWorkspaceTab\(workspaceTabFromHash\(\) \|\| "home", \{ historyMode: "replace" \}\);/.test(script),
+  "The first paint does not select the panel named by the URL, or does not canonicalise the address.");
 
 // History entries must carry the path, not a fragment.
 assert((script.includes("const url = `/landlord/${selected}`") || script.includes('const url = selected === "places" ? "/landlord/bookings" : `/landlord/${selected}`')) &&
