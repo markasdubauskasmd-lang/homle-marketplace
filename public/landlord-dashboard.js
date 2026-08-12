@@ -994,7 +994,7 @@ function selectWorkspaceTab(name, { historyMode = "" } = {}) {
     const panelName = panel.dataset.landlordPanel;
     const visible = selected === "requests"
       ? panelName === "properties"
-      : selected === "bookings" || selected === "places"
+      : selected === "bookings" || selected === "places" || selected === "properties"
         ? panelName === "bookings" || panelName === "properties"
         : panelName === selected;
     panel.hidden = !visible;
@@ -2756,15 +2756,16 @@ function featuredBooking(buckets) {
  */
 function renderNextClean() {
   const card = document.querySelector("[data-ld-next]");
-  const empty = document.querySelector("[data-ld-next-empty]");
   const label = document.querySelector("[data-hub-now-label]");
-  if (!card || !empty) return;
+  if (!card) return;
 
   const buckets = bookingSummaryBuckets(bookings, "landlord");
   const booking = featuredBooking(buckets);
 
+  // The design has no "nothing booked" block here. With nothing happening the
+  // section simply is not drawn, and Your places carries the way to start —
+  // which also stops an empty state appearing above a card that does exist.
   card.hidden = !booking;
-  empty.hidden = Boolean(booking);
   if (label) label.hidden = !booking;
   if (!booking) return;
 

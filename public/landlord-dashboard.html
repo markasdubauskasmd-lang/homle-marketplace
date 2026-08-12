@@ -329,12 +329,6 @@
           </div>
         </section>
 
-        <div class="ld-empty" data-ld-next-empty hidden>
-          <strong>Nothing booked yet</strong>
-          <p>Scan your property and we’ll create the cleaning plan for you.</p>
-          <a class="ld-btn ld-btn-primary" href="/landlord/book">Start scan</a>
-        </div>
-
         <!-- Live work is a flat section in the reviewed hub. Keeping it open
              removes the extra click and stops the page from claiming that a
              place has nothing booked while its request is hidden below. -->
@@ -383,13 +377,6 @@
         <div class="landlord-empty-card" data-property-empty><strong>No account properties yet.</strong><p>Add a property to prepare a private request draft. Nothing is published to Cleaner search.</p></div>
         <div class="landlord-property-grid" data-property-list hidden></div>
         <div class="landlord-form-feedback" data-property-status role="status" aria-live="polite" tabindex="-1" hidden></div>
-        <details class="landlord-archived-properties" data-archived-properties hidden>
-          <summary>Archived properties <span data-archived-property-count>0</span></summary>
-          <p>Archived locations stay out of new cleaning requests. Restore one only when you want to use it again.</p>
-          <div class="landlord-property-grid" data-archived-property-list></div>
-          <div class="landlord-form-feedback" data-archived-property-status role="status" aria-live="polite" tabindex="-1" hidden></div>
-        </details>
-
         <form class="landlord-record-form" data-property-form hidden novalidate>
           <fieldset data-property-controls>
             <div class="landlord-form-title"><div><p class="eyebrow">Protected property details</p><h3 data-property-form-title>Add the cleaning location</h3></div><button class="text-button" type="button" data-close-property-form>Close</button></div>
@@ -476,6 +463,17 @@
       </section>
 
       <section id="landlord-panel-account" data-landlord-panel="account" class="landlord-workspace-panel" aria-labelledby="landlord-account-title" hidden>
+        <!-- The hub shows the places you can book. Archiving belongs to a place
+             itself, and the design puts no archived-places section in the hub,
+             so the restore route lives here in Account rather than being
+             deleted - two places are archived and would otherwise be stranded. -->
+        <details class="landlord-archived-properties" data-archived-properties hidden>
+          <summary>Archived properties <span data-archived-property-count>0</span></summary>
+          <p>Archived locations stay out of new cleaning requests. Restore one only when you want to use it again.</p>
+          <div class="landlord-property-grid" data-archived-property-list></div>
+          <div class="landlord-form-feedback" data-archived-property-status role="status" aria-live="polite" tabindex="-1" hidden></div>
+        </details>
+
         <div class="landlord-panel-heading"><div><p class="eyebrow">Private Landlord profile</p><h2 id="landlord-account-title">Your account details</h2><p>These details help Homle understand who manages the properties. They are not shown to Cleaners as personal contact information.</p></div><span class="landlord-private-pill">Private account</span></div>
         <form class="landlord-record-form landlord-profile-form" data-landlord-profile-form novalidate>
           <fieldset data-landlord-profile-controls>
