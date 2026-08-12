@@ -3236,7 +3236,20 @@ body.landlord-dashboard-page .ld-care-note {
 .landlord-match-outcome-dialog dt { color: var(--muted); font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .landlord-match-outcome-dialog dd { margin: 0; color: var(--green-dark); font-weight: 800; }
 .landlord-match-outcome-dialog .landlord-match-outcome-boundary { padding: 14px 16px; border-radius: 12px; background: #fff1ee; color: #7d201b; font-weight: 700; }
+.landlord-match-outcome-dialog .landlord-match-outcome-step { display: grid; gap: 16px; }
+.landlord-match-outcome-dialog .landlord-match-outcome-step[hidden] { display: none; }
+.landlord-match-outcome-dialog .landlord-match-outcome-timing-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.landlord-match-outcome-dialog .landlord-match-outcome-timing-fields label { display: grid; gap: 7px; font-weight: 800; }
+.landlord-match-outcome-dialog .landlord-match-outcome-timing-fields label:last-child { grid-column: 1 / -1; }
+.landlord-match-outcome-dialog .landlord-match-outcome-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.landlord-match-outcome-dialog.is-builder-sequence { width: min(1080px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 32px); padding: 0; overflow: auto; }
+.landlord-match-outcome-dialog .landlord-match-outcome-builder [data-landlord-panel="requests"] { margin: 0; border: 0; border-radius: inherit; box-shadow: none; }
 
 @media (max-width: 600px) {
   .landlord-match-outcome-dialog .landlord-match-outcome-facts { grid-template-columns: 1fr; }
+  .landlord-match-outcome-dialog .landlord-match-outcome-timing-fields { grid-template-columns: 1fr; }
+  .landlord-match-outcome-dialog .landlord-match-outcome-timing-fields label:last-child { grid-column: auto; }
+  .landlord-match-outcome-dialog .landlord-match-outcome-actions { flex-direction: column-reverse; }
+  .landlord-match-outcome-dialog .landlord-match-outcome-actions .button { width: 100%; }
+  .landlord-match-outcome-dialog.is-builder-sequence { position: fixed; inset: auto 0 0 0; width: 100%; max-height: 92dvh; margin: 0; border-radius: 26px 26px 0 0; }
 }
