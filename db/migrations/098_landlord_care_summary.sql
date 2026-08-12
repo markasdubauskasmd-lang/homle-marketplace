@@ -93,15 +93,19 @@ BEGIN
     GROUP BY booking.landlord_user_id
     HAVING count(*)>=2
   ),
+  -- One row always, even with an empty cohort: the outer SELECT cross-joins
+  -- these standings, so an empty CTE here would erase the whole record.
   lag_standing AS (
     SELECT
-      count(*)::integer AS cohort_size,
-      CASE WHEN (SELECT median_lag_hours FROM own_lag) IS NULL THEN NULL
+      count(cohort.cohort_landlord)::integer AS cohort_size,
+      CASE WHEN own.median_lag_hours IS NULL OR count(cohort.cohort_landlord)=0 THEN NULL
         ELSE ceil(100.0*count(*) FILTER (
-          WHERE cohort.median_lag_hours<=(SELECT median_lag_hours FROM own_lag)
-        )/GREATEST(count(*),1))::integer
+          WHERE cohort.median_lag_hours<=own.median_lag_hours
+        )/count(cohort.cohort_landlord))::integer
       END AS top_percent
-    FROM cohort_lag cohort
+    FROM own_lag own
+    LEFT JOIN cohort_lag cohort ON true
+    GROUP BY own.median_lag_hours
   ),
   -- Scan coverage: per submitted request, the share of its checklist rooms
   -- that a structured scan actually walked. Averaged per landlord.
@@ -134,7 +138,9 @@ BEGIN
     GROUP BY cohort_landlord
   ),
   own_coverage AS (
-    SELECT average_share FROM cohort_coverage WHERE cohort_landlord=actor_id
+    SELECT (
+      SELECT average_share FROM cohort_coverage WHERE cohort_landlord=actor_id
+    ) AS average_share
   ),
   own_latest_coverage AS (
     SELECT scanned_rooms,planned_rooms
@@ -145,14 +151,16 @@ BEGIN
   ),
   coverage_standing AS (
     SELECT
-      count(*)::integer AS cohort_size,
-      CASE WHEN (SELECT average_share FROM own_coverage) IS NULL THEN NULL
+      count(cohort.cohort_landlord)::integer AS cohort_size,
+      CASE WHEN own.average_share IS NULL OR count(cohort.cohort_landlord)=0 THEN NULL
         ELSE ceil(100.0*count(*) FILTER (
-          WHERE cohort.average_share>=(SELECT average_share FROM own_coverage)
-        )/GREATEST(count(*),1))::integer
+          WHERE cohort.average_share>=own.average_share
+        )/count(cohort.cohort_landlord))::integer
       END AS top_percent,
       percentile_cont(0.75) WITHIN GROUP (ORDER BY cohort.average_share) AS top_quarter_share
-    FROM cohort_coverage cohort
+    FROM own_coverage own
+    LEFT JOIN cohort_coverage cohort ON true
+    GROUP BY own.average_share
   ),
   -- The latest structured scan, with an honest diff against the previous scan
   -- of the same property when one exists. When it finds nothing new, the page
