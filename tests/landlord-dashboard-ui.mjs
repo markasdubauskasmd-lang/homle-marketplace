@@ -320,6 +320,21 @@ assert(script.includes('["restriction", "safety"]'),
 assert(script.includes("do-not") && script.includes("safety ${entry.count === 1"),
   "The walkthrough status does not tell the Landlord that restrictions were understood as restrictions.");
 
+/* ── One clean, one clock ─────────────────────────────────────────────── */
+
+// booking-summary-model.js pins Europe/London for the booking window and the
+// booking moment. The dashboard's own shortDate and clockTime formatters did
+// not, so the Happening now card printed its window in London time and its
+// stage times in the device's zone: an hour apart from Madrid, eight and a
+// day apart from Tokyo, for the same clean.
+assert(script.includes('const bookingZone = "Europe/London"'),
+  "The dashboard has no single owner for the zone every booking time is read in.");
+for (const formatter of ["shortDate", "clockTime", "careMonth"]) {
+  const declaration = script.slice(script.indexOf(`const ${formatter} = new Intl.DateTimeFormat`));
+  assert(declaration.slice(0, declaration.indexOf(");")).includes("timeZone: bookingZone"),
+    `${formatter} formats in the device's zone, so it can disagree with the pinned booking window on the same card.`);
+}
+
 /* ── The Happening now card can actually draw its stages ──────────────── */
 
 // renderNextClean read `upcomingStepByStatus` and `upcomingStepDefinitions`,

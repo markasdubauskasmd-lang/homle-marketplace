@@ -1318,7 +1318,15 @@ function cloneIcon(name) {
   return template ? template.content.cloneNode(true) : document.createDocumentFragment();
 }
 
-const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+// Every booking time the Landlord reads is Europe/London, because that is the
+// zone the clean is actually scheduled in and the one the Cleaner turns up in.
+// booking-summary-model.js pins it for the window and the moment; these local
+// formatters did not, so one Happening now card could print its window in
+// London time and its stage times in the device's zone. A Landlord reading it
+// from anywhere but the UK saw two different times for the same clean.
+const bookingZone = "Europe/London";
+
+const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: bookingZone });
 
 function formatShortDate(value) {
   const parsed = Date.parse(value || "");
@@ -2841,7 +2849,7 @@ function renderIndicativePlans() {
 let careSummary = null;
 
 const careWholePounds = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
-const careMonth = new Intl.DateTimeFormat("en-GB", { month: "long" });
+const careMonth = new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: bookingZone });
 const careNumberWords = Object.freeze(["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"]);
 
 function careLagShort(hours) {
@@ -3083,7 +3091,7 @@ function renderHomeView() {
   renderCareRecord();
 }
 
-const clockTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" });
+const clockTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: bookingZone });
 
 function formatClock(value) {
   const parsed = Date.parse(value || "");
