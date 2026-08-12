@@ -64,6 +64,12 @@ const invitationQuoteDialog = document.querySelector("[data-invitation-quote-dia
 const invitationQuoteCleaner = document.querySelector("[data-invitation-quote-cleaner]");
 const invitationQuotePrice = document.querySelector("[data-invitation-quote-price]");
 const invitationQuoteApprove = document.querySelector("[data-invitation-quote-approve]");
+const matchOutcomeDialog = document.querySelector("[data-match-outcome-dialog]");
+const matchOutcomeTitle = document.querySelector("[data-match-outcome-title]");
+const matchOutcomeCopy = document.querySelector("[data-match-outcome-copy]");
+const matchOutcomePlace = document.querySelector("[data-match-outcome-place]");
+const matchOutcomeTime = document.querySelector("[data-match-outcome-time]");
+const matchOutcomeChangeTime = document.querySelector("[data-match-outcome-change-time]");
 const dispatchPriceDialog = document.querySelector("[data-dispatch-price-dialog]");
 const dispatchPriceMaximum = document.querySelector("[data-dispatch-price-maximum]");
 const dispatchPriceAttempts = document.querySelector("[data-dispatch-price-attempts]");
@@ -710,6 +716,50 @@ function approveInvitationQuote(quote, cleanerName) {
     invitationQuoteDialog.addEventListener("close", () => resolve(invitationQuoteDialog.returnValue === "approve"), { once: true });
     invitationQuoteDialog.showModal();
   });
+}
+
+let matchOutcomeRequestId = "";
+
+function showNoEligibleCleanerOutcome(requestId) {
+  const request = requests.find((item) => item.requestId === requestId);
+  const property = properties.find((item) => item.propertyId === request?.propertyId);
+  matchOutcomeRequestId = requestId;
+  matchOutcomeTitle.textContent = "No Cleaner is free at this time";
+  matchOutcomeCopy.textContent = "Homle checked current service fit, travel coverage and availability. There is no eligible Cleaner to quote for this exact time yet.";
+  matchOutcomePlace.textContent = property?.name || "Saved property";
+  matchOutcomeTime.textContent = request?.requestedStartAt ? formatBookingMoment(request.requestedStartAt) : "Selected time";
+  if (typeof matchOutcomeDialog.showModal !== "function") {
+    window.alert(`${matchOutcomeTitle.textContent}. ${matchOutcomeCopy.textContent} Your request remains open.`);
+    return;
+  }
+  if (!matchOutcomeDialog.open) matchOutcomeDialog.showModal();
+}
+
+function prepareAnotherTime(requestId) {
+  const request = requests.find((item) => item.requestId === requestId);
+  if (!request) return;
+  matchOutcomeDialog.close();
+  requestForm.reset();
+  delete cleaningTypeSelect.dataset.selectionSource;
+  initialiseRequestDefaults();
+  propertySelect.value = request.propertyId || "";
+  cleaningTypeSelect.value = request.cleaningType || "";
+  if (cleaningTypeSelect.value) cleaningTypeSelect.dataset.selectionSource = "user";
+  const start = new Date(request.requestedStartAt);
+  const end = new Date(request.requestedEndAt);
+  if (!Number.isNaN(start.getTime())) {
+    const localStart = new Date(start.getTime() - start.getTimezoneOffset() * 60_000).toISOString();
+    requestForm.elements.requestedDate.value = localStart.slice(0, 10);
+    requestForm.elements.requestedTime.value = localStart.slice(11, 16);
+  }
+  if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+    const durationMinutes = String(Math.round((end.getTime() - start.getTime()) / 60_000));
+    if ([...requestForm.elements.durationMinutes.options].some((option) => option.value === durationMinutes)) requestForm.elements.durationMinutes.value = durationMinutes;
+  }
+  selectWorkspaceTab("requests", { historyMode: "push" });
+  setRequestBuilderExpanded(true);
+  showFeedback(requestFeedback, "Choose a new date or time, then continue when ready. Your original request remains open until you withdraw it.", "success");
+  requestForm.elements.requestedDate.focus({ preventScroll: true });
 }
 
 function selectedCleanerInvitationRecovery(error) {
@@ -2311,12 +2361,9 @@ async function inviteBestEligibleCleaner(requestId, button, feedback) {
       await refreshBookingTransition();
       showFeedback(requestStatus, "Homle could not verify the final invitation response. The saved booking status was refreshed; do not send another invitation until the result is shown.");
     } else {
-      showFeedback(feedback, error.message);
       if (error?.code === "no-eligible-cleaner") {
-        const sandbox = element("a", "button button-outline", "Open Stripe test checkout");
-        sandbox.href = "/stripe-sandbox?start=1";
-        feedback.append(document.createTextNode(" "), sandbox);
-      }
+        showNoEligibleCleanerOutcome(requestId);
+      } else showFeedback(feedback, error.message);
     }
   } finally {
     if (button.isConnected) setPending(button, false, "See best Cleaner & exact price");
@@ -4074,6 +4121,13 @@ bookCleanDialog?.addEventListener("click", (event) => {
 bookCleanDialog?.addEventListener("close", () => {
   bookCleanPropertyId = "";
   if (bookCleanStep) bookCleanStep.textContent = "Step 1 of 2 · choose a place";
+});
+matchOutcomeChangeTime?.addEventListener("click", () => prepareAnotherTime(matchOutcomeRequestId));
+matchOutcomeDialog?.addEventListener("click", (event) => {
+  if (event.target !== matchOutcomeDialog) return;
+  const box = matchOutcomeDialog.getBoundingClientRect();
+  const outside = event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+  if (outside) matchOutcomeDialog.close();
 });
 
 // A completed room scan hands its checklist and spoken note back here. Without
