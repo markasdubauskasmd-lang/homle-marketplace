@@ -12,7 +12,7 @@
 <link rel="icon" href="/homle-logo-128-4f82ebad.png" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
-<link rel="stylesheet" href="/homle-tokens.css?v=20260728-2"><link rel="stylesheet" href="/styles.css?v=20260728-3"><link rel="stylesheet" href="/pricing.css?v=20260808-1">
+<link rel="stylesheet" href="/homle-tokens.css?v=20260728-2"><link rel="stylesheet" href="/styles.css?v=20260728-3"><link rel="stylesheet" href="/pricing.css?v=20260808-1"><link rel="stylesheet" href="/landlord-journey-property.css?v=20260814-1">
 </head>
 <body class="journey-page">
 
@@ -51,17 +51,22 @@
 
 <main class="journey-main" data-journey-shell hidden>
 
-  <!-- ══ 1. POSTCODE ══ -->
+  <!-- ══ 1. PROPERTY ══ -->
   <section class="jstep" data-step="postcode">
     <div class="wrap-n">
-      <p class="eyebrow">Where are we cleaning</p>
-      <h2 class="pg">Let's check who's<br>near you.</h2>
-      <p class="pgs">Just a postcode first. Your exact address stays private, and no payment is taken while you build the request.</p>
+      <p class="eyebrow">Choose a property</p>
+      <h2 class="pg">Which property<br>are you scanning?</h2>
+      <p class="pgs">Choose one of your saved properties. Homle uses its postcode to check nearby Cleaners while the exact address stays private.</p>
 
-      <div class="field">
-        <label for="postcode">Your postcode</label>
-        <input class="inp" id="postcode" name="postcode" data-postcode placeholder="SM4 4LE" autocomplete="postal-code" spellcheck="false" inputmode="text" maxlength="9">
+      <!-- The postcode still travels through the established booking contract,
+           but it is now derived from the selected private property rather than
+           being typed again and becoming detached from the eventual booking. -->
+      <input type="hidden" data-postcode>
+      <div class="journey-scan-properties" data-scan-property-section>
+        <p class="journey-scan-property-state" data-scan-property-state>Loading your saved properties…</p>
+        <div class="journey-property-options" data-scan-property-options role="radiogroup" aria-label="Choose a property to scan"></div>
         <p class="err" data-postcode-error hidden></p>
+        <a class="journey-add-property" href="/landlord/properties">+ Add a property</a>
       </div>
 
       <!-- Only ever states what the directory actually returned. Zero cleaners
@@ -74,7 +79,7 @@
         </div>
       </div>
 
-      <button class="btn btn-p btn-full btn-lg" type="button" data-next>Continue</button>
+      <button class="btn btn-p btn-full btn-lg" type="button" data-property-next data-next disabled>Continue</button>
 
       <div class="trust">
         <span class="tchip"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#149E52" stroke-width="2.3"><path d="M12 2 4 6v6c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6l-8-4Z"/></svg>Private account</span>
@@ -335,6 +340,6 @@
 
 <div class="jtoast" data-toast role="status" aria-live="polite" hidden></div>
 
-<script type="module" src="/landlord-journey.js?v=journey8"></script>
+<script type="module" src="/landlord-journey.js?v=journey9"></script>
 </body>
 </html>

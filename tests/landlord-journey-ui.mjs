@@ -36,8 +36,10 @@ const [page, script, styles, server, scanPage] = await Promise.all([
   readFile(new URL("../public/room-scan.html", import.meta.url), "utf8")
 ]);
 
-// Six steps, starting at the postcode, exactly as approved.
-assert(journeySteps.length === 6 && journeySteps[0].id === "postcode", "The journey does not begin with the postcode step.");
+// Six steps, starting with a saved-property choice. The internal step id stays
+// `postcode` because the existing request contract uses the chosen property's
+// postcode for coverage and pricing.
+assert(journeySteps.length === 6 && journeySteps[0].id === "postcode", "The journey does not begin with the property step.");
 assert(journeySteps.map((step) => step.id).join(",") === "postcode,service,results,when,cleaner,checkout", `The step order changed: ${journeySteps.map((s) => s.id).join(",")}`);
 assert(stepLabel("postcode") === "Step 1 / 6" && stepLabel("checkout") === "Step 6 / 6", "The rail does not count steps out of six.");
 assert(previousStep("postcode") === "" && previousStep("service") === "postcode", "Back navigation is wrong at the first step.");
@@ -58,7 +60,7 @@ const none = supplyMessage(0, "SM4");
 assert(!none.available && none.headline.includes("No cleaners") && none.detail.includes("save your request"), "Having no cleaners in an area is hidden instead of said plainly.");
 
 // A step cannot be left with a gap the next one needs.
-assert(!canLeaveStep("postcode", {}) && canLeaveStep("postcode", { postcode: "SM4 4LE" }), "The postcode gate is wrong.");
+assert(!canLeaveStep("postcode", {}) && !canLeaveStep("postcode", { postcode: "SM4 4LE" }) && canLeaveStep("postcode", { propertyId: "one", postcode: "SM4 4LE" }), "The property gate is wrong.");
 assert(!canLeaveStep("service", { serviceCode: "invented" }) && canLeaveStep("service", { serviceCode: services[0].code }), "An unpriceable service could be chosen.");
 assert(!canLeaveStep("results", { tasks: [] }) && canLeaveStep("results", { tasks: ["Mop the floor"] }), "The journey could reach checkout with an empty checklist.");
 assert(!canLeaveStep("when", { date: "2026-08-01", time: "25:00", frequency: "fortnightly" }), "An impossible arrival window was accepted.");
@@ -134,13 +136,17 @@ assert(checkoutCopy("save").note.includes("no payment is taken"), "A saved reque
 assert(checkoutCopy("request").note.includes("No payment is taken"), "An unpaid request implies a payment was taken.");
 assert(!checkoutCopy("request").note.includes("invited now") && checkoutCopy("request").note.includes("exact quoted total"), "Checkout promises a Cleaner invitation before the required exact-price approval.");
 
-// The page itself: step 1 is the postcode question from the approved design.
-assert(page.includes("Where are we cleaning") && page.includes("Let&#39;s check who&#39;s") || page.includes("Let's check who's"), "Step 1 is not the approved postcode question.");
+// The page itself: step 1 requires a saved property and never asks the signed-in
+// Landlord to type a postcode that Homle already holds privately.
+assert(page.includes("Which property") && page.includes("data-scan-property-options") && page.includes("/landlord/properties"), "Step 1 is not the saved-property choice.");
+assert(page.includes('type="hidden" data-postcode') && !page.includes('id="postcode"'), "Step 1 still exposes a duplicate postcode field.");
 assert(page.includes("exact address stays private") && page.includes("Private account") && page.includes("Nothing sent before approval") && page.includes("No payment on this step"), "The step 1 privacy and approval boundaries are missing.");
 assert(!page.includes("Enhanced DBS") && !page.includes("Insured incl. theft") && !page.includes("Free cancellation 24h") && !page.includes("cancel free up to"), "The booking journey invents unverified screening, insurance or cancellation claims.");
 assert(page.includes("data-rail") && page.includes("data-step-label") && page.includes("data-back"), "The progress rail is missing.");
 assert(styles.includes(".rail-seg") && styles.includes(".rail-lbl") && styles.includes(".jstep"), "The journey presentation is missing.");
-assert(page.includes("/styles.css?v=20260728-3") && page.includes("/landlord-journey.js?v=journey8") && script.includes("./landlord-journey-model.js?v=journey7"), "The repaired mobile journey, shared animation layer or matching model can remain stuck behind previous cached assets.");
+assert(page.includes("/styles.css?v=20260728-3") && page.includes("/landlord-journey-property.css?v=20260814-1") && page.includes("/landlord-journey.js?v=journey9") && script.includes("./landlord-journey-model.js?v=journey8"), "The property-first journey, page styling or matching model can remain stuck behind previous cached assets.");
+assert(script.includes("selectScanProperty(property)") && script.includes("state.draft.propertyId = property.propertyId") && script.includes("checkSupply(parsed.outward)"), "Selecting a saved property does not bind its private postcode to coverage and the rest of the journey.");
+assert(script.includes("Drafts created before the property-first journey") && script.includes('if (stepIndex(state.step) > 0) state.step = "postcode"'), "An old postcode-only draft can bypass the new first-step property choice.");
 assert(page.includes("data-access-gate") && page.includes("data-journey-shell hidden") && page.includes('href="/signup?intent=book" data-access-sign-in'), "A copied or installed-app booking link can expose the scanner before secure Landlord access is checked.");
 assert(script.includes('location.replace("/signup?intent=book")') && script.includes('location.replace("/onboarding?intent=book")') && script.includes("openAuthenticatedJourney") && script.includes('access.status !== "ready"'), "The booking journey does not recover account-first entry, add the separate Landlord role, or fail closed before opening the scanner.");
 assert(script.indexOf("await openAuthenticatedJourney()") < script.lastIndexOf("show(state.step)"), "The room-scan journey is rendered before the signed-in Landlord workspace is verified.");
@@ -188,4 +194,4 @@ assert(page.includes('data-journey-exit') && page.includes('href="/landlord/book
 assert(script.includes("el.exit.hidden = hasPreviousStep || stepId === \"done\"") && script.includes("el.back.hidden = !hasPreviousStep || stepId === \"done\""),
   "The rail does not swap its back control for a dashboard exit on the first step, so it shows both or neither.");
 
-console.log("Landlord journey UI tests passed: six approved steps from the postcode, honest coverage from the live directory, gated progress with reasons, future-only days, scan handoff both ways, draft recovery and a checkout that states what will really happen.");
+console.log("Landlord journey UI tests passed: six approved steps from a saved property, honest coverage from its postcode, gated progress with reasons, future-only days, scan handoff both ways, draft recovery and a checkout that states what will really happen.");
