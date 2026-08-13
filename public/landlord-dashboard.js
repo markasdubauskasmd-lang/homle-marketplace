@@ -716,6 +716,41 @@ function showRequestCompletion(submission, { automaticDispatch = false, automati
   requestComplete.focus();
 }
 
+/**
+ * Runs dismissal work for a <dialog> in every engine still in use.
+ *
+ * Dismissal used to be one signal: close() removed [open] and a `close` event
+ * followed. Chrome has moved dialogs onto the popover ToggleEvent model, and
+ * in current stable — measured on this page's own dialogs in Chrome 151 —
+ * close() fires `beforetoggle` and `toggle` (newState "closed") while `close`
+ * never reaches a listener at all. Engines from before that change fire
+ * `close` and may not dispatch ToggleEvent for dialogs. Every consequence
+ * this file hangs on dismissal — leaving the builder view, resolving a price
+ * approval, returning the builder panel from the match-outcome sequence —
+ * therefore subscribes to both signals, not one.
+ *
+ * An engine mid-transition can deliver both events for one dismissal, so a
+ * handler passed here must tolerate running twice. The ones in this file do:
+ * each guards on the state it is about to change.
+ */
+function onDialogDismissal(dialog, handler) {
+  if (!dialog) return;
+  dialog.addEventListener("close", handler);
+  dialog.addEventListener("toggle", (event) => { if (event.newState === "closed") handler(); });
+}
+
+/** One dismissal only: both listeners detach as soon as either signal lands. */
+function onceDialogDismissal(dialog, handler) {
+  const onToggle = (event) => { if (event.newState === "closed") finish(); };
+  const finish = () => {
+    dialog.removeEventListener("close", finish);
+    dialog.removeEventListener("toggle", onToggle);
+    handler();
+  };
+  dialog.addEventListener("close", finish);
+  dialog.addEventListener("toggle", onToggle);
+}
+
 function approveInvitationQuote(quote, cleanerName) {
   const pricePence = Number(quote?.customerPricePence);
   if (!Number.isInteger(pricePence) || pricePence < 1 || pricePence > 10_000_000) throw new Error("The exact booking total could not be verified.");
@@ -726,7 +761,7 @@ function approveInvitationQuote(quote, cleanerName) {
   if (typeof invitationQuoteDialog.showModal !== "function") return Promise.resolve(window.confirm(`Invite ${cleanerName || "this Cleaner"} for the exact total ${formattedPrice}? No payment is taken now.`));
   invitationQuoteDialog.returnValue = "";
   return new Promise((resolve) => {
-    invitationQuoteDialog.addEventListener("close", () => resolve(invitationQuoteDialog.returnValue === "approve"), { once: true });
+    onceDialogDismissal(invitationQuoteDialog, () => resolve(invitationQuoteDialog.returnValue === "approve"));
     invitationQuoteDialog.showModal();
   });
 }
@@ -842,7 +877,7 @@ function approveAutomaticDispatchPrice(maximumPricePence, attemptLimit) {
   if (typeof dispatchPriceDialog.showModal !== "function") return Promise.resolve(window.confirm(`Allow Cleaner matching only when the exact total is ${formattedPrice} or less? No payment is taken now.`));
   dispatchPriceDialog.returnValue = "";
   return new Promise((resolve) => {
-    dispatchPriceDialog.addEventListener("close", () => resolve(dispatchPriceDialog.returnValue === "approve"), { once: true });
+    onceDialogDismissal(dispatchPriceDialog, () => resolve(dispatchPriceDialog.returnValue === "approve"));
     dispatchPriceDialog.showModal();
   });
 }
@@ -981,7 +1016,7 @@ function hideRequestCompletion() {
 }
 // Closing by Escape or the backdrop has to run the same teardown as the Hide
 // control, or the panel would stay flagged as open and refuse to reopen.
-requestBuilderDialog?.addEventListener("close", () => {
+onDialogDismissal(requestBuilderDialog, () => {
   hideRequestCompletion();
   if (requestBuilderPanel && !requestBuilderPanel.hidden) setRequestBuilderExpanded(false);
   // The builder is a view, so closing it has to land on a real one. Without
@@ -989,7 +1024,9 @@ requestBuilderDialog?.addEventListener("close", () => {
   // the builder hidden and nothing in its place: an empty page whose heading
   // reads "Properties" while the navigation still marks Bookings.
   // selectWorkspaceTab assigns currentWorkspaceTab before it closes this
-  // dialog, so switching to another view never reaches this branch.
+  // dialog, so switching to another view never reaches this branch — and the
+  // same guard is what lets this handler run twice harmlessly in an engine
+  // that delivers both dismissal signals.
   if (currentWorkspaceTab === "requests") selectWorkspaceTab("bookings", { historyMode: "replace" });
 });
 requestBuilderDialog?.addEventListener("click", (event) => {
@@ -4410,14 +4447,14 @@ bookCleanDialog?.addEventListener("click", (event) => {
   const inside = event.clientX >= box.left && event.clientX <= box.right && event.clientY >= box.top && event.clientY <= box.bottom;
   if (!inside) bookCleanDialog.close();
 });
-bookCleanDialog?.addEventListener("close", () => {
+onDialogDismissal(bookCleanDialog, () => {
   bookCleanPropertyId = "";
   if (bookCleanStep) bookCleanStep.textContent = "Step 1 of 2 · choose a place";
 });
 matchOutcomeChangeTime?.addEventListener("click", () => prepareAnotherTime(matchOutcomeRequestId));
 matchOutcomeBack?.addEventListener("click", () => showMatchOutcomeStep("result"));
 matchOutcomeContinue?.addEventListener("click", () => continueAnotherTime(matchOutcomeRequestId));
-matchOutcomeDialog?.addEventListener("close", () => {
+onDialogDismissal(matchOutcomeDialog, () => {
   // Return the single working request panel to its normal dialog after this
   // sequence closes; the entered values remain available if it is reopened.
   if (requestBuilderPanel?.parentElement === matchOutcomeBuilderMount) requestBuilderDialog?.append(requestBuilderPanel);
@@ -4509,7 +4546,7 @@ requestForm.addEventListener("submit", (event) => createRequestDraft(event, {
 requestWithdrawForm.addEventListener("submit", withdrawRequest);
 requestWithdrawCancel.addEventListener("click", () => { if (!withdrawalPending) requestWithdrawDialog.close(); });
 requestWithdrawDialog.addEventListener("cancel", (event) => { if (withdrawalPending) event.preventDefault(); });
-requestWithdrawDialog.addEventListener("close", () => {
+onDialogDismissal(requestWithdrawDialog, () => {
   if (withdrawalPending) return;
   withdrawingRequestId = "";
   withdrawingFromPropertyId = "";
@@ -4519,7 +4556,7 @@ requestWithdrawDialog.addEventListener("close", () => {
 propertyArchiveForm.addEventListener("submit", archiveProperty);
 propertyArchiveCancel.addEventListener("click", () => { if (!propertyArchivePending) propertyArchiveDialog.close(); });
 propertyArchiveDialog.addEventListener("cancel", (event) => { if (propertyArchivePending) event.preventDefault(); });
-propertyArchiveDialog.addEventListener("close", () => {
+onDialogDismissal(propertyArchiveDialog, () => {
   if (propertyArchivePending) return;
   archivingPropertyId = "";
   propertyArchiveFeedback.hidden = true;

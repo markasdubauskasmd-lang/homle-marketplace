@@ -411,8 +411,34 @@ assert(v2Styles.includes("flex: 0 1 58px") && v2Styles.includes("flex: 0 0 62px"
 // the builder without selecting anything in its place, so Escape or a backdrop
 // click left the address on /landlord/requests with an empty main region, the
 // heading reading "Properties" and the navigation still marking Bookings.
-assert(/requestBuilderDialog\?\.addEventListener\("close"[\s\S]{0,700}?currentWorkspaceTab === "requests"[\s\S]{0,120}?selectWorkspaceTab\("bookings"/.test(script),
+assert(/onDialogDismissal\(requestBuilderDialog[\s\S]{0,900}?currentWorkspaceTab === "requests"[\s\S]{0,120}?selectWorkspaceTab\("bookings"/.test(script),
   "Closing the request builder no longer returns the Landlord to a real view, so /landlord/requests can render an empty page.");
+
+/* ── Dialog dismissal is heard in every engine still in use ───────────── */
+
+// Chrome moved dialogs onto the ToggleEvent model: measured on this page's own
+// dialogs in Chrome 151, close() fires beforetoggle and toggle (newState
+// "closed") while the long-standing `close` event never reaches a listener at
+// all. Engines from before that change fire `close` and may not dispatch
+// ToggleEvent for dialogs. Every dismissal consequence — leaving the builder
+// view, resolving a price approval, returning the builder panel from the
+// match-outcome sequence, resetting the withdraw and archive forms — must
+// therefore subscribe to both signals, or it silently stops happening on one
+// side of the change. The price approvals are the sharpest edge: each resolves
+// a Promise on dismissal, and a signal that never arrives leaves the approval
+// awaiting forever with no error anywhere.
+assert(script.includes("function onDialogDismissal(dialog, handler)") && script.includes("function onceDialogDismissal(dialog, handler)"),
+  "There is no dual-signal dialog dismissal helper, so dismissal work depends on a single event current Chrome no longer fires.");
+assert(/dialog\.addEventListener\("toggle", \(event\) => \{ if \(event\.newState === "closed"\) handler\(\); \}\)/.test(script),
+  "The dismissal helper does not listen for toggle newState closed, so it is deaf in engines where `close` no longer fires.");
+for (const dialogName of ["requestBuilderDialog", "bookCleanDialog", "matchOutcomeDialog", "requestWithdrawDialog", "propertyArchiveDialog"]) {
+  assert(script.includes(`onDialogDismissal(${dialogName}`),
+    `${dialogName}'s dismissal work is not routed through the dual-signal helper, so it can silently stop running in current Chrome.`);
+}
+assert(script.includes("onceDialogDismissal(invitationQuoteDialog") && script.includes("onceDialogDismissal(dispatchPriceDialog"),
+  "A price-approval Promise still resolves only on the `close` event, so approving a Cleaner's exact total can hang forever in current Chrome.");
+assert(!/\baddEventListener\("close"/.test(script.replace(/function onDialogDismissal[\s\S]{0,700}?\n\}/, "").replace(/function onceDialogDismissal[\s\S]{0,700}?\n\}/, "")),
+  "A dialog subscribes to `close` outside the dismissal helpers, so that consequence is lost in engines that no longer fire it.");
 
 /* ── The saved walkthrough is cleared once its draft is stored ─────────── */
 
