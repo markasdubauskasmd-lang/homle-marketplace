@@ -416,17 +416,21 @@ assert(/onDialogDismissal\(requestBuilderDialog[\s\S]{0,900}?currentWorkspaceTab
 
 /* ── Dialog dismissal is heard in every engine still in use ───────────── */
 
-// Chrome moved dialogs onto the ToggleEvent model: measured on this page's own
-// dialogs in Chrome 151, close() fires beforetoggle and toggle (newState
-// "closed") while the long-standing `close` event never reaches a listener at
-// all. Engines from before that change fire `close` and may not dispatch
-// ToggleEvent for dialogs. Every dismissal consequence — leaving the builder
-// view, resolving a price approval, returning the builder panel from the
-// match-outcome sequence, resetting the withdraw and archive forms — must
-// therefore subscribe to both signals, or it silently stops happening on one
-// side of the change. The price approvals are the sharpest edge: each resolves
-// a Promise on dismissal, and a signal that never arrives leaves the approval
-// awaiting forever with no error anywhere.
+// Chrome moved dialogs onto the ToggleEvent model, so a dismissal now fires
+// beforetoggle and toggle (newState "closed") alongside the long-standing
+// `close`. A report of the deployed dashboard concluded that `close` had
+// stopped being delivered in Chrome 151, leaving every consequence below dead
+// in production. That did not reproduce: measured on the real builder dialog in
+// headless Chrome 151, dismissal fires toggle and then close, and the teardown
+// runs. See the helper's own comment for the full measurement.
+//
+// Both signals stay subscribed as robustness rather than as a fix — this is the
+// booking path, and the price approvals are the sharp edge, since each resolves
+// a Promise on dismissal and a signal that never arrives leaves the approval
+// awaiting forever with no error anywhere. These assertions keep that shape
+// from being quietly narrowed back to one signal; what actually proves the
+// behaviour is tests/landlord-dashboard-render.mjs, which dismisses a real
+// dialog in a real engine and checks where the Landlord lands.
 assert(script.includes("function onDialogDismissal(dialog, handler)") && script.includes("function onceDialogDismissal(dialog, handler)"),
   "There is no dual-signal dialog dismissal helper, so dismissal work depends on a single event current Chrome no longer fires.");
 assert(/dialog\.addEventListener\("toggle", \(event\) => \{ if \(event\.newState === "closed"\) handler\(\); \}\)/.test(script),

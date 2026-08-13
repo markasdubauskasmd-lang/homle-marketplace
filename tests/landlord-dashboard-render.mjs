@@ -278,6 +278,72 @@ try {
        * once by a request card hardcoded to "Matching in progress" and once by
        * the booking card reading the real status.
        */
+      /* ── Dismissing a dialog actually runs its teardown ──────────────────
+       *
+       * Every assertion covering dialog dismissal was a source-text match,
+       * which passes whatever the engine does. A report of the deployed site
+       * claimed the close event had stopped being delivered in Chrome 151,
+       * leaving seven consequences dead — including two price-approval
+       * Promises that would never resolve. It did not reproduce, and this is
+       * the check that settles such a question either way: it dismisses a real
+       * dialog in a real engine and looks at where the Landlord ends up.
+       *
+       * It also guards the live risk in the current implementation. Chrome
+       * delivers BOTH toggle and close for one dismissal, so every handler
+       * registered through onDialogDismissal runs twice. That is only safe
+       * while each guards on the state it changes, and the teardown here would
+       * navigate twice if that stopped being true.
+       */
+      if (scenario.key === "no data") {
+        await browser.setViewport({ width: 1440, height: 900, mobile: false });
+        await browser.goto(`${server.origin}/landlord/requests`);
+        await browser.evaluate(`
+          const deadline = Date.now() + 15000;
+          for (;;) {
+            const workspace = document.querySelector("[data-landlord-workspace]");
+            if (workspace && !workspace.hidden && !workspace.hasAttribute("aria-busy")) return true;
+            if (Date.now() > deadline) return false;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+        `);
+        const dismissal = await browser.evaluate(`
+          const dialog = document.querySelector("[data-request-builder-dialog]");
+          if (!dialog) return { error: "the request builder dialog is not in the markup" };
+          if (!dialog.open) return { error: "opening /landlord/requests did not open the builder dialog" };
+          const signals = [];
+          dialog.addEventListener("close", () => signals.push("close"));
+          dialog.addEventListener("toggle", (event) => { if (event.newState === "closed") signals.push("toggle"); });
+          const startLength = history.length;
+          dialog.close();
+          // toggle is dispatched as a task, so let the loop turn before looking.
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          const bookings = document.querySelector('[data-landlord-panel="bookings"]');
+          return {
+            path: location.pathname,
+            dialogOpen: dialog.open,
+            bookingsVisible: Boolean(bookings) && !bookings.hidden,
+            signals,
+            // The teardown replaces rather than pushes, so a correct dismissal
+            // adds no entries however many signals arrive.
+            historyGrowth: history.length - startLength
+          };
+        `);
+        assert(!dismissal.error, `no data · builder dismissal: ${dismissal.error}`);
+        assert(dismissal.dialogOpen === false,
+          "no data · builder dismissal: the dialog is still open after close().");
+        // The teardown's whole purpose: never strand the Landlord on the empty
+        // page behind the builder.
+        assert(dismissal.path === "/landlord/bookings",
+          `no data · builder dismissal: closing the builder left the address at "${dismissal.path}" instead of /landlord/bookings, so the Landlord is on the empty page the teardown exists to prevent.`);
+        assert(dismissal.bookingsVisible,
+          "no data · builder dismissal: the address moved to /landlord/bookings but the Bookings panel is not visible, so the view behind the dialog is blank.");
+        assert(dismissal.signals.length > 0,
+          "no data · builder dismissal: neither close nor toggle was delivered, so no dismissal signal exists for the teardown to hang on at all.");
+        assert(dismissal.historyGrowth === 0,
+          `no data · builder dismissal: the teardown added ${dismissal.historyGrowth} history entr${dismissal.historyGrowth === 1 ? "y" : "ies"}, so it ran more than once in a way the Landlord would feel when pressing Back. Signals delivered: ${dismissal.signals.join(", ")}.`);
+        checked.push(`no data · dialog dismissal runs its teardown once (signals: ${dismissal.signals.join("+")})`);
+      }
+
       if (scenario.key === "booking confirmed") {
         await browser.setViewport({ width: 1440, height: 900, mobile: false });
         await browser.goto(`${server.origin}/landlord/bookings`);

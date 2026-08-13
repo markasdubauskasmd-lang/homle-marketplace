@@ -720,18 +720,29 @@ function showRequestCompletion(submission, { automaticDispatch = false, automati
  * Runs dismissal work for a <dialog> in every engine still in use.
  *
  * Dismissal used to be one signal: close() removed [open] and a `close` event
- * followed. Chrome has moved dialogs onto the popover ToggleEvent model, and
- * in current stable — measured on this page's own dialogs in Chrome 151 —
- * close() fires `beforetoggle` and `toggle` (newState "closed") while `close`
- * never reaches a listener at all. Engines from before that change fire
- * `close` and may not dispatch ToggleEvent for dialogs. Every consequence
- * this file hangs on dismissal — leaving the builder view, resolving a price
- * approval, returning the builder panel from the match-outcome sequence —
- * therefore subscribes to both signals, not one.
+ * followed. Chrome has since moved dialogs onto the popover ToggleEvent model,
+ * so a dismissal now also fires `beforetoggle` and `toggle` (newState
+ * "closed"), and `toggle` is the signal newer code is written against.
  *
- * An engine mid-transition can deliver both events for one dismissal, so a
- * handler passed here must tolerate running twice. The ones in this file do:
- * each guards on the state it is about to change.
+ * A report of the deployed dashboard concluded that `close` had stopped being
+ * delivered in Chrome 151 and that every consequence below was therefore dead
+ * in production. That did not reproduce. Measured on this file's own builder
+ * dialog in headless Chrome 151, dismissal fires `toggle` (newState "closed")
+ * and then `close`, and the teardown runs: the address moves from
+ * /landlord/requests to /landlord/bookings. A synthetic dialog agrees across
+ * both same-task and deferred close(), with and without a `beforetoggle`
+ * listener attached. So `close` alone was not broken here.
+ *
+ * Both signals are still subscribed, deliberately. The cost is one extra
+ * listener; the benefit is that dismissal work does not depend on which of two
+ * overlapping models a given engine or configuration favours, and this is the
+ * booking path — a dismissal that goes unheard strands a price approval
+ * awaiting forever. Robustness, not a fix for a confirmed defect.
+ *
+ * Because current Chrome delivers BOTH events, every handler passed here runs
+ * twice per dismissal. That is safe only because each guards on the state it is
+ * about to change, and the render suite dismisses a real dialog to prove the
+ * outcome is single and correct. Keep that property in anything added here.
  */
 function onDialogDismissal(dialog, handler) {
   if (!dialog) return;
