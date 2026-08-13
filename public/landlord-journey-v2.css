@@ -1,0 +1,198 @@
+/* The scan journey in the workspace's own language.
+ *
+ * This was the largest remaining design seam. A Landlord goes from the
+ * redesigned dashboard to /landlord/book in one tap and the product changes
+ * dialect: a different red (#D91435 against the workspace's #e11b22), a 100px
+ * pill carrying a coloured glow where the workspace uses an 11px rectangle with
+ * no shadow, filled grey fields where the workspace outlines on white, and a
+ * heavier, tighter heading scale. Nothing was broken; it simply looked like
+ * somewhere else, on the path that makes money.
+ *
+ * Every value below is copied from landlord-dashboard-v2.css rather than
+ * invented, so the two surfaces cannot drift apart in different directions.
+ *
+ * THREE THINGS THIS SHEET DELIBERATELY DOES NOT DO.
+ *
+ * 1. It does not edit styles.css. The journey's primitives are declared there
+ *    globally — `.btn` alone is also used by the cleaner surfaces and home —
+ *    so this overrides them behind `body.journey-page`, a class only
+ *    landlord-journey.html carries. Specificity (0,2,1) beats the bare (0,1,0)
+ *    declarations regardless of load order, and nothing outside this page can
+ *    see any of it.
+ *
+ * 2. It never touches `.button` or `deck-*`. room-scan-overlay.js builds the
+ *    live scanner from those classes at runtime, inside this page. The scanner
+ *    is off-limits, so restyling them here would reach straight into it.
+ *
+ * 3. It leaves `.scan-measure-*` and `.scan-review-*` alone. Those belong to
+ *    the scan's own measure and review steps rather than to the journey chrome,
+ *    and they are the scanner's presentation of its own findings.
+ *
+ * The computed-style baseline measures this page, so every change here lands as
+ * a named before/after diff rather than a hopeful guess.
+ */
+
+/* The whole palette moves in one place: these tokens feed the rail, the
+   buttons, the field focus ring and the step type already. */
+body.journey-page {
+  --j-red: #e11b22;
+  --j-red-hot: #c4151b;
+  --j-ok: #2e7d51;
+  --j-ink: #1a1a1a;
+  --j-dim: #666666;
+  --j-ghost: #6b6b6b;
+  --j-line: #efedeb;
+  background: #f7f6f5;
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+}
+
+/* ── Type ───────────────────────────────────────────────────────────────── */
+
+body.journey-page h2.pg {
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+body.journey-page .pgs { font-size: 15px; color: var(--j-dim); }
+
+/* The workspace introduces a region with an 11px uppercase micro-label. The
+   journey's eyebrow is the same idea drawn differently, so it adopts it —
+   scoped here, because the bare `.eyebrow` in styles.css is the live owner of
+   that class on 26 other pages and must not move. */
+body.journey-page .eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #6b6b6b;
+  gap: 9px;
+}
+body.journey-page .eyebrow::before { background: #6b6b6b; }
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+
+body.journey-page .btn {
+  border-radius: 11px;
+  padding: 13px 22px;
+  min-height: 48px;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  box-shadow: none;
+  transition: background 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
+}
+body.journey-page .btn-p { background: #e11b22; color: #ffffff; border: 0; }
+body.journey-page .btn-p:hover { background: #c4151b; box-shadow: none; }
+body.journey-page .btn:active { transform: scale(0.97); }
+body.journey-page .btn-lg { padding: 15px 26px; font-size: 15.5px; min-height: 52px; }
+body.journey-page .btn:disabled { opacity: 0.32; box-shadow: none; transform: none; }
+/* The journey's ghost is a full-width text link rather than a button, so it
+   takes the workspace's quiet treatment instead of its outline. */
+body.journey-page .btn-ghost {
+  color: #666666;
+  font-weight: 600;
+  box-shadow: none;
+}
+body.journey-page .btn-ghost:hover { color: #c4151b; }
+
+/* ── Fields ─────────────────────────────────────────────────────────────── */
+
+body.journey-page .field label { font-size: 12.5px; font-weight: 700; color: #666666; }
+body.journey-page .field .hint { color: #6b6b6b; font-size: 12px; }
+body.journey-page .inp {
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid #e7e4e0;
+  border-radius: 12px;
+  /* Outlined on paper, as the workspace does, rather than the journey's grey
+     fill. 16px is kept from the original: it is what stops iOS zooming the
+     page when a field takes focus. */
+  background: #ffffff;
+  color: #1a1a1a;
+  font-size: 16px;
+  font-weight: 500;
+}
+body.journey-page textarea.inp { min-height: 120px; line-height: 1.55; }
+/* The workspace's focus contract. styles.css removes the outline here and
+   substitutes a coral glow; this restores a real ring and keeps the coral
+   border alongside it. */
+body.journey-page .inp:focus {
+  outline: 3px solid #2456e6;
+  outline-offset: 1px;
+  border-color: #e11b22;
+  background: #ffffff;
+  box-shadow: none;
+}
+body.journey-page .err { color: #c4151b; font-size: 12.5px; font-weight: 600; }
+
+/* ── Choices ────────────────────────────────────────────────────────────── */
+
+/* One control drawn four ways in the original — the service list, the day
+   strip, the time chips and the cleaner list. They share the workspace's
+   selectable-tile treatment now. */
+body.journey-page .opt,
+body.journey-page .journey-property-option {
+  border: 1.5px solid #e7e4e0;
+  border-radius: 14px;
+  background: #ffffff;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+body.journey-page .opt:hover,
+body.journey-page .journey-property-option:hover { transform: translateY(-1px); border-color: #f0a0a3; }
+body.journey-page .opt.on,
+body.journey-page .journey-property-option.on {
+  border-color: #e11b22;
+  background: #fdecec;
+}
+body.journey-page .day,
+body.journey-page .chip {
+  border: 1.5px solid #e7e4e0;
+  border-radius: 11px;
+  background: #ffffff;
+  font-family: inherit;
+  font-weight: 600;
+}
+body.journey-page .day.on,
+body.journey-page .chip.on { border-color: #e11b22; background: #fdecec; color: #1a1a1a; }
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+
+body.journey-page .summary,
+body.journey-page .journey-property,
+body.journey-page .scan-invite,
+body.journey-page .journey-access-card {
+  background: #ffffff;
+  border: 1px solid #efedeb;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px oklch(0.2 0.03 60 / 0.05), 0 6px 16px oklch(0.2 0.03 60 / 0.06);
+}
+body.journey-page .res-hero {
+  border-radius: 20px;
+  border: 1px solid #efedeb;
+  box-shadow: 0 1px 2px oklch(0.2 0.03 60 / 0.05), 0 6px 16px oklch(0.2 0.03 60 / 0.06);
+}
+
+/* ── The step rail ──────────────────────────────────────────────────────── */
+
+body.journey-page .rail {
+  background: #ffffff;
+  border-bottom: 1px solid #efedeb;
+}
+body.journey-page .rail-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6b6b6b;
+}
+body.journey-page .rail-back { color: #666666; border-radius: 9px; }
+body.journey-page .rail-back:hover { color: #c4151b; }
+
+/* The workspace's focus contract, for everything the rail and steps contain. */
+body.journey-page a:focus-visible,
+body.journey-page button:focus-visible,
+body.journey-page select:focus-visible,
+body.journey-page textarea:focus-visible {
+  outline: 3px solid #2456e6;
+  outline-offset: 1px;
+}

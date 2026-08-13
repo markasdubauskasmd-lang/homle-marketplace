@@ -153,6 +153,27 @@ const PROBE = (PREFIXES) => `
     const index = seen.get(base) || 0;
     seen.set(base, index + 1);
     const style = getComputedStyle(el);
+    // A property mid-keyframe cannot be compared by value. The care card glow
+    // animates its shadow from rgba(44,107,176,0) at 0px spread to .09 alpha at
+    // 5px and back over 3.4s, so two runs sample it at different phases — the
+    // flake that rounding pixels, and then canonicalising fully transparent
+    // colours, each failed to reach, because neither catches an alpha part-way
+    // through its travel.
+    //
+    // Asked of the keyframes rather than of the element: plenty here animate
+    // (the start cards rise on entry) without touching box-shadow, and marking
+    // those unmeasured would quietly drop a real design value from 45 elements.
+    // Only the properties a running animation actually writes are skipped.
+    const animatedProperties = new Set();
+    for (const animation of el.getAnimations()) {
+      for (const frame of animation.effect?.getKeyframes?.() || []) {
+        for (const key of Object.keys(frame)) {
+          if (key === "offset" || key === "computedOffset" || key === "easing") continue;
+          // getKeyframes reports camelCase; the probe asks in kebab-case.
+          animatedProperties.add(key.replace(/[A-Z]/g, (letter) => "-" + letter.toLowerCase()));
+        }
+      }
+    }
     const entry = {};
     for (const property of PROPERTIES) {
       // Two glows here are keyframed, so a reading taken one frame later can
@@ -162,9 +183,11 @@ const PROBE = (PREFIXES) => `
       // lengths use whole-pixel precision while every other length keeps 0.1px.
       // Real 1px shadow edits still fail; decorative timing noise does not.
       // Only px is normalized; colour alpha keeps its full precision.
+      if (animatedProperties.has(property)) { entry[property] = "animated"; continue; }
       const scale = property === "box-shadow" ? 1 : 10;
       entry[property] = style.getPropertyValue(property)
-        .replace(/([0-9]+[.][0-9]+)px/g, (whole, number) => String(Math.round(Number(number) * scale) / scale) + "px");
+        .replace(/([0-9]+[.][0-9]+)px/g, (whole, number) => String(Math.round(Number(number) * scale) / scale) + "px")
+        .replace(/rgba[(][^)]*,[ ]*0[)]/g, "rgba(0, 0, 0, 0)");
     }
     snapshot[base + "#" + index] = entry;
   }
