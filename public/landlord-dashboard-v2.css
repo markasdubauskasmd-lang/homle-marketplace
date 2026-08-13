@@ -25,9 +25,16 @@ body.landlord-dashboard-page {
   --ld-paper: #ffffff;
   --ld-ink: #1a1a1a;
   --ld-ink-soft: #3a3a3a;
-  --ld-muted: #7a7a7a;
-  --ld-dim: #8c8c8c;
-  --ld-faint: #a8a8a8;
+  /* The grey ramp is contrast-led, not comp-led. The approved comp's
+     #7a7a7a / #8c8c8c / #a8a8a8 measure 3.98 / 3.12 / 2.20 against this
+     canvas, and every one of their ~88 uses is small text, so none earns the
+     large-text exemption. These are the nearest neutrals that clear 4.5:1 on
+     canvas, paper and cream alike while keeping three distinguishable steps;
+     collapsing them to the lightest passing value would have made the three
+     tokens near-identical and flattened the hierarchy they exist to carry. */
+  --ld-muted: #666666;
+  --ld-dim: #6b6b6b;
+  --ld-faint: #707070;
   --ld-coral: #e11b22;
   --ld-coral-dark: #c4151b;
   --ld-coral-tint: #fdecec;
@@ -492,7 +499,7 @@ body.landlord-dashboard-page .ld-plan-price small { font-size: 11.5px; color: va
 body.landlord-dashboard-page .ld-plan-price strong { font-size: 19px; font-weight: 700; letter-spacing: -.02em; }
 body.landlord-dashboard-page .ld-plan-chev {
   flex: none;
-  color: #b0b0b0;
+  color: #8a8a8a;
   font-size: 15px;
   transition: transform .16s ease, color .16s ease;
 }
@@ -689,7 +696,7 @@ body.landlord-dashboard-page .ld-acct-icon svg { width: 18px; height: 18px; }
 body.landlord-dashboard-page .ld-acct-copy { flex: 1; min-width: 0; display: grid; }
 body.landlord-dashboard-page .ld-acct-copy strong { font-size: 14.5px; font-weight: 600; }
 body.landlord-dashboard-page .ld-acct-copy small { margin-top: 1px; font-size: 12.5px; color: var(--ld-dim); }
-body.landlord-dashboard-page .ld-acct-chev { flex: none; color: #c4c0bb; font-size: 15px; }
+body.landlord-dashboard-page .ld-acct-chev { flex: none; color: #8a8a8a; font-size: 15px; }
 body.landlord-dashboard-page .ld-acct-row-danger .ld-acct-icon { background: var(--ld-coral-tint); color: var(--ld-coral); }
 /* The button carries only its label — account-menu.js overwrites its
    textContent — so it is stretched over the row to keep the whole strip
@@ -1045,7 +1052,7 @@ body.landlord-dashboard-page .ld-art-pen {
     padding: 4px 0;
     font-size: 10px;
     font-weight: 600;
-    color: #9a9a9a;
+    color: #6f6f6f;
     text-decoration: none;
     transition: color .16s ease;
   }
@@ -1788,7 +1795,7 @@ body.landlord-dashboard-page .landlord-account-menu .account-menu-panel > a {
 body.landlord-dashboard-page .landlord-account-menu .account-menu-panel > a::after {
   content: "›";
   margin-left: auto;
-  color: #c4c0bb;
+  color: #8a8a8a;
   font-size: 13px;
 }
 body.landlord-dashboard-page .landlord-account-menu .account-menu-panel > a:hover { background: #fbfaf9; color: var(--ld-ink); }

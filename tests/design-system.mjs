@@ -312,4 +312,30 @@ for (const rule of shared.split("}")) {
 }
 assert.ok(panelRulesMeasured >= 10, `Only ${panelRulesMeasured} panel text rules were measured; the selector list has drifted away from the markup and this check is no longer covering the panels.`);
 
-console.log(`Design system contrast and isolation tests passed: every shared variable carries a literal fallback so the Cleaner workspace is unaffected, the five formerly-maroon panels carry no leftover light text, white-on-action measures ${actionOnWhite.toFixed(2)}:1 and the focus ring ${focusOnCream.toFixed(2)}:1 on cream and ${focusOnHeader.toFixed(2)}:1 on the header, no stylesheet imports an off-origin font the CSP would refuse, and styles.css is served at one fresh version.`);
+/* ── The Landlord workspace has its own ramp, and nothing measured it ── */
+
+// The contrast checks above cover styles.css panels and the shared token file.
+// landlord-dashboard-v2.css sat outside both, which is how a grey ramp
+// measuring 3.98 / 3.12 / 2.20 against its own canvas shipped across roughly 88
+// small-text declarations. It also re-declares --ld-muted on the same selector
+// as landlord-dashboard.css and loads second, so it quietly darkened 16 further
+// declarations that used to pass at 5.84:1. Every use is small text: none earns
+// the large-text exemption, so 4.5:1 is the bar for all of them.
+const landlordV2 = stripComments(read("public/landlord-dashboard-v2.css"));
+// The three grounds these tokens actually land on.
+const landlordGrounds = { canvas: "f7f6f5", paper: "ffffff", cream: "f8f4eb" };
+let landlordRampWorst = Infinity;
+for (const token of ["--ld-ink", "--ld-ink-soft", "--ld-muted", "--ld-dim", "--ld-faint"]) {
+  const declared = new RegExp(token + ":[ ]*#([0-9a-f]{6})[ ]*;", "i").exec(landlordV2);
+  assert.ok(declared, `${token} is no longer a literal hex in landlord-dashboard-v2.css, so this check can no longer measure it.`);
+  for (const [groundName, ground] of Object.entries(landlordGrounds)) {
+    const measured = contrast(hexToRgb(declared[1]), hexToRgb(ground));
+    landlordRampWorst = Math.min(landlordRampWorst, measured);
+    assert.ok(
+      measured >= 4.5,
+      `${token} is #${declared[1]}, which measures ${measured.toFixed(2)}:1 on the ${groundName} ground. Every declaration using it is small text, so it needs 4.5:1.`
+    );
+  }
+}
+
+console.log(`Design system contrast and isolation tests passed: every shared variable carries a literal fallback so the Cleaner workspace is unaffected, the five formerly-maroon panels carry no leftover light text, white-on-action measures ${actionOnWhite.toFixed(2)}:1 and the focus ring ${focusOnCream.toFixed(2)}:1 on cream and ${focusOnHeader.toFixed(2)}:1 on the header, no stylesheet imports an off-origin font the CSP would refuse, and styles.css is served at one fresh version. The Landlord workspace's own grey ramp now measures at worst ${landlordRampWorst.toFixed(2)}:1 across canvas, paper and cream.`);

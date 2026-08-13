@@ -1213,7 +1213,7 @@ function continueBookingStart() {
 let landlordMessagesLoad = null;
 async function openMessages() {
   if (!landlordMessagesLoad) {
-    landlordMessagesLoad = import("./landlord-messages.js?v=20260811-1").catch((error) => {
+    landlordMessagesLoad = import("./landlord-messages.js?v=20260813-1").catch((error) => {
       console.warn("The Messages view could not be loaded.", error);
       return null;
     });
