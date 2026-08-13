@@ -5,7 +5,7 @@
 // numbered step: it is an interstitial launched from the service step, so the
 // rail never appears to go backwards while the camera is open.
 export const journeySteps = Object.freeze([
-  Object.freeze({ id: "postcode", eyebrow: "Where are we cleaning", title: "Let's check who's<br>near you." }),
+  Object.freeze({ id: "postcode", eyebrow: "Choose a property", title: "Which property<br>are you scanning?" }),
   Object.freeze({ id: "service", eyebrow: "What needs doing", title: "What kind of<br>clean is it?" }),
   Object.freeze({ id: "results", eyebrow: "Scan complete", title: "Here's what<br>we found." }),
   Object.freeze({ id: "when", eyebrow: "When suits you", title: "Pick a day<br>and a time." }),
@@ -199,7 +199,7 @@ export async function firstQuoteVerifiedCleaner(candidates, quoteCleaner, { maxi
 
 /* A step can only be left once it holds what the next one needs. */
 export function canLeaveStep(id, draft = {}) {
-  if (id === "postcode") return Boolean(normalisedPostcode(draft.postcode));
+  if (id === "postcode") return Boolean(String(draft.propertyId || "").trim()) && Boolean(normalisedPostcode(draft.postcode));
   if (id === "service") return isKnownService(draft.serviceCode);
   if (id === "results") return Array.isArray(draft.tasks) && draft.tasks.length > 0;
   if (id === "when") return Boolean(draft.date) && arrivalWindows.includes(draft.time) && isKnownFrequency(draft.frequency) && isKnownDuration(draft.durationMinutes);
@@ -209,7 +209,7 @@ export function canLeaveStep(id, draft = {}) {
 
 export function blockedReason(id, draft = {}) {
   if (canLeaveStep(id, draft)) return "";
-  if (id === "postcode") return "Enter your postcode to see who covers your area.";
+  if (id === "postcode") return "Choose a saved property before continuing.";
   if (id === "service") return "Choose the kind of clean you need.";
   if (id === "results") return "Add at least one room task before continuing.";
   if (id === "when") return "Pick a day, an arrival window and how often.";

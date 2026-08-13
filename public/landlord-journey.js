@@ -11,7 +11,6 @@ import {
   railState,
   previousStep,
   normalisedPostcode,
-  postcodeMessage,
   supplyMessage,
   services,
   isKnownService,
@@ -29,7 +28,7 @@ import {
   blockedReason,
   checkoutMode,
   checkoutCopy
-} from "./landlord-journey-model.js?v=journey7";
+} from "./landlord-journey-model.js?v=journey8";
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
@@ -52,6 +51,9 @@ const el = {
   exit: $("[data-journey-exit]"),
   postcode: $("[data-postcode]"),
   postcodeError: $("[data-postcode-error]"),
+  scanPropertyState: $("[data-scan-property-state]"),
+  scanPropertyOptions: $("[data-scan-property-options]"),
+  propertyNext: $("[data-property-next]"),
   supply: $("[data-supply]"),
   supplyHead: $("[data-supply-head]"),
   supplyDetail: $("[data-supply-detail]"),
@@ -278,6 +280,7 @@ function show(stepId) {
   window.scrollTo({ top: 0, behavior: "instant" });
   saveDraft();
   if (stepId === "results") renderResults();
+  if (stepId === "postcode") renderScanPropertyChoice();
   if (stepId === "when") renderWhen();
   if (stepId === "cleaner") loadCleaners();
   if (stepId === "checkout") renderCheckout();
@@ -293,8 +296,10 @@ function goNext() {
 
 function readCurrentStep() {
   if (state.step === "postcode") {
-    const parsed = normalisedPostcode(el.postcode.value);
-    state.draft.postcode = el.postcode.value.trim();
+    const property = state.properties.find((candidate) => candidate.propertyId === state.draft.propertyId);
+    const propertyPostcode = property?.exactAddress?.postcode || "";
+    const parsed = normalisedPostcode(propertyPostcode);
+    state.draft.postcode = parsed?.full || propertyPostcode.trim();
     state.draft.outward = parsed?.outward || "";
   }
   if (state.step === "results") {
@@ -304,21 +309,59 @@ function readCurrentStep() {
   saveDraft();
 }
 
-/* ── Step 1: postcode ───────────────────────────────── */
-let supplyTimer = null;
-el.postcode.addEventListener("input", () => {
-  const message = postcodeMessage(el.postcode.value);
-  el.postcodeError.textContent = message;
-  el.postcodeError.hidden = !message;
-  el.postcode.classList.toggle("ok", Boolean(normalisedPostcode(el.postcode.value)));
-  clearTimeout(supplyTimer);
-  el.supply.hidden = true;
-  const parsed = normalisedPostcode(el.postcode.value);
-  if (parsed) {
-    if (state.draft.propertyId && !matchingProperties(state.properties, el.postcode.value).some((property) => property.propertyId === state.draft.propertyId)) state.draft.propertyId = "";
-    supplyTimer = setTimeout(() => checkSupply(parsed.outward), 500);
+/* ── Step 1: saved property ─────────────────────────── */
+function selectScanProperty(property) {
+  const parsed = normalisedPostcode(property?.exactAddress?.postcode);
+  if (!parsed) {
+    el.postcodeError.textContent = "This property needs a valid UK postcode before it can be scanned.";
+    el.postcodeError.hidden = false;
+    return;
   }
-});
+  state.draft.propertyId = property.propertyId;
+  state.draft.postcode = parsed.full || String(property.exactAddress.postcode).trim();
+  state.draft.outward = parsed.outward;
+  el.postcode.value = state.draft.postcode;
+  el.postcodeError.hidden = true;
+  el.supply.hidden = true;
+  saveDraft();
+  renderScanPropertyChoice();
+  checkSupply(parsed.outward);
+}
+
+function renderScanPropertyChoice() {
+  el.scanPropertyOptions.replaceChildren();
+  const available = state.properties.filter((property) => normalisedPostcode(property?.exactAddress?.postcode));
+  const needsPostcode = state.properties.length - available.length;
+  if (state.draft.propertyId && !available.some((property) => property.propertyId === state.draft.propertyId)) {
+    state.draft.propertyId = "";
+    state.draft.postcode = "";
+    state.draft.outward = "";
+  }
+
+  el.scanPropertyState.textContent = available.length
+    ? `Choose from ${available.length} saved ${available.length === 1 ? "property" : "properties"}.${needsPostcode ? ` ${needsPostcode} more ${needsPostcode === 1 ? "property needs" : "properties need"} a valid postcode first.` : ""}`
+    : "You need a saved property before starting a scan.";
+
+  for (const property of available) {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = `journey-property-option${state.draft.propertyId === property.propertyId ? " on" : ""}`;
+    option.setAttribute("role", "radio");
+    option.setAttribute("aria-checked", String(state.draft.propertyId === property.propertyId));
+    option.textContent = propertyLabel(property);
+    option.addEventListener("click", () => selectScanProperty(property));
+    el.scanPropertyOptions.append(option);
+  }
+
+  const selected = available.find((property) => property.propertyId === state.draft.propertyId);
+  if (selected) {
+    const parsed = normalisedPostcode(selected.exactAddress?.postcode);
+    state.draft.postcode = parsed?.full || String(selected.exactAddress?.postcode || "").trim();
+    state.draft.outward = parsed?.outward || "";
+    el.postcode.value = state.draft.postcode;
+  }
+  el.propertyNext.disabled = !selected;
+}
 
 // Real coverage from the live Cleaner directory. If the lookup fails the step
 // stays usable and simply says nothing, rather than inventing a count.
@@ -1683,6 +1726,17 @@ async function openAuthenticatedJourney() {
     showJourneyAccessFailure(access.message);
     el.accessRetry.disabled = false;
     return false;
+  }
+  // Drafts created before the property-first journey may already point at a
+  // later step with only a free postcode. Do not let that stale browser state
+  // bypass the new property choice or attach a scan to the wrong place.
+  const selectedProperty = state.properties.find((property) => property.propertyId === state.draft.propertyId);
+  if (!selectedProperty || !normalisedPostcode(selectedProperty.exactAddress?.postcode)) {
+    state.draft.propertyId = "";
+    state.draft.postcode = "";
+    state.draft.outward = "";
+    if (stepIndex(state.step) > 0) state.step = "postcode";
+    saveDraft();
   }
   el.accessGate.hidden = true;
   el.journeyShell.forEach((section) => { section.hidden = false; });
