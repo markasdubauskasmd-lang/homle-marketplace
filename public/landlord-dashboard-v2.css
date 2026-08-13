@@ -3342,3 +3342,52 @@ body.landlord-dashboard-page .landlord-live-action {
   border-radius: 9px;
   font-size: 13px;
 }
+
+/* ── One section header, everywhere ───────────────────────────────────────
+ *
+ * Six regions introduce themselves with the same micro-label — Happening now,
+ * Upcoming, Your places, Requests in progress, Past cleans — and each declared
+ * that look separately, in four different rules. "Recommended for you" missed
+ * the memo entirely and shipped as a 16px sentence-case h3, so the one section
+ * on Home that quotes prices was also the one that looked like a different
+ * product.
+ *
+ * The look is now stated once and shared. Type only: each caller keeps its own
+ * margins and layout, because a label above a grid and a label sharing a
+ * baseline with a trailing note need different spacing, not different type.
+ *
+ * Anything that introduces a REGION gets .ld-section-head. Card titles
+ * deliberately do not: the 16px sentence-case h3 on the care cards is the next
+ * level down and flattening it would remove the hierarchy this establishes.
+ */
+body.landlord-dashboard-page .hub-label,
+body.landlord-dashboard-page .ld-past-head,
+body.landlord-dashboard-page [data-places-section] > .landlord-panel-heading h2,
+body.landlord-dashboard-page [data-landlord-panel="properties"] .landlord-panel-heading:not(.pac-card-head) h2,
+body.landlord-dashboard-page .ld-plans-head h3,
+body.landlord-dashboard-page .ld-section-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ld-dim);
+}
+
+/* The standalone label, for regions that had no header at all. */
+body.landlord-dashboard-page .ld-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+
+/* A trailing note keeps the label's baseline but not its shout. */
+body.landlord-dashboard-page .ld-section-head-note {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ld-muted);
+}

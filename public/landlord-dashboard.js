@@ -1524,8 +1524,15 @@ function renderProperties() {
     option.value = property.propertyId;
     propertySelect.append(option);
   }
-  const availableProperties = properties.filter((property) => !propertyCleaningBlocker(property, requests, bookings));
-  for (const property of availableProperties) {
+  // Every place keeps its card. The grid used to hide any property with live
+  // cleaning work, which read as the property vanishing the moment a request
+  // was made — the most alarming possible feedback for "I asked for a clean".
+  // Live work now shows ON the card: the pill and summary carry the work's own
+  // state, and the action row swaps Book/Scan for the one action that work
+  // allows. The delete gate in openPropertyArchive was built for exactly this
+  // and was unreachable while blocked places had no card to press it from.
+  for (const property of properties) {
+    const blocker = propertyCleaningBlocker(property, requests, bookings);
     // The v2 property card: address, what the property is, when it was last
     // cleaned and what is next, the rooms, then the two things a Landlord
     // actually does from here. The protected details and the access/archive
@@ -1538,12 +1545,24 @@ function renderProperties() {
     icon.append(cloneIcon("property"));
     icon.setAttribute("aria-hidden", "true");
     const title = element("div", "ld-prop-main");
-    title.append(element("h3", "", property.name || "Saved property"));
+    const propertyTitle = element("h3", "", property.name || "Saved property");
+    title.append(propertyTitle);
     const cleaned = propertyCleaningDates(property);
     const taskCount = Array.isArray(property.savedChecklist) ? property.savedChecklist.length : 0;
-    const summary = cleaned.last && cleaned.last !== "—"
+    let summary = cleaned.last && cleaned.last !== "—"
       ? `Last cleaned ${cleaned.last}${taskCount ? ` · ${taskCount} ${taskCount === 1 ? "task" : "tasks"} saved` : ""}`
       : taskCount ? `Nothing booked · ${taskCount} ${taskCount === 1 ? "task" : "tasks"} saved` : "No scan yet";
+    if (blocker) {
+      // The work's own words rather than a generic "busy": which state, which
+      // day. Same labels the booking and request cards use, so one clean reads
+      // identically wherever the Landlord meets it.
+      const workLabel = blocker.booking
+        ? bookingSummaryStatusLabels[blocker.booking.status] || "Booking active"
+        : requestStatusLabel(blocker.request.status);
+      summary = `${workLabel} · ${formatBookingMoment(blocker.booking?.scheduledStartAt || blocker.request.requestedStartAt)}`;
+      card.dataset.propertyCleaningBlocker = property.propertyId;
+      propertyTitle.append(element("span", "landlord-private-pill ld-prop-work-pill", blocker.booking ? "Booked" : "Requested"));
+    }
     title.append(element("p", "ld-prop-summary", summary));
     heading.append(icon, title);
 
@@ -1559,7 +1578,22 @@ function renderProperties() {
       bookCleanPropertyId = property.propertyId;
       openBookCleanChooser();
     });
-    if (taskCount) actions.append(book, scanAgain);
+    // Booking a second clean or rescanning rooms mid-clean are not offers this
+    // place can honour, so live work replaces them with the one action it does
+    // allow: open the work. propertyBlockerCopy already owns the wording for
+    // every state, and renderPropertyBlocker still owns the detailed panel that
+    // the overflow opens.
+    if (blocker) {
+      const openWork = element("button", "button", blocker.booking ? "View booking" : "View request");
+      openWork.type = "button";
+      openWork.setAttribute("aria-label", `${blocker.booking ? "View the booking for" : "View the cleaning request for"} ${property.name || "saved property"}`);
+      openWork.addEventListener("click", () => {
+        if (blocker.booking?.activeJobAvailable) location.assign(`/bookings/${encodeURIComponent(blocker.booking.bookingId)}`);
+        else if (blocker.booking) selectWorkspaceTab("bookings", { historyMode: "push" });
+        else focusCleaningRequest(blocker.request.requestId);
+      });
+      actions.append(openWork);
+    } else if (taskCount) actions.append(book, scanAgain);
     else actions.append(scanAgain);
 
     const details = element("details", "landlord-property-details");
@@ -1584,6 +1618,11 @@ function renderProperties() {
     // belongs behind the overflow with Edit access rather than sitting in the
     // row as a third button competing with the two real actions.
     secondary.append(edit, archive);
+    // renderPropertyBlocker has existed, fully written, since the blocked-place
+    // design was drawn, and nothing ever called it. It belongs here: the card
+    // stays a card, and the detailed work record — status, date, Cleaner,
+    // agreed total, and the safe cancellation route — opens with the overflow.
+    if (blocker) detailsPanel.append(renderPropertyBlocker(property, blocker));
     detailsPanel.append(secondary);
     details.append(detailsPanel);
 
@@ -1606,9 +1645,13 @@ function renderProperties() {
     solePropertyName.textContent = properties[0].name || "Saved property";
   } else solePropertyName.textContent = "";
   applySuggestedCleaningType();
+  // Places with live work now stay in the grid, so the only empty state left is
+  // the honest one: no saved properties at all. The old second message told the
+  // Landlord their places had moved to Upcoming, which is no longer where they
+  // are, and it could only ever appear in the state this change removes.
   propertyEmpty.replaceChildren(
-    element("strong", "", properties.length ? "Every saved place has cleaning work in progress." : "No account properties yet."),
-    element("p", "", properties.length ? "Manage those records under Upcoming. A place returns here as soon as its request is withdrawn or its booking is closed." : "Add a property to prepare a private request draft. Nothing is published to Cleaner search.")
+    element("strong", "", "No account properties yet."),
+    element("p", "", "Add a property to prepare a private request draft. Nothing is published to Cleaner search.")
   );
   propertyEmpty.hidden = true;
   propertyList.hidden = false;

@@ -356,24 +356,40 @@ try {
             await new Promise((resolve) => setTimeout(resolve, 100));
           }
         `);
+        /* Counts CARDS FOR THE CLEAN, not mentions of the property name.
+           Your places lives inside this view, and a place with live work now
+           keeps its card there by design, so the place card names the property
+           legitimately — the defect this guards against is one clean drawn as
+           two work cards under progress rails that disagree. The property grid
+           is therefore excluded, and the request-card count is what matters. */
         const naming = await browser.evaluate(`
           const main = document.querySelector("#landlord-main");
-          const text = main ? main.innerText : "";
+          const grid = document.querySelector("[data-property-list]");
+          const workText = [...main.querySelectorAll(":scope *")]
+            .filter((node) => !grid || !grid.contains(node))
+            .map((node) => node.children.length === 0 ? node.textContent : "")
+            .join(" ");
           return {
-            propertyMentions: (text.match(/House in London/g) || []).length,
-            saysMatching: /Matching in progress/i.test(text)
+            requestCards: document.querySelectorAll(".ld-request-now").length,
+            workMentions: (workText.match(/House in London/g) || []).length,
+            placeCards: grid ? grid.querySelectorAll("article.landlord-property-card").length : 0,
+            saysMatching: /Matching in progress/i.test(workText)
           };
         `);
-        assert(naming.propertyMentions === 1,
-          `booking confirmed: "House in London" is named ${naming.propertyMentions} times on Bookings — one clean is rendering as more than one card.`);
+        assert(naming.requestCards === 0,
+          `booking confirmed: ${naming.requestCards} request card(s) are still drawn for a clean that already has a confirmed booking — the booking owns it.`);
+        assert(naming.placeCards === 1,
+          `booking confirmed: Your places shows ${naming.placeCards} card(s) for the one saved property.`);
+        assert(naming.workMentions === 1,
+          `booking confirmed: outside Your places, "House in London" is named ${naming.workMentions} times on Bookings — one clean is rendering as more than one work card.`);
         assert(!naming.saysMatching,
           `booking confirmed: the Bookings view still claims "Matching in progress" for a clean that already has a confirmed booking.`);
         checked.push("booking confirmed · one clean one card");
 
-        // A place with a clean booked is deliberately absent from Your places,
-        // so the featured card's Place details button is the only route left to
-        // its access details — the door code a Cleaner needs to get in
-        // tomorrow. It matched on booking.propertyId, which the booking summary
+        // A second, independent route to the same place's access details. The
+        // place card carries one now that blocked places stay in the grid, but
+        // this button on the featured clean matched on booking.propertyId,
+        // which the booking summary
         // does not carry, so it was hidden on every booking there has ever been.
         const placeRoute = await browser.evaluate(`
           const button = document.querySelector("[data-ld-next-place]");
@@ -392,6 +408,57 @@ try {
         assert(/House in London/.test(placeRoute.label),
           `booking confirmed: Place details does not name the place it opens — its label is "${placeRoute.label}".`);
         checked.push("booking confirmed · access details reachable");
+
+        /* ── A place with cleaning work is still in Your places ──────────────
+         *
+         * The grid used to filter it out, so asking for a clean looked like
+         * the property being deleted. This scenario has exactly one property
+         * and one confirmed booking against it: the card must be present, must
+         * say what the work is, and must not offer to book a second clean on
+         * top of the one already running.
+         */
+        await browser.goto(`${server.origin}/landlord/properties`);
+        await browser.evaluate(`
+          const deadline = Date.now() + 15000;
+          for (;;) {
+            const workspace = document.querySelector("[data-landlord-workspace]");
+            if (workspace && !workspace.hidden && !workspace.hasAttribute("aria-busy")) return true;
+            if (Date.now() > deadline) return false;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+        `);
+        const places = await browser.evaluate(`
+          const cards = [...document.querySelectorAll("[data-property-list] article.landlord-property-card")];
+          const card = cards[0];
+          const actionLabels = card ? [...card.querySelectorAll(".landlord-property-actions > button, .landlord-property-actions > a")].map((control) => control.textContent.trim()) : [];
+          return {
+            cardCount: cards.length,
+            names: cards.map((item) => (item.querySelector("h3") || {}).textContent || ""),
+            flaggedAsWorking: Boolean(card && card.dataset.propertyCleaningBlocker),
+            pill: card ? (card.querySelector(".ld-prop-work-pill") || {}).textContent || "" : "",
+            summary: card ? (card.querySelector(".ld-prop-summary") || {}).textContent || "" : "",
+            actionLabels,
+            hasWorkPanel: Boolean(card && card.querySelector("[data-property-cleaning-blocker], .landlord-property-work")),
+            emptyShown: !document.querySelector("[data-property-empty]").hidden
+          };
+        `);
+        assert(places.cardCount === 1,
+          `booking confirmed · your places: expected the one property to still have a card, found ${places.cardCount}. Names: [${places.names.join(", ")}].`);
+        assert(/House in London/.test(places.names[0]),
+          `booking confirmed · your places: the card does not name the property — "${places.names[0]}".`);
+        assert(!places.emptyShown,
+          "booking confirmed · your places: the empty state is showing while the account has a saved property.");
+        assert(places.flaggedAsWorking && /booked/i.test(places.pill),
+          `booking confirmed · your places: the card does not mark its live work — pill "${places.pill}".`);
+        assert(!/nothing booked/i.test(places.summary),
+          `booking confirmed · your places: a place with a confirmed booking summarises itself as "${places.summary}".`);
+        assert(!places.actionLabels.some((label) => /^book clean$/i.test(label)),
+          `booking confirmed · your places: the card still offers "Book clean" on a place whose clean is already booked — actions [${places.actionLabels.join(", ")}].`);
+        assert(places.actionLabels.some((label) => /view booking/i.test(label)),
+          `booking confirmed · your places: no route into the live work — actions [${places.actionLabels.join(", ")}].`);
+        assert(places.hasWorkPanel,
+          "booking confirmed · your places: the detailed work panel (renderPropertyBlocker) is not on the card.");
+        checked.push("booking confirmed · the place stays in Your places, marked as booked");
       }
 
       /* ── An empty state must not assert a fact the server never sent ──────
