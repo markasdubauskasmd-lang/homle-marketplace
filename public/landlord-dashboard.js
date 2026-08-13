@@ -2352,6 +2352,16 @@ function renderRequests() {
     const boundary = element("p", "landlord-request-boundary", boundaryCopy);
     if (submitted) card.append(facts);
     else card.append(heading, facts, boundary);
+    // An unsent draft blocks its property from Your places just as a live
+    // booking does, and unlike the matching card above this one offered no way
+    // back, so access details for a place with a draft were unreachable.
+    if (!submitted && property) {
+      const draftPlaceDetails = element("button", "button button-outline", "Place details");
+      draftPlaceDetails.type = "button";
+      draftPlaceDetails.setAttribute("aria-label", `Place details for ${property.name || "saved property"}`);
+      draftPlaceDetails.addEventListener("click", () => openPropertyEditor(property));
+      card.append(draftPlaceDetails);
+    }
     if (request.status === "draft") {
       const continueRequest = element("button", "button", "Continue photos and matching");
       continueRequest.type = "button";
@@ -3196,6 +3206,19 @@ function syncHappeningNowLabel() {
  * TOTAL and a window — so they are omitted rather than invented. The stage
  * times are shown only where a real timestamp exists.
  */
+// A Landlord's booking summary names its property but carries no id for it:
+// list_my_booking_summaries builds propertyName, not propertyId. Matching on
+// booking.propertyId therefore found nothing on every booking there has ever
+// been, which silently hid the one control below that reaches a blocked place.
+// The request behind the booking does carry the id, and liveBookingForRequest
+// already owns that join.
+function propertyForBooking(booking) {
+  if (!booking) return null;
+  const linked = requests.find((item) => liveBookingForRequest(item, [booking])?.bookingId === booking.bookingId);
+  if (!linked) return null;
+  return properties.find((item) => item.propertyId === linked.propertyId) || null;
+}
+
 function renderNextClean() {
   const card = document.querySelector("[data-ld-next]");
   const label = document.querySelector("[data-hub-now-label]");
@@ -3235,7 +3258,7 @@ function renderNextClean() {
   // than opening an editor for nothing.
   const placeDetails = card.querySelector("[data-ld-next-place]");
   if (placeDetails) {
-    const property = properties.find((item) => item.propertyId === booking.propertyId);
+    const property = propertyForBooking(booking);
     placeDetails.hidden = !property;
     if (property) {
       placeDetails.setAttribute("aria-label", `Place details for ${property.name || "saved property"}`);

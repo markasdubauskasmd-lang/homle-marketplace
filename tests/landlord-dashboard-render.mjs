@@ -303,6 +303,29 @@ try {
         assert(!naming.saysMatching,
           `booking confirmed: the Bookings view still claims "Matching in progress" for a clean that already has a confirmed booking.`);
         checked.push("booking confirmed · one clean one card");
+
+        // A place with a clean booked is deliberately absent from Your places,
+        // so the featured card's Place details button is the only route left to
+        // its access details — the door code a Cleaner needs to get in
+        // tomorrow. It matched on booking.propertyId, which the booking summary
+        // does not carry, so it was hidden on every booking there has ever been.
+        const placeRoute = await browser.evaluate(`
+          const button = document.querySelector("[data-ld-next-place]");
+          const box = button ? button.getBoundingClientRect() : null;
+          return {
+            present: Boolean(button),
+            // Measured rather than checkVisibility(): the section it sits in
+            // fades in, so an opacity check here races the animation.
+            reachable: Boolean(button) && !button.hidden && box.width > 0 && box.height > 0,
+            label: button ? (button.getAttribute("aria-label") || "") : ""
+          };
+        `);
+        assert(placeRoute.present, "booking confirmed: the featured clean has no Place details control at all.");
+        assert(placeRoute.reachable,
+          "booking confirmed: Place details is hidden on the featured clean, so a place booked for tomorrow has no route to its access details.");
+        assert(/House in London/.test(placeRoute.label),
+          `booking confirmed: Place details does not name the place it opens — its label is "${placeRoute.label}".`);
+        checked.push("booking confirmed · access details reachable");
       }
 
       /* ── An empty state must not assert a fact the server never sent ──────
