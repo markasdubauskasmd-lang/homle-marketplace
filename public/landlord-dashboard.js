@@ -1819,6 +1819,39 @@ function resetRequestContinuation() {
 // A running photo upload owns its dialog. Dismissing mid-loop left the loop
 // writing progress into a detached panel while the remaining photos kept
 // uploading and attaching to the request, with nothing on screen saying so.
+// A list that could not be read is not a list that is empty. When the bookings
+// call rejects, `bookings` keeps its previous value — [] on a cold load — and
+// every empty state below it then states a fact about the account that the
+// server never sent. The partial-load banner says a refresh did not complete;
+// these say which answer is actually unknown.
+let bookingsUnavailable = false;
+function renderBookingSourceState() {
+  const empty = document.querySelector("[data-landlord-booking-empty]");
+  if (empty) {
+    empty.replaceChildren(
+      element("strong", "", bookingsUnavailable ? "Your bookings could not be loaded." : "No confirmed bookings yet."),
+      element("p", "", bookingsUnavailable
+        ? "Nothing about your bookings was changed. Use Try again above to load them."
+        : "A request becomes a booking only once a Cleaner accepts the frozen time, scope and price. Requests you are still preparing sit under Your places.")
+    );
+  }
+  const past = document.querySelector("[data-ld-past-empty]");
+  if (past) {
+    past.replaceChildren(
+      element("strong", "", bookingsUnavailable ? "Completed cleans could not be loaded" : "No completed cleans yet"),
+      element("p", "", bookingsUnavailable
+        ? "This list needs the bookings that did not load. Use Try again above."
+        : "Finished cleans appear here with the record of what was done.")
+    );
+  }
+  const payments = document.querySelector("[data-landlord-payments-empty]");
+  if (payments) {
+    payments.textContent = bookingsUnavailable
+      ? "Payment records could not be loaded. Nothing was authorised or charged. Use Try again above."
+      : "No bookings with a price yet. Totals appear here once a Cleaner accepts a request.";
+  }
+}
+
 // Guards the one function every "save this draft" control reaches.
 let requestDraftPending = false;
 function setRequestDraftControlsLocked(locked) {
@@ -3763,6 +3796,8 @@ async function loadWorkspace() {
     if (archivedPropertyResult.status === "fulfilled") archivedProperties = Array.isArray(archivedPropertyResult.value.properties) ? archivedPropertyResult.value.properties : [];
     if (requestResult.status === "fulfilled") requests = Array.isArray(requestResult.value.cleaningRequests) ? requestResult.value.cleaningRequests : [];
     if (bookingResult.status === "fulfilled") bookings = Array.isArray(bookingResult.value.bookings) ? bookingResult.value.bookings : [];
+    bookingsUnavailable = bookingResult.status === "rejected";
+    renderBookingSourceState();
     supportRequests = supportResult.status === "fulfilled" ? [...supportRequestPage(supportResult.value).supportRequests] : [];
     landlordProfile = profileResult.status === "fulfilled" ? (profileResult.value.profile || { organisationName: null, biography: "" }) : { organisationName: null, biography: "" };
     landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";

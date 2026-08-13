@@ -285,13 +285,41 @@
 
   function fieldLabel(control) { return control ? control.closest("label") : null; }
 
+  let fieldErrorCount = 0;
   function fieldError(message, afterEl) {
     const err = document.createElement("p");
     err.className = "pac-field-error";
+    fieldErrorCount += 1;
+    err.id = "pac-field-error-" + fieldErrorCount;
     err.hidden = true;
     err.textContent = message;
     afterEl.insertAdjacentElement("afterend", err);
     return err;
+  }
+
+  // These messages were red text and nothing else: no role, no association with
+  // the control, and for the date no focus move either, so pressing Next with
+  // no date chosen was indistinguishable from a dead button. The role is set at
+  // show time because toggling `hidden` on a region that already carried one
+  // does not reliably announce. Each native control here is display:none, so
+  // the association is mirrored onto the visible widget instead.
+  function revealFieldError(err, widget, focusTarget) {
+    err.hidden = false;
+    err.setAttribute("role", "alert");
+    if (widget) {
+      widget.setAttribute("aria-invalid", "true");
+      widget.setAttribute("aria-describedby", err.id);
+    }
+    if (focusTarget) focusTarget.focus();
+  }
+
+  function clearFieldError(err, widget) {
+    err.hidden = true;
+    err.removeAttribute("role");
+    if (widget) {
+      widget.removeAttribute("aria-invalid");
+      widget.removeAttribute("aria-describedby");
+    }
   }
 
   function syncFromNative(control, handler) {
@@ -351,7 +379,7 @@
       card.addEventListener("click", function () {
         select.value = opt.value;
         select.dispatchEvent(new Event("change", { bubbles: true }));
-        err.hidden = true;
+        clearFieldError(err, wrap);
       });
       wrap.appendChild(card);
       cards.push(card);
@@ -367,7 +395,7 @@
       });
     }
     syncFromNative(select, reflect);
-    enhanced.set(select, { showError: function () { err.hidden = false; if (cards[0]) cards[0].focus(); } });
+    enhanced.set(select, { showError: function () { revealFieldError(err, wrap, cards[0]); } });
   }
 
   function buildChoiceGrid(control, className, labelFrom) {
@@ -433,7 +461,7 @@
         b.addEventListener("click", function () {
           input.value = val;
           input.dispatchEvent(new Event("change", { bubbles: true }));
-          err.hidden = true;
+          clearFieldError(err, wrap);
         });
         wrap.appendChild(b);
         slots.push(b);
@@ -450,7 +478,7 @@
       });
     }
     syncFromNative(input, reflect);
-    enhanced.set(input, { showError: function () { err.hidden = false; if (slots[0]) slots[0].focus(); } });
+    enhanced.set(input, { showError: function () { revealFieldError(err, wrap, slots[0]); } });
   }
 
   function buildCalendar() {
@@ -507,7 +535,7 @@
           // The change listener below redraws the grid once; then restore focus
           // to the freshly rendered selected day so keyboard focus is not lost.
           input.dispatchEvent(new Event("change", { bubbles: true }));
-          err.hidden = true;
+          clearFieldError(err, wrap);
           const selectedDay = grid.querySelector(".pac-cal-day.is-selected");
           if (selectedDay) selectedDay.focus();
         });
@@ -520,7 +548,7 @@
     input.addEventListener("change", function () { const s = parse(input.value); if (s) view = new Date(s.getFullYear(), s.getMonth(), 1); draw(); });
     syncers.push(draw);
     draw();
-    enhanced.set(input, { showError: function () { err.hidden = false; } });
+    enhanced.set(input, { showError: function () { revealFieldError(err, wrap, grid.querySelector(".pac-cal-day:not(:disabled)") || wrap); } });
   }
 
   try { buildCleaningCards(); } catch (_) {}

@@ -360,6 +360,18 @@ try {
           "bookings endpoint down: the partial-load banner stayed hidden, so an empty Bookings view reports zero bookings as a fact about the account rather than a call that failed.");
         assert(/could not be refreshed/i.test(honesty.bannerText),
           `bookings endpoint down: the partial-load banner no longer says what went wrong — it reads "${honesty.bannerText}".`);
+
+        // The banner is global. The list itself must also stop stating a fact
+        // the server never sent: "No confirmed bookings yet" is a claim about
+        // the account, not about a request that failed.
+        const emptyState = await browser.evaluate(`
+          const empty = document.querySelector("[data-landlord-booking-empty]");
+          return { text: empty ? empty.innerText.replace(/\s+/g, " ").trim() : "" };
+        `);
+        assert(!/No confirmed bookings yet/i.test(emptyState.text),
+          `bookings endpoint down: the Bookings list still says "No confirmed bookings yet" after the bookings call failed, which asserts a fact the server never sent.`);
+        assert(/could not be loaded/i.test(emptyState.text),
+          `bookings endpoint down: the empty state does not say the bookings could not be loaded — it reads "${emptyState.text}".`);
         checked.push("bookings endpoint down · says so");
       }
     } finally {

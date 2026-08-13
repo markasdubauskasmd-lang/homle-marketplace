@@ -3252,7 +3252,11 @@ body.landlord-dashboard-page .ld-care-note {
   body.landlord-dashboard-page .ld-care-card { padding: 16px; }
   body.landlord-dashboard-page .ld-care-card h3 { font-size: 15px; }
   body.landlord-dashboard-page .ld-care-streak-count { font-size: 20px; }
-  body.landlord-dashboard-page .ld-care-streak-sub { display: none; }
+  /* These five carried the only statement of what the numbers mean — what a
+     streak counts, what the scan and benchmark figures are, the coverage
+     denominator and the record's own footnote — and none has a narrow twin, so
+     hiding them left a phone with bare numerals. Shrunk and clamped instead. */
+  body.landlord-dashboard-page .ld-care-streak-sub { margin: 4px 0 0; font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   body.landlord-dashboard-page .ld-care-freeze-pill {
     display: inline-flex;
     flex: none;
@@ -3267,7 +3271,7 @@ body.landlord-dashboard-page .ld-care-note {
   body.landlord-dashboard-page .ld-care-freeze { display: none; }
   body.landlord-dashboard-page .ld-care-cells { gap: 5px; margin-top: 13px; }
   body.landlord-dashboard-page .ld-care-cell { height: 26px; border-radius: 7px; }
-  body.landlord-dashboard-page .ld-care-scan .ld-care-card-sub { display: none; }
+  body.landlord-dashboard-page .ld-care-scan .ld-care-card-sub { margin: 4px 0 0; font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   body.landlord-dashboard-page .ld-care-finds { margin-top: 12px; }
   body.landlord-dashboard-page .ld-care-find { gap: 11px; padding: 11px 13px; }
   body.landlord-dashboard-page .ld-care-find-tag { padding: 4px 8px; border-radius: 7px; font-size: 10.5px; }
@@ -3278,15 +3282,15 @@ body.landlord-dashboard-page .ld-care-note {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  body.landlord-dashboard-page .ld-care-bench .ld-care-card-sub { display: none; }
+  body.landlord-dashboard-page .ld-care-bench .ld-care-card-sub { margin: 4px 0 0; font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   body.landlord-dashboard-page .ld-care-meter { margin-top: 12px; }
-  body.landlord-dashboard-page .ld-care-meter-coverage { display: none; }
+  body.landlord-dashboard-page .ld-care-meter-coverage { font-size: 11px; }
   body.landlord-dashboard-page .ld-care-meter-label-wide { display: none; }
   body.landlord-dashboard-page .ld-care-meter-label-narrow { display: inline; }
   body.landlord-dashboard-page .ld-care-callout { margin-top: 14px; padding: 12px 14px; border-radius: 12px; }
   body.landlord-dashboard-page .ld-care-callout-copy { font-size: 12px; line-height: 1.45; }
   body.landlord-dashboard-page .ld-care-callout-btn { padding: 9px 14px; border-radius: 11px; }
-  body.landlord-dashboard-page .ld-care-note { display: none; }
+  body.landlord-dashboard-page .ld-care-note { font-size: 11px; padding: 10px 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
