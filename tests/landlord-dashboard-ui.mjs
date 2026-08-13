@@ -105,6 +105,25 @@ const photoUploadStart = script.indexOf('form.addEventListener("submit"', script
 const photoUploadEnd = script.indexOf("panel.append(form)", photoUploadStart);
 const photoUploadFlow = script.slice(photoUploadStart, photoUploadEnd);
 assert(photoUploadStart >= 0 && photoUploadEnd > photoUploadStart && photoUploadFlow.includes("if (uploadPending || videoProcessing) return") && photoUploadFlow.indexOf("uploadPending = true") < photoUploadFlow.indexOf('await recoverCsrf(feedback, "uploading this room photo")') && photoUploadFlow.indexOf("setPending(upload, true") < photoUploadFlow.indexOf('await recoverCsrf(feedback, "uploading this room photo")') && photoUploadFlow.includes("uploadPending = false"), "A fast second tap can start two private room-photo upload loops while secure-session recovery is running, video extraction can race an upload, or failed recovery leaves the upload action locked.");
+
+// One clean, one draft. Every "save this draft" control — Continue, Add images
+// and the photo dialog's own two buttons — reaches createRequestDraft, and the
+// lock used to be taken after recoverCsrf, which makes a real round trip on a
+// reopened tab. A second tap in that window created a second draft, and the
+// continuation panel then pointed at it while the first was orphaned. Same
+// ordering the room-photo, submit and authorize flows above are pinned to.
+const draftStart = script.indexOf("async function createRequestDraft");
+const draftEnd = script.indexOf("function setPending(", draftStart);
+const draftFlow = script.slice(draftStart, draftEnd);
+assert(draftStart >= 0 && draftEnd > draftStart
+  && draftFlow.includes("if (requestDraftPending) return false")
+  && draftFlow.indexOf("requestDraftPending = true") < draftFlow.indexOf('await recoverCsrf(operationFeedback, "saving this cleaning-request draft")')
+  && draftFlow.indexOf("setRequestDraftControlsLocked(true)") < draftFlow.indexOf('await recoverCsrf(operationFeedback, "saving this cleaning-request draft")')
+  && draftFlow.indexOf("setPending(triggerButton, true") < draftFlow.indexOf('await recoverCsrf(operationFeedback, "saving this cleaning-request draft")')
+  && draftFlow.includes("requestDraftPending = false")
+  && draftFlow.includes("setRequestDraftControlsLocked(false)"),
+  "A fast second tap, or a sibling control, can create two cleaning-request drafts for one clean while secure-session recovery is running.");
+
 assert(script.includes("const pendingPhotoCompletions = new WeakMap()") && photoUploadFlow.includes("let uploadId = pendingPhotoCompletions.get(candidate)") && photoUploadFlow.includes("if (!uploadId)") && photoUploadFlow.indexOf("pendingPhotoCompletions.set(candidate, uploadId)") < photoUploadFlow.indexOf("Securing photo") && photoUploadFlow.includes("encodeURIComponent(uploadId)") && photoUploadFlow.includes("pendingPhotoCompletions.delete(candidate)") && script.includes("securely uploaded, awaiting verification") && photoUploadFlow.includes("renderSelection()"), "An uncertain private-photo completion can be retried as a new upload instead of verifying the same server-owned upload ID, consuming the request photo allowance or duplicating media.");
 assert(photoUploadFlow.includes("Uploading photo") && photoUploadFlow.includes("Securing photo") && photoUploadFlow.includes("Removing metadata and securing photo") && photoUploadFlow.includes("2_000") && photoUploadFlow.includes("window.clearTimeout(verificationHintTimer)"), "A large room photo can appear frozen instead of showing its upload and server-sanitization phases, or its delayed progress timer can outlive completion.");
 assert(script.includes("function setUploadEditorLocked(locked)") && script.includes("[room, note, cameraButton, libraryButton, videoButton, cameraInput, libraryInput, videoInput]") && script.includes('if (uploadPending || videoProcessing) { event.target.value = ""; return; }') && photoUploadFlow.indexOf("setUploadEditorLocked(true)") < photoUploadFlow.indexOf('await recoverCsrf(feedback, "uploading this room photo")') && photoUploadFlow.includes("setUploadEditorLocked(false)"), "The Landlord can replace the selected photo/video queue or alter its frozen room/note while media preparation or authenticated upload is running, causing the wrong pending file to be removed or labelled.");

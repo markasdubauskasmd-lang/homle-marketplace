@@ -1819,6 +1819,14 @@ function resetRequestContinuation() {
 // A running photo upload owns its dialog. Dismissing mid-loop left the loop
 // writing progress into a detached panel while the remaining photos kept
 // uploading and attaching to the request, with nothing on screen saying so.
+// Guards the one function every "save this draft" control reaches.
+let requestDraftPending = false;
+function setRequestDraftControlsLocked(locked) {
+  for (const control of [requestSave, requestContinue]) {
+    if (control) control.disabled = locked;
+  }
+}
+
 let requestPhotoUploadInFlight = false;
 function setRequestPhotoUploadInFlight(busy) {
   requestPhotoUploadInFlight = busy;
@@ -3960,6 +3968,8 @@ async function createRequestDraft(event, options = {}) {
   const operationFeedback = options.feedback || requestFeedback;
   operationFeedback.hidden = true;
   if (!requestForm.reportValidity()) return false;
+  // One draft per clean, however many controls point here.
+  if (requestDraftPending) return false;
   // "Add images" is the one deliberate approval action in the simplified
   // final step. Keep the existing server payload and validation boundary, but
   // do not ask the Landlord to repeat approval in a separate checkbox.
@@ -3997,26 +4007,35 @@ async function createRequestDraft(event, options = {}) {
     showFeedback(operationFeedback, "Review and confirm the concise checklist before saving this draft.");
     return false;
   }
-  const csrf = await recoverCsrf(operationFeedback, "saving this cleaning-request draft");
-  if (!csrf) return false;
-  const body = {
-    propertyId: String(data.get("propertyId") || ""),
-    ...requestedTimeWindow,
-    cleaningType,
-    requiredServices,
-    specialInstructions: [String(data.get("specialInstructions") || "").trim(), supplementalNote].filter(Boolean).join("\n\n"),
-    budgetPence,
-    frequency,
-    tasks,
-    // Scope only. The server applies its active price list and freezes the
-    // quote; omitting this field was why manual requests displayed no price.
-    pricingRequest: pricingRequestFromManualTasks(tasks, { cleaningType, frequency }),
-    submit: false
-  };
+  // The lock must precede the first await, not follow it. recoverCsrf makes a
+  // real round trip on a reopened tab, and until it returned nothing stopped a
+  // second tap — or a sibling control, since "Continue", "Add images" and the
+  // photo dialog's own two buttons all reach this one function — from entering
+  // again and creating a second draft for one clean. The upload, submit and
+  // authorize flows already lock in this order; this was the one create path
+  // that did not.
   const triggerButton = options.triggerButton || requestSave;
   const triggerLabel = triggerButton === requestContinue ? "Continue" : triggerButton.textContent;
+  requestDraftPending = true;
+  setRequestDraftControlsLocked(true);
   setPending(triggerButton, true, "Saving draft…");
   try {
+    const csrf = await recoverCsrf(operationFeedback, "saving this cleaning-request draft");
+    if (!csrf) return false;
+    const body = {
+      propertyId: String(data.get("propertyId") || ""),
+      ...requestedTimeWindow,
+      cleaningType,
+      requiredServices,
+      specialInstructions: [String(data.get("specialInstructions") || "").trim(), supplementalNote].filter(Boolean).join("\n\n"),
+      budgetPence,
+      frequency,
+      tasks,
+      // Scope only. The server applies its active price list and freezes the
+      // quote; omitting this field was why manual requests displayed no price.
+      pricingRequest: pricingRequestFromManualTasks(tasks, { cleaningType, frequency }),
+      submit: false
+    };
     const result = await requestJson("/api/marketplace/cleaning-requests", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
     if (!result.cleaningRequest?.requestId) throw new Error("The saved cleaning-request draft could not be verified.");
     requests.unshift(result.cleaningRequest);
@@ -4032,7 +4051,11 @@ async function createRequestDraft(event, options = {}) {
     showFeedback(operationFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this draft. Sign in again." : error.message);
     return false;
   }
-  finally { setPending(triggerButton, false, triggerLabel); }
+  finally {
+    requestDraftPending = false;
+    setRequestDraftControlsLocked(false);
+    setPending(triggerButton, false, triggerLabel);
+  }
 }
 
 function setPending(button, pending, label) {
