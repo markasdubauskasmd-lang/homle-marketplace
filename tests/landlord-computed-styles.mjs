@@ -155,13 +155,16 @@ const PROBE = (PREFIXES) => `
     const style = getComputedStyle(el);
     const entry = {};
     for (const property of PROPERTIES) {
-      // Two glows here are keyframed, so a reading taken one frame later
-      // differs in the fifth decimal of a pixel. Lengths are rounded to 0.1px
-      // so that noise cannot read as a cascade change, while any real edit —
-      // the smallest being a 1px border — still shows. Only px is touched:
-      // colour alpha keeps its full precision.
+      // Two glows here are keyframed, so a reading taken one frame later can
+      // differ even though the cascade is identical. Box-shadow is the only
+      // measured property animated by this surface. A
+      // slow runner can cross a tenth-pixel boundary before capture, so shadow
+      // lengths use whole-pixel precision while every other length keeps 0.1px.
+      // Real 1px shadow edits still fail; decorative timing noise does not.
+      // Only px is normalized; colour alpha keeps its full precision.
+      const scale = property === "box-shadow" ? 1 : 10;
       entry[property] = style.getPropertyValue(property)
-        .replace(/([0-9]+[.][0-9]+)px/g, (whole, number) => String(Math.round(Number(number) * 10) / 10) + "px");
+        .replace(/([0-9]+[.][0-9]+)px/g, (whole, number) => String(Math.round(Number(number) * scale) / scale) + "px");
     }
     snapshot[base + "#" + index] = entry;
   }
