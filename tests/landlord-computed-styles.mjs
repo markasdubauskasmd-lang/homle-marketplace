@@ -44,7 +44,16 @@ const dashboardHtml = await readFile(new URL("../public/landlord-dashboard.html"
    dashboard, which is the design seam the audit named as its largest remaining
    item. Extracting a shared component sheet is a visible change to all three,
    so all three are measured here — otherwise the extraction would be checked on
-   the one surface it must not alter and unchecked on the two it must. */
+   the one surface it must not alter and unchecked on the two it must.
+
+   All three open fully rather than resting on a gate, which takes some setting
+   up: the journey needs its access check satisfied, and checkout needs a
+   booking whose frozen total the server confirms. Left locked they render a
+   holding panel and every primitive worth measuring goes unmeasured. So the
+   journey contributes its rail, field, button and eyebrow, and checkout its
+   payment card, summary, status, message, prepare action and trust grid.
+   Stripe is only fetched when that prepare button is pressed, so the card
+   chrome measures without any off-origin request. */
 const journeyHtml = await readFile(new URL("../public/landlord-journey.html", import.meta.url), "utf8");
 const checkoutHtml = await readFile(new URL("../public/landlord-checkout.html", import.meta.url), "utf8");
 
@@ -52,6 +61,7 @@ const checkoutHtml = await readFile(new URL("../public/landlord-checkout.html", 
    present means the booked-state components are in the tree and therefore
    measured. Fixed instants keep the DOM identical between runs. */
 const PROPERTY_ID = "44444444-4444-4444-8444-444444444444";
+const BOOKING_ID = "77777777-7777-4777-8777-777777777777";
 const START_AT = "2099-08-20T09:00:00.000Z";
 const END_AT = "2099-08-20T11:00:00.000Z";
 
@@ -74,7 +84,7 @@ const request = {
 };
 
 const booking = {
-  bookingId: "77777777-7777-4777-8777-777777777777", participantRole: "landlord", status: "confirmed",
+  bookingId: BOOKING_ID, participantRole: "landlord", status: "confirmed",
   scheduledStartAt: START_AT, scheduledEndAt: END_AT, propertyName: "House in London",
   propertyArea: "London", cleaningType: "regular-domestic", counterpartyName: "Assigned Cleaner",
   taskCount: 1, pricePence: 6800, pricePerspective: "customer-total", confirmed: true, completed: false,
@@ -95,6 +105,13 @@ const files = {
   // The journey's access gate calls this through recoverCsrf; without it the
   // gate never opens and only the locked state would be measured.
   "/api/marketplace/auth/session": { ok: true, csrfToken: "measurement-token" },
+  /* Checkout renders its state panel, not its payment card, unless it is opened
+     on a real booking whose frozen total the server confirms. "not-started" is
+     the state that draws the whole card and its prepare action; Stripe itself
+     is only fetched when that button is pressed, so the card chrome measures
+     without any off-origin request. */
+  [`/api/marketplace/bookings/${BOOKING_ID}/payment`]: { ok: true, payment: { status: "not-started", amountPence: 6800, currency: "gbp" } },
+  "/api/marketplace/payments/config": { ok: true, payment: { testMode: true, publishableKey: "pk_test_measurementmeasurementmeasurement" } },
   "/api/health": { ok: true, marketplace: { mediaReady: true, matchingReady: true, geocodingReady: true, automaticDispatchReady: true } }
 };
 
@@ -181,8 +198,8 @@ try {
       captured[`${viewport.label} · ${view}`] = await browser.evaluate(PROBE(DASHBOARD_PREFIXES));
     }
 
-    for (const surface of ["book", "checkout"]) {
-      await browser.goto(`${server.origin}/landlord/${surface}`);
+    for (const [surface, search] of [["book", ""], ["checkout", `?bookingId=${BOOKING_ID}`]]) {
+      await browser.goto(`${server.origin}/landlord/${surface}${search}`);
       // Neither surface has a workspace gate to wait on; they render from
       // markup. One frame is enough for the stylesheets to have applied.
       await browser.evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
