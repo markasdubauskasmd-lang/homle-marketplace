@@ -1156,6 +1156,12 @@ function selectWorkspaceTab(name, { historyMode = "" } = {}) {
   setRequestBuilderExpanded(selected === "requests");
   if (selected === "requests") loadPrepareWizard();
   renderWorkspaceHeading(selected);
+  // Switching views replaces the whole main region without a page load, so a
+  // screen reader heard nothing and the keyboard position stayed on the link
+  // just activated. Focusing the freshly written heading both announces the new
+  // view and moves the caret into it. Guarded on "push" so first paint and Back
+  // (both "replace") do not steal focus.
+  if (historyMode === "push") viewTitle?.focus({ preventScroll: true });
   markCurrentNavigation(selected);
   if (selected === "home") renderHomeView();
   // Loaded when the view is opened rather than on every dashboard visit: most
@@ -1620,8 +1626,13 @@ async function restoreProperty(property) {
     restoringPropertyId = "";
     renderProperties();
     renderArchivedProperties();
-    showFeedback(propertyStatus, `${property.name || "Property"} restored and available for new cleaning requests.`, "success");
-    propertyStatus.focus({ preventScroll: true });
+    // propertyStatus lives in the Places panel, which is hidden while the
+    // Archived properties list is open, so the confirmation was written into a
+    // node with two hidden ancestors: nothing appeared, the aria-live region
+    // never announced, and focus was sent somewhere invisible. The error path
+    // two lines below already used the archived panel's own status node.
+    showFeedback(archivedPropertyStatus, `${property.name || "Property"} restored and available for new cleaning requests.`, "success");
+    archivedPropertyStatus.focus({ preventScroll: true });
   } catch (error) {
     restoringPropertyId = "";
     renderArchivedProperties();
@@ -1805,6 +1816,21 @@ function resetRequestContinuation() {
   requestForm.hidden = false;
 }
 
+// A running photo upload owns its dialog. Dismissing mid-loop left the loop
+// writing progress into a detached panel while the remaining photos kept
+// uploading and attaching to the request, with nothing on screen saying so.
+let requestPhotoUploadInFlight = false;
+function setRequestPhotoUploadInFlight(busy) {
+  requestPhotoUploadInFlight = busy;
+  const close = activeRequestPhotoDialog?.querySelector(".landlord-photo-dialog-close");
+  if (!close) return;
+  // Disabled rather than silently ignored, so the block is visible instead of
+  // reading as a dead button.
+  close.disabled = busy;
+  if (busy) close.title = "Photos are still uploading.";
+  else close.removeAttribute("title");
+}
+
 function closeRequestPhotoDialog() {
   if (!activeRequestPhotoDialog) return;
   const dialog = activeRequestPhotoDialog;
@@ -1818,6 +1844,7 @@ function enableRequestPhotoDialogDismissal(dialog) {
   dialog.dataset.dismissalReady = "true";
   dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
+    if (requestPhotoUploadInFlight) return;
     closeRequestPhotoDialog();
   });
   // Backdrop pointer events arrive on the dialog element. Close only when the
@@ -1827,7 +1854,7 @@ function enableRequestPhotoDialogDismissal(dialog) {
     const bounds = dialog.getBoundingClientRect();
     const outside = event.clientX < bounds.left || event.clientX > bounds.right
       || event.clientY < bounds.top || event.clientY > bounds.bottom;
-    if (outside) closeRequestPhotoDialog();
+    if (outside && !requestPhotoUploadInFlight) closeRequestPhotoDialog();
   });
 }
 
@@ -1845,7 +1872,7 @@ function showRequestContinuation(request, options = {}) {
   const close = element("button", "landlord-photo-dialog-close", "Close");
   close.type = "button";
   close.setAttribute("aria-label", "Close room photo window");
-  close.addEventListener("click", closeRequestPhotoDialog);
+  close.addEventListener("click", () => { if (!requestPhotoUploadInFlight) closeRequestPhotoDialog(); });
   const heading = element("div", "landlord-request-continuation-heading");
   heading.append(
     element("p", "eyebrow", "Review request"),
@@ -2094,12 +2121,14 @@ function requestScanPanel(request, options = {}) {
       const queuedCount = files.length;
       let uploadedCount = 0;
       uploadPending = true;
+      setRequestPhotoUploadInFlight(true);
       setUploadEditorLocked(true);
       setPending(upload, true, `Checking photo 1 of ${queuedCount}…`);
       try {
         const csrf = await recoverCsrf(feedback, "uploading this room photo");
         if (!csrf) return;
         while (files.length) {
+          if (!form.isConnected) break;
           if (browserOffline()) throw Object.assign(new Error("You are offline. The remaining selected photos are still here; reconnect, then continue the upload."), { code: "browser-offline" });
           const candidate = files[0];
           let uploadId = pendingPhotoCompletions.get(candidate);
@@ -2157,6 +2186,7 @@ function requestScanPanel(request, options = {}) {
       }
       finally {
         uploadPending = false;
+        setRequestPhotoUploadInFlight(false);
         setUploadEditorLocked(false);
         setPending(upload, false, files.length ? `Upload ${files.length} remaining ${files.length === 1 ? "photo" : "photos"}` : "Upload private room photos");
         renderSelection();
@@ -3564,6 +3594,15 @@ function renderLandlordPayments(allBookings) {
     const status = element("div", "landlord-payment-status");
     status.append(badge, element("span", "landlord-payment-booking-state", bookingSummaryStatusLabels[booking.status] || "Booking"));
 
+    // The badge named an action the view then offered no way to take. Same
+    // label and same destination as the booking card, so the two stay in
+    // wording lockstep; element() sets textContent only, so no markup is parsed.
+    if (stage.kind === "action") {
+      const authorize = element("a", "button", "Authorize booking total");
+      authorize.href = `/landlord/checkout?bookingId=${encodeURIComponent(booking.bookingId)}`;
+      status.append(authorize);
+    }
+
     row.append(head, meta, status, element("p", "landlord-payment-boundary", bookingSummaryMoneyBoundary(booking, "landlord")));
     return row;
   }));
@@ -3850,7 +3889,7 @@ function openNewRequestPhotoDialog() {
   const close = element("button", "landlord-photo-dialog-close", "Close");
   close.type = "button";
   close.setAttribute("aria-label", "Close add images window");
-  close.addEventListener("click", closeRequestPhotoDialog);
+  close.addEventListener("click", () => { if (!requestPhotoUploadInFlight) closeRequestPhotoDialog(); });
   const heading = element("div", "landlord-request-continuation-heading");
   heading.append(element("p", "eyebrow", "Add images (optional)"), element("h3", "", "Which room is this?"), element("p", "", "Choose a room to add a photo, or continue without one."));
   const room = element("select");
@@ -4440,6 +4479,15 @@ requestCompleteNext.addEventListener("click", () => {
 });
 window.addEventListener("beforeunload", (event) => { rememberWorkingRequest(); if (propertyDirty || requestDirty || landlordProfileDirty) event.preventDefault(); });
 window.addEventListener("pagehide", () => { closeInvitationStream(); clearLandlordInvitationDeadlineTimer(); });
+// Leaving for checkout, a booking record or settings is a full-page navigation,
+// so the line above closes the stream. Coming back restores this page from
+// bfcache with its DOM intact and its module state untouched, which meant
+// nothing reopened the stream and nothing rearmed the countdown: a Landlord
+// waiting on a Cleaner sat on a page that had quietly stopped listening.
+// refreshBookingTransition refetches and rerenders, and renderBookings reaches
+// syncInvitationStream, which reopens because closeInvitationStream cleared the
+// key. No polling is introduced.
+window.addEventListener("pageshow", (event) => { if (event.persisted) void refreshBookingTransition(); });
 window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", () => {
   updateNetworkStatus();

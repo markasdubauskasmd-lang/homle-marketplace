@@ -114,7 +114,7 @@ function renderConversations() {
   }));
 }
 
-function renderThread() {
+function renderThread({ forceBottom = false } = {}) {
   const body = query("[data-messages-body]");
   const head = query("[data-messages-head]");
   const form = query("[data-messages-form]");
@@ -170,12 +170,16 @@ function renderThread() {
   }
 
   body.replaceChildren(...nodes);
-  requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
+  // Only when the caller means "show the newest message". This used to run on
+  // every render, so "Load earlier messages" prepended the older page and then
+  // threw the reader straight back to the bottom — twice, since the loading
+  // render scrolled before the request even fired. Matches cleaner-messages.js.
+  if (forceBottom) requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
 }
 
-function render() {
+function render(options = {}) {
   renderConversations();
-  renderThread();
+  renderThread(options);
 }
 
 /* ── Loading ─────────────────────────────────────────────────────────────── */
@@ -197,11 +201,11 @@ async function selectConversation(bookingId) {
   if (!selected || state.loadingBookingId || state.sending) return;
   state.selectedBookingId = selected;
   showFeedback("");
-  render();
+  render({ forceBottom: true });
   if (state.messages.has(selected)) return;
 
   state.loadingBookingId = selected;
-  render();
+  render({ forceBottom: true });
   try {
     const result = await deps.requestJson(`/api/marketplace/bookings/${encodeURIComponent(selected)}/messages?limit=100`);
     applyPage(selected, result);
@@ -209,7 +213,7 @@ async function selectConversation(bookingId) {
     showFeedback(error.message || "That conversation could not be opened. Try again.");
   } finally {
     state.loadingBookingId = "";
-    render();
+    render({ forceBottom: true });
   }
 }
 
@@ -265,7 +269,7 @@ async function send(event) {
     showFeedback(error.message || "The message was not sent. Your text is still here to retry.");
   } finally {
     state.sending = false;
-    render();
+    render({ forceBottom: true });
     query("[data-messages-input]")?.focus();
   }
 }
@@ -309,7 +313,7 @@ export async function openLandlordMessages(options = {}) {
 
   render();
   if (wanted && wanted !== state.selectedBookingId) await selectConversation(wanted);
-  else if (wanted) render();
+  else if (wanted) render({ forceBottom: true });
 }
 
 /** Lets the dashboard refresh the conversation list when bookings change. */
