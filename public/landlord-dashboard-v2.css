@@ -3391,3 +3391,15 @@ body.landlord-dashboard-page .ld-section-head-note {
   text-transform: none;
   color: var(--ld-muted);
 }
+
+/* styles.css floors every workspace panel at 380px — a figure from the design
+   this workspace replaced. Payments with nothing priced yet is 177px of real
+   content, so the floor contributed 203px of blank white below it and the view
+   read as broken rather than empty.
+
+   Scoped to Payments deliberately. Lifting the floor from every panel collapsed
+   the Messages pane on a phone, where the two-column thread layout resolves its
+   height from that very floor — caught by the computed-style baseline, which
+   reported eight message elements dropping to zero size. Payments is a plain
+   block of rows and has no such dependency. */
+body.landlord-dashboard-page [data-landlord-panel="payments"] { min-height: 0; }

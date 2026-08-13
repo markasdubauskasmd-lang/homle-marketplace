@@ -1,6 +1,6 @@
 import { supportCategoryLabels, supportRequestPage, supportRequestPayload, supportStatusLabels } from "./landlord-help-model.js";
 import { createRequestJson } from "./request-json.js";
-import { storedCsrf } from "./session-csrf.js";
+import { saveCsrf, storedCsrf } from "./session-csrf.js";
 
 const requestJson = createRequestJson({ failureMessage: "The support request could not be completed." });
 const gate = document.querySelector("[data-support-gate]");
@@ -13,6 +13,32 @@ const list = document.querySelector("[data-support-list]");
 const empty = document.querySelector("[data-support-empty]");
 let retryId = crypto.randomUUID();
 let busy = false;
+
+/**
+ * Mints a CSRF token when this tab has none.
+ *
+ * This page was the only landlord surface that read storedCsrf() and gave up if
+ * it was empty. The token lives in sessionStorage, which is per-tab, so opening
+ * Help in a new tab — or from an email, or after the tab was restored — meant a
+ * signed-in Landlord filled the whole form, pressed Send, and was told their
+ * "secure editing token is missing" and to sign in again. They were already
+ * signed in; nothing was wrong except that nobody had asked the server for a
+ * token. The dashboard, checkout and journey all recover here instead.
+ */
+async function recoverCsrf() {
+  const current = storedCsrf();
+  if (current) return current;
+  try {
+    const result = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("The secure editing token could not be stored in this browser.");
+    return result.csrfToken;
+  } catch (error) {
+    showFeedback(error.code === "browser-offline"
+      ? "You are offline. No support request was sent; reconnect and try again."
+      : "Your secure session could not be recovered. Sign in again before sending this request.");
+    return "";
+  }
+}
 
 function showGate(title, copy, { signIn = false, retry = false } = {}) {
   gate.hidden = false; workspace.hidden = true;
@@ -120,11 +146,11 @@ async function load() {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault(); if (busy) return;
-  const csrf = storedCsrf();
-  if (!csrf) return showFeedback("Your secure editing token is missing. Sign in again before sending this request.");
   busy = true; submit.disabled = true; submit.setAttribute("aria-busy", "true"); showFeedback("");
   let sent = false;
   try {
+    const csrf = await recoverCsrf();
+    if (!csrf) return;
     const values = Object.fromEntries(new FormData(form));
     values.confirmNoSensitiveData = form.elements.confirmNoSensitiveData.checked;
     values.proposedStartAt = values.proposedStartLocal || null;

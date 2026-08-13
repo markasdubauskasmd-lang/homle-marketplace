@@ -1,0 +1,186 @@
+/* Help, in the dashboard's own language.
+ *
+ * A Landlord reaches this page from the workspace sidebar and it answered in
+ * the product the workspace replaced: a Bricolage display headline at up to
+ * 5rem, r24 cards under a green-tinted shadow, and a header nav that still
+ * offered "Prepare a clean". Support is where someone lands when something has
+ * already gone wrong, which makes it the worst place to also look unfamiliar.
+ *
+ * Every value is copied from landlord-dashboard-v2.css rather than invented —
+ * ink #1a1a1a, muted #666666, coral #e11b22 / #c4151b, line #efedeb, canvas
+ * #f7f6f5, the 11px control radius, 16/20px card radii, the two-step card
+ * shadow, and the 11px/700/.12em uppercase section label the dashboard now
+ * uses everywhere. DM Sans arrives with homle-tokens.css, which this page
+ * already loads.
+ *
+ * SCOPE MATTERS HERE. landlord-help.css and the body class `support-page` are
+ * shared with admin-support.html, so every rule below is scoped to
+ * .homle-landlord-support, a class only this page carries. The administrator
+ * queue keeps the look it has.
+ */
+
+body.support-page.homle-landlord-support {
+  background: #f7f6f5;
+  color: #1a1a1a;
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+body.support-page.homle-landlord-support .support-header {
+  background: #ffffff;
+  border-bottom: 1px solid #efedeb;
+}
+body.support-page.homle-landlord-support .support-nav .brand span {
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+body.support-page.homle-landlord-support .support-nav nav a {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666666;
+  border-radius: 9px;
+  padding: 8px 12px;
+}
+body.support-page.homle-landlord-support .support-nav nav a:hover { color: #1a1a1a; background: #f7f6f5; }
+body.support-page.homle-landlord-support .support-nav nav a[aria-current="page"] { color: #e11b22; }
+
+/* ── The page's own heading ─────────────────────────────────────────────── */
+
+body.support-page.homle-landlord-support .support-heading h1 {
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+}
+body.support-page.homle-landlord-support .support-heading p { color: #666666; }
+/* The same micro-label the dashboard uses to introduce a region. */
+body.support-page.homle-landlord-support .support-heading .eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6b6b6b;
+  margin: 0 0 10px;
+}
+body.support-page.homle-landlord-support .support-heading .eyebrow::before { display: none; }
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+
+body.support-page.homle-landlord-support .support-card,
+body.support-page.homle-landlord-support .support-gate {
+  background: #ffffff;
+  border: 1px solid #efedeb;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px oklch(0.2 0.03 60 / 0.05), 0 6px 16px oklch(0.2 0.03 60 / 0.06);
+}
+body.support-page.homle-landlord-support .support-card h2 {
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+body.support-page.homle-landlord-support .support-card > p { color: #666666; font-size: 14px; }
+
+/* ── Fields ─────────────────────────────────────────────────────────────── */
+
+body.support-page.homle-landlord-support .support-card label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #666666;
+}
+body.support-page.homle-landlord-support .support-card input:not([type="checkbox"]),
+body.support-page.homle-landlord-support .support-card select,
+body.support-page.homle-landlord-support .support-card textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid #e7e4e0;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #1a1a1a;
+  font-family: inherit;
+  /* 16px stops iOS zooming the page when the field takes focus. */
+  font-size: 16px;
+  font-weight: 500;
+}
+body.support-page.homle-landlord-support .support-card textarea { min-height: 132px; line-height: 1.55; }
+body.support-page.homle-landlord-support .support-card small { color: #6b6b6b; font-size: 12px; font-weight: 500; }
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+
+body.support-page.homle-landlord-support .button {
+  border-radius: 11px;
+  border: 0;
+  background: #e11b22;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  min-height: 48px;
+  padding: 13px 22px;
+  box-shadow: none;
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+body.support-page.homle-landlord-support .button:hover { background: #c4151b; }
+body.support-page.homle-landlord-support .button:active { transform: scale(0.97); }
+body.support-page.homle-landlord-support .button-outline {
+  background: #ffffff;
+  color: #1a1a1a;
+  border: 1px solid #e1deda;
+}
+body.support-page.homle-landlord-support .button-outline:hover { background: #f7f6f5; border-color: #c4151b; color: #c4151b; }
+body.support-page.homle-landlord-support .text-button { color: #666666; font-weight: 600; }
+body.support-page.homle-landlord-support .text-button:hover { color: #c4151b; }
+
+/* ── Request history ────────────────────────────────────────────────────── */
+
+body.support-page.homle-landlord-support .support-card-heading h2 { margin: 0; }
+body.support-page.homle-landlord-support .support-request-card {
+  background: #f7f6f5;
+  border: 1px solid #efedeb;
+  border-radius: 16px;
+}
+body.support-page.homle-landlord-support .support-request-card h3 {
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+body.support-page.homle-landlord-support .support-status {
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+body.support-page.homle-landlord-support .support-empty strong { font-size: 15px; font-weight: 700; }
+body.support-page.homle-landlord-support .support-empty p { color: #666666; font-size: 14px; }
+
+/* Feedback carries the coral the rest of the workspace uses for attention. */
+body.support-page.homle-landlord-support .support-feedback {
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+body.support-page.homle-landlord-support .support-feedback[data-kind="success"] {
+  background: #eaf4ee;
+  color: #2e7d51;
+}
+body.support-page.homle-landlord-support .support-feedback:not([data-kind="success"]) {
+  background: #fdecec;
+  color: #c4151b;
+}
+
+/* The dashboard's focus contract, restated so support is not the one landlord
+   page with weaker focus evidence than the workspace it belongs to. */
+body.support-page.homle-landlord-support a:focus-visible,
+body.support-page.homle-landlord-support button:focus-visible,
+body.support-page.homle-landlord-support input:focus-visible,
+body.support-page.homle-landlord-support select:focus-visible,
+body.support-page.homle-landlord-support textarea:focus-visible {
+  outline: 3px solid #2456e6;
+  outline-offset: 1px;
+}
