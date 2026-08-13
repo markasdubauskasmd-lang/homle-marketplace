@@ -40,6 +40,13 @@ if (!chromiumPath) {
 
 const baselineUrl = new URL("./fixtures/landlord-computed-styles.json", import.meta.url);
 const dashboardHtml = await readFile(new URL("../public/landlord-dashboard.html", import.meta.url), "utf8");
+/* The scan journey and checkout load a different stylesheet set from the
+   dashboard, which is the design seam the audit named as its largest remaining
+   item. Extracting a shared component sheet is a visible change to all three,
+   so all three are measured here — otherwise the extraction would be checked on
+   the one surface it must not alter and unchecked on the two it must. */
+const journeyHtml = await readFile(new URL("../public/landlord-journey.html", import.meta.url), "utf8");
+const checkoutHtml = await readFile(new URL("../public/landlord-checkout.html", import.meta.url), "utf8");
 
 /* The same fixtures the render suite uses, and for the same reason: a booking
    present means the booked-state components are in the tree and therefore
@@ -85,6 +92,9 @@ const files = {
   "/api/marketplace/bookings": { ok: true, bookings: [booking] },
   "/api/marketplace/landlord/support-requests": { ok: true, supportRequests: [] },
   "/api/marketplace/landlord/favourite-cleaners": { ok: true, cleaners: [] },
+  // The journey's access gate calls this through recoverCsrf; without it the
+  // gate never opens and only the locked state would be measured.
+  "/api/marketplace/auth/session": { ok: true, csrfToken: "measurement-token" },
   "/api/health": { ok: true, marketplace: { mediaReady: true, matchingReady: true, geocodingReady: true, automaticDispatchReady: true } }
 };
 
@@ -94,7 +104,13 @@ const VIEWPORTS = [{ label: "phone", width: 390, height: 844 }, { label: "deskto
 /* The properties a restyle moves. Deliberately excludes anything that animates
    (opacity, transform) or depends on layout position, so a diff always means a
    rule changed rather than a frame landing differently. */
-const PROBE = `
+const DASHBOARD_PREFIXES = "^(ld-|hub-|pac-|landlord-|booking-dashboard|dashboard-)";
+// The journey and checkout name the same primitives differently. These are the
+// classes that would move into any shared component sheet.
+const JOURNEY_PREFIXES = "^(btn|inp|opt|rail|jstep|journey-|booking-payment|pg|pgs|eyebrow|field|day|chip|cleaner|summary|scan-invite|res-hero)";
+
+const PROBE = (PREFIXES) => `
+  const PREFIXES = ${JSON.stringify(PREFIXES)};` + `
   const PROPERTIES = [
     "font-family", "font-size", "font-weight", "letter-spacing", "line-height",
     "color", "background-color",
@@ -113,7 +129,7 @@ const PROBE = `
     if (!classes) continue;
     // Only the landlord design systems. Shared site chrome is covered elsewhere
     // and would make this file churn on unrelated work.
-    if (!/^(ld-|hub-|pac-|landlord-|booking-dashboard|dashboard-)/.test(classes)) continue;
+    if (!new RegExp(PREFIXES).test(classes)) continue;
     const rect = el.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) continue;
     const base = el.tagName.toLowerCase() + "." + classes;
@@ -138,6 +154,8 @@ const PROBE = `
 const server = await serveStatic({
   extraFiles: {
     ...Object.fromEntries(VIEWS.map((view) => [`/landlord/${view}`, dashboardHtml])),
+    "/landlord/book": journeyHtml,
+    "/landlord/checkout": checkoutHtml,
     ...Object.fromEntries(Object.entries(files).map(([path, body]) => [path, JSON.stringify(body)]))
   }
 });
@@ -160,7 +178,15 @@ try {
         }
       `);
       assert(ready, `${view} at ${viewport.label}: the workspace never finished loading, so nothing could be measured.`);
-      captured[`${viewport.label} · ${view}`] = await browser.evaluate(PROBE);
+      captured[`${viewport.label} · ${view}`] = await browser.evaluate(PROBE(DASHBOARD_PREFIXES));
+    }
+
+    for (const surface of ["book", "checkout"]) {
+      await browser.goto(`${server.origin}/landlord/${surface}`);
+      // Neither surface has a workspace gate to wait on; they render from
+      // markup. One frame is enough for the stylesheets to have applied.
+      await browser.evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      captured[`${viewport.label} · ${surface}`] = await browser.evaluate(PROBE(JOURNEY_PREFIXES));
     }
   }
 } catch (error) {
@@ -177,7 +203,7 @@ assert(measuredElements > 300, `Only ${measuredElements} styled elements were me
 
 if (update || !existsSync(baselineUrl)) {
   await writeFile(baselineUrl, `${JSON.stringify(captured, null, 1)}\n`);
-  console.log(`Landlord computed-style baseline written: ${measuredElements} styled elements across ${VIEWS.length} views and ${VIEWPORTS.length} viewports. Read the diff before committing it.`);
+  console.log(`Landlord computed-style baseline written: ${measuredElements} styled elements across ${VIEWS.length} dashboard views, the scan journey, checkout and ${VIEWPORTS.length} viewports. Read the diff before committing it.`);
   process.exit(0);
 }
 
@@ -200,4 +226,4 @@ for (const group of groups) {
 
 assert(differences.length === 0, `The Landlord design system resolves differently than the committed baseline in ${differences.length} place${differences.length === 1 ? "" : "s"}. If the change was intended, rerun with --update and review the diff; if it was not, this is a cascade regression a source-text assertion could not have seen.\n\n${differences.slice(0, 40).join("\n")}${differences.length > 40 ? `\n… and ${differences.length - 40} more` : ""}`);
 
-console.log(`Landlord computed-style tests passed: ${measuredElements} styled elements across ${VIEWS.length} views and ${VIEWPORTS.length} viewports resolve exactly as the committed baseline, so a specificity, load-order or token change cannot land unseen.`);
+console.log(`Landlord computed-style tests passed: ${measuredElements} styled elements resolve exactly as the committed baseline across ${VIEWS.length} dashboard views, the scan journey, checkout and ${VIEWPORTS.length} viewports, so a specificity, load-order or token change cannot land unseen on any of the three surfaces a shared component sheet would touch.`);
