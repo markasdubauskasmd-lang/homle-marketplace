@@ -25,7 +25,11 @@
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
   <header class="site-header">
     <div class="shell nav-wrap">
-      <div class="workspace-brand"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo-128-4f82ebad.png" alt="" width="44" height="44"><span class="workspace-brand-copy"><strong>Homle</strong><small>Landlord</small></span></a></div>
+      <!-- Inside an authenticated workspace the brand mark is a way home, not a way
+           out. Pointing it at the marketing site made the most prominent control in
+           the sidebar an exit. landlord-checkout.html already sends its brand to the
+           workspace root; this matches it. -->
+      <div class="workspace-brand"><a class="brand" href="/landlord/dashboard" aria-label="Homle Landlord workspace home"><img src="/homle-logo-128-4f82ebad.png" alt="" width="44" height="44"><span class="workspace-brand-copy"><strong>Homle</strong><small>Landlord</small></span></a></div>
       <!-- Four destinations, in the order the reviewed desktop design puts them. Every one is a
            real path the server serves, so a refresh or a shared link lands on the
            same view; landlord-dashboard.js intercepts the click and swaps panels
@@ -99,7 +103,7 @@
         <!-- The desktop brand lives in the sidebar. On phones that entire
              sidebar is removed, so this compact mark keeps Homle present
              without adding a second full-width header or profile control. -->
-        <a class="ld-mobile-brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" alt="" width="38" height="38"></a>
+        <a class="ld-mobile-brand" href="/landlord/dashboard" aria-label="Homle Landlord workspace home"><img src="/homle-logo.png" alt="" width="38" height="38"></a>
         <div class="ld-topbar-copy">
           <!-- Kept from the previous dashboard. The v2 design has no equivalent,
                but this states that the workspace is authenticated and private,
