@@ -50,6 +50,8 @@
         <div class="account-menu-panel">
           <div class="account-menu-identity"><span class="account-avatar account-menu-avatar" data-account-avatar aria-hidden="true">H</span><span><strong data-account-name>Your account</strong><small data-account-email></small><em>Verified sign-in</em></span></div>
           <a class="account-menu-primary" href="/landlord/account" data-open-landlord-section="account">View account</a>
+          <!-- Payments is a workspace view, not another page. Without the
+               section hook these shortcuts reload the dashboard to reach it. -->
           <nav aria-label="Account shortcuts"><a href="/landlord/account#account-personal" data-account-destination="personal">Personal details</a><a href="/settings">Security &amp; login</a><a href="/landlord/payments" data-open-landlord-section="payments">Payments</a><a href="/notifications">Notifications</a><a href="/landlord/help">Help &amp; support</a></nav>
           <button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small>
         </div>
@@ -127,7 +129,14 @@
             <summary aria-label="Open your Landlord account menu"><span class="ld-topbar-avatar" data-account-avatar aria-hidden="true">H</span></summary>
             <div class="account-menu-panel">
               <div class="account-menu-identity"><span class="account-avatar account-menu-avatar" data-account-avatar aria-hidden="true">H</span><span><strong data-account-name>Your account</strong><small data-account-email></small><em>Verified sign-in</em></span></div>
+              <!-- This menu is a copy of the sidebar one above, and the copy
+                   originally lost this hook. Only elements carrying
+                   data-open-landlord-section are bound by the in-page delegate,
+                   so without it the same words reloaded the whole dashboard to
+                   reach a view that was already built. -->
               <a class="account-menu-primary" href="/landlord/account" data-open-landlord-section="account">View account</a>
+              <!-- Payments is a workspace view, not another page. Without the
+                   section hook these shortcuts reload the dashboard to reach it. -->
               <nav aria-label="Account shortcuts"><a href="/landlord/account#account-personal" data-account-destination="personal">Personal details</a><a href="/settings">Security &amp; login</a><a href="/landlord/payments" data-open-landlord-section="payments">Payments</a><a href="/notifications">Notifications</a><a href="/landlord/help">Help &amp; support</a></nav>
               <button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=book">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small>
             </div>

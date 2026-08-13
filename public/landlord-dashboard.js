@@ -1885,6 +1885,9 @@ function enableRequestPhotoDialogDismissal(dialog) {
   dialog.dataset.dismissalReady = "true";
   dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
+    // Escape while photos are uploading used to close the panel the loop was
+    // still reporting into, leaving it to finish attaching the rest in the
+    // background. The upload owns the dialog until it stops.
     if (requestPhotoUploadInFlight) return;
     closeRequestPhotoDialog();
   });
@@ -1895,6 +1898,8 @@ function enableRequestPhotoDialogDismissal(dialog) {
     const bounds = dialog.getBoundingClientRect();
     const outside = event.clientX < bounds.left || event.clientX > bounds.right
       || event.clientY < bounds.top || event.clientY > bounds.bottom;
+    // Same reason as the cancel handler above: a backdrop tap must not abandon
+    // an upload that will keep running either way.
     if (outside && !requestPhotoUploadInFlight) closeRequestPhotoDialog();
   });
 }
@@ -2169,6 +2174,10 @@ function requestScanPanel(request, options = {}) {
         const csrf = await recoverCsrf(feedback, "uploading this room photo");
         if (!csrf) return;
         while (files.length) {
+          // The in-flight flag blocks the three ways a person can dismiss this
+          // dialog, but not the two programmatic closes (resetRequestContinuation
+          // and showRequestCompletion). A detached form means the panel is gone,
+          // so stop rather than upload into nothing.
           if (!form.isConnected) break;
           if (browserOffline()) throw Object.assign(new Error("You are offline. The remaining selected photos are still here; reconnect, then continue the upload."), { code: "browser-offline" });
           const candidate = files[0];
