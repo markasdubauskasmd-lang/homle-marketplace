@@ -10,7 +10,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <script src="/landlord-checkout.js?v=20260806-2" type="module"></script>
+  <link rel="stylesheet" href="/landlord-checkout-v2.css?v=20260813-1">
+  <script src="/landlord-checkout.js?v=20260813-2" type="module"></script>
 </head>
 <body class="booking-payment-page">
   <a class="skip-link" href="#payment-main">Skip to booking checkout</a>
@@ -34,14 +35,32 @@
         <div class="booking-payment-status"><span>Status</span><strong data-payment-status>Not started</strong></div>
       </div>
 
+      <!-- What is being paid for, not only how much. Filled from the same
+           booking summaries the dashboard renders; if that read fails the strip
+           stays hidden and the amount — which is verified against the frozen
+           server total — still stands alone. Decorative context only: nothing
+           here participates in what is charged. -->
+      <dl class="booking-payment-context" data-payment-context hidden>
+        <div><dt>Place</dt><dd data-payment-context-property></dd></div>
+        <div><dt>When</dt><dd data-payment-context-when></dd></div>
+        <div><dt>Clean</dt><dd data-payment-context-type></dd></div>
+        <div data-payment-context-cleaner-row hidden><dt>Cleaner</dt><dd data-payment-context-cleaner></dd></div>
+      </dl>
+
       <div class="booking-payment-message" data-payment-message role="status" aria-live="polite"><strong data-payment-message-title></strong><p data-payment-message-copy></p></div>
       <button class="text-button booking-payment-refresh" type="button" data-payment-status-refresh hidden>Refresh payment status</button>
+      <!-- Outside the form on purpose. Failures that happen BEFORE the form
+           opens — beginning the authorization, loading Stripe's script — report
+           here too, and inside the form they were written into a hidden
+           container: the button re-enabled and nothing visible or audible
+           explained why. Same class of defect as the archived-restore
+           confirmation, found by the journey test's provider-unreachable probe. -->
+      <div class="booking-payment-feedback" data-payment-feedback role="alert" hidden></div>
       <button class="button booking-payment-prepare" type="button" data-payment-prepare hidden>Enter secure payment details</button>
       <a class="button booking-payment-complete" data-payment-complete href="/landlord/dashboard" hidden>Open confirmed booking</a>
 
       <form class="booking-payment-form" data-payment-form hidden novalidate>
         <div class="booking-payment-element" data-payment-element aria-label="Secure payment details"></div>
-        <div class="booking-payment-feedback" data-payment-feedback role="alert" hidden></div>
         <button class="button" type="submit" data-payment-submit>Authorize booking total</button>
         <p class="booking-payment-boundary"><strong>This is a simulated Stripe test authorization—your card is not charged.</strong> The agreed total remains visible so the complete production checkout can be tested safely. Live Stripe keys are rejected by Homle.</p>
       </form>

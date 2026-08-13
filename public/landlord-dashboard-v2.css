@@ -3331,3 +3331,14 @@ body.landlord-dashboard-page .ld-care-note {
   .landlord-match-outcome-dialog .landlord-match-outcome-actions .button { width: 100%; }
   .landlord-match-outcome-dialog.is-builder-sequence { position: fixed; inset: auto 0 0 0; width: 100%; max-height: 92dvh; margin: 0; border-radius: 26px 26px 0 0; }
 }
+
+/* The one action a live status line can carry — sized to sit inside the
+   sentence that announced it, not to compete with the section's own CTAs. */
+body.landlord-dashboard-page .landlord-live-action {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 7px 14px;
+  min-height: 0;
+  border-radius: 9px;
+  font-size: 13px;
+}

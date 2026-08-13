@@ -1,0 +1,108 @@
+/* The checkout in the dashboard's own language.
+ *
+ * A Landlord reaches this page one click after the redesigned workspace, and it
+ * used to answer in a different product's voice: Bricolage display type at up
+ * to 5rem, a 100px-radius pill lineage, r24 cards under a heavy green-tinted
+ * shadow. The moment of payment is the worst possible place for the design to
+ * change dialect.
+ *
+ * Every value here is copied from landlord-dashboard-v2.css rather than
+ * invented, so the two surfaces cannot drift apart in different directions:
+ * ink #1a1a1a, coral #e11b22 / #c4151b, line #efedeb, canvas #f7f6f5, the
+ * 11px control radius, the 16/20px card radii and the two-step card shadow.
+ * DM Sans is already declared by homle-tokens.css, which this page loads.
+ *
+ * Scoped to body.booking-payment-page throughout: this sheet must not leak
+ * into the cleaner or admin surfaces that share styles.css, and it loads after
+ * styles.css so it wins ties on this page only. The landlord computed-style
+ * baseline measures this page, so any edit here shows up as a named
+ * before/after diff rather than a hopeful guess.
+ */
+
+body.booking-payment-page {
+  background: #f7f6f5;
+  color: #1a1a1a;
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+}
+
+/* The page heading, brought down from display scale to the dashboard's. */
+body.booking-payment-page .booking-payment-intro h1 {
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-size: clamp(30px, 4vw, 42px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+body.booking-payment-page .booking-payment-intro p { color: #666666; }
+
+/* Cards: the dashboard's paper, border and shadow instead of r24 + green. */
+body.booking-payment-page .booking-payment-card,
+body.booking-payment-page .booking-payment-state {
+  background: #ffffff;
+  border: 1px solid #efedeb;
+  border-radius: 20px;
+  box-shadow: 0 1px 2px oklch(0.2 0.03 60 / 0.05), 0 6px 16px oklch(0.2 0.03 60 / 0.06);
+}
+
+body.booking-payment-page .booking-payment-summary h2 {
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  letter-spacing: -0.02em;
+}
+
+/* Buttons: the dashboard's 11px rectangle, its coral, its quiet outline. The
+   filled treatment is reserved for the two actions that advance payment. */
+body.booking-payment-page .button {
+  border-radius: 11px;
+  border: 0;
+  background: #e11b22;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  min-height: 48px;
+  padding: 13px 22px;
+  box-shadow: none;
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+body.booking-payment-page .button:hover { background: #c4151b; }
+body.booking-payment-page .button:active { transform: scale(0.97); }
+body.booking-payment-page .button-outline {
+  background: #ffffff;
+  color: #1a1a1a;
+  border: 1px solid #e1deda;
+}
+body.booking-payment-page .button-outline:hover { background: #f7f6f5; border-color: #c4151b; color: #c4151b; }
+body.booking-payment-page .text-button { color: #666666; }
+
+/* What is being paid for. Same 11px/700/uppercase label voice as the
+   dashboard's fact lists, so the strip reads as one of its cards. */
+body.booking-payment-page .booking-payment-context {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+  margin: 0 0 18px;
+  padding: 16px;
+  background: #f7f6f5;
+  border: 1px solid #efedeb;
+  border-radius: 16px;
+}
+body.booking-payment-page .booking-payment-context div { display: grid; gap: 3px; }
+body.booking-payment-page .booking-payment-context dt {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6b6b6b;
+}
+body.booking-payment-page .booking-payment-context dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* The dashboard's focus contract, restated here so the page that takes card
+   details is not the page with the weakest focus evidence. */
+body.booking-payment-page a:focus-visible,
+body.booking-payment-page button:focus-visible {
+  outline: 3px solid #2456e6;
+  outline-offset: 1px;
+}

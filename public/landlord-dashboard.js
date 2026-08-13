@@ -2667,9 +2667,18 @@ async function refreshDispatchAuthorization(requestId, button, feedback) {
   }
 }
 
-function setBookingLiveStatus(message, kind = "info") {
+function setBookingLiveStatus(message, kind = "info", action = null) {
   bookingLiveStatus.dataset.kind = kind;
   bookingLiveStatus.textContent = message;
+  // The line is a live region, so the Landlord who was told "Cleaner accepted"
+  // used to be left to hunt for where to pay. When the update calls for one,
+  // the action rides in the same announcement, and textContent above has
+  // already cleared any previous one so actions never accumulate.
+  if (action?.href && action?.label) {
+    const link = element("a", "button landlord-live-action", action.label);
+    link.href = action.href;
+    bookingLiveStatus.append(link);
+  }
 }
 
 function closeInvitationStream() {
@@ -2701,7 +2710,13 @@ async function refreshBookingTransition({ manual = false } = {}) {
       const closed = bookings.find((booking) => before.get(booking.bookingId) === "pending-cleaner-acceptance" && booking.status === "cancelled");
       renderRequests();
       renderBookings();
-      if (accepted) setBookingLiveStatus(`Cleaner accepted — ${accepted.propertyName || "your clean"} is now a confirmed booking.`, "success");
+      // Acceptance is the moment the exact total exists, so the same update
+      // that announces it carries the way to authorize it. Following the link
+      // is still optional and the booking card keeps its own copy of the
+      // action; nothing is charged by rendering a route to checkout.
+      if (accepted) setBookingLiveStatus(`Cleaner accepted — ${accepted.propertyName || "your clean"} is now a confirmed booking.`, "success", accepted.paymentStepAvailable && Number.isInteger(accepted.pricePence)
+        ? { label: `Authorize ${formatBookingMoney(accepted.pricePence)} securely`, href: `/landlord/checkout?bookingId=${encodeURIComponent(accepted.bookingId)}` }
+        : null);
       else if (closed) setBookingLiveStatus("That Cleaner could not take the request. Matching has reopened and no payment was taken.", "attention");
       else if (invited) setBookingLiveStatus("A Cleaner invitation was sent. Homle is now watching securely for their response; no booking is confirmed and no payment was taken.", "live");
       else if (manual) setBookingLiveStatus("Booking and Cleaner-response status checked just now.", "success");

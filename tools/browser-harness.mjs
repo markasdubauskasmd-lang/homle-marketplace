@@ -93,8 +93,31 @@ export async function serveStatic({ extraFiles = {}, port = 0 } = {}) {
     const url = new URL(request.url || "/", "http://127.0.0.1");
     const requested = decodeURIComponent(url.pathname);
     if (Object.hasOwn(extraFiles, requested)) {
+      const entry = extraFiles[requested];
+      // A string entry is a fixed body, which is enough for rendering states.
+      // A function entry computes the response from the request, which is what
+      // an end-to-end journey needs: a pricing stub that runs the real engine
+      // on the posted payload, a payment stub that walks a state machine, a
+      // create endpoint that records what the page actually sent. The handler
+      // gets the raw body (already read) and returns { status, headers, body };
+      // a string or object body is sent as-is or as JSON respectively.
+      if (typeof entry === "function") {
+        let raw = "";
+        for await (const chunk of request) raw += chunk;
+        try {
+          const result = (await entry({ method: request.method, url, headers: request.headers, body: raw })) || {};
+          const body = typeof result.body === "string" ? result.body : JSON.stringify(result.body ?? {});
+          response.writeHead(result.status || 200, { "Content-Type": "application/json; charset=utf-8", ...(result.headers || {}) });
+          return response.end(body);
+        } catch (error) {
+          // A throwing handler is a broken test, not a broken page. Answer 500
+          // with the message so the failure is readable from the browser side.
+          response.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
+          return response.end(JSON.stringify({ ok: false, error: String(error?.message || error) }));
+        }
+      }
       response.writeHead(200, { "Content-Type": mimeTypes[path.extname(requested)] || "text/html; charset=utf-8" });
-      return response.end(extraFiles[requested]);
+      return response.end(entry);
     }
     const filePath = path.resolve(publicDir, requested.replace(/^\/+/, "") || "index.html");
     // The harness serves real project files, so it must not become a way to read

@@ -21,6 +21,34 @@ let elements;
 let loading = false;
 let stripeLoadPromise = null;
 let frozenAmountPence = null;
+const contextStrip = document.querySelector("[data-payment-context]");
+
+// The page used to show a number and a reference and nothing else, so the
+// Landlord paid for "Booking 7777…" rather than for Thursday's clean at their
+// own property. The strip is filled from the same summaries the dashboard
+// renders and is decorative: a failed read hides it, and the amount keeps
+// being verified against the frozen server total regardless.
+const contextWindow = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" });
+async function loadBookingContext() {
+  if (!contextStrip) return;
+  try {
+    const result = await requestJson("/api/marketplace/bookings?limit=50");
+    const summary = (Array.isArray(result.bookings) ? result.bookings : []).find((booking) => booking.bookingId === bookingId);
+    if (!summary) return;
+    const start = new Date(summary.scheduledStartAt);
+    contextStrip.querySelector("[data-payment-context-property]").textContent = [summary.propertyName, summary.propertyArea].filter(Boolean).join(" · ") || "Saved property";
+    contextStrip.querySelector("[data-payment-context-when]").textContent = Number.isNaN(start.getTime()) ? "Time unavailable" : contextWindow.format(start);
+    contextStrip.querySelector("[data-payment-context-type]").textContent = String(summary.cleaningType || "Cleaning").replace(/-/g, " ");
+    const cleanerRow = contextStrip.querySelector("[data-payment-context-cleaner-row]");
+    if (summary.counterpartyName) {
+      cleanerRow.hidden = false;
+      contextStrip.querySelector("[data-payment-context-cleaner]").textContent = summary.counterpartyName;
+    }
+    contextStrip.hidden = false;
+  } catch {
+    // Context only. The payment card is already honest without it.
+  }
+}
 
 function saveCsrf(token) {
   try {
@@ -304,6 +332,7 @@ async function load() {
     const account = (await requestJson("/api/marketplace/account")).account;
     if (account?.selectedRole !== "landlord" || !account?.roles?.includes("landlord")) return showState("Use the booking Landlord account", "Cleaner and unrelated accounts cannot view or authorize this payment.", { kind: "authentication", allowSignIn: true });
     renderPayment(await readPaymentStatus());
+    void loadBookingContext();
   } catch (error) {
     if (error.code === "browser-offline") showState("You are offline", "Reconnect to check the exact frozen total and signed payment status. No payment was attempted.", { kind: "offline", allowRetry: true });
     else if (["payment-amount-unavailable", "payment-amount-mismatch"].includes(error.code)) showState("Booking total needs review", error.message, { kind: "error" });
