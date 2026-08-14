@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260811-1">
   <!-- The v2 composition, last so it wins without !important. -->
-  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260813-3">
+  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260814-1">
   <script src="/landlord-dashboard.js?v=20260813-3" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260726-2" type="module"></script>
@@ -465,11 +465,19 @@
         <dialog class="ld-property-dialog" data-property-dialog aria-labelledby="property-form-dialog-title">
         <form class="landlord-record-form" data-property-form hidden novalidate>
           <fieldset data-property-controls>
-            <div class="landlord-form-title"><div><p class="eyebrow">Protected property details</p><h3 id="property-form-dialog-title" data-property-form-title>Add the cleaning location</h3></div><button class="text-button" type="button" data-close-property-form>Close</button></div>
-            <label>Property type<select name="propertyType" required><option value="">Choose one</option><option value="flat">Flat</option><option value="house">House</option><option value="studio">Studio</option><option value="office">Office</option><option value="retail">Retail</option><option value="clinic">Clinic</option><option value="communal">Communal area</option><option value="other">Other</option></select></label>
-            <label>Address line 1<input name="addressLine1" autocomplete="address-line1" maxlength="240" required></label>
-            <label>Town or locality<input name="locality" autocomplete="address-level2" maxlength="120" required></label>
-            <label>UK postcode<input name="postcode" autocomplete="postal-code" maxlength="12" required></label>
+            <div class="landlord-form-title">
+              <div class="ld-property-form-heading">
+                <span class="ld-property-form-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5V20h-5v-5H9v5H4z"></path></svg></span>
+                <div><p class="eyebrow">Your private place</p><h3 id="property-form-dialog-title" data-property-form-title>Add the cleaning location</h3><p class="ld-property-form-intro">Choose the property and add the address. These details stay private until a booking is confirmed.</p></div>
+              </div>
+              <button class="ld-property-form-close" type="button" data-close-property-form aria-label="Close property form">&times;</button>
+            </div>
+            <div class="ld-property-required-fields">
+              <label class="ld-property-type-field"><span>Property type</span><select name="propertyType" required><option value="">Choose a property type</option><option value="flat">Flat</option><option value="house">House</option><option value="studio">Studio</option><option value="office">Office</option><option value="retail">Retail</option><option value="clinic">Clinic</option><option value="communal">Communal area</option><option value="other">Other</option></select></label>
+              <label class="ld-property-address-field"><span>Address</span><input name="addressLine1" autocomplete="address-line1" maxlength="240" placeholder="House number and street" required></label>
+              <label><span>Town or city</span><input name="locality" autocomplete="address-level2" maxlength="120" placeholder="For example, London" required></label>
+              <label><span>Postcode</span><input name="postcode" autocomplete="postal-code" maxlength="12" placeholder="For example, SM4 4LE" required></label>
+            </div>
             <details class="dashboard-optional-fields"><summary>Add property details later <span>Optional</span></summary><div>
               <label>Private property label <span>(optional)</span><input name="name" maxlength="160" placeholder="For example: Riverside flat"><small>If left blank, Homle uses a safe label such as “Flat in London”—never the street address.</small></label>
               <label>Address line 2 <span>(optional)</span><input name="addressLine2" autocomplete="address-line2" maxlength="240"></label>
@@ -482,7 +490,7 @@
               <label>Special notes <span>(optional)</span><textarea name="specialNotes" rows="3" maxlength="3000"></textarea></label>
             </div></details>
             <div class="landlord-form-feedback" data-property-feedback role="status" aria-live="polite" hidden></div>
-            <button class="button" type="submit" data-save-property>Save property privately</button>
+            <div class="ld-property-form-actions"><p><strong>Saved securely</strong><span>Only you and an accepted Cleaner can see protected details.</span></p><button class="button" type="submit" data-save-property>Save property privately</button></div>
           </fieldset>
         </form>
         </dialog>
