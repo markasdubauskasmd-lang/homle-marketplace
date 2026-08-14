@@ -23,7 +23,7 @@
     "release:hostinger": "node tools/build-hostinger-release.mjs",
     "check:access-safety": "node --check public/access-detail-safety.js && node --check tests/access-detail-safety.mjs && node --check tools/room-vision-probe.mjs",
     "test:access-safety": "node tests/access-detail-safety.mjs",
-    "check:account-intent": "node --check public/account-intent.js && node --check public/account-ready-model.js && node --check public/home-entry-model.js && node --check public/home.js && node --check public/landing-5da99005.js && node --check tests/account-intent.mjs && node --check tests/account-ready-model.mjs && node --check tests/home-entry-ui.mjs && node --check tests/home-landing-ui.mjs && node --check tests/browser-mobile-entry.mjs && node --check tests/browser-landing-motion.mjs",
+    "check:account-intent": "node --check public/account-intent.js && node --check public/account-ready-model.js && node --check public/home-entry-model.js && node --check public/home.js && node --check public/landing-45b7fb42.js && node --check tests/account-intent.mjs && node --check tests/account-ready-model.mjs && node --check tests/home-entry-ui.mjs && node --check tests/home-landing-ui.mjs && node --check tests/browser-mobile-entry.mjs && node --check tests/browser-landing-motion.mjs",
     "test:account-intent": "node tests/account-intent.mjs && node tests/account-ready-model.mjs && node tests/home-entry-ui.mjs && node tests/home-landing-ui.mjs && node tests/browser-mobile-entry.mjs && node tests/browser-landing-motion.mjs && node tests/design-system.mjs",
     "check:monitoring": "node --check src/marketplace/monitoring-webhook.mjs && node --check src/marketplace/render-log-monitoring.mjs && node --check tests/monitoring-webhook.mjs && node --check tests/render-log-monitoring.mjs",
     "test:monitoring": "node tests/monitoring-webhook.mjs && node tests/render-log-monitoring.mjs",
@@ -123,7 +123,7 @@
     "test:http": "node tests/marketplace-http.mjs",
     "test:attachment": "node tests/marketplace-attachment.mjs",
     "test:scan-review": "node tests/scan-review-workspace.mjs",
-    "test:scanner-followup": "node tests/camera-assist.mjs && node tests/scan-benchmark.mjs && node tests/room-measure-model.mjs && node tests/scan-events.mjs && node tests/scan-review-render.mjs && node tests/browser-scan-pipeline.mjs && node tests/browser-scan-controls.mjs && node tests/browser-landing-smoothness.mjs",
+    "test:scanner-followup": "node tests/camera-assist.mjs && node tests/scan-benchmark.mjs && node tests/room-measure-model.mjs && node tests/scan-events.mjs && node tests/scan-review-render.mjs && node tests/browser-scan-pipeline.mjs && node tests/browser-scan-controls.mjs && node tests/browser-landing-hero-smoothness.mjs && node tests/browser-landing-smoothness.mjs",
     "test:profile-starter": "node tests/cleaner-profile-starter.mjs",
     "test:tracking-test": "node tests/tracking-test.mjs",
     "check:tracking-test": "node --check tracking-test-store.mjs && node --check public/tracking-test.js && node --check tests/tracking-test.mjs",
@@ -141,7 +141,7 @@
     "test:landlord-help": "node tests/landlord-help-flow.mjs",
     "test:landlord-confirm": "node tests/landlord-checkout-confirm.mjs",
     "test:guide-prices": "node tests/landlord-guide-prices.mjs",
-    "test:landing-smoothness": "node tests/browser-landing-smoothness.mjs"
+    "test:landing-smoothness": "node tests/browser-landing-hero-smoothness.mjs && node tests/browser-landing-smoothness.mjs"
   },
   "engines": {
     "node": ">=20.9.0"
