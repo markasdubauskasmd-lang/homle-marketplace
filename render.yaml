@@ -32,6 +32,10 @@ services:
         fromDatabase:
           name: homle-marketplace-staging-db
           property: connectionString
+      # Required while the attached database has a provider-enforced expiry.
+      # Remove it only after moving to durable managed storage.
+      - key: DATABASE_EXPIRES_AT
+        sync: false
       - key: TIDEWAY_APP_PASSWORD
         generateValue: true
       - key: TIDEWAY_WORKER_PASSWORD

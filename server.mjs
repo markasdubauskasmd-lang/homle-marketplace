@@ -4884,6 +4884,10 @@ async function getAdminConfig(request, response) {
     authenticationReady: accountAttachment.authenticationHttpReady,
     providers: accountAttachment.authenticationCapabilities,
     paymentsReady: marketplaceAttachment.paymentsReady,
+    // This contains no credential or connection detail. Operators set it only
+    // when the database provider has imposed a deletion date, so the private
+    // launch desk cannot mistake temporary connectivity for durable storage.
+    databaseExpiresAt: process.env.DATABASE_EXPIRES_AT || null,
     productionMode: process.env.NODE_ENV === "production",
     localDemosEnabled: localDemoEnabled
   });
