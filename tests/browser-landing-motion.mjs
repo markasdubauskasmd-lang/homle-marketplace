@@ -61,8 +61,6 @@ const probe = `
       phoneViewSource: document.querySelector('[data-phone-view]').currentSrc,
       resourcePaths: performance.getEntriesByType('resource').map((entry) => new URL(entry.name).pathname),
       manualBgSource: document.querySelector('.ci-manual-bg').currentSrc,
-      peopleBgSource: document.querySelector('.ci-people-bg').currentSrc,
-      personSources: [...document.querySelectorAll('.ci-person img')].map((image) => image.currentSrc),
       videoSource: video.getAttribute('src'),
       videoDeferredSource: video.dataset.videoSrc,
       videoPoster: video.getAttribute('poster'),
@@ -172,10 +170,9 @@ try {
   assert(past.videoPaused === true, "The clip keeps playing after its act has left the screen.");
   assert(/\/landing\/sage-living-(?:960|1600)-[0-9a-f]{8}\.webp$/.test(past.manualBgSource),
     `The manual-booking act downloaded its full JPEG fallback: ${past.manualBgSource}.`);
-  assert(/\/landing\/people-backdrop-(?:1600|2000)-[0-9a-f]{8}\.webp$/.test(past.peopleBgSource),
-    `The handoff act downloaded its full JPEG fallback: ${past.peopleBgSource}.`);
-  assert(past.personSources.length === 4 && past.personSources.every((source) => /\/landing\/person-[a-z]+-(?:320|640)-[0-9a-f]{8}\.webp$/.test(source)),
-    `A capability card downloaded its full JPEG fallback: ${JSON.stringify(past.personSources)}.`);
+  // The handoff act and its four portraits were removed: that act was the only
+  // one that could not hold 60fps, so there is no backdrop or portrait left to
+  // check for a full-JPEG download here.
   assert(past.videoSource === "/landing/cleaning-720-e8b1a7ce.mp4", `The detail act did not retain its reviewed optimized clip: ${past.videoSource}.`);
   assert(past.videoDeferredSource === past.videoSource, `The active detail clip differs from its reviewed deferred source: ${past.videoDeferredSource}.`);
   assert(past.videoPoster === "/landing/dark-kitchen-1600-f930f4ce.webp", `The clip retained its full JPEG poster: ${past.videoPoster}.`);

@@ -5,7 +5,7 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 
 const [page, css, script, homeScript, server] = await Promise.all([
   readFile(new URL("../public/home.html", import.meta.url), "utf8"),
-  readFile(new URL("../public/landing-401db777.css", import.meta.url), "utf8"),
+  readFile(new URL("../public/landing-aa526308.css", import.meta.url), "utf8"),
   readFile(new URL("../public/landing-5da99005.js", import.meta.url), "utf8"),
   readFile(new URL("../public/home.js", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8")
@@ -36,7 +36,7 @@ for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", 
 
 /* ── The design is actually wired in ────────────────── */
 
-assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-401db777.css"') && page.includes('src="/landing-5da99005.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
+assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-aa526308.css"') && page.includes('src="/landing-5da99005.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
 assert(page.includes('<link rel="sitemap" type="application/xml" href="/sitemap.xml">'), "The public landing page does not advertise Homlle's canonical sitemap.");
 assert(page.includes('<link rel="canonical" href="https://homlle.com/">') && page.includes('<meta property="og:url" content="https://homlle.com/">'), "The public landing page does not declare the exact canonical production URL.");
 for (const metadata of [
@@ -57,17 +57,22 @@ for (const metadata of [
 ]) assert(page.includes(metadata), `The public landing page is missing share metadata: ${metadata}`);
 assert(!page.includes("onrender.com"), "The public landing metadata exposes the infrastructure preview hostname.");
 assert(!page.includes('/landing.css?') && !page.includes('/landing.js?'), "The landing page regressed to stable code URLs that must be revalidated on every visit.");
-assert(createHash("sha256").update(css).digest("hex") === "401db777807d8460533d86260c964f536aa83fde2271bb9ef185dac46190af26", "The landing stylesheet changed without receiving a new content-addressed filename.");
+assert(createHash("sha256").update(css).digest("hex") === "aa5263086d701c5e1c57d6e7e7385facccccac339bbbe130724c0c399af92199", "The landing stylesheet changed without receiving a new content-addressed filename.");
 assert(createHash("sha256").update(script).digest("hex") === "5da99005d8982faa12833a0e9a6fd817203bd7870aaf07ddd6fec20a55cc1087", "The landing animation script changed without receiving a new content-addressed filename.");
-assert(server.includes('"/landing-401db777.css"') && server.includes('"/landing-5da99005.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
+assert(server.includes('"/landing-aa526308.css"') && server.includes('"/landing-5da99005.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
 assert(page.includes("data-phone-source") && script.includes("this.phoneSource") && script.includes("ANGLE_WEBP"), "The phone view cannot update its visible WebP source as the scan story changes angle.");
 assert(page.includes('src="/home.js?v=20260729-1"') && page.includes('src="/account-menu.js?v=20260729-1"'), "The landing page still advertises stale shared or account-menu assets, so browsers can miss the latest navigation.");
 
-// All six acts of the design, each one a scroll stage the script drives.
-for (const stage of ["open", "scan", "manual", "detail", "people", "join"]) {
+// All five acts of the design, each one a scroll stage the script drives.
+//
+// The "people" act was removed. It was the one part of the page that could not
+// hold 60fps: sampling frame times across a scripted scroll, 20 of 89 frames
+// ran over 32ms through that act while Act 1 dropped none at all. It also
+// carried decorative stock portraits rather than product.
+for (const stage of ["open", "scan", "manual", "detail", "join"]) {
   assert(page.includes(`data-stage="${stage}"`), `The "${stage}" act of the design is missing.`);
 }
-assert((page.match(/data-stage=/g) || []).length === 6, "The landing page no longer has exactly the six designed acts.");
+assert((page.match(/data-stage=/g) || []).length === 5, "The landing page no longer has exactly the five designed acts.");
 assert(page.includes("data-hero-frame") && page.includes("data-phone") && page.includes("data-mcard") && page.includes("data-detail-video"), "The growing hero frame, the scanning phone, the booking card or the clip is missing.");
 
 // The script only agrees to run once every act and both of its heavy props are
@@ -80,8 +85,6 @@ assert(script.includes("this.stages.length >= 5") && script.includes('one("[data
 // invisible in review and obvious on the live site.
 const media = [
   "cleaning-720-e8b1a7ce.mp4", "open-plan-living.jpg", "open-plan-living-dirty.jpg", "dark-kitchen.jpg",
-  "sage-living.jpg", "people-backdrop.jpg", "person-marta.jpg", "person-andrei.jpg",
-  "person-grace.jpg", "person-iulia.jpg",
   "angle-1.png", "angle-2.png", "angle-3.png", "angle-4.png", "angle-5.png"
 ];
 for (const file of media) {
@@ -155,18 +158,6 @@ const responsiveSupportingAssets = new Map([
   ["sage-living-480-bdf0e74d.webp", [20_432, "bdf0e74d01501fa5a44ffd1626c3727253d56d93674910dfb65c7b5898a3e950"]],
   ["sage-living-960-e4022c28.webp", [64_084, "e4022c284df3d6b86fcbd58a54cebe696481a2138a9139ee4c4c019087d348bd"]],
   ["sage-living-1600-fed719d6.webp", [157_374, "fed719d6277fdab253cb9e6c9da2eaeb228b2cd6a0d513fdcbc1f3ea18529bbb"]],
-  ["people-backdrop-480-d6fa13df.webp", [13_020, "d6fa13df59d83c5e1a704aa9e415a39b52a76ac4fc16a985c7f55b38ed6e76f9"]],
-  ["people-backdrop-960-8a9c8f83.webp", [32_546, "8a9c8f83cd79171b890739bf3d1d4f0ad2adab1e0aeb8ed8a8193a965f97df43"]],
-  ["people-backdrop-1600-2eb86892.webp", [80_484, "2eb86892747cfb9aa942f0e7d29ec0008bed3b9e79818d3140951c15d6737847"]],
-  ["people-backdrop-2000-8b9c3a29.webp", [157_854, "8b9c3a291038218753ab9d8c6304b190abc990b2579658a03f926d1fdcf3b9c5"]],
-  ["person-marta-320-4852e577.webp", [13_354, "4852e57755caf1c141feb44f77f9e9aa1df85e87d4cd0e84124694f1a00d59bb"]],
-  ["person-marta-640-a6f84fb2.webp", [33_148, "a6f84fb26aaf62ca6387097d9d45902620923884f7a5a67be172e29d246596c0"]],
-  ["person-andrei-320-354d4801.webp", [8_196, "354d4801f4fab4a9730bbd6760173c2909b617503af519b9e77d7ddb716e0332"]],
-  ["person-andrei-640-29a2f2dd.webp", [24_020, "29a2f2dd5a6fc680e60e0fc3cd7058a1e9427aeb0ef924ec7caebb22b63bb6db"]],
-  ["person-grace-320-8ff237c2.webp", [8_300, "8ff237c248644dcf9052ad6b58944540a8ef91ad0b4bef9287374604353bd196"]],
-  ["person-grace-640-1dd1df0e.webp", [22_598, "1dd1df0e9f6814012f5454900e37e01df9dc636e0fc1c1c55aaeba99728fb6bf"]],
-  ["person-iulia-320-101559af.webp", [23_930, "101559af2224737edcae680a8426f6cbbc336d2f7d29a0c6a127fefbf66034a9"]],
-  ["person-iulia-640-9c0a329d.webp", [75_320, "9c0a329dbbe344310cfa9b07237c490ee55f22c0a1064070694633fb753ad092"]]
 ]);
 for (const [file, [expectedBytes, expectedHash]] of responsiveSupportingAssets) {
   const body = await readFile(new URL(`../public/landing/${file}`, import.meta.url));
@@ -175,13 +166,17 @@ for (const [file, [expectedBytes, expectedHash]] of responsiveSupportingAssets) 
   assert(page.includes(`/landing/${file}`), `Supporting landing asset ${file} is not wired into the homepage.`);
   assert(server.includes(`"/landing/${file}"`), `Supporting landing asset ${file} is not in the immutable cache allow-list.`);
 }
-const supportingFallbacks = ["dark-kitchen.jpg", "sage-living.jpg", "people-backdrop.jpg", "person-marta.jpg", "person-andrei.jpg", "person-grace.jpg", "person-iulia.jpg"];
+const supportingFallbacks = ["dark-kitchen.jpg", "sage-living.jpg"];
 const originalSupportingTransfer = (await Promise.all(supportingFallbacks.map((file) => stat(new URL(`../public/landing/${file}`, import.meta.url))))).reduce((sum, info) => sum + info.size, 0);
-const reviewedWideTransfer = [59_166, 125_076, 157_374, 157_854, 33_148, 24_020, 22_598, 75_320].reduce((sum, bytes) => sum + bytes, 0);
-assert(reviewedWideTransfer <= originalSupportingTransfer * 0.41, "The complete supporting-photo WebP path no longer saves at least 59% versus its JPEG fallbacks.");
+const reviewedWideTransfer = [59_166, 125_076, 157_374].reduce((sum, bytes) => sum + bytes, 0);
+// The bar moved because the asset set did, not because the standard slipped.
+// The handoff act's backdrop and four portraits compressed better than the two
+// photographs that remain, so removing it took the overall saving from 59% to
+// 47%: 341,616 bytes of WebP against 645,928 bytes of JPEG. This holds the real
+// figure for the assets that are actually left.
+assert(reviewedWideTransfer <= originalSupportingTransfer * 0.54, "The complete supporting-photo WebP path no longer saves at least 46% versus its JPEG fallbacks.");
 assert(supportingFallbacks.every((file) => page.includes(`src="/landing/${file}"`)), "The responsive supporting photographs removed an approved JPEG fallback.");
 assert(page.includes('data-video-poster="/landing/dark-kitchen-1600-f930f4ce.webp"') && !new RegExp('<video[^>]*\\sposter=').test(page), "The reviewed video poster is missing or still joins the initial page request path.");
-assert(page.includes('sizes="(max-width: 720px) 1px, (max-width: 1080px) 180px, 240px"'), "Hidden mobile capability cards can still request desktop-size portraits.");
 
 // The clip is always muted, so its old 128 kb/s audio stream downloaded bytes
 // without giving a visitor anything. This reviewed H.264 encode removes that
@@ -236,7 +231,7 @@ for (const unsupportedClaim of [
 }
 for (const truthfulPromise of [
   "Review the scope.", "No camera or room photos required", "Create account to book",
-  "The work stays clear.", "Verified account", "COVERAGE CONFIRMED BEFORE MATCHING"
+  "Verified account", "COVERAGE CONFIRMED BEFORE MATCHING"
 ]) {
   assert(page.includes(truthfulPromise), `The landing page lost the grounded promise: ${truthfulPromise}.`);
 }
@@ -283,4 +278,4 @@ assert(!page.includes("data-guided-kind") && !page.includes("/app.js"), "The lan
 assert(homeScript.includes("applyEntryMode") && homeScript.includes("[data-book-entry]"), "The shared home.js entry logic was disturbed.");
 assert(homeScript.includes('hasAttribute("data-entry-label-fixed")'), "Role-aware homepage updates can overwrite the fixed CTA labels.");
 
-console.log("Landing UI tests passed: CSP-safe, self-hosted media, all six acts wired to real routes.");
+console.log("Landing UI tests passed: CSP-safe, self-hosted media, all five acts wired to real routes.");

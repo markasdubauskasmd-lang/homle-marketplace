@@ -263,7 +263,7 @@ try {
   const joinEntryPageText = await joinEntryPage.text();
   const homeAsset = await fetch(`${base}/home.js?v=smoke-test`);
   const homeAssetText = await homeAsset.text();
-  assert(home.ok && homeText.includes("understood") && homeText.includes("The scanner") && homeText.includes("Or just book it") && homeText.includes("The work stays clear.") && homeText.includes('href="/login" data-account-entry hidden>Log in</a>') && homeText.includes('class="ci-signup-menu" data-signup-menu') && homeText.includes('<summary class="ci-signup">Sign up</summary>') && homeText.includes('href="/signup?intent=book" data-book-entry data-entry-label-fixed>') && homeText.includes('href="/cleaner/onboarding" data-cleaner-entry data-entry-label-fixed>') && homeText.includes('href="/landlord/book"') && !homeText.includes('href="/request"') && !homeText.includes('href="/join"') && !homeText.includes('href="/cleaners"') && !homeText.includes('/api/cleaning-requests') && !homeText.includes('/app.js'), "The public homepage did not preserve account-first booking and dedicated Cleaner onboarding entry or still referenced retired pages.");
+  assert(home.ok && homeText.includes("understood") && homeText.includes("The scanner") && homeText.includes("Or just book it") && homeText.includes('href="/login" data-account-entry hidden>Log in</a>') && homeText.includes('class="ci-signup-menu" data-signup-menu') && homeText.includes('<summary class="ci-signup">Sign up</summary>') && homeText.includes('href="/signup?intent=book" data-book-entry data-entry-label-fixed>') && homeText.includes('href="/cleaner/onboarding" data-cleaner-entry data-entry-label-fixed>') && homeText.includes('href="/landlord/book"') && !homeText.includes('href="/request"') && !homeText.includes('href="/join"') && !homeText.includes('href="/cleaners"') && !homeText.includes('/api/cleaning-requests') && !homeText.includes('/app.js'), "The public homepage did not preserve account-first booking and dedicated Cleaner onboarding entry or still referenced retired pages.");
   assert(homeAsset.ok && homeAssetText.includes('mainNav.classList.toggle("open")') && homeAssetText.includes('querySelectorAll("[data-year]")') && homeAssetText.includes('fetch("/api/health"') && homeAssetText.includes('applyEntryMode("concierge")') && !homeAssetText.includes("cleanerApplicationDraft") && !homeAssetText.includes("customerRequestDraft") && !homeAssetText.includes("/api/cleaning-requests"), "The lightweight homepage lost capability-safe entry, pulled form/application logic into the conversion path or omitted its accessible menu/year behaviour.");
   assert(requestEntryPage.status === 404 && joinEntryPage.status === 404 && requestEntryPageText.includes("Not found") && joinEntryPageText.includes("Not found"), "Retired request or join page remains publicly served.");
   assert(home.headers.get("content-security-policy")?.includes("frame-ancestors 'none'"), "Security headers were missing.");
@@ -494,8 +494,8 @@ try {
   const contactValidationAsset = await fetch(`${base}/contact-validation.js?v=smoke-test`);
   const contactValidationAssetText = await contactValidationAsset.text();
   assert(contactValidationAsset.ok && contactValidationAssetText.includes("isUkPostcode") && contactValidationAssetText.includes("isPhone") && contactValidationAssetText.includes("isEmail"), "The shared browser/server contact validation rules were not publicly available to the guided forms.");
-  const [landingCss, landingScript, retiredLandingCss, retiredLandingScript, retiredContentAddressedScript, compactLogo128, compactLogo192, originalLogo, cleanHero960, dirtyHero960, originalHero, scanAngleWebp, scanAnglePng, supportingWideWebp, supportingPortraitWebp, supportingJpeg, optimizedClip, retiredClip] = await Promise.all([
-    fetch(`${base}/landing-401db777.css`),
+  const [landingCss, landingScript, retiredLandingCss, retiredLandingScript, retiredContentAddressedScript, compactLogo128, compactLogo192, originalLogo, cleanHero960, dirtyHero960, originalHero, scanAngleWebp, scanAnglePng, supportingWideWebp, supportingNarrowWebp, supportingJpeg, optimizedClip, retiredClip] = await Promise.all([
+    fetch(`${base}/landing-aa526308.css`),
     fetch(`${base}/landing-5da99005.js`),
     fetch(`${base}/landing.css?v=20260731-1`),
     fetch(`${base}/landing.js?v=20260731-1`),
@@ -508,9 +508,9 @@ try {
     fetch(`${base}/landing/open-plan-living.jpg`),
     fetch(`${base}/landing/angle-1-664cb339.webp`),
     fetch(`${base}/landing/angle-1.png`),
-    fetch(`${base}/landing/people-backdrop-1600-2eb86892.webp`),
-    fetch(`${base}/landing/person-iulia-640-9c0a329d.webp`),
-    fetch(`${base}/landing/people-backdrop.jpg`),
+    fetch(`${base}/landing/sage-living-1600-fed719d6.webp`),
+    fetch(`${base}/landing/dark-kitchen-960-f761f9b4.webp`),
+    fetch(`${base}/landing/sage-living.jpg`),
     fetch(`${base}/landing/cleaning-720-e8b1a7ce.mp4`),
     fetch(`${base}/landing/cleaning.mp4`)
   ]);
@@ -522,7 +522,7 @@ try {
   assert(originalHero.ok && originalHero.headers.get("content-type") === "image/jpeg" && originalHero.headers.get("cache-control") === "no-cache", "The original homepage JPEG fallback no longer retains its safe stable-URL cache policy.");
   assert(scanAngleWebp.ok && scanAngleWebp.headers.get("content-type") === "image/webp" && scanAngleWebp.headers.get("cache-control") === "public, max-age=31536000, immutable", "The content-addressed scanner-animation frame is missing its WebP type or immutable cache policy.");
   assert(scanAnglePng.ok && scanAnglePng.headers.get("content-type") === "image/png" && scanAnglePng.headers.get("cache-control") === "no-cache", "The scanner-animation PNG fallback no longer retains its safe stable-URL cache policy.");
-  assert(supportingWideWebp.ok && supportingPortraitWebp.ok && supportingWideWebp.headers.get("content-type") === "image/webp" && supportingPortraitWebp.headers.get("content-type") === "image/webp" && supportingWideWebp.headers.get("cache-control") === "public, max-age=31536000, immutable" && supportingPortraitWebp.headers.get("cache-control") === "public, max-age=31536000, immutable", "Responsive supporting photographs are missing their WebP type or immutable cache policy.");
+  assert(supportingWideWebp.ok && supportingNarrowWebp.ok && supportingWideWebp.headers.get("content-type") === "image/webp" && supportingNarrowWebp.headers.get("content-type") === "image/webp" && supportingWideWebp.headers.get("cache-control") === "public, max-age=31536000, immutable" && supportingNarrowWebp.headers.get("cache-control") === "public, max-age=31536000, immutable", "Responsive supporting photographs are missing their WebP type or immutable cache policy.");
   assert(supportingJpeg.ok && supportingJpeg.headers.get("content-type") === "image/jpeg" && supportingJpeg.headers.get("cache-control") === "no-cache", "A supporting JPEG fallback no longer retains its safe stable-URL cache policy.");
   const optimizedClipBody = await optimizedClip.arrayBuffer();
   assert(optimizedClip.ok && optimizedClip.headers.get("content-type") === "video/mp4" && optimizedClip.headers.get("cache-control") === "public, max-age=31536000, immutable" && optimizedClipBody.byteLength === 926_233, "The optimized landing clip is missing its exact MP4 type, reviewed size or immutable cache policy.");

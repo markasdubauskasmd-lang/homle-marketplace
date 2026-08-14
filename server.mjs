@@ -265,7 +265,7 @@ const mimeTypes = {
 // Keep the original logo and JPEG fallbacks uncached because their stable URLs
 // are still used inside the strictly untouched Cleaner Dashboard boundary.
 const immutableStaticAssets = new Set([
-  "/landing-401db777.css",
+  "/landing-aa526308.css",
   "/landing-5da99005.js",
   "/homle-logo-128-4f82ebad.png",
   "/homle-logo-192-c8defd4b.png",
@@ -288,18 +288,6 @@ const immutableStaticAssets = new Set([
   "/landing/sage-living-480-bdf0e74d.webp",
   "/landing/sage-living-960-e4022c28.webp",
   "/landing/sage-living-1600-fed719d6.webp",
-  "/landing/people-backdrop-480-d6fa13df.webp",
-  "/landing/people-backdrop-960-8a9c8f83.webp",
-  "/landing/people-backdrop-1600-2eb86892.webp",
-  "/landing/people-backdrop-2000-8b9c3a29.webp",
-  "/landing/person-marta-320-4852e577.webp",
-  "/landing/person-marta-640-a6f84fb2.webp",
-  "/landing/person-andrei-320-354d4801.webp",
-  "/landing/person-andrei-640-29a2f2dd.webp",
-  "/landing/person-grace-320-8ff237c2.webp",
-  "/landing/person-grace-640-1dd1df0e.webp",
-  "/landing/person-iulia-320-101559af.webp",
-  "/landing/person-iulia-640-9c0a329d.webp",
   "/landing/cleaning-720-e8b1a7ce.mp4"
 ]);
 

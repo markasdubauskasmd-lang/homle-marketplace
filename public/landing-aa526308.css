@@ -422,6 +422,17 @@ body.ci-body {
 
 .ci-hero-dirty .ci-hero-img {
   filter: saturate(.62) brightness(.8) contrast(1.1) sepia(.2);
+  /* The filter never changes; the clip-path above it changes every frame. Left
+     alone, the browser is entitled to re-run a four-stage filter over a
+     full-bleed photograph on each of those frames. Promoting the filtered image
+     to its own layer lets that result be rasterised once and simply re-clipped
+     after, which is the cheap half of the work.
+
+     Measured honestly: on this machine the act already held 60fps without it,
+     so no improvement is claimed here — it is insurance for displays with far
+     more pixels to fill, where this is the pattern that costs the most. */
+  will-change: filter;
+  transform: translateZ(0);
 }
 
 .ci-hero-grime {
@@ -1637,93 +1648,6 @@ body.ci-body {
 }
 .ci-detail-h2 .ci-ital { color: inherit; }
 
-/* ---------------------------------------------------------- act: people -- */
-
-.ci-people { position: relative; height: 340vh; }
-
-.ci-people-pin {
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  min-height: 560px;
-  overflow: hidden;
-  background: #0c0c0c;
-}
-
-.ci-people-bg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  opacity: .14;
-  filter: brightness(.6);
-}
-
-.ci-person {
-  position: absolute;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  will-change: transform;
-}
-.ci-person picture {
-  display: block;
-  width: 100%;
-}
-.ci-person img {
-  width: 100%;
-  height: clamp(150px, 26vh, 300px);
-  object-fit: cover;
-}
-.ci-person-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-.ci-person-name {
-  font-weight: 700;
-  font-size: clamp(14px, 1.3vw, 18px);
-}
-.ci-person-score {
-  font-family: var(--ci-mono);
-  font-size: clamp(10px, .9vw, 12px);
-}
-.ci-person-meta {
-  margin: 3px 0 0;
-  font-family: var(--ci-mono);
-  font-size: clamp(8.5px, .75vw, 10.5px);
-  letter-spacing: .06em;
-  color: rgba(244, 242, 238, .6);
-}
-
-/* Four portraits drift at different rates as the act scrolls. */
-.ci-person-1 { left: 4vw;  top: 9%;    width: min(18vw, 230px); transform: translateY(calc(var(--p, 0) * -5vh)); }
-.ci-person-2 { left: 25vw; bottom: 8%; width: min(19vw, 240px); transform: translateY(calc(var(--p, 0) * 6vh)); }
-.ci-person-3 { right: 25vw; top: 7%;   width: min(17vw, 220px); transform: translateY(calc(var(--p, 0) * -7vh)); }
-.ci-person-4 { right: 4vw; bottom: 9%; width: min(18vw, 230px); transform: translateY(calc(var(--p, 0) * 5vh)); }
-
-.ci-people-copy {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  padding: 0 44px;
-  pointer-events: none;
-}
-.ci-people-h2 {
-  margin: 0;
-  font-weight: 800;
-  font-size: clamp(30px, 5.4vw, 92px);
-  line-height: .88;
-  letter-spacing: -.045em;
-  text-shadow: 0 20px 60px rgba(10, 10, 10, .75);
-}
-.ci-people-h2 .ci-ital { color: inherit; }
-
 /* ------------------------------------------------------------ act: join -- */
 
 .ci-join { position: relative; height: 220vh; }
@@ -1960,12 +1884,6 @@ body.ci-body {
   .ci-ticks { margin-bottom: 18px; }
 
   .ci-detail-copy { left: 20px; bottom: 32px; }
-  .ci-people-copy { padding: 0 20px; }
-  .ci-person-1, .ci-person-2, .ci-person-3, .ci-person-4 { width: min(34vw, 180px); }
-  .ci-person-1 { left: 2vw; top: 6%; }
-  .ci-person-2 { left: 2vw; bottom: 6%; }
-  .ci-person-3 { right: 2vw; top: 6%; }
-  .ci-person-4 { right: 2vw; bottom: 6%; }
 
   .ci-footer { padding: 32px 20px; }
 }
@@ -1981,8 +1899,6 @@ body.ci-body {
   .ci-mwrap { display: none; }
   .ci-manual-grid { padding-top: 84px; }
 
-  .ci-people .ci-person { display: none; }
-  .ci-people-bg { opacity: .3; }
 
   .ci-footer { justify-content: flex-start; }
 }

@@ -114,7 +114,7 @@ try {
   await browser.evaluate(`
     return await (async () => {
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      for (const selector of ["[data-phone-view]", ".ci-manual-bg", ".ci-people-bg"]) {
+      for (const selector of ["[data-phone-view]", ".ci-manual-bg"]) {
         const image = document.querySelector(selector);
         image.scrollIntoView({ block: "center" });
         await wait(180);
@@ -132,9 +132,7 @@ try {
         pending: images.filter((img) => !img.complete).length,
         supportingSources: {
           phone: document.querySelector("[data-phone-view]")?.currentSrc || "",
-          manual: document.querySelector(".ci-manual-bg")?.currentSrc || "",
-          people: document.querySelector(".ci-people-bg")?.currentSrc || "",
-          portraits: [...document.querySelectorAll(".ci-person img")].map((img) => img.currentSrc)
+          manual: document.querySelector(".ci-manual-bg")?.currentSrc || ""
         },
         videoSrc: video ? video.getAttribute("src") : null,
         videoDeferredSrc: video ? video.dataset.videoSrc : null,
@@ -146,14 +144,12 @@ try {
       setTimeout(done, 4000);
     });
   `);
-  assert(media.total >= 10, `The landing page lost its photography: only ${media.total} images.`);
+  assert(media.total >= 5, `The landing page lost its photography: only ${media.total} images.`);
   assert(media.broken.length === 0, `Landing images failed to load: ${media.broken.join(", ")}.`);
   assert(media.videoSrc === "/landing/cleaning-720-e8b1a7ce.mp4", `The detail act lost its reviewed content-addressed clip: ${media.videoSrc}.`);
   assert(media.videoDeferredSrc === media.videoSrc, `The activated detail clip no longer matches its reviewed deferred source: ${media.videoDeferredSrc}.`);
   assert(/\/landing\/angle-[1-5]-[0-9a-f]{8}\.webp$/.test(media.supportingSources.phone), `The mobile scanner-phone image did not follow the active room angle with its optimized WebP: ${media.supportingSources.phone}.`);
   assert(/\/landing\/sage-living-(?:480|960)-[0-9a-f]{8}\.webp$/.test(media.supportingSources.manual), `The mobile manual-booking background used an oversized JPEG fallback: ${media.supportingSources.manual}.`);
-  assert(/\/landing\/people-backdrop-(?:480|960)-[0-9a-f]{8}\.webp$/.test(media.supportingSources.people), `The mobile handoff background used an oversized JPEG fallback: ${media.supportingSources.people}.`);
-  assert(media.supportingSources.portraits.every((source) => source === "" || /-[0-9]{3}-[0-9a-f]{8}\.webp$/.test(source)), `A hidden mobile capability card downloaded a full JPEG: ${JSON.stringify(media.supportingSources.portraits)}.`);
   assert(media.videoPoster === "/landing/dark-kitchen-1600-f930f4ce.webp", `The detail clip retained its full JPEG poster: ${media.videoPoster}.`);
   assert(media.videoError === null, `The landing clip failed to decode, error code ${media.videoError}.`);
   assert(media.videoReady >= 1, "The landing clip never reported metadata, so it will never play.");
