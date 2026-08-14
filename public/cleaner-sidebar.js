@@ -39,26 +39,11 @@ function configureCleanerShell() {
     side.classList.remove("is-preview-expanded");
   }
   const brandMark = side?.querySelector(".hc-brand-mark");
-  if (brandMark) {
-    const logo = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    logo.classList.add("hc-brand-logo");
-    logo.setAttribute("viewBox", "0 0 64 64");
-    logo.setAttribute("aria-hidden", "true");
-    logo.setAttribute("focusable", "false");
-    const roof = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    roof.setAttribute("d", "M9 27 32 7l23 20");
-    roof.setAttribute("fill", "none");
-    roof.setAttribute("stroke", "currentColor");
-    roof.setAttribute("stroke-width", "7");
-    roof.setAttribute("stroke-linecap", "round");
-    roof.setAttribute("stroke-linejoin", "round");
-    const left = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    left.setAttribute("d", "M17 29 28 19v18c0 5 3 8 8 8-5 0-8 3-8 8v4H17V29Z");
-    left.setAttribute("fill", "currentColor");
-    const right = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    right.setAttribute("d", "m36 19 11 10v28H36V43c0-4-3-7-8-7 5 0 8-3 8-8v-9Z");
-    right.setAttribute("fill", "currentColor");
-    logo.append(roof, left, right);
+  if (brandMark && !brandMark.querySelector(".hc-brand-logo")) {
+    const logo = document.createElement("img");
+    logo.className = "hc-brand-logo";
+    logo.src = "/homlle-onboarding-mark.png";
+    logo.alt = "";
     brandMark.replaceChildren(logo);
   }
   if (side && !side.querySelector(".hc-home-return")) {
