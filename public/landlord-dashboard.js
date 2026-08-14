@@ -1071,7 +1071,14 @@ function setRequestBuilderExpanded(expanded) {
   requestBuilderPanel.classList.toggle("pac-collapsed", !expanded);
   if (requestBuilderToggle) {
     requestBuilderToggle.setAttribute("aria-expanded", String(expanded));
-    requestBuilderToggle.textContent = expanded ? "Hide ↑" : "Reveal builder ↓";
+    // The words came off this control, not the control itself. It is the only
+    // visible way out of the builder — Escape and a backdrop click are the
+    // others, and neither is discoverable — and leaving a Landlord inside a
+    // view with no visible exit is a defect this workspace has already fixed
+    // once. So: an unlabelled glyph carrying its name for assistive tech.
+    requestBuilderToggle.textContent = expanded ? "×" : "+";
+    requestBuilderToggle.setAttribute("aria-label", expanded ? "Close the cleaning request builder" : "Open the cleaning request builder");
+    requestBuilderToggle.title = expanded ? "Close" : "Open";
   }
   // The design opens this over the hub instead of pushing the page down, and
   // closing it leaves the reader where they were. showModal() does exactly

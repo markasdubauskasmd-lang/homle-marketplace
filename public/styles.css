@@ -49,7 +49,55 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+/* ── Scrolling ────────────────────────────────────────────────────────────
+ *
+ * The feel people describe as effortless is mostly the absence of four small
+ * insults, not the presence of an effect. Momentum itself is the platform's and
+ * is best left alone: hijacking the wheel to "smooth" it is what makes a page
+ * feel heavy on a trackpad and seasick on a phone, so none of that is here.
+ *
+ * 1. scroll-behavior keeps in-page jumps animated (already the case).
+ * 2. scroll-padding-top stops an anchored or focused target landing underneath
+ *    a sticky header — the single most common reason a jump feels wrong.
+ * 3. scrollbar-gutter reserves the scrollbar's space, so a view that grows past
+ *    the viewport stops shifting the whole layout sideways as it appears.
+ * 4. overscroll-behavior on the page stops a scroll that reaches the end from
+ *    chaining into the browser's own pull-to-refresh or back-swipe.
+ *
+ * The reduced-motion block further down already forces scroll-behavior back to
+ * auto, and must keep doing so: for a vestibular user the animation is the
+ * insult. Everything added here is layout, not motion, so it stays either way.
+ */
+html {
+  scroll-behavior: smooth;
+  /* Just breathing room by default. Surfaces with something fixed at the top
+     set --scroll-offset to its real measured height; the workspace does not,
+     because its desktop chrome is a full-height sidebar rather than a bar. */
+  scroll-padding-top: var(--scroll-offset, 24px);
+  scroll-padding-bottom: var(--scroll-offset-bottom, 24px);
+  scrollbar-gutter: stable;
+  overscroll-behavior-y: none;
+}
+
+/* Thin, quiet, and only where a real scroll container exists. Firefox takes the
+   two-value form; WebKit and Blink need the pseudo-elements. */
+* { scrollbar-width: thin; scrollbar-color: rgba(20, 17, 20, .22) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+  background-color: rgba(20, 17, 20, .22);
+}
+::-webkit-scrollbar-thumb:hover { background-color: rgba(20, 17, 20, .34); }
+
+/* A pane that scrolls inside the page keeps its scroll to itself, so reaching
+   its end never jumps the page behind it. */
+.active-message-list,
+.ld-messages-list,
+.ld-messages-thread,
+dialog { overscroll-behavior: contain; }
 [hidden] { display: none !important; }
 body { margin: 0; color: var(--ink); background: var(--paper); font-family: var(--font-body); line-height: 1.6; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 ::selection { color: #fff; background: var(--brand); }

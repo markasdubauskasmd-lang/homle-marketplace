@@ -3551,3 +3551,37 @@ body.landlord-dashboard-page .ld-section-head-note {
    reported eight message elements dropping to zero size. Payments is a plain
    block of rows and has no such dependency. */
 body.landlord-dashboard-page [data-landlord-panel="payments"] { min-height: 0; }
+
+/* The builder header lost its pencil and its "Matching stays off" pill — the
+   eyebrow directly above already says the draft is not sent for matching, so
+   the pill was the same sentence twice, and the icon was decorative. What is
+   left is one unlabelled control, sized as a control rather than as a word. */
+body.landlord-dashboard-page .pac-card-head .pac-reveal {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--ld-quiet-border);
+  border-radius: 10px;
+  background: var(--ld-paper);
+  color: var(--ld-muted);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color .16s ease, color .16s ease, background .16s ease;
+}
+body.landlord-dashboard-page .pac-card-head .pac-reveal:hover {
+  border-color: var(--ld-coral);
+  color: var(--ld-coral);
+  background: var(--ld-coral-tint);
+}
+
+/* On a phone the workspace chrome is a fixed bar at the BOTTOM, measuring 82px,
+   so what needs reserving is the space beneath a scroll target rather than
+   above it. Desktop needs neither: its chrome is a full-height sidebar. */
+@media (max-width: 900px) {
+  html:has(body.landlord-dashboard-page) { --scroll-offset-bottom: 96px; }
+}

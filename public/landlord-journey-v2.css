@@ -34,6 +34,14 @@
 
 /* The whole palette moves in one place: these tokens feed the rail, the
    buttons, the field focus ring and the step type already. */
+/* The step rail is fixed at the top and measures 69px at every width, so an
+   anchored or focused step should land below it rather than beneath it.
+   Declared on the scrollport itself — <html> — because scroll-padding is read
+   there, and a custom property set on <body> inherits downward only. :has is
+   what lets a body class reach its own parent; where it is unsupported the
+   generic 24px default still applies. */
+html:has(body.journey-page) { --scroll-offset: 80px; }
+
 body.journey-page {
   --j-red: #e11b22;
   --j-red-hot: #c4151b;
