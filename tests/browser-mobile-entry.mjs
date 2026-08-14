@@ -114,11 +114,13 @@ try {
   await browser.evaluate(`
     return await (async () => {
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      for (const selector of ["[data-phone-view]", ".ci-manual-bg"]) {
-        const image = document.querySelector(selector);
-        image.scrollIntoView({ block: "center" });
+      for (const selector of ["[data-phone-view]", ".ci-manual-bg", "[data-detail-video]"]) {
+        const media = document.querySelector(selector);
+        media.scrollIntoView({ block: "center" });
         await wait(180);
-        if (!image.complete) await Promise.race([new Promise((resolve) => image.addEventListener("load", resolve, { once: true })), wait(1500)]);
+        if (media instanceof HTMLImageElement && !media.complete) {
+          await Promise.race([new Promise((resolve) => media.addEventListener("load", resolve, { once: true })), wait(1500)]);
+        }
       }
     })();
   `);
