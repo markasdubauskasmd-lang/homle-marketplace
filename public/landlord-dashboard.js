@@ -34,6 +34,7 @@ const requestCompleteWarning = document.querySelector("[data-request-complete-wa
 const requestCompleteNext = document.querySelector("[data-request-complete-next]");
 const requestCompleteSandbox = document.querySelector("[data-request-complete-sandbox]");
 const requestCompleteSandboxNote = document.querySelector("[data-request-complete-sandbox-note]");
+const requestCompleteSandboxUnavailable = document.querySelector("[data-request-complete-sandbox-unavailable]");
 const propertyDialog = document.querySelector("[data-property-dialog]");
 const propertyForm = document.querySelector("[data-property-form]");
 const requestForm = document.querySelector("[data-request-form]");
@@ -698,11 +699,12 @@ function showRequestCompletion(submission, { automaticDispatch = false, automati
     : "Your reviewed scan is submitted for matching. No Cleaner has been invited automatically.";
   requestCompleteWarning.textContent = warning;
   requestCompleteWarning.hidden = !warning;
-  // Keep the isolated 30p Stripe test visible on completion. Its server route
-  // performs the authoritative payment-readiness check and fails closed, so a
-  // stale health request must not make a configured checkout appear missing.
-  requestCompleteSandbox.hidden = false;
-  requestCompleteSandboxNote.hidden = false;
+  // The health response is the server-owned capability boundary. Advertising a
+  // checkout that the same deployment says is detached produces a guaranteed
+  // dead end and makes a failed navigation look like a failed payment.
+  requestCompleteSandbox.hidden = !paymentsReady;
+  requestCompleteSandboxNote.hidden = !paymentsReady;
+  requestCompleteSandboxUnavailable.hidden = paymentsReady;
   completedRequestId = String(submission?.cleaningRequestId || "");
   if (!quoteReady && completedRequestId) void recoverCompletionQuote(completedRequestId);
   requestCompleteNext.textContent = selectedCleanerInvited || automaticDispatch ? "Track Cleaner response" : "Choose Cleaner & exact price";
