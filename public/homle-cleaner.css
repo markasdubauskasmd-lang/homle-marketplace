@@ -34,288 +34,6 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Pinterest-reference liquid onboarding navigation.
- * Kept in the approved external stylesheet because this preview blocks
- * page-level styles. Icon SVG markup, ordering, labels, routes and badges
- * remain unchanged. */
-.cleaner-onboarding-page {
-  --hc-liquid-red: #ff0034;
-  --hc-liquid-red-dark: #d70a30;
-  --hc-liquid-ink: #1b1718;
-  --hc-liquid-duration: 640ms;
-  --hc-liquid-ease: cubic-bezier(0.22, 0.78, 0.16, 1);
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] {
-  position: relative;
-  z-index: 40;
-  width: 96px;
-  min-width: 96px;
-  overflow: visible;
-  background:
-    radial-gradient(circle at 78% 12%, rgba(255, 255, 255, 0.16), transparent 28%),
-    linear-gradient(180deg, #ff1747 0%, var(--hc-liquid-red) 55%, var(--hc-liquid-red-dark) 100%);
-  border: 0;
-  box-shadow: 18px 0 46px rgba(115, 0, 24, 0.14);
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar]::before {
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-side-brand {
-  color: #fff;
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-side-brand img {
-  filter: brightness(0) invert(1);
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-nav {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  padding: 2px 18px 8px;
-  overflow: visible;
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 60px;
-  min-width: 60px;
-  padding: 6px 0;
-  overflow: visible;
-  isolation: isolate;
-  background: #fff;
-  border-radius: 999px;
-  box-shadow: 0 20px 44px rgba(105, 0, 21, 0.2);
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub {
-  position: relative;
-  z-index: 3;
-  display: grid;
-  place-items: center;
-  width: 48px;
-  min-height: 48px;
-  height: 48px;
-  margin: 3px 0;
-  padding: 0;
-  overflow: visible;
-  color: var(--hc-liquid-ink);
-  background: transparent;
-  border: 0;
-  border-radius: 50%;
-  box-shadow: none;
-  transform: translate3d(0, 0, 0) scale(1);
-  transition:
-    color calc(var(--hc-liquid-duration) * 0.72) ease,
-    transform var(--hc-liquid-duration) var(--hc-liquid-ease),
-    filter var(--hc-liquid-duration) var(--hc-liquid-ease);
-  will-change: transform;
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub::before {
-  content: "";
-  position: absolute;
-  inset: 5px;
-  z-index: -1;
-  border-radius: 50%;
-  background: rgba(255, 0, 52, 0);
-  transform: scale(0.68);
-  transition:
-    background var(--hc-liquid-duration) var(--hc-liquid-ease),
-    transform var(--hc-liquid-duration) var(--hc-liquid-ease),
-    box-shadow var(--hc-liquid-duration) var(--hc-liquid-ease);
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub:hover,
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub:focus-visible {
-  color: var(--hc-liquid-red);
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub:focus-visible {
-  outline: 3px solid rgba(255, 0, 52, 0.3);
-  outline-offset: 3px;
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub.is-active,
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub.is-preview-open,
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub[aria-current="page"] {
-  color: var(--hc-liquid-red);
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-  animation: none;
-  filter: drop-shadow(0 10px 13px rgba(145, 0, 29, 0.12));
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub.is-active::before,
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub.is-preview-open::before,
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub[aria-current="page"]::before {
-  background: rgba(255, 0, 52, 0.08);
-  box-shadow: 0 0 0 1px rgba(255, 0, 52, 0.12);
-  transform: scale(1);
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-side-icon,
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub svg {
-  width: 20px;
-  height: 20px;
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-preview-liquid-indicator {
-  position: absolute;
-  z-index: 1;
-  display: block;
-  padding: 0;
-  pointer-events: none;
-  color: transparent;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  opacity: 1;
-  transition: transform var(--hc-liquid-duration) var(--hc-liquid-ease);
-  will-change: transform;
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-preview-liquid-indicator svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  filter: drop-shadow(12px 12px 18px rgba(110, 0, 23, 0.14));
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-preview-liquid-indicator.is-moving-up svg,
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-preview-liquid-indicator.is-moving-down svg {
-  animation: hc-liquid-settle var(--hc-liquid-duration) var(--hc-liquid-ease) both;
-}
-
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-preview-liquid-indicator.is-immediate {
-  transition: none;
-}
-
-@keyframes hc-liquid-settle {
-  0% { transform: scale(1); }
-  34% { transform: scale(0.965, 1.045); }
-  68% { transform: scale(1.018, 0.986); }
-  100% { transform: scale(1); }
-}
-
-@media (min-width: 901px) {
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-preview-liquid-indicator {
-    top: -9px;
-    left: 0;
-    width: 108px;
-    height: 78px;
-    transform: translate3d(0, var(--liquid-y, 0px), 0);
-  }
-
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub.is-active,
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub.is-preview-open,
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub[aria-current="page"] {
-    transform: translate3d(48px, 0, 0) scale(1.04);
-  }
-}
-
-@media (max-width: 900px) {
-  .cleaner-onboarding-page .hc {
-    display: block;
-    padding-bottom: calc(102px + env(safe-area-inset-bottom, 0px));
-  }
-
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] {
-    position: fixed;
-    inset: auto 0 0;
-    z-index: 80;
-    width: 100%;
-    min-width: 0;
-    height: calc(88px + env(safe-area-inset-bottom, 0px));
-    min-height: 0;
-    padding: 0 12px env(safe-area-inset-bottom, 0px);
-    overflow: visible;
-    border-radius: 28px 28px 0 0;
-    box-shadow: 0 -18px 45px rgba(110, 0, 23, 0.16);
-  }
-
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar]::before,
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-side-brand,
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-preview-exit {
-    display: none;
-  }
-
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-nav {
-    display: block;
-    height: 100%;
-    padding: 14px 12px 0;
-    overflow-x: auto;
-    overflow-y: visible;
-    scrollbar-width: none;
-    overscroll-behavior-x: contain;
-  }
-
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-nav::-webkit-scrollbar {
-    display: none;
-  }
-
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] {
-    flex-direction: row;
-    width: max-content;
-    min-width: 100%;
-    height: 60px;
-    padding: 0 7px;
-  }
-
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub {
-    flex: 0 0 44px;
-    width: 44px;
-    min-width: 44px;
-    height: 48px;
-    min-height: 48px;
-    margin: 0 3px;
-  }
-
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-preview-liquid-indicator {
-    top: -44px;
-    left: -17px;
-    width: 108px;
-    height: 78px;
-    transform: translate3d(var(--liquid-x, 0px), 0, 0) rotate(-90deg);
-    transform-origin: center;
-  }
-
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub.is-active,
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub.is-preview-open,
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub[aria-current="page"] {
-    transform: translate3d(0, -26px, 0) scale(1.04);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cleaner-onboarding-page {
-    --hc-liquid-duration: 130ms;
-  }
-
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-preview-liquid-indicator.is-moving-up svg,
-  .cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-preview-liquid-indicator.is-moving-down svg {
-    animation: none;
-  }
-}
-
-/* Keep the onboarding logo visually balanced inside its square holder. */
-.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand-logo {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  transform: scaleY(0.88);
-  transform-origin: center;
-}
-
 /* Final onboarding review and submitted confirmation. */
 .hc-review-progress-track > span { width: 100%; }
 .hc-review-card { overflow: visible; }
@@ -349,4 +67,398 @@
 .hc-personal-submit:disabled { cursor: not-allowed; opacity: .45; box-shadow: none; }
 
 .hc-congratulations { position: relative; isolation: isolate; max-width: 850px; min-height: 620px; margin: 40px auto 70px; padding: 86px 70px 70px; overflow: hidden; border-radius: 34px; background: linear-gradient(145deg, #fff 0%, #fffaf4 62%, #f8e2d8 100%); box-shadow: 0 28px 70px rgba(94, 56, 29, .16); text-align: center; }
-.hc-congratulations::before { content: ""; position: absolute; z-index: -1; top: -ï9ÞÚ$z{-®éÜj×ç2°¢F—7Æ“¢fÆWƒ°¢fÆW‚×w&¢w&°¢v¢‡ƒ°§Ð ¢æ†2×6WGF–æw2Ö÷WFÆ–æRÀ¢æ†2×6WGF–æw2×7V&Ö—B°¢Ö–âÖ†V–v‡C¢3ƒ°¢FF–æs¢w‚7ƒ°¢&÷&FW"×&F—W3¢““—ƒ°¢föçC¢–æ†W&—C°¢föçB×6—¦S¢‡ƒ°¢föçB×vV–v‡C¢sS°¢FW‡BÖFV6÷&F–öã¢æöæS°¢7W'6÷#¢ö–çFW#°§Ð ¢æ†2×6WGF–æw2Ö÷WFÆ–æR°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢&÷&FW#¢‚6öÆ–B6SVCV&C°¢&6¶w&÷VæC¢6fffffc°§Ð ¢æ†2×6WGF–æw2Ö÷WFÆ–æS¦†÷fW"À¢æ†2×6WGF–æw2Ö÷WFÆ–æS¦fö7W2×f—6–&ÆR°¢6öÆ÷#¢f"‚ÒÖ†2×&VB“°¢&÷&FW"Ö6öÆ÷#¢6Vf#c°§Ð ¢æ†2×6WGF–æw2Ö÷WFÆ–æRæ—2ÖFævW"°¢6öÆ÷#¢f"‚ÒÖ†2×&VB“°¢&÷&FW"Ö6öÆ÷#¢6Vf#c°§Ð ¢æ†2×6WGF–æw2Ö÷WFÆ–æS¦F—6&ÆVB°¢6öÆ÷#¢3–†#v3°¢&÷&FW"Ö6öÆ÷#¢6SvFVC#°¢7W'6÷#¢æ÷BÖÆÆ÷vVC°¢&6¶w&÷VæC¢6cVcSƒ°§Ð ¢æ†2×6WGF–æw2ÖFævW"°¢Ö&v–ã¢Óg‚7ƒ°¢6öÆ÷#¢f"‚ÒÖ†2Ö×WFVB“°¢föçB×6—¦S¢‡ƒ°¢Æ–æRÖ†V–v‡C¢ãS°§Ð ¢æ†2×6WGF–æw2ÖF–Æör°¢v–GFƒ¢Ö–â†6Æ2ƒRÒ3'‚’ÂCS‚“°¢FF–æs¢°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢&÷&FW#¢°¢&÷&FW"×&F—W3¢‡ƒ°¢&6¶w&÷VæC¢6fffffc°¢&÷‚×6†F÷s¢#G‚s‚&v&ƒ3Â#ÂÂã#B“°§Ð ¢æ†2×6WGF–æw2ÖF–Æös£¦&6¶G&÷°¢&6¶w&÷VæC¢&v&ƒ3Â#"ÂRÂãSR“°§Ð ¢æ†2×6WGF–æw2ÖF–Æörf÷&Ò°¢FF–æs¢#Gƒ°§Ð ¢æ†2×6WGF–æw2ÖF–Æörƒ"°¢Ö&v–ã¢wƒ°¢föçBÖfÖ–Ç“¢f"‚ÒÖ†2ÖföçBÖF—7Æ’“°¢föçB×6—¦S¢#'ƒ°§Ð ¢æ†2×6WGF–æw2ÖF–ÆörÀ¢æ†2×6WGF–æw2Ö6öæf—&Ò°¢6öÆ÷#¢f"‚ÒÖ†2Ö×WFVB“°¢föçB×6—¦S¢ƒ°¢Æ–æRÖ†V–v‡C¢ãS°§Ð ¢æ†2×6WGF–æw2Ö6öæf—&Ò°¢F—7Æ“¢fÆWƒ°¢Æ–vâÖ—FV×3¢fÆW‚×7F'C°¢v¢‡ƒ°¢Ö&v–ã¢g‚°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°§Ð ¢æ†2×6WGF–æw2Ö6öæf—&Ò–çWB°¢Ö&v–â×F÷¢'ƒ°¢66VçBÖ6öÆ÷#¢f"‚ÒÖ†2×&VB“°§Ð ¢æ†2×6WGF–æw2ÖF–Æörâf÷&ÒâF—b°¢F—7Æ“¢fÆWƒ°¢§W7F–g’Ö6öçFVçC¢fÆW‚ÖVæC°¢v¢‡ƒ°§Ð ¢æ†2×6WGF–æw2×7V&Ö—B°¢6öÆ÷#¢6fffffc°¢&÷&FW#¢‚6öÆ–Bf"‚ÒÖ†2×&VB“°¢&6¶w&÷VæC¢f"‚ÒÖ†2×&VB“°¢&÷‚×6†F÷s¢‡‚g‚&v&ƒ#RÂSrÂC2Âã"“°§Ð ¢æ†2×6WGF–æw2×7V&Ö—C¦F—6&ÆVB°¢7W'6÷#¢v—C°¢÷6—G“¢ãcS°§Ð ¢æ†2×6WGF–æw2ÖF–ÆörÖfVVF&6²°¢6öÆ÷#¢3†S#“b–×÷'FçC°§Ð ¤ÖVF–†Ö‚×v–GFƒ¢c‚’°¢æ6ÆVæW"×6WGF–æw2×vRæ†2ÖÖ–âÖ–ææW"°¢FF–ær×F÷¢#Gƒ°¢Ð ¢æ†2×6WGF–æw2Ö†VF–ær°¢FF–ær×&–v‡C¢C'ƒ°¢Ð ¢æ†2×6WGF–æw2Ö†VF–ærƒ°¢föçB×6—¦S¢3Gƒ°¢Ð ¢æ†2×6WGF–æw2Ö6&B°¢FF–æs¢w‚gƒ°¢Ð ¢æ†2×6WGF–æw2Ö66÷VçB×&÷r°¢w&–B×FV×ÆFRÖ6öÇVÖç3¢Ö–æÖ‚ƒÂg"’WFó°¢Ð ¢æ†2×6WGF–æw2Ö66÷VçB×&÷râ°¢w&–BÖ6öÇVÖã¢#°¢w&–B×&÷s¢#°¢§W7F–g’×6VÆc¢VæC°¢Ð ¢æ†2×6WGF–æw2Ö6öçG&öÂÖw&–B°¢w&–B×FV×ÆFRÖ6öÇVÖç3¢g#°¢Ð ¢æ†2×6WGF–æw2×6V7W&—G’Ö7F–öç2À¢æ†2×6WGF–æw2×6V7W&—G’Ö7F–öç2â¢°¢v–GFƒ¢S°¢Ð ¢æ†2×6WGF–æw2×6V7W&—G’Ö7F–öç2â¢°¢FW‡BÖÆ–vã¢6VçFW#°¢Ð§Ð ¢ò¢f–æÂ¦ö–æVB×F"÷fW'&–FR(	B6VÆV7FVBöæ&ö&F–ær–6öâÖVWG2F†RvRVFvRâ¢ð¤ÖVF–†Ö–â×v–GFƒ¢“‚’°¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb°¢FF–ærÖ–æÆ–æS¢‡‚–×÷'FçC°¢÷fW&fÆ÷s¢f—6–&ÆR–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Ò¶FFÖöæ&ö&F–ærÖæeÒ°¢÷6—F–öã¢&VÆF—fR–×÷'FçC°¢v–GFƒ¢c‚–×÷'FçC°¢FF–æs¢g‚–×÷'FçC°¢÷fW&fÆ÷s¢f—6–&ÆR–×÷'FçC°¢—6öÆF–öã¢—6öÆFS°¢&÷&FW#¢–×÷'FçC°¢&÷&FW"×&F—W3¢–×÷'FçC°¢&6¶w&÷VæC¢G&ç7&VçB–×÷'FçC°¢&÷‚×6†F÷s¢æöæR–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2×&Wf–WrÖÆ—V–BÖ–æF–6F÷"°¢F—7Æ“¢æöæR–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V"À¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Ó¦æ÷B‚æ—2×&Wf–WrÖW‡æFVB’æ†2Öæb×7V"°¢÷6—F–öã¢&VÆF—fR–×÷'FçC°¢¢Ö–æFWƒ¢#°¢v–GFƒ¢C‡‚–×÷'FçC°¢Ö–â×v–GFƒ¢C‡‚–×÷'FçC°¢†V–v‡C¢C‡‚–×÷'FçC°¢Ö–âÖ†V–v‡C¢C‡‚–×÷'FçC°¢Ö&v–ã¢7‚WFò–×÷'FçC°¢FF–æs¢–×÷'FçC°¢6öÆ÷#¢&v&ƒ#SRÂ#SRÂ#SRÂãƒB’–×÷'FçC°¢&÷&FW#¢–×÷'FçC°¢&÷&FW"×&F—W3¢SR–×÷'FçC°¢&6¶w&÷VæC¢G&ç7&VçB–×÷'FçC°¢&÷‚×6†F÷s¢æöæR–×÷'FçC°¢G&ç6f÷&Ó¢æöæR–×÷'FçC°¢G&ç6—F–öã¢6öÆ÷"ƒ×2V6RÂ&6¶w&÷VæBƒ×2V6RÂG&ç6f÷&Ò##×27V&–2Ö&W¦–W"‚ã"ÂãƒRÂã2Âã"’–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V#¦†÷fW"À¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V#¦fö7W2×f—6–&ÆR°¢6öÆ÷#¢6fffffb–×÷'FçC°¢&6¶w&÷VæC¢&v&ƒ#SRÂ#SRÂ#SRÂã2’–×÷'FçC°¢G&ç6f÷&Ó¢66ÆRƒãb’–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V"æ—2×&Wf–WrÖ÷VâÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V"æ—2×&Wf–WrÖ÷Vã¦†÷fW"À¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V"æ—2×&Wf–WrÖ÷Vã¦fö7W2×f—6–&ÆRÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶&–Ö7W'&VçCÒ'vR%Ò°¢¢Ö–æFWƒ¢S°¢v–GFƒ¢s‡‚–×÷'FçC°¢Ö–â×v–GFƒ¢s‡‚–×÷'FçC°¢6öÆ÷#¢3#“"–×÷'FçC°¢&÷&FW"×&F—W3¢#G‚#G‚–×÷'FçC°¢&6¶w&÷VæC¢6fffffb–×÷'FçC°¢&÷‚×6†F÷s¢æöæR–×÷'FçC°¢f–ÇFW#¢æöæR–×÷'FçC°¢×vV&¶—BÖf–ÇFW#¢æöæR–×÷'FçC°¢÷WFÆ–æS¢–×÷'FçC°¢÷WFÆ–æRÖöfg6WC¢–×÷'FçC°¢G&ç6f÷&Ó¢G&ç6ÆFU‚ƒ—‚’–×÷'FçC°¢æ–ÖF–öã¢†2Ö¦ö–æVB×F"Ö'&—fR3c×27V&–2Ö&W¦–W"‚ã"Âã’Âã#‚ÂãR’&÷Fƒ°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V"æ—2×&Wf–WrÖ÷Vã£¦&Vf÷&RÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶&–Ö7W'&VçCÒ'vR%Ó£¦&Vf÷&R°¢6öçFVçC¢""–×÷'FçC°¢÷6—F–öã¢'6öÇWFR–×÷'FçC°¢F÷¢Ó‡‚–×÷'FçC°¢&–v‡C¢–×÷'FçC°¢&÷GFöÓ¢WFò–×÷'FçC°¢ÆVgC¢WFò–×÷'FçC°¢¢Ö–æFWƒ¢Ó–×÷'FçC°¢v–GFƒ¢‡‚–×÷'FçC°¢†V–v‡C¢‡‚–×÷'FçC°¢Ö–â×v–GFƒ¢–×÷'FçC°¢FF–æs¢–×÷'FçC°¢&÷&FW#¢–×÷'FçC°¢&÷&FW"×&F—W3¢‡‚–×÷'FçC°¢&6¶w&÷VæC¢G&ç7&VçB–×÷'FçC°¢&÷‚×6†F÷s¢w‚w‚w‚6fffffb–×÷'FçC°¢f–ÇFW#¢æöæR–×÷'FçC°¢×vV&¶—BÖf–ÇFW#¢æöæR–×÷'FçC°¢÷6—G“¢–×÷'FçC°¢G&ç6f÷&Ó¢æöæR–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V"æ—2×&Wf–WrÖ÷Vã£¦gFW"À¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶&–Ö7W'&VçCÒ'vR%Ó£¦gFW"°¢6öçFVçC¢""–×÷'FçC°¢÷6—F–öã¢'6öÇWFR–×÷'FçC°¢F÷¢WFò–×÷'FçC°¢&–v‡C¢–×÷'FçC°¢&÷GFöÓ¢Ó‡‚–×÷'FçC°¢ÆVgC¢WFò–×÷'FçC°¢¢Ö–æFWƒ¢Ó–×÷'FçC°¢F—7Æ“¢&Æö6²–×÷'FçC°¢v–GFƒ¢‡‚–×÷'FçC°¢†V–v‡C¢‡‚–×÷'FçC°¢Ö–â×v–GFƒ¢–×÷'FçC°¢FF–æs¢–×÷'FçC°¢&÷&FW#¢–×÷'FçC°¢&÷&FW"×&F—W3¢‡‚–×÷'FçC°¢&6¶w&÷VæC¢G&ç7&VçB–×÷'FçC°¢&÷‚×6†F÷s¢w‚Ów‚w‚6fffffb–×÷'FçC°¢f–ÇFW#¢æöæR–×÷'FçC°¢×vV&¶—BÖf–ÇFW#¢æöæR–×÷'FçC°¢÷6—G“¢–×÷'FçC°¢G&ç6f÷&Ó¢æöæR–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V"æ—2×&Wf–WrÖ÷Vâæ†2ÖæbÖÆ&VÂÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶&–Ö7W'&VçCÒ'vR%Òæ†2ÖæbÖÆ&VÂ°¢6öÆ÷#¢3#“"–×÷'FçC°¢Ð ¢ò¢F†Rf÷&ÖW"†÷fW"Æ&VÇ26B÷fW"F†RæW‡B–6öâæBF†RvR†VF–ærà¢¶VWF†R66W76–&ÆRÆ&VÇ2öâF†RÆ–æ·2Â'WBFòæ÷BG&rfÆöF–æp¢FööÇF—÷fW"F†Röæ&ö&F–ær6öçFVçBâ¢ð¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V#¦æ÷B‚æ—2×&Wf–WrÖ÷Vâ“¦æ÷B…¶&–Ö7W'&VçCÒ'vR%Ò“£¦gFW"°¢6öçFVçC¢æöæR–×÷'FçC°¢F—7Æ“¢æöæR–×÷'FçC°¢Ð§Ð ¤ÖVF–†Ö–â×v–GFƒ¢“‚’°¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V"æ—2×&Wf–WrÖ÷VâÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶&–Ö7W'&VçCÒ'vR%Ò°¢Ö&v–â×F÷¢#‚–×÷'FçC°¢Ö&v–âÖ&÷GFöÓ¢#‚–×÷'FçC°¢Ð§Ð ¢ò¢¶VW6VÆV7FVBæf–vF–öâ–6öç26†'â÷6—F–öâF†R¦ö–æVBF"v—F‚Æ–÷W@¢6ö÷&F–æFW2–ç7FVBöb66ÆVBö6ö×÷6—FVBG&ç6f÷&ÒÂv†–6‚6âÆVfRà¢÷F†W'v—6R×fV7F÷"5drÆöö¶–ær6ögBgFW"F†R6Æ–6²æ–ÖF–öâ6ö×ÆWFW2â¢ð¤ÖVF–†Ö–â×v–GFƒ¢“‚’°¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V"æ—2×&Wf–WrÖ÷VâÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶&–Ö7W'&VçCÒ'vR%Ò°¢ÆVgC¢—‚–×÷'FçC°¢G&ç6f÷&Ó¢æöæR–×÷'FçC°¢æ–ÖF–öã¢æöæR–×÷'FçC°¢v–ÆÂÖ6†ævS¢WFò–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V"æ—2×&Wf–WrÖ÷Vâ7frÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶&–Ö7W'&VçCÒ'vR%Ò7fr°¢F—7Æ“¢&Æö6²–×÷'FçC°¢v–GFƒ¢#‚–×÷'FçC°¢†V–v‡C¢#‚–×÷'FçC°¢fÆWƒ¢#‚–×÷'FçC°¢÷6—G“¢–×÷'FçC°¢f–ÇFW#¢æöæR–×÷'FçC°¢×vV&¶—BÖf–ÇFW#¢æöæR–×÷'FçC°¢G&ç6f÷&Ó¢æöæR–×÷'FçC°¢G&ç6—F–öã¢æöæR–×÷'FçC°¢v–ÆÂÖ6†ævS¢WFò–×÷'FçC°¢&6¶f6R×f—6–&–Æ—G“¢f—6–&ÆR–×÷'FçC°¢6†R×&VæFW&–æs¢vVöÖWG&–5&V6—6–öã°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V"æ—2×&Wf–WrÖ÷Vâ7fr¢À¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶&–Ö7W'&VçCÒ'vR%Ò7fr¢°¢fV7F÷"ÖVffV7C¢æöâ×66Æ–ær×7G&ö¶S°¢6†R×&VæFW&–æs¢vVöÖWG&–5&V6—6–öã°¢Ð§Ð ¢ò¢öæR6†&VB7W'fR7V6–f–6F–öâf÷"WfW'’6VÆV7FVBöæ&ö&F–ær–6öâà¢F†R#‡‚G&ç6—F–öâÖF6†W2F†RÆ&vRvR6÷&æW"&W6–FRF†R†öÖÆÆRÖ&²â¢ð¤ÖVF–†Ö–â×v–GFƒ¢“‚’°¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Ò°¢ÒÖ†2Ö¦ö–æVB×F"×v–GFƒ¢s‡ƒ°¢ÒÖ†2Ö¦ö–æVB×F"Ö†V–v‡C¢C‡ƒ°¢ÒÖ†2Ö¦ö–æVB×F"×&F—W3¢#Gƒ°¢ÒÖ†2Ö¦ö–æVB×F"Ö7W'fS¢#‡ƒ°¢ÒÖ†2Ö¦ö–æVB×F"×vRÖ÷fW&Æ¢ƒ°¢ÒÖ†2Ö¦ö–æVB×F"×6VÒÖ÷fW&Æ¢'ƒ°¢ÒÖ†2Ö¦ö–æVB×F"×vRÖ'&–FvS¢Wƒ°¢ÒÖ†2Ö¦ö–æVB×F"×7W&f6S¢6fffffc°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÒæ—2×&Wf–WrÖ÷VâÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÕ¶&–Ö7W'&VçCÒ'vR%Ò°¢&÷‚×6—¦–æs¢&÷&FW"Ö&÷‚–×÷'FçC°¢v–GFƒ¢f"‚ÒÖ†2Ö¦ö–æVB×F"×v–GF‚’–×÷'FçC°¢Ö–â×v–GFƒ¢f"‚ÒÖ†2Ö¦ö–æVB×F"×v–GF‚’–×÷'FçC°¢Ö‚×v–GFƒ¢f"‚ÒÖ†2Ö¦ö–æVB×F"×v–GF‚’–×÷'FçC°¢†V–v‡C¢f"‚ÒÖ†2Ö¦ö–æVB×F"Ö†V–v‡B’–×÷'FçC°¢Ö–âÖ†V–v‡C¢f"‚ÒÖ†2Ö¦ö–æVB×F"Ö†V–v‡B’–×÷'FçC°¢Ö‚Ö†V–v‡C¢f"‚ÒÖ†2Ö¦ö–æVB×F"Ö†V–v‡B’–×÷'FçC°¢fÆWƒ¢f"‚ÒÖ†2Ö¦ö–æVB×F"Ö†V–v‡B’–×÷'FçC°¢÷fW&fÆ÷s¢f—6–&ÆR–×÷'FçC°¢&÷&FW"×&F—W3¢f"‚ÒÖ†2Ö¦ö–æVB×F"×&F—W2’f"‚ÒÖ†2Ö¦ö–æVB×F"×&F—W2’–×÷'FçC°¢&6¶w&÷VæC¢f"‚ÒÖ†2Ö¦ö–æVB×F"×7W&f6R’–×÷'FçC°¢Ö&v–â×F÷¢6Æ2‡f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’²7‚’–×÷'FçC°¢Ö&v–âÖ&÷GFöÓ¢6Æ2‡f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’²7‚’–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÒæ—2×&Wf–WrÖ÷Vã£¦&Vf÷&RÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÕ¶&–Ö7W'&VçCÒ'vR%Ó£¦&Vf÷&RÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÒæ—2×&Wf–WrÖ÷Vã£¦gFW"À¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÕ¶&–Ö7W'&VçCÒ'vR%Ó£¦gFW"°¢6öçFVçC¢""–×÷'FçC°¢÷6—F–öã¢'6öÇWFR–×÷'FçC°¢&–v‡C¢6Æ2€¢f"‚ÒÖ†2Ö¦ö–æVB×F"×vRÖ÷fW&Æ’Ð¢f"‚ÒÖ†2Ö¦ö–æVB×F"×6VÒÖ÷fW&Æ’Ð¢f"‚ÒÖ†2Ö¦ö–æVB×F"×vRÖ'&–FvR¢’–×÷'FçC°¢ÆVgC¢WFò–×÷'FçC°¢¢Ö–æFWƒ¢–×÷'FçC°¢F—7Æ“¢&Æö6²–×÷'FçC°¢v–GFƒ¢6Æ2‡f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’²f"‚ÒÖ†2Ö¦ö–æVB×F"×vRÖ'&–FvR’’–×÷'FçC°¢Ö–â×v–GFƒ¢6Æ2‡f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’²f"‚ÒÖ†2Ö¦ö–æVB×F"×vRÖ'&–FvR’’–×÷'FçC°¢Ö‚×v–GFƒ¢6Æ2‡f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’²f"‚ÒÖ†2Ö¦ö–æVB×F"×vRÖ'&–FvR’’–×÷'FçC°¢†V–v‡C¢f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’–×÷'FçC°¢Ö–âÖ†V–v‡C¢f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’–×÷'FçC°¢Ö‚Ö†V–v‡C¢f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’–×÷'FçC°¢Ö&v–ã¢–×÷'FçC°¢FF–æs¢–×÷'FçC°¢&÷&FW#¢–×÷'FçC°¢&6¶w&÷VæC¢G&ç7&VçB–×÷'FçC°¢f–ÇFW#¢æöæR–×÷'FçC°¢×vV&¶—BÖf–ÇFW#¢æöæR–×÷'FçC°¢÷6—G“¢–×÷'FçC°¢G&ç6f÷&Ó¢æöæR–×÷'FçC°¢ö–çFW"ÖWfVçG3¢æöæR–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÒæ—2×&Wf–WrÖ÷Vã£¦&Vf÷&RÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÕ¶&–Ö7W'&VçCÒ'vR%Ó£¦&Vf÷&R°¢F÷¢6Æ2‚Ó¢f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’²f"‚ÒÖ†2Ö¦ö–æVB×F"×6VÒÖ÷fW&Æ’’–×÷'FçC°¢&÷GFöÓ¢WFò–×÷'FçC°¢&÷&FW"×&F—W3¢–×÷'FçC°¢&6¶w&÷VæC¢&F–ÂÖw&F–VçB€¢6—&6ÆRBÀ¢G&ç7&VçB6Æ2‡f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’Òã#W‚’À¢f"‚ÒÖ†2Ö¦ö–æVB×F"×7W&f6R’6Æ2‡f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’²ãW‚¢’–×÷'FçC°¢&÷‚×6†F÷s¢æöæR–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÒæ—2×&Wf–WrÖ÷Vã£¦gFW"À¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÕ¶&–Ö7W'&VçCÒ'vR%Ó£¦gFW"°¢F÷¢WFò–×÷'FçC°¢&÷GFöÓ¢6Æ2‚Ó¢f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’²f"‚ÒÖ†2Ö¦ö–æVB×F"×6VÒÖ÷fW&Æ’’–×÷'FçC°¢&÷&FW"×&F—W3¢–×÷'FçC°¢&6¶w&÷VæC¢&F–ÂÖw&F–VçB€¢6—&6ÆRBRÀ¢G&ç7&VçB6Æ2‡f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’Òã#W‚’À¢f"‚ÒÖ†2Ö¦ö–æVB×F"×7W&f6R’6Æ2‡f"‚ÒÖ†2Ö¦ö–æVB×F"Ö7W'fR’²ãW‚¢’–×÷'FçC°¢&÷‚×6†F÷s¢æöæR–×÷'FçC°¢Ð ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÒæ—2×&Wf–WrÖ÷Vâ7frÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÕ¶&–Ö7W'&VçCÒ'vR%Ò7frÀ¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÒæ—2×&Wf–WrÖ÷Vâæ†2Öæb×F–6²À¢&öG’æ6ÆVæW"Ööæ&ö&F–ær×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW%¶FF×&Wf–Wr×6–FV&%Òæ†2Öæb×7V%¶FF×&Wf–Wr×vUÕ¶&–Ö7W'&VçCÒ'vR%Òæ†2Öæb×F–6²°¢÷6—F–öã¢&VÆF—fR–×÷'FçC°¢¢Ö–æFWƒ¢"–×÷'FçC°¢Ð§Ð 
+.hc-congratulations::before { content: ""; position: absolute; z-index: -1; top: -180px; left: 50%; width: 530px; height: 530px; border-radius: 50%; background: radial-gradient(circle, rgba(239, 67, 53, .18), rgba(239, 67, 53, 0) 68%); transform: translateX(-50%); }
+.hc-congratulations-check { width: 108px; height: 108px; margin: 0 auto 23px; color: #fff; animation: hc-celebrate-pop .7s cubic-bezier(.17, .89, .32, 1.49) both; }
+.hc-congratulations-check svg { width: 100%; height: 100%; overflow: visible; }
+.hc-congratulations-check circle { fill: #df382b; stroke: #f4a096; stroke-width: 3; }
+.hc-congratulations-check path { fill: none; stroke: currentColor; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 48; animation: hc-check-draw .65s .45s ease-out both; }
+.hc-congratulations h1 { margin: 7px 0 10px; font-size: clamp(42px, 6vw, 68px); letter-spacing: -.045em; }
+.hc-congratulations-lead { max-width: 600px; margin: 0 auto 28px; color: #725f4d; font-size: 19px; }
+.hc-congratulations-next { max-width: 590px; margin: 0 auto 20px; padding: 24px 28px; border: 1px solid #edd7c3; border-radius: 18px; background: #f8efe0; }
+.hc-congratulations-next strong { font-size: 18px; }
+.hc-congratulations-next p { margin: 8px 0 0; color: #725f4d; line-height: 1.65; }
+.hc-congratulations-next span { color: #c43227; font-weight: 800; }
+.hc-congratulations-note { color: #9a8571; font-size: 12px; }
+.hc-congratulations-button { display: inline-flex; margin-top: 15px; text-decoration: none; }
+.hc-confetti { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.hc-confetti i { position: absolute; top: -24px; left: 50%; width: 10px; height: 18px; border-radius: 3px; background: #df382b; animation: hc-confetti-fall 3.2s ease-in-out both; }
+.hc-confetti i:nth-child(2n) { background: #e9ad45; }
+.hc-confetti i:nth-child(3n) { background: #2d9b87; }
+.hc-confetti i:nth-child(4n) { background: #ef8d83; }
+.hc-confetti i:nth-child(1) { left: 8%; animation-delay: .1s; }
+.hc-confetti i:nth-child(2) { left: 17%; animation-delay: .45s; }
+.hc-confetti i:nth-child(3) { left: 27%; animation-delay: .2s; }
+.hc-confetti i:nth-child(4) { left: 37%; animation-delay: .7s; }
+.hc-confetti i:nth-child(5) { left: 46%; animation-delay: .35s; }
+.hc-confetti i:nth-child(6) { left: 55%; animation-delay: .05s; }
+.hc-confetti i:nth-child(7) { left: 63%; animation-delay: .55s; }
+.hc-confetti i:nth-child(8) { left: 71%; animation-delay: .25s; }
+.hc-confetti i:nth-child(9) { left: 78%; animation-delay: .75s; }
+.hc-confetti i:nth-child(10) { left: 85%; animation-delay: .15s; }
+.hc-confetti i:nth-child(11) { left: 91%; animation-delay: .5s; }
+.hc-confetti i:nth-child(12) { left: 96%; animation-delay: .3s; }
+@keyframes hc-celebrate-pop { from { opacity: 0; transform: scale(.35) rotate(-18deg); } to { opacity: 1; transform: scale(1) rotate(0); } }
+@keyframes hc-check-draw { from { stroke-dashoffset: 48; } to { stroke-dashoffset: 0; } }
+@keyframes hc-confetti-fall { 0% { opacity: 0; transform: translate3d(0, -20px, 0) rotate(0); } 12% { opacity: 1; } 100% { opacity: 0; transform: translate3d(25px, 680px, 0) rotate(620deg); } }
+@media (max-width: 760px) {
+  .hc-review-content { padding: 20px 18px 24px; }
+  .hc-review-summary { align-items: flex-start; flex-direction: column; }
+  .hc-review-stage { grid-template-columns: 38px minmax(0, 1fr) auto; }
+  .hc-review-stage-state { grid-column: 2; justify-self: start; }
+  .hc-review-stage-edit { grid-column: 3; grid-row: 1 / span 2; }
+  .hc-congratulations { min-height: 540px; margin: 18px 12px 45px; padding: 62px 24px 48px; border-radius: 25px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hc-congratulations-check,
+  .hc-congratulations-check path,
+  .hc-confetti i { animation: none; }
+  .hc-confetti { display: none; }
+}
+
+/* Cleaner Support tickets */
+.cleaner-support-tickets-page .hc-side.cleaner-site-header {
+  background: #f8f0e3;
+  border-right-color: #eadfce;
+}
+
+.cleaner-support-tickets-page .hc-main {
+  background: #f8f0e3;
+}
+
+.cleaner-support-tickets-page .hc-main-inner {
+  max-width: 1060px;
+  padding-top: 36px;
+}
+
+.cleaner-incident-reports-page .hc-side.cleaner-site-header {
+  background: #f8f0e3;
+  border-right-color: #eadfce;
+}
+
+.cleaner-incident-reports-page .hc-main {
+  background: #f8f0e3;
+}
+
+.cleaner-incident-reports-page .hc-main-inner {
+  max-width: 1060px;
+  padding-top: 36px;
+}
+
+.hc-incident-new {
+  min-width: 134px;
+}
+
+.hc-incident-reference {
+  min-width: 74px;
+}
+
+.hc-support-tickets {
+  width: min(100%, 840px);
+  margin: 0 auto;
+}
+
+.hc-support-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+.hc-support-heading h1 {
+  margin: 0;
+  color: #100c09;
+  font-family: var(--hc-display);
+  font-size: clamp(34px, 4vw, 46px);
+  line-height: .98;
+  letter-spacing: -.045em;
+}
+
+.hc-support-heading p {
+  margin: 8px 0 0;
+  color: #755f4d;
+  font-size: 10px;
+}
+
+.hc-support-new,
+.hc-support-dialog .hc-help-primary {
+  border: 0;
+  border-radius: 999px;
+  background: #de392a;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(207, 52, 40, .23);
+  font: 700 10px/1 var(--hc-sans);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hc-support-new {
+  min-width: 96px;
+  min-height: 34px;
+  padding: 0 18px;
+  cursor: pointer;
+}
+
+.hc-support-card {
+  overflow: hidden;
+  padding: 8px 20px;
+  border: 1px solid rgba(82, 57, 35, .04);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 18px 38px rgba(71, 43, 20, .08);
+}
+
+.hc-support-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto 64px;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 4px;
+  border-bottom: 1px solid #eee5d8;
+  color: inherit;
+  text-decoration: none;
+}
+
+.hc-support-row:last-child {
+  border-bottom: 0;
+}
+
+.hc-support-row:hover strong,
+.hc-support-row:focus-visible strong {
+  color: #cf3025;
+}
+
+.hc-support-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.hc-support-copy strong {
+  color: #17100b;
+  font-size: 10px;
+  line-height: 1.3;
+  transition: color .15s ease;
+}
+
+.hc-support-copy small {
+  overflow: hidden;
+  color: #8a735f;
+  font-size: 8px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hc-support-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 21px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hc-support-category {
+  background: #f4eee3;
+  color: #654f3e;
+}
+
+.hc-support-status {
+  background: #f7e8bd;
+  color: #7b5a0b;
+}
+
+.hc-support-status.is-resolved,
+.hc-support-status.is-closed {
+  background: #dfeeda;
+  color: #287339;
+}
+
+.hc-support-status.is-reviewing {
+  background: #dfeaf1;
+  color: #315f77;
+}
+
+.hc-support-time {
+  color: #9a826e;
+  font-size: 8px;
+  text-align: right;
+}
+
+.hc-support-empty {
+  padding: 30px 16px;
+  color: #765f4c;
+  text-align: center;
+}
+
+.hc-support-empty strong {
+  display: block;
+  color: #1b130e;
+  font-size: 12px;
+}
+
+.hc-support-empty p,
+.hc-support-load-note {
+  margin: 6px 0 0;
+  font-size: 9px;
+}
+
+.hc-support-load-note {
+  margin: 0 0 10px;
+  color: #9a3b2c;
+}
+
+.hc-support-dialog {
+  width: min(430px, calc(100vw - 32px));
+  padding: 28px;
+  border: 0;
+  border-radius: 20px;
+  color: #1d140f;
+  box-shadow: 0 26px 80px rgba(47, 26, 11, .25);
+}
+
+.hc-support-dialog::backdrop {
+  background: rgba(35, 21, 13, .42);
+}
+
+.hc-support-dialog h2 {
+  margin: 0;
+  font: 700 24px/1.05 var(--hc-display);
+}
+
+.hc-support-dialog p {
+  margin: 12px 0 22px;
+  color: #755f4d;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.hc-support-dialog > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.hc-support-dialog .hc-help-primary,
+.hc-support-dialog .hc-help-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 17px;
+}
+
+@media (max-width: 700px) {
+  .hc-support-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .hc-support-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .hc-support-category,
+  .hc-support-time {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------ Notifications centre -- */
+
+.cleaner-notifications-page .hc-side.cleaner-site-header {
+  color: var(--hc-ink);
+  background: var(--hc-ground);
+}
+
+.cleaner-notifications-page .hc-side .hc-brand-name,
+.cleaner-notifications-page .hc-side .hc-nav-item,
+.cleaner-notifications-page .hc-side .hc-nav-group-summary,
+.cleaner-notifications-page .hc-side .hc-account-nav-item {
+  color: var(--hc-ink);
+}
+
+.cleaner-notifications-page .hc-side .hc-nav-item:hover,
+.cleaner-notifications-page .hc-side .hc-nav-item[aria-current="page"],
+.cleaner-notifications-page .hc-side .hc-account-nav-item[aria-current="page"] {
+  color: var(--hc-red);
+  background: #f7d9d3;
+}
+
+.cleaner-notifications-page .hc-side .hc-nav-cta {
+  color: #ffffff;
+  background: var(--hc-red);
+}
+
+.cleaner-notifications-page .hc-main-inner {
+  max-width: 1060px;
+  padding-top: 36px;
+}
+
+.hc-notifications {
+  width: min(100%, 840px);
+  margin: 0 auto;
+}
+
+.hc-notifications-heading {
+  margin: 0 0 18px;
+  padding-right: 48px;
+}
+
+.hc-notifications-heading h1 {
+  margin: 0 0 5px;
+  font-family: var(--hc-font-display);
+  font-size: clamp(34px, 4vw, 48px);
+  line-height: .95;
+  letter-spacing: -.04em;
+}
+
+.hc-notifications-heading p {
+  margin: 0;
+  color: var(--hc-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.hc-notifications-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 580px) minmax(220px, 250px);
+  align-items: start;
+  gap: 12px;
+}
+
+.hc-notification-card {
+  border: 1px solid #eee4d5;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 18px 38px rgba(68, 48, 27, .08);
+}
+
+.hc-notification-card h2 {
+  margin: 0;
+  font-family: var(--hc-font-display);
+  font-size: 14px;
+  line-height: 1.2;
+  letter-spacing: -.01em;
+}
+
+.hc-notification-recent {
+  min-height: 304px;
+  padding: 14px 12px;
+}
+
+.hc-notification-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 8px 8px;
+}
+
+.hc-notification-card-head small {
+  displayç½üêÚ$z{-®éÜj×2ÖG&÷²FF–æs¢#'‚‡ƒ²FW‡BÖÆ–vã¢6VçFW#²Ð¢æ†2ÖFö7VÖVçG2Ö6öæf—&Ò²FF–æs¢wƒ²Ð¢æ†2ÖFö7VÖVçG2Ö6öæf—&ÒÖ7F–öç2²Æ–vâÖ—FV×3¢7G&WF6ƒ²fÆW‚ÖF—&V7F–öã¢6öÇVÖâ×&WfW'6S²Ð¢æ†2ÖFö7VÖVçG2Ö6öæf—&ÒÖ7F–öç2æ†2×W'6öæÂ×7V&Ö—BÀ¢æ†2ÖFö7VÖVçG2Ö6öæf—&ÒÖ7F–öç2æ†2Ö'W6–æW72×V–WBÖ'WGFöâ²v–GFƒ¢S²Ð¢æ†2ÖFö7VÖVçG2Ö6öæf—&Ò×7FGW2²FW‡BÖÆ–vã¢ÆVgC²Ð¢æ†2ÖFö7VÖVçG2Ö6&B²FF–ærÖÆVgC¢gƒ²FF–ær×&–v‡C¢gƒ²Ð¢æ†2ÖFö7VÖVçB×&÷r°¢w&–B×FV×ÆFRÖ6öÇVÖç3¢C‚Ö–æÖ‚ƒÂg"’WFó°¢w&–B×FV×ÆFRÖ&V3 ¢'G—RFW67&—F–öâ7FGW2 ¢'G—RW‡—'’7F–öç2#°¢v¢W‚‡ƒ°¢FF–æs¢'‚°¢Ð¢æ†2ÖFö7VÖVçB×G—R²w&–BÖ&V¢G—S²Ð¢æ†2ÖFö7VÖVçBÖFW67&—F–öâ²w&–BÖ&V¢FW67&—F–öã²Ð¢æ†2ÖFö7VÖVçB×7FGW2²w&–BÖ&V¢7FGW3²Ð¢æ†2ÖFö7VÖVçBÖW‡—'’²w&–BÖ&V¢W‡—'“²Ð¢æ†2ÖFö7VÖVçBÖ7F–öç2²w&–BÖ&V¢7F–öç3²Ð¢æ†2Ö6FV×’Ö†VF–ær²FF–ær×&–v‡C¢C‡ƒ²Ð¢æ†2Ö6FV×’ÖfVGW&R²FF–æs¢#7‚#ƒ²Ð¢æ†2Ö6FV×’×7FG2²v–GFƒ¢S²v¢Gƒ²§W7F–g’Ö6öçFVçC¢76RÖ&WGvVVã²Ð¢æ†2Ö6FV×’×7FG2F—b²Ö–â×v–GFƒ¢²Ð¢æ†2Ö6FV×’Öw&–B²w&–B×FV×ÆFRÖ6öÇVÖç3¢g#²Ð¢æ†2Ö6FV×’ÖFö7VÖVçG2²Æ–vâÖ—FV×3¢fÆW‚×7F'C²fÆW‚ÖF—&V7F–öã¢6öÇVÖã²Ð¢æ†2Ö6öçG&7G2Ö†VF–ær²FF–ær×&–v‡C¢C‡ƒ²Ð¢æ†2Ö6öçG&7BÖÆ—7BÖ6&B²FF–ærÖÆVgC¢Wƒ²FF–ær×&–v‡C¢Wƒ²Ð¢æ†2Ö6öçG&7B×&÷r°¢Ö–âÖ†V–v‡C¢Sƒ°¢w&–B×FV×ÆFRÖ6öÇVÖç3¢#‚Ö–æÖ‚ƒÂg"’WFó°¢w&–B×FV×ÆFRÖ&V3 ¢'7FFRF—FÆR7FGW2 ¢'7FFRFFR7FGW2#°¢v¢7‚wƒ°¢Ð¢æ†2Ö6öçG&7B×7FFR²w&–BÖ&V¢7FFS²Ð¢æ†2Ö6öçG&7B×F—FÆR²w&–BÖ&V¢F—FÆS²Ð¢æ†2Ö6öçG&7BÖFFR²w&–BÖ&V¢FFS²FW‡BÖÆ–vã¢ÆVgC²Ð¢æ†2Ö6öçG&7B×7FGW2²w&–BÖ&V¢7FGW3²Ð¢æ†2Ö6öçG&7B×6–vâÖ6&B²w&–B×FV×ÆFRÖ6öÇVÖç3¢g#²Ð¢æ†2Ö6öçG&7B×6–vâÖ6&Bƒ"À¢æ†2Ö6öçG&7B×6–vâÖ6&BâÀ¢æ†2Ö6öçG&7B×6–vâÖ6&Bâ6ÖÆÂ²w&–BÖ6öÇVÖã¢WFó²Ð¢æ†2ÖÖW76vW2Ö†VF–ær²FF–ær×&–v‡C¢C'ƒ²Ð¢æ†2ÖÖW76vR×G&ç6ÆFR²F—7Æ“¢æöæS²Ð¢æ†2ÖÖW76vR×6†VÆÂ²w&–B×FV×ÆFRÖ6öÇVÖç3¢g#²Ð¢æ†2ÖÖW76vRÖ6öçfW'6F–öç2²÷fW&fÆ÷r×ƒ¢WFó²&÷&FW"×&–v‡C¢²&÷&FW"Ö&÷GFöÓ¢‚6öÆ–B6S–FV6c²Ð¢æ†2ÖÖW76vRÖ6öçfW'6F–öâÖÆ—7B²F—7Æ“¢fÆWƒ²Ö–â×v–GFƒ¢Ö‚Ö6öçFVçC²Ð¢æ†2ÖÖW76vRÖ6öçfW'6F–öâ²v–GFƒ¢##ƒ²&÷&FW"×&–v‡C¢‚6öÆ–B6VVSFCS²&÷&FW"Ö&÷GFöÓ¢²Ð¢æ†2ÖÖW76vRÖ6†B²Ö–âÖ†V–v‡C¢C3ƒ²Ð¢æ†2ÖÖW76vR×F‡&VB²Ö‚Ö†V–v‡C¢C#ƒ²Ð¢æ†2ÖÖW76vRÖ'V&&ÆR²Ö‚×v–GFƒ¢ƒ‚S²Ð§Ð ¤ÖVF–‡&VfW'2×&VGV6VBÖÖ÷F–öã¢&VGV6R’°¢æ†2¢Âæ†2££¦&Vf÷&RÂæ†2££¦gFW"°¢æ–ÖF–öâÖGW&F–öã¢ã×2–×÷'FçC°¢æ–ÖF–öâÖ—FW&F–öâÖ6÷VçC¢–×÷'FçC°¢G&ç6—F–öâÖGW&F–öã¢ã×2–×÷'FçC°¢Ð§Ð ¢ò¢ÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒ†VÇ6VçG&RÒÒ¢ð ¢æ6ÆVæW"Ö†VÇÖ6VçG&R×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW"°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢&6¶w&÷VæC¢f"‚ÒÖ†2Öw&÷VæB“°§Ð ¢æ6ÆVæW"Ö†VÇÖ6VçG&R×vRæ†2×6–FRæ†2Ö'&æBÖæÖRÀ¢æ6ÆVæW"Ö†VÇÖ6VçG&R×vRæ†2×6–FRæ†2ÖæbÖ—FVÒÀ¢æ6ÆVæW"Ö†VÇÖ6VçG&R×vRæ†2×6–FRæ†2ÖæbÖw&÷W×7VÖÖ'’À¢æ6ÆVæW"Ö†VÇÖ6VçG&R×vRæ†2×6–FRæ†2Ö66÷VçBÖæbÖ—FVÒ°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°§Ð ¢æ6ÆVæW"Ö†VÇÖ6VçG&R×vRæ†2×6–FRæ†2ÖæbÖ—FVÓ¦†÷fW"À¢æ6ÆVæW"Ö†VÇÖ6VçG&R×vRæ†2×6–FRæ†2ÖæbÖ—FVÕ¶&–Ö7W'&VçCÒ'vR%ÒÀ¢æ6ÆVæW"Ö†VÇÖ6VçG&R×vRæ†2×6–FRæ†2Ö66÷VçBÖæbÖ—FVÕ¶&–Ö7W'&VçCÒ'vR%Ò°¢6öÆ÷#¢f"‚ÒÖ†2×&VB“°¢&6¶w&÷VæC¢6cvC–C3°§Ð ¢æ6ÆVæW"Ö†VÇÖ6VçG&R×vRæ†2×6–FRæ†2ÖæbÖ7F°¢6öÆ÷#¢6fffffc°¢&6¶w&÷VæC¢f"‚ÒÖ†2×&VB“°§Ð ¢æ6ÆVæW"Ö†VÇÖ6VçG&R×vRæ†2ÖÖ–âÖ–ææW"°¢Ö‚×v–GFƒ¢cƒ°¢FF–ær×F÷¢3gƒ°§Ð ¢æ†2Ö†VÇÖ6VçG&R°¢v–GFƒ¢Ö–âƒRÂƒC‚“°¢Ö&v–ã¢WFó°§Ð ¢æ†2Ö†VÇÖ†VF–ær°¢Ö&v–ã¢Wƒ°¢FF–ær×&–v‡C¢C‡ƒ°§Ð ¢æ†2Ö†VÇÖ†VF–ærƒ°¢Ö&v–ã¢Wƒ°¢föçBÖfÖ–Ç“¢f"‚ÒÖ†2ÖföçBÖF—7Æ’“°¢föçB×6—¦S¢6Æ×ƒ3G‚ÂGgrÂCg‚“°¢Æ–æRÖ†V–v‡C¢ã“ƒ°¢ÆWGFW"×76–æs¢ÒãCVVÓ°§Ð ¢æ†2Ö†VÇÖ†VF–ærâ°¢Ö&v–ã¢Wƒ°¢6öÆ÷#¢f"‚ÒÖ†2Ö×WFVB“°¢föçB×6—¦S¢ƒ°§Ð ¢æ†2Ö†VÇ×6V&6‚°¢F—7Æ“¢fÆWƒ°¢v–GFƒ¢Ö–âƒRÂ3CW‚“°¢†V–v‡C¢3gƒ°¢Æ–vâÖ—FV×3¢6VçFW#°¢v¢‡ƒ°¢FF–æs¢ƒ°¢6öÆ÷#¢3–c“3ƒS°¢&÷&FW#¢‚6öÆ–B6SfC†3C°¢&÷&FW"×&F—W3¢‡ƒ°¢&6¶w&÷VæC¢6fffFcƒ°§Ð ¢æ†2Ö†VÇ×6V&6ƒ¦fö7W2×v—F†–â°¢&÷&FW"Ö6öÆ÷#¢f"‚ÒÖ†2×&VB“°¢&÷‚×6†F÷s¢7‚&v&ƒ#RÂSrÂC2Âã"“°§Ð ¢æ†2Ö†VÇ×6V&6‚–çWB°¢v–GFƒ¢S°¢Ö–â×v–GFƒ¢°¢FF–æs¢°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢&÷&FW#¢°¢÷WFÆ–æS¢°¢&6¶w&÷VæC¢G&ç7&VçC°¢föçC¢–æ†W&—C°¢föçB×6—¦S¢—ƒ°§Ð ¢æ†2Ö†VÇ×6V&6‚–çWC£§Æ6V†öÆFW"°¢6öÆ÷#¢6C–c“°§Ð ¢æ†2Ö†VÇÖw&–B°¢F—7Æ“¢w&–C°¢w&–B×FV×ÆFRÖ6öÇVÖç3¢Ö–æÖ‚ƒÂSƒ‚’Ö–æÖ‚ƒ##‚Â#S‚“°¢Æ–vâÖ—FV×3¢7F'C°¢v¢'ƒ°§Ð ¢æ†2Ö†VÇÖ6&B°¢&÷&FW#¢‚6öÆ–B&v&ƒs"ÂSÂ3Âãb“°¢&÷&FW"×&F—W3¢‡ƒ°¢&6¶w&÷VæC¢6fffffc°¢&÷‚×6†F÷s¢W‚3'‚&v&ƒƒÂSrÂ3Âã‚“°§Ð ¢æ†2Ö†VÇÖf°¢FF–æs¢‡‚#ƒ°§Ð ¢æ†2Ö†VÇÖ'F–6ÆR°¢&÷&FW"Ö&÷GFöÓ¢‚6öÆ–B6VVS6CC°§Ð ¢æ†2Ö†VÇÖ'F–6ÆS¦Æ7BÖ6†–ÆB°¢&÷&FW"Ö&÷GFöÓ¢°§Ð ¢æ†2Ö†VÇÖ'F–6ÆR7VÖÖ'’°¢÷6—F–öã¢&VÆF—fS°¢FF–æs¢7‚#'‚7‚°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢Æ—7B×7G–ÆS¢æöæS°¢föçB×6—¦S¢ƒ°¢föçB×vV–v‡C¢sS°¢Æ–æRÖ†V–v‡C¢ã3°¢7W'6÷#¢ö–çFW#°§Ð ¢æ†2Ö†VÇÖ'F–6ÆR7VÖÖ'“£¢×vV&¶—BÖFWF–Ç2ÖÖ&¶W"°¢F—7Æ“¢æöæS°§Ð ¢æ†2Ö†VÇÖ'F–6ÆR7VÖÖ'“£¦gFW"°¢6öçFVçC¢"²#°¢÷6—F–öã¢'6öÇWFS°¢F÷¢SS°¢&–v‡C¢'ƒ°¢6öÆ÷#¢f"‚ÒÖ†2×&VB“°¢föçB×6—¦S¢Wƒ°¢föçB×vV–v‡C¢S°¢G&ç6f÷&Ó¢G&ç6ÆFU’‚ÓSR“°§Ð ¢æ†2Ö†VÇÖ'F–6ÆU¶÷VåÒ7VÖÖ'“£¦gFW"°¢6öçFVçC¢.(‰"#°§Ð ¢æ†2Ö†VÇÖ'F–6ÆR7VÖÖ'“¦fö7W2×f—6–&ÆR°¢÷WFÆ–æS¢'‚6öÆ–B&v&ƒ#RÂSrÂC2Âã3R“°¢÷WFÆ–æRÖöfg6WC¢7ƒ°¢&÷&FW"×&F—W3¢7ƒ°§Ð ¢æ†2Ö†VÇÖ'F–6ÆR°¢Ö‚×v–GFƒ¢C“ƒ°¢Ö&v–ã¢Ó'‚7ƒ°¢6öÆ÷#¢f"‚ÒÖ†2Ö×WFVB“°¢föçB×6—¦S¢—ƒ°¢Æ–æRÖ†V–v‡C¢ãSS°§Ð ¢æ†2Ö†VÇÖV×G’°¢FF–æs¢#‡‚‡ƒ°¢FW‡BÖÆ–vã¢6VçFW#°§Ð ¢æ†2Ö†VÇÖV×G’7G&öær°¢föçB×6—¦S¢ƒ°§Ð ¢æ†2Ö†VÇÖV×G’°¢Ö&v–ã¢W‚°¢6öÆ÷#¢f"‚ÒÖ†2Ö×WFVB“°¢föçB×6—¦S¢—ƒ°§Ð ¢æ†2Ö†VÇÖ6öçF7B°¢FF–æs¢‡ƒ°§Ð ¢æ†2Ö†VÇÖ6öçF7Bƒ"°¢Ö&v–ã¢ƒ°¢föçBÖfÖ–Ç“¢f"‚ÒÖ†2ÖföçBÖF—7Æ’“°¢föçB×6—¦S¢Wƒ°¢ÆWGFW"×76–æs¢Òã&VÓ°§Ð ¢æ†2Ö†VÇÖ6öçF7BFÂ°¢Ö&v–ã¢7ƒ°§Ð ¢æ†2Ö†VÇÖ6öçF7BFÂF—b°¢F—7Æ“¢w&–C°¢w&–B×FV×ÆFRÖ6öÇVÖç3¢S‡‚Ö–æÖ‚ƒÂg"“°¢v¢wƒ°¢Æ–vâÖ—FV×3¢7F'C°¢Ö&v–ã¢‡ƒ°¢föçB×6—¦S¢‡ƒ°§Ð ¢æ†2Ö†VÇÖ6öçF7BGB°¢6öÆ÷#¢f"‚ÒÖ†2Ö×WFVB“°§Ð ¢æ†2Ö†VÇÖ6öçF7BFB°¢Ö&v–ã¢°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢föçB×vV–v‡C¢s°¢Æ–æRÖ†V–v‡C¢ã3S°¢FW‡BÖÆ–vã¢&–v‡C°§Ð ¢æ†2Ö†VÇ×&–Ö'’À¢æ†2Ö†VÇ×6V6öæF'’°¢v–GFƒ¢S°¢Ö–âÖ†V–v‡C¢3Wƒ°¢Ö&v–ã¢wƒ°¢FF–æs¢‡‚'ƒ°¢&÷&FW"×&F—W3¢““—ƒ°¢föçC¢–æ†W&—C°¢föçB×6—¦S¢‡ƒ°¢föçB×vV–v‡C¢sS°¢7W'6÷#¢ö–çFW#°§Ð ¢æ†2Ö†VÇ×&–Ö'’°¢6öÆ÷#¢6fffffc°¢&÷&FW#¢‚6öÆ–Bf"‚ÒÖ†2×&VB“°¢&6¶w&÷VæC¢f"‚ÒÖ†2×&VB“°¢&÷‚×6†F÷s¢‡‚g‚&v&ƒ#RÂSrÂC2Âã"“°§Ð ¢æ†2Ö†VÇ×6V6öæF'’°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢&÷&FW#¢‚6öÆ–B6SfCV&C°¢&6¶w&÷VæC¢6fffffc°§Ð ¢æ†2Ö†VÇ×&–Ö'“¦†÷fW"À¢æ†2Ö†VÇ×&–Ö'“¦fö7W2×f—6–&ÆR°¢&6¶w&÷VæC¢6&C&S##°§Ð ¢æ†2Ö†VÇ×6V6öæF'“¦†÷fW"À¢æ†2Ö†VÇ×6V6öæF'“¦fö7W2×f—6–&ÆR°¢6öÆ÷#¢f"‚ÒÖ†2×&VB“°¢&÷&FW"Ö6öÆ÷#¢6Vf#c°§Ð ¢æ†2Ö†VÇÖ6öçF7BÖæ÷FR°¢Ö&v–ã¢7‚7‚°¢6öÆ÷#¢f"‚ÒÖ†2Ö×WFVB“°¢föçB×6—¦S¢wƒ°¢Æ–æRÖ†V–v‡C¢ãCS°¢FW‡BÖÆ–vã¢6VçFW#°§Ð ¤ÖVF–†Ö‚×v–GFƒ¢“ƒ‚’°¢æ†2Ö†VÇÖw&–B°¢w&–B×FV×ÆFRÖ6öÇVÖç3¢Ö–æÖ‚ƒÂg"“°¢Ð ¢æ†2Ö†VÇÖ6öçF7B°¢v–GFƒ¢Ö–âƒRÂC#‚“°¢Ð§Ð ¤ÖVF–†Ö‚×v–GFƒ¢c‚’°¢æ6ÆVæW"Ö†VÇÖ6VçG&R×vRæ†2ÖÖ–âÖ–ææW"°¢FF–ær×F÷¢#Gƒ°¢Ð ¢æ†2Ö†VÇÖ†VF–ær°¢FF–ær×&–v‡C¢C'ƒ°¢Ð ¢æ†2Ö†VÇÖ†VF–ærƒ°¢föçB×6—¦S¢3Gƒ°¢Ð ¢æ†2Ö†VÇÖfÀ¢æ†2Ö†VÇÖ6öçF7B°¢FF–ærÖÆVgC¢gƒ°¢FF–ær×&–v‡C¢gƒ°¢Ð§Ð ¢ò¢ÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒÒ6WGF–æw2ÒÒ¢ð ¢æ6ÆVæW"×6WGF–æw2×vRæ†2×6–FRæ6ÆVæW"×6—FRÖ†VFW"°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢&6¶w&÷VæC¢f"‚ÒÖ†2Öw&÷VæB“°§Ð ¢æ6ÆVæW"×6WGF–æw2×vRæ†2×6–FRæ†2Ö'&æBÖæÖRÀ¢æ6ÆVæW"×6WGF–æw2×vRæ†2×6–FRæ†2ÖæbÖ—FVÒÀ¢æ6ÆVæW"×6WGF–æw2×vRæ†2×6–FRæ†2ÖæbÖw&÷W×7VÖÖ'’À¢æ6ÆVæW"×6WGF–æw2×vRæ†2×6–FRæ†2Ö66÷VçBÖæbÖ—FVÒ°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°§Ð ¢æ6ÆVæW"×6WGF–æw2×vRæ†2×6–FRæ†2ÖæbÖ—FVÓ¦†÷fW"À¢æ6ÆVæW"×6WGF–æw2×vRæ†2×6–FRæ†2ÖæbÖ—FVÕ¶&–Ö7W'&VçCÒ'vR%ÒÀ¢æ6ÆVæW"×6WGF–æw2×vRæ†2×6–FRæ†2Ö66÷VçBÖæbÖ—FVÕ¶&–Ö7W'&VçCÒ'vR%Ò°¢6öÆ÷#¢f"‚ÒÖ†2×&VB“°¢&6¶w&÷VæC¢6cvC–C3°§Ð ¢æ6ÆVæW"×6WGF–æw2×vRæ†2×6–FRæ†2ÖæbÖ7F°¢6öÆ÷#¢6fffffc°¢&6¶w&÷VæC¢f"‚ÒÖ†2×&VB“°§Ð ¢æ6ÆVæW"×6WGF–æw2×vRæ†2ÖÖ–âÖ–ææW"°¢Ö‚×v–GFƒ¢cƒ°¢FF–ær×F÷¢3gƒ°§Ð ¢æ†2×6WGF–æw2°¢v–GFƒ¢Ö–âƒRÂSs‚“°¢Ö&v–ã¢WFó°§Ð ¢æ†2×6WGF–æw2Ö†VF–ær°¢Ö&v–ã¢#ƒ°¢FF–ær×&–v‡C¢C‡ƒ°§Ð ¢æ†2×6WGF–æw2Ö†VF–ærƒ°¢Ö&v–ã¢Wƒ°¢föçBÖfÖ–Ç“¢f"‚ÒÖ†2ÖföçBÖF—7Æ’“°¢föçB×6—¦S¢6Æ×ƒ3G‚ÂGgrÂCg‚“°¢Æ–æRÖ†V–v‡C¢ã“ƒ°¢ÆWGFW"×76–æs¢ÒãCVVÓ°§Ð ¢æ†2×6WGF–æw2Ö†VF–ær°¢Ö&v–ã¢°¢6öÆ÷#¢f"‚ÒÖ†2Ö×WFVB“°¢föçB×6—¦S¢ƒ°§Ð ¢æ†2×6WGF–æw2ÖfVVF&6²°¢Ö&v–ã¢'ƒ°¢FF–æs¢‚'ƒ°¢6öÆ÷#¢3VSC#°¢&÷&FW#¢‚6öÆ–B6V&C3–c°¢&÷&FW"×&F—W3¢ƒ°¢&6¶w&÷VæC¢6ffcFC“°¢föçB×6—¦S¢—ƒ°¢Æ–æRÖ†V–v‡C¢ãCS°§Ð ¢æ†2×6WGF–æw2ÖfVVF&6µ¶FFÖ¶–æCÒ'7V66W72%Ò°¢6öÆ÷#¢3&Sf#3S°¢&÷&FW"Ö6öÆ÷#¢66fSv6°¢&6¶w&÷VæC¢6VFcvS“°§Ð ¢æ†2×6WGF–æw2ÖfVVF&6µ¶FFÖ¶–æCÒ&W'&÷"%Ò°¢6öÆ÷#¢3†S#“c°¢&÷&FW"Ö6öÆ÷#¢6Vf3&&#°¢&6¶w&÷VæC¢6ffcVc°§Ð ¢æ†2×6WGF–æw2Ö6&B°¢Ö&v–ã¢'ƒ°¢FF–æs¢—‚#ƒ°¢&÷&FW#¢‚6öÆ–B&v&ƒs"ÂSÂ3Âãb“°¢&÷&FW"×&F—W3¢‡ƒ°¢&6¶w&÷VæC¢6fffffc°¢&÷‚×6†F÷s¢W‚3'‚&v&ƒƒÂSrÂ3Âã‚“°§Ð ¢æ†2×6WGF–æw2Ö6&Bƒ"°¢Ö&v–ã¢Gƒ°¢föçBÖfÖ–Ç“¢f"‚ÒÖ†2ÖföçBÖF—7Æ’“°¢föçB×6—¦S¢Wƒ°¢Æ–æRÖ†V–v‡C¢ãS°¢ÆWGFW"×76–æs¢Òã#VVÓ°§Ð ¢æ†2×6WGF–æw2Ö66÷VçB×&÷r°¢F—7Æ“¢w&–C°¢w&–B×FV×ÆFRÖ6öÇVÖç3¢Ö–æÖ‚ƒÂg"’WFòWFó°¢Æ–vâÖ—FV×3¢6VçFW#°¢v¢ƒ°¢Ö–âÖ†V–v‡C¢3‡ƒ°§Ð ¢æ†2×6WGF–æw2Ö66÷VçB×&÷râF—bÀ¢æ†2×6WGF–æw2×7v—F6‚×&÷râF—b°¢F—7Æ“¢w&–C°¢Ö–â×v–GFƒ¢°¢v¢'ƒ°§Ð ¢æ†2×6WGF–æw2Ö66÷VçB×&÷r7G&öærÀ¢æ†2×6WGF–æw2×7v—F6‚×&÷r7G&öær°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢föçB×6—¦S¢’ãWƒ°¢Æ–æRÖ†V–v‡C¢ã#S°§Ð ¢æ†2×6WGF–æw2Ö66÷VçB×&÷r6ÖÆÂÀ¢æ†2×6WGF–æw2×7v—F6‚×&÷r6ÖÆÂ°¢÷fW&fÆ÷r×w&¢ç—v†W&S°¢6öÆ÷#¢f"‚ÒÖ†2Ö×WFVB“°¢föçB×6—¦S¢rãWƒ°¢Æ–æRÖ†V–v‡C¢ã3S°§Ð ¢æ†2×6WGF–æw2Ö66÷VçB×&÷râ°¢6öÆ÷#¢f"‚ÒÖ†2×&VB“°¢föçB×6—¦S¢‡ƒ°¢föçB×vV–v‡C¢sS°¢FW‡BÖFV6÷&F–öã¢æöæS°§Ð ¢æ†2×6WGF–æw2Ö66÷VçB×&÷râ¦†÷fW"À¢æ†2×6WGF–æw2Ö66÷VçB×&÷râ¦fö7W2×f—6–&ÆR°¢FW‡BÖFV6÷&F–öã¢VæFW&Æ–æS°§Ð ¢æ†2×6WGF–æw2×7FGW2°¢Ö–â×v–GFƒ¢S‡ƒ°¢FF–æs¢W‚‡ƒ°¢6öÆ÷#¢3†#ssSS°¢&÷&FW"×&F—W3¢““—ƒ°¢&6¶w&÷VæC¢6c6VC“°¢föçB×6—¦S¢rãWƒ°¢föçB×vV–v‡C¢sS°¢Æ–æRÖ†V–v‡C¢°¢FW‡BÖÆ–vã¢6VçFW#°§Ð ¢æ†2×6WGF–æw2×7FGW2æ—2×fW&–f–VB°¢6öÆ÷#¢3&csc6C°¢&6¶w&÷VæC¢6FFVfCc°§Ð ¢æ†2×6WGF–æw2×7v—F6‚×&÷r°¢F—7Æ“¢fÆWƒ°¢Æ–vâÖ—FV×3¢6VçFW#°¢§W7F–g’Ö6öçFVçC¢76RÖ&WGvVVã°¢v¢‡ƒ°¢Ö–âÖ†V–v‡C¢3‡ƒ°§Ð ¢æ†2×6WGF–æw2×7v—F6‚°¢÷6—F–öã¢&VÆF—fS°¢fÆWƒ¢37ƒ°¢v–GFƒ¢37ƒ°¢†V–v‡C¢—ƒ°¢FF–æs¢°¢&÷&FW#¢°¢&÷&FW"×&F—W3¢““—ƒ°¢&6¶w&÷VæC¢6C–66#C°§Ð ¢æ†2×6WGF–æw2×7v—F6‚7â°¢÷6—F–öã¢'6öÇWFS°¢F÷¢7ƒ°¢ÆVgC¢7ƒ°¢v–GFƒ¢7ƒ°¢†V–v‡C¢7ƒ°¢&÷&FW"×&F—W3¢SS°¢&6¶w&÷VæC¢6fffffc°¢&÷‚×6†F÷s¢‚7‚&v&ƒC"Â#‚ÂbÂãb“°§Ð ¢æ†2×6WGF–æw2×7v—F6ƒ¦F—6&ÆVB°¢7W'6÷#¢æ÷BÖÆÆ÷vVC°¢÷6—G“¢°§Ð ¢æ†2×6WGF–æw2Ö6öçG&öÂÖw&–B°¢F—7Æ“¢w&–C°¢w&–B×FV×ÆFRÖ6öÇVÖç3¢&WVBƒ"ÂÖ–æÖ‚ƒÂg"’“°¢v¢ƒ°¢Ö&v–ã¢7‚ƒ°§Ð ¢æ†2×6WGF–æw2Ö6öçG&öÂÖw&–BÆ&VÂ°¢F—7Æ“¢w&–C°¢v¢Wƒ°¢Ö–â×v–GFƒ¢°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢föçB×6—¦S¢‡ƒ°¢föçB×vV–v‡C¢s°§Ð ¢æ†2×6WGF–æw2Ö6öçG&öÂÖw&–B–çWBÀ¢æ†2×6WGF–æw2Ö6öçG&öÂÖw&–B6VÆV7B°¢v–GFƒ¢S°¢†V–v‡C¢3Gƒ°¢FF–æs¢'ƒ°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢&÷&FW#¢‚6öÆ–B6SfC†3C°¢&÷&FW"×&F—W3¢‡ƒ°¢÷WFÆ–æS¢°¢&6¶w&÷VæC¢6fffFcƒ°¢föçC¢–æ†W&—C°¢föçB×6—¦S¢‚ãWƒ°¢föçB×vV–v‡C¢S°§Ð ¢æ†2×6WGF–æw2Ö6öçG&öÂÖw&–B–çWC¦F—6&ÆVBÀ¢æ†2×6WGF–æw2Ö6öçG&öÂÖw&–B6VÆV7C¦F—6&ÆVB°¢6öÆ÷#¢3vSs#cc°¢7W'6÷#¢æ÷BÖÆÆ÷vVC°¢÷6—G“¢°§Ð ¢æ†2×6WGF–æw2Ö6öçG&öÂÖw&–B–çWC£§Æ6V†öÆFW"°¢6öÆ÷#¢6#FS“c°§Ð ¢æ†2×6WGF–æw2Ö6öçG&öÂÖw&–B’°¢F—7Æ“¢&Æö6³°¢†V–v‡C¢Gƒ°¢Ö&v–â×F÷¢Óƒ°¢&6¶w&÷VæC¢&WVF–ærÖÆ–æV"Öw&F–VçBƒ“FVrÂ6VFf6B#BRÂG&ç7&VçB#BR#bR“°§Ð ¢æ†2×6WGF–æw2×6V7W&—G’Ö7F–öç2°¢F—7Æ“¢fÆWƒ°¢fÆW‚×w&¢w&°¢v¢‡ƒ°§Ð ¢æ†2×6WGF–æw2Ö÷WFÆ–æRÀ¢æ†2×6WGF–æw2×7V&Ö—B°¢Ö–âÖ†V–v‡C¢3ƒ°¢FF–æs¢w‚7ƒ°¢&÷&FW"×&F—W3¢““—ƒ°¢föçC¢–æ†W&—C°¢föçB×6—¦S¢‡ƒ°¢föçB×vV–v‡C¢sS°¢FW‡BÖFV6÷&F–öã¢æöæS°¢7W'6÷#¢ö–çFW#°§Ð ¢æ†2×6WGF–æw2Ö÷WFÆ–æR°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢&÷&FW#¢‚6öÆ–B6SVCV&C°¢&6¶w&÷VæC¢6fffffc°§Ð ¢æ†2×6WGF–æw2Ö÷WFÆ–æS¦†÷fW"À¢æ†2×6WGF–æw2Ö÷WFÆ–æS¦fö7W2×f—6–&ÆR°¢6öÆ÷#¢f"‚ÒÖ†2×&VB“°¢&÷&FW"Ö6öÆ÷#¢6Vf#c°§Ð ¢æ†2×6WGF–æw2Ö÷WFÆ–æRæ—2ÖFævW"°¢6öÆ÷#¢f"‚ÒÖ†2×&VB“°¢&÷&FW"Ö6öÆ÷#¢6Vf#c°§Ð ¢æ†2×6WGF–æw2Ö÷WFÆ–æS¦F—6&ÆVB°¢6öÆ÷#¢3–†#v3°¢&÷&FW"Ö6öÆ÷#¢6SvFVC#°¢7W'6÷#¢æ÷BÖÆÆ÷vVC°¢&6¶w&÷VæC¢6cVcSƒ°§Ð ¢æ†2×6WGF–æw2ÖFævW"°¢Ö&v–ã¢Óg‚7ƒ°¢6öÆ÷#¢f"‚ÒÖ†2Ö×WFVB“°¢föçB×6—¦S¢‡ƒ°¢Æ–æRÖ†V–v‡C¢ãS°§Ð ¢æ†2×6WGF–æw2ÖF–Æör°¢v–GFƒ¢Ö–â†6Æ2ƒRÒ3'‚’ÂCS‚“°¢FF–æs¢°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°¢&÷&FW#¢°¢&÷&FW"×&F—W3¢‡ƒ°¢&6¶w&÷VæC¢6fffffc°¢&÷‚×6†F÷s¢#G‚s‚&v&ƒ3Â#ÂÂã#B“°§Ð ¢æ†2×6WGF–æw2ÖF–Æös£¦&6¶G&÷°¢&6¶w&÷VæC¢&v&ƒ3Â#"ÂRÂãSR“°§Ð ¢æ†2×6WGF–æw2ÖF–Æörf÷&Ò°¢FF–æs¢#Gƒ°§Ð ¢æ†2×6WGF–æw2ÖF–Æörƒ"°¢Ö&v–ã¢wƒ°¢föçBÖfÖ–Ç“¢f"‚ÒÖ†2ÖföçBÖF—7Æ’“°¢föçB×6—¦S¢#'ƒ°§Ð ¢æ†2×6WGF–æw2ÖF–ÆörÀ¢æ†2×6WGF–æw2Ö6öæf—&Ò°¢6öÆ÷#¢f"‚ÒÖ†2Ö×WFVB“°¢föçB×6—¦S¢ƒ°¢Æ–æRÖ†V–v‡C¢ãS°§Ð ¢æ†2×6WGF–æw2Ö6öæf—&Ò°¢F—7Æ“¢fÆWƒ°¢Æ–vâÖ—FV×3¢fÆW‚×7F'C°¢v¢‡ƒ°¢Ö&v–ã¢g‚°¢6öÆ÷#¢f"‚ÒÖ†2Ö–æ²“°§Ð ¢æ†2×6WGF–æw2Ö6öæf—&Ò–çWB°¢Ö&v–â×F÷¢'ƒ°¢66VçBÖ6öÆ÷#¢f"‚ÒÖ†2×&VB“°§Ð ¢æ†2×6WGF–æw2ÖF–Æörâf÷&ÒâF—b°¢F—7Æ“¢fÆWƒ°¢§W7F–g’Ö6öçFVçC¢fÆW‚ÖVæC°¢v¢‡ƒ°§Ð ¢æ†2×6WGF–æw2×7V&Ö—B°¢6öÆ÷#¢6fffffc°¢&÷&FW#¢‚6öÆ–Bf"‚ÒÖ†2×&VB“°¢&6¶w&÷VæC¢f"‚ÒÖ†2×&VB“°¢&÷‚×6†F÷s¢‡‚g‚&v&ƒ#RÂSrÂC2Âã"“°§Ð ¢æ†2×6WGF–æw2×7V&Ö—C¦F—6&ÆVB°¢7W'6÷#¢v—C°¢÷6—G“¢ãcS°§Ð ¢æ†2×6WGF–æw2ÖF–ÆörÖfVVF&6²°¢6öÆ÷#¢3†S#“b–×÷'FçC°§Ð ¤ÖVF–†Ö‚×v–GFƒ¢c‚’°¢æ6ÆVæW"×6WGF–æw2×vRæ†2ÖÖ–âÖ–ææW"°¢FF–ær×F÷¢#Gƒ°¢Ð ¢æ†2×6WGF–æw2Ö†VF–ær°¢FF–ær×&–v‡C¢C'ƒ°¢Ð ¢æ†2×6WGF–æw2Ö†VF–ærƒ°¢föçB×6—¦S¢3Gƒ°¢Ð ¢æ†2×6WGF–æw2Ö6&B°¢FF–æs¢w‚gƒ°¢Ð ¢æ†2×6WGF–æw2Ö66÷VçB×&÷r°¢w&–B×FV×ÆFRÖ6öÇVÖç3¢Ö–æÖ‚ƒÂg"’WFó°¢Ð ¢æ†2×6WGF–æw2Ö66÷VçB×&÷râ°¢w&–BÖ6öÇVÖã¢#°¢w&–B×&÷s¢#°¢§W7F–g’×6VÆc¢VæC°¢Ð ¢æ†2×6WGF–æw2Ö6öçG&öÂÖw&–B°¢w&–B×FV×ÆFRÖ6öÇVÖç3¢g#°¢Ð ¢æ†2×6WGF–æw2×6V7W&—G’Ö7F–öç2À¢æ†2×6WGF–æw2×6V7W&—G’Ö7F–öç2â¢°¢v–GFƒ¢S°¢Ð ¢æ†2×6WGF–æw2×6V7W&—G’Ö7F–öç2â¢°¢FW‡BÖÆ–vã¢6VçFW#°¢Ð§Ð 
