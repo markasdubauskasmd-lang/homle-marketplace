@@ -2500,14 +2500,14 @@ body.landlord-dashboard-page .ld-builder-dialog .landlord-request-complete h1 {
    existing authenticated form stays mounted and keeps its values; the dialog
    only supplies the focused surface and dismissible backdrop. */
 body.landlord-dashboard-page .ld-property-dialog {
-  width: min(780px, calc(100vw - 32px));
+  width: min(720px, calc(100vw - 32px));
   max-width: none;
   max-height: min(860px, calc(100dvh - 32px));
   margin: auto;
   padding: 0;
   border: 0;
-  border-radius: 26px;
-  background: #f7fbf9;
+  border-radius: 24px;
+  background: var(--ld-paper);
   color: var(--ld-ink);
   box-shadow: 0 40px 90px rgba(26, 26, 26, .3);
   overflow: auto;
@@ -2522,9 +2522,139 @@ body.landlord-dashboard-page .ld-property-dialog::backdrop {
 }
 body.landlord-dashboard-page .ld-property-dialog .landlord-record-form {
   margin: 0;
+  padding: 0;
   border: 0;
   border-radius: inherit;
   box-shadow: none;
+}
+body.landlord-dashboard-page .ld-property-dialog .landlord-record-form > fieldset {
+  gap: 0;
+}
+body.landlord-dashboard-page .ld-property-dialog .landlord-form-title {
+  align-items: flex-start;
+  gap: 20px;
+  padding: 28px 30px 24px;
+  border-bottom: 1px solid var(--ld-line);
+}
+body.landlord-dashboard-page .ld-property-form-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  min-width: 0;
+}
+body.landlord-dashboard-page .ld-property-form-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--ld-coral-tint);
+  color: var(--ld-coral);
+}
+body.landlord-dashboard-page .ld-property-form-icon svg { width: 23px; height: 23px; }
+body.landlord-dashboard-page .ld-property-dialog .landlord-form-title .eyebrow {
+  margin: 0 0 7px;
+  color: var(--ld-coral);
+  font-size: 11px;
+  letter-spacing: .18em;
+}
+body.landlord-dashboard-page .ld-property-dialog .landlord-form-title h3 {
+  margin: 0;
+  font-size: clamp(1.55rem, 3vw, 2rem);
+  line-height: 1.08;
+}
+body.landlord-dashboard-page .ld-property-form-intro {
+  max-width: 510px;
+  margin: 9px 0 0;
+  color: var(--ld-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+body.landlord-dashboard-page .ld-property-form-close {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--ld-border);
+  border-radius: 999px;
+  background: var(--ld-paper);
+  color: var(--ld-ink);
+  font: 400 28px/1 var(--ld-body);
+  cursor: pointer;
+  transition: border-color .16s ease, color .16s ease, transform .16s ease;
+}
+body.landlord-dashboard-page .ld-property-form-close:hover { border-color: var(--ld-coral); color: var(--ld-coral); transform: rotate(4deg); }
+body.landlord-dashboard-page .ld-property-required-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 24px 30px 20px;
+}
+body.landlord-dashboard-page .ld-property-required-fields .ld-property-type-field,
+body.landlord-dashboard-page .ld-property-required-fields .ld-property-address-field { grid-column: 1 / -1; }
+body.landlord-dashboard-page .ld-property-dialog label {
+  display: grid;
+  gap: 8px;
+  color: var(--ld-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+body.landlord-dashboard-page .ld-property-dialog .landlord-record-form :is(input, select, textarea) {
+  min-height: 50px;
+  border: 1px solid var(--ld-border);
+  border-radius: 12px;
+  background: #fbfaf9;
+  color: var(--ld-ink);
+  font: 500 15px/1.35 var(--ld-body);
+  box-shadow: none;
+}
+body.landlord-dashboard-page .ld-property-dialog .landlord-record-form :is(input, select, textarea)::placeholder { color: #92908e; }
+body.landlord-dashboard-page .ld-property-dialog .dashboard-optional-fields {
+  margin: 0 30px 22px;
+  border: 1px solid var(--ld-border);
+  border-radius: 14px;
+  background: var(--ld-paper);
+  overflow: hidden;
+}
+body.landlord-dashboard-page .ld-property-dialog .dashboard-optional-fields summary {
+  padding: 16px 18px;
+  color: var(--ld-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+body.landlord-dashboard-page .ld-property-dialog .dashboard-optional-fields summary span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f3f1ef;
+  color: var(--ld-muted);
+  font-size: 11px;
+}
+body.landlord-dashboard-page .ld-property-dialog .dashboard-optional-fields > div {
+  gap: 16px;
+  padding: 4px 18px 18px;
+  border-top: 1px solid var(--ld-line);
+}
+body.landlord-dashboard-page .ld-property-dialog .landlord-form-feedback { margin: 0 30px 18px; }
+body.landlord-dashboard-page .ld-property-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 30px 28px;
+  border-top: 1px solid var(--ld-line);
+}
+body.landlord-dashboard-page .ld-property-form-actions p { display: grid; gap: 3px; margin: 0; }
+body.landlord-dashboard-page .ld-property-form-actions strong { color: var(--ld-success-ink); font-size: 13px; }
+body.landlord-dashboard-page .ld-property-form-actions span { color: var(--ld-muted); font-size: 12px; line-height: 1.4; }
+body.landlord-dashboard-page .ld-property-dialog .ld-property-form-actions .button[type="submit"] {
+  min-width: 205px;
+  min-height: 48px;
+  border-radius: 999px;
+  background: var(--ld-coral);
+  box-shadow: 0 10px 24px rgba(225, 27, 34, .2);
 }
 
 @media (max-width: 900px) {
@@ -2575,6 +2705,24 @@ body.landlord-dashboard-page .ld-property-dialog .landlord-record-form {
     background: #e0dcd8;
     border-radius: 99px;
   }
+  body.landlord-dashboard-page .ld-property-dialog .landlord-form-title { padding: 22px 18px 19px; }
+  body.landlord-dashboard-page .ld-property-form-icon { width: 40px; height: 40px; flex-basis: 40px; }
+  body.landlord-dashboard-page .ld-property-form-intro { font-size: 13px; }
+  body.landlord-dashboard-page .ld-property-required-fields {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 20px 18px 16px;
+  }
+  body.landlord-dashboard-page .ld-property-required-fields .ld-property-type-field,
+  body.landlord-dashboard-page .ld-property-required-fields .ld-property-address-field { grid-column: auto; }
+  body.landlord-dashboard-page .ld-property-dialog .dashboard-optional-fields { margin: 0 18px 18px; }
+  body.landlord-dashboard-page .ld-property-dialog .landlord-form-feedback { margin: 0 18px 16px; }
+  body.landlord-dashboard-page .ld-property-form-actions {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 18px 18px calc(20px + env(safe-area-inset-bottom));
+  }
+  body.landlord-dashboard-page .ld-property-dialog .ld-property-form-actions .button[type="submit"] { width: 100%; }
 }
 
 /* â”€â”€ Place details, and the CTA's two subtitles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */

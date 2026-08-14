@@ -60,6 +60,17 @@ const [page, script, model, styles, designStyles, v2Styles, server, authEntry] =
 ]);
 
 assert(server.includes('"/landlord/dashboard": "landlord-dashboard.html"') && page.includes('data-landlord-workspace hidden') && page.includes('data-landlord-state'), "The Landlord route or fail-closed initial workspace is missing.");
+assert(
+  page.includes('class="ld-property-form-heading"') &&
+  page.includes('class="ld-property-form-close"') &&
+  page.includes('class="ld-property-required-fields"') &&
+  page.includes('class="ld-property-form-actions"') &&
+  page.includes("These details stay private until a booking is confirmed.") &&
+  page.includes('placeholder="House number and street"') &&
+  v2Styles.includes(".ld-property-form-actions") &&
+  v2Styles.includes(".ld-property-required-fields"),
+  "The Add place dialog lost the current dashboard hierarchy, private-address reassurance, modern field group, or responsive action bar."
+);
 assert([...page.matchAll(/data-wizard-step/g)].length === 5 && page.includes('data-pac-step-total>5</span>') && !page.includes('data-step-title="Walk through the rooms"') && !page.includes('data-step-title="Add room photos next"') && !page.includes("Review the concise bullets"), "Steps 1–4 were not preserved with one simplified final instructions-and-images step, or the removed review panels returned.");
 assert([...page.matchAll(/data-landlord-private-navigation hidden/g)].length === 2 && script.includes('const privateNavigation = document.querySelectorAll("[data-landlord-private-navigation]")') && script.includes("for (const item of privateNavigation) item.hidden = true") && script.includes("for (const item of privateNavigation) item.hidden = false") && script.indexOf("for (const item of privateNavigation) item.hidden = false") > script.indexOf('dashboardWorkspaceAccess(account, "landlord")'), "Signed-out, loading or wrong-role visitors can see dead Landlord navigation before private workspace access is confirmed.");
 assert(script.includes('requestJson("/api/marketplace/account")') && script.includes('requestJson("/api/marketplace/properties")') && script.includes('requestJson("/api/marketplace/cleaning-requests")') && script.includes('"X-CSRF-Token": csrf'), "The workspace is not bound to authenticated account/owner records and CSRF-protected writes.");
