@@ -90,6 +90,29 @@ const ready = marketplaceActivationReadiness({
 assert(ready.ready === true && ready.completed === 11 && ready.next === null, "A completely proven environment did not pass every activation check.");
 assert(Object.values(ready.missing).every((items) => items.length === 0), "A ready environment retained stale missing actions.");
 
+const expiringDatabase = marketplaceActivationReadiness({
+  ...{
+    privateDataStorageSafe: true,
+    marketplaceEnabled: true,
+    marketplaceReady: true,
+    emailReady: true,
+    mediaReady: true,
+    realtimeReady: true,
+    geocodingReady: true,
+    matchingReady: true,
+    authenticationReady: true,
+    providers: { google: true },
+    paymentsReady: true,
+    productionMode: true,
+    localDemosEnabled: false
+  },
+  databaseExpiresAt: "2026-08-16T07:04:50.151Z"
+});
+assert(expiringDatabase.ready === false, "An expiring preview database was presented as production-ready.");
+assert(expiringDatabase.checks.marketplaceServices === false, "The managed-database check ignored its provider-enforced expiry.");
+assert(expiringDatabase.missing.marketplaceServices[0].includes("16 August 2026"), "The managed-database check did not show the actionable expiry date.");
+assert(expiringDatabase.next?.key === "marketplaceServices", "The expiring database was not promoted to the first applicable launch blocker.");
+
 const [adminPage, adminScript, server] = await Promise.all([
   readFile(new URL("../public/admin.html", import.meta.url), "utf8"),
   readFile(new URL("../public/admin.js", import.meta.url), "utf8"),
@@ -97,7 +120,7 @@ const [adminPage, adminScript, server] = await Promise.all([
 ]);
 for (const key of ["privateMedia", "transactionalEmail", "realtimeUpdates", "postcodeGeocoding", "matchingPricing"]) assert(adminPage.includes(`data-activation-check="${key}"`), `The Administrator activation panel omitted ${key}.`);
 assert(adminPage.includes('id="technical-readiness-score">0/11'), "The Administrator activation panel retained the old bundled score.");
-for (const binding of ["emailReady: marketplaceAttachment.emailReady", "mediaReady: marketplaceAttachment.mediaReady", "realtimeReady: marketplaceAttachment.realtimeReady", "geocodingReady: marketplaceAttachment.geocodingReady", "matchingReady: marketplaceAttachment.matchingReady"]) assert(server.includes(binding), `The Administrator readiness response omitted ${binding}.`);
+for (const binding of ["emailReady: marketplaceAttachment.emailReady", "mediaReady: marketplaceAttachment.mediaReady", "realtimeReady: marketplaceAttachment.realtimeReady", "geocodingReady: marketplaceAttachment.geocodingReady", "matchingReady: marketplaceAttachment.matchingReady", "databaseExpiresAt: process.env.DATABASE_EXPIRES_AT || null"]) assert(server.includes(binding), `The Administrator readiness response omitted ${binding}.`);
 assert(adminScript.includes("technical service and matching checks"), "The Administrator completed state lost its separate technical-evidence boundary.");
 
 console.log("Marketplace activation readiness tests passed.");

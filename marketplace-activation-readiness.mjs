@@ -1,3 +1,9 @@
+function databaseExpiryAction(value) {
+  const expiry = new Date(value);
+  if (!Number.isFinite(expiry.getTime())) return "Move the managed booking database to durable storage before its provider-enforced expiry";
+  return `Move the managed booking database to durable storage before ${new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeZone: "Europe/London" }).format(expiry)}`;
+}
+
 const requirementDefinitions = Object.freeze([
   {
     key: "privateDataStorage",
@@ -24,8 +30,13 @@ const requirementDefinitions = Object.freeze([
   {
     key: "marketplaceServices",
     label: "Managed booking database",
-    missing: "Verify the restricted managed booking database and marketplace runtime",
-    complete: (state) => state.marketplaceEnabled === true && state.marketplaceReady === true
+    missing: (state) => state.databaseExpiresAt
+      ? databaseExpiryAction(state.databaseExpiresAt)
+      : "Verify the restricted managed booking database and marketplace runtime",
+    // Connectivity alone is not launch evidence. A free preview database can be
+    // reachable immediately before provider-enforced expiry, after which every
+    // account, property, scan and booking would disappear from the application.
+    complete: (state) => state.marketplaceEnabled === true && state.marketplaceReady === true && !state.databaseExpiresAt
   },
   {
     key: "privateMedia",
@@ -78,7 +89,7 @@ export function marketplaceActivationReadiness(input = {}) {
     key: definition.key,
     label: definition.label,
     complete: definition.complete(state),
-    missing: definition.missing
+    missing: typeof definition.missing === "function" ? definition.missing(state) : definition.missing
   }));
   const checks = Object.fromEntries(requirements.map((requirement) => [requirement.key, requirement.complete]));
   const missing = Object.fromEntries(requirements.map((requirement) => [requirement.key, requirement.complete ? [] : [requirement.missing]]));
