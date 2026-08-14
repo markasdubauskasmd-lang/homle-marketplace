@@ -62,6 +62,7 @@ const loadTimeCopy = accountScript.slice(0, accountScript.indexOf('fetch("/api/a
 assert(accountScript.includes('title.textContent = "Opening your workspace."'), "Account entry no longer sets neutral loading copy while it checks live provider capabilities.");
 assert(!loadTimeCopy.includes("Account access is safely unavailable.") && !loadTimeCopy.includes("Secure account access is ready."), "Account entry states a readiness verdict before the provider check resolves, so it can flash a false unavailable or ready state.");
 const staticMarkup = await readFile(new URL("../public/account.html", import.meta.url), "utf8");
+const accountStyles = await readFile(new URL("../public/account-entry.css", import.meta.url), "utf8");
 assert(staticMarkup.includes("Checking secure account access"), "The served account page does not say that the capability check is still running.");
 assert(!staticMarkup.includes('<header class="site-header">'), "The retired account-page header returned.");
 assert(/<article class="ae-panel">[\s\S]*?<a class="ae-logo" href="\/" aria-label="Return to Homle home"><img src="\/homle-logo-192-c8defd4b\.png"/.test(staticMarkup), "The compact Homle logo is not inside the account panel where the decorative tile used to be.");
@@ -70,5 +71,6 @@ assert(!staticMarkup.includes("data-pilot-actions") && !staticMarkup.includes("o
 assert(!accountScript.includes("pilotActions"), "The removed cross-role account shortcuts left dead controller logic behind.");
 assert(staticMarkup.includes("data-account-unavailable hidden") && staticMarkup.includes("data-account-unavailable-action"), "An unavailable password or verification action has no visible recovery route.");
 assert(accountScript.includes("unavailableEmailActionPresentation(selectedMode.form, providers, accountIntent)") && accountScript.includes("unavailableEmailAction.hidden = !unavailableEmailPresentation"), "Provider discovery can still leave an email-only account route as an empty form region.");
+assert(!/content:\s*"↗"\s*;/.test(accountStyles) && accountStyles.includes('button[type="submit"]::after') && accountStyles.includes("-webkit-mask:"), "Decorative account-submit arrows are exposed as repeated speech instead of a silent visual icon.");
 
 console.log("Account-ready handoff tests passed: exact live provider copy, neutral capability loading, role-safe destinations and recoverable sign-out.");
