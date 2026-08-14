@@ -258,7 +258,10 @@ class Cinematic {
     else this.running = false;
   }
 
-  /* Hero: the framed room opens out to full bleed on a pure transform. */
+  /* Hero: the framed room opens out to full bleed on a pure transform. Keep
+     the rounded clip stable while it moves. Recomputing border-radius on every
+     frame made the browser repaint the scaled room; one late threshold change
+     removes the corners before full bleed without taxing the whole reveal. */
   grow(p) {
     if (!this.heroFrame || !this.motion) return;
     const t = Math.max(0, Math.min(1, p));
@@ -269,7 +272,11 @@ class Cinematic {
     const full = Math.max(w / boxW, h / boxH);
     const sc = 1 + (full - 1) * t;
     this.heroFrame.style.transform = `scale(${sc.toFixed(4)})`;
-    this.heroFrame.style.borderRadius = `${((14 * (1 - t)) / sc).toFixed(2)}px`;
+    const square = t > 0.92;
+    if (this.lastSquare !== square) {
+      this.lastSquare = square;
+      this.heroFrame.style.borderRadius = square ? "0" : "14px";
+    }
     if (this.lastShadow !== (t > 0.55)) {
       this.lastShadow = t > 0.55;
       this.heroFrame.style.boxShadow = t > 0.55 ? "none" : "0 40px 90px rgba(0, 0, 0, .55)";

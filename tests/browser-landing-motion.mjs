@@ -48,12 +48,18 @@ const probe = `
     };
     const phone = document.querySelector('[data-phone]');
     const frame = document.querySelector('[data-hero-frame]');
+    const dirty = document.querySelector('.ci-hero-dirty');
+    const edge = document.querySelector('.ci-wipe-edge');
     const video = document.querySelector('[data-detail-video]');
     const angles = [...document.querySelectorAll('[data-angle]')];
     return {
       open: stage('open'), scan: stage('scan'), manual: stage('manual'),
       detail: stage('detail'), join: stage('join'),
       heroTransform: frame.style.transform,
+      heroRadius: frame.style.borderRadius,
+      dirtyTransform: getComputedStyle(dirty).transform,
+      dirtyClipPath: getComputedStyle(dirty).clipPath,
+      edgeTransform: getComputedStyle(edge).transform,
       phoneTransform: phone.style.transform,
       litAngle: angles.findIndex((i) => i.style.opacity === '1') + 1,
       angleSources: angles.map((image) => image.currentSrc),
@@ -115,6 +121,10 @@ try {
   assert(/scale\(/.test(wiping.heroTransform), "The hero frame is not being scaled open by the script.");
   const heroScale = Number(/scale\(([\d.]+)\)/.exec(wiping.heroTransform)[1]);
   assert(heroScale > 1, `The hero frame is not growing toward full bleed: scale ${heroScale}.`);
+  assert(wiping.dirtyTransform !== "none" && wiping.edgeTransform !== "none",
+    `The opening wipe is not moving on transform layers: ${JSON.stringify({ dirty: wiping.dirtyTransform, edge: wiping.edgeTransform })}.`);
+  assert(wiping.dirtyClipPath === "none",
+    `The opening wipe still clips a full-screen photograph instead of moving its layer: ${wiping.dirtyClipPath}.`);
   assert(wiping.launchOn === true, "The launch button never drops in after its mark.");
 
   /* ── Act 2: the walk around the room ──────────────── */

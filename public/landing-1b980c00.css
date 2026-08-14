@@ -386,7 +386,9 @@ body.ci-body {
   place-items: center;
 }
 
-/* Framed room that grows to full bleed. JS drives scale/radius via .grow(). */
+/* Framed room that grows to full bleed. JS drives the scale and changes the
+   radius only once near the end; animating a rounded clip every frame makes a
+   full-screen photograph repaint while the visitor scrolls. */
 .ci-hero-frame {
   position: relative;
   width: 52vw;
@@ -396,6 +398,8 @@ body.ci-body {
   transform-origin: 50% 50%;
   backface-visibility: hidden;
   will-change: transform;
+  contain: layout paint;
+  isolation: isolate;
   box-shadow: 0 40px 90px rgba(0, 0, 0, .55);
 }
 
@@ -407,43 +411,28 @@ body.ci-body {
   object-fit: cover;
 }
 
-/* The dirty half is wiped away left-to-right as --p runs 0 -> 1. */
+/* The dirty half is wiped away left-to-right as --p runs 0 -> 1.
+
+   The separate dirty photograph already contains the mess. Move that
+   already-rasterised layer instead of rebuilding a polygon and a four-stage
+   colour filter around it on every scroll frame. The image counter-travels, so
+   the room itself stays visually fixed and only the reveal boundary moves. */
 .ci-hero-dirty {
   position: absolute;
   inset: 0;
-  clip-path: polygon(
-    calc(var(--p, 1) * 122% - 4%) 0,
-    140% 0,
-    140% 100%,
-    calc(var(--p, 1) * 122% - 22%) 100%
-  );
-  will-change: clip-path;
+  overflow: hidden;
+  transform: translate3d(calc(var(--p, 1) * 118%), 0, 0);
+  will-change: transform;
+  contain: paint;
 }
 
 .ci-hero-dirty .ci-hero-img {
-  filter: saturate(.62) brightness(.8) contrast(1.1) sepia(.2);
-  /* The filter never changes; the clip-path above it changes every frame. Left
-     alone, the browser is entitled to re-run a four-stage filter over a
-     full-bleed photograph on each of those frames. Promoting the filtered image
-     to its own layer lets that result be rasterised once and simply re-clipped
-     after, which is the cheap half of the work.
-
-     Measured honestly: on this machine the act already held 60fps without it,
-     so no improvement is claimed here — it is insurance for displays with far
-     more pixels to fill, where this is the pattern that costs the most. */
-  will-change: filter;
-  transform: translateZ(0);
+  transform: translate3d(calc(var(--p, 1) * -118%), 0, 0);
+  will-change: transform;
 }
 
 .ci-hero-grime {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(34% 26% at 22% 88%, rgba(96, 74, 36, .5), transparent 74%),
-    radial-gradient(28% 22% at 56% 92%, rgba(80, 62, 30, .46), transparent 76%),
-    radial-gradient(24% 20% at 84% 78%, rgba(84, 68, 40, .38), transparent 76%),
-    repeating-linear-gradient(98deg, rgba(255, 255, 255, .045) 0 2px, transparent 2px 24px),
-    linear-gradient(180deg, rgba(0, 0, 0, .14), rgba(56, 42, 22, .34));
+  display: none;
 }
 
 .ci-wipe-glow,
@@ -451,12 +440,23 @@ body.ci-body {
   position: absolute;
   top: -10%;
   bottom: -10%;
-  transform: skewX(-12deg);
+  left: 0;
+  right: 0;
+  transform: translate3d(calc(var(--p, 1) * 118%), 0, 0) skewX(-12deg);
+  will-change: transform, opacity;
+  contain: paint;
   opacity: calc(1 - var(--p, 1) * var(--p, 1));
   pointer-events: none;
 }
-.ci-wipe-glow {
-  left: calc(var(--p, 1) * 118% - 14%);
+.ci-wipe-glow::before,
+.ci-wipe-edge::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.ci-wipe-glow::before {
+  left: -14%;
   width: 200px;
   background: linear-gradient(90deg,
     rgba(233, 69, 73, 0),
@@ -464,8 +464,8 @@ body.ci-body {
     rgba(255, 255, 255, .18) 80%,
     rgba(233, 69, 73, 0));
 }
-.ci-wipe-edge {
-  left: calc(var(--p, 1) * 118% - 6%);
+.ci-wipe-edge::before {
+  left: -6%;
   width: 1px;
   background: #fff3f3;
   box-shadow: 0 0 34px 10px rgba(233, 69, 73, .55);
@@ -1932,7 +1932,7 @@ body.ci-body {
   .ci-launch-tail,
   .ci-join-tail,
   .ci-cue-line { display: none; }
-  .ci-hero-dirty { clip-path: polygon(100% 0, 140% 0, 140% 100%, 100% 100%); }
+  .ci-hero-dirty { transform: translate3d(118%, 0, 0); }
   .ci-beat-box { opacity: .9; }
   .ci-join-eyebrow,
   .ci-join-l1,
