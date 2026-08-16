@@ -104,8 +104,12 @@ services:
         value: "false"
       - key: WORKER_AUTOMATIC_DISPATCH_ENABLED
         value: "true"
+      # Test checkout is an operator-controlled gate. Render already holds the
+      # test-only Stripe credentials, and the source adapter rejects live keys.
+      # Preserve the dashboard value instead of silently closing checkout on a
+      # later Blueprint sync.
       - key: PAYMENTS_ENABLED
-        value: "false"
+        sync: false
       - key: PUBLIC_PAYMENTS_APPROVED
         value: "false"
       - key: PAYMENT_ACCOUNT_VERIFIED
