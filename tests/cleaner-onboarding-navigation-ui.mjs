@@ -25,7 +25,8 @@ assert.doesNotMatch(sidebar, /setTimeout\(\(\) => location\.assign\(destination\
 assert.match(motion, /@view-transition\s*\{\s*navigation:\s*auto;/, "Cross-document transitions should be enabled");
 assert.match(motion, /view-transition-name:\s*hc-onboarding-selection/, "The selected sidebar surface should glide across pages");
 assert.match(motion, /view-transition-name:\s*hc-onboarding-content/, "Page content should swap without a visible refresh");
-assert.match(motion, /clip-path:\s*path\("M 93 0 V 112 C 84\.716 112 78 105\.284 78 97/, "The active tab should enter from the page seam with a rounded upper curve");
+assert.match(motion, /right:\s*-45px[^\n]*[\s\S]*width:\s*105px/, "The active tab should extend beyond the page seam without shifting its pill");
+assert.match(motion, /clip-path:\s*path\("M 105 0 V 112 C 90\.088 112 78 99\.912 78 85/, "The active tab should enter from beyond the page seam with a complete upper curve");
 assert.doesNotMatch(motion, /clip-path:\s*path\("M 78 0 H 93/, "The active tab must not leave a clipped square corner above the selected step");
 
 for (const [name, html] of Object.entries({ registration, documents, training, contracts })) {
@@ -37,6 +38,7 @@ assert.match(page, /silentInitialLoad = false/, "The access bootstrap should sup
 assert.match(page, /if \(!silentInitialLoad \|\| !initialLoad\)/, "The initial loading gate should be skipped only for opted-in pages");
 
 assert.match(registrationJs, /prepareRegistrationRouteShell\(\);[\s\S]*createCleanerPage\("reg"/, "The destination shell should be revealed before the access request starts");
+assert.match(registration, /<div data-registration-overview hidden>/, "The generic Complete registration overview must be hidden before the destination route is prepared");
 assert.match(registrationJs, /"\/cleaner\/banking", \["\[data-banking-topbar\]", "\[data-banking\]"\]/, "Banking navigation should reveal the banking shell immediately");
 assert.match(registrationJs, /\{ silentInitialLoad: true \}\);/, "Registration pages should run their first access check invisibly");
 
