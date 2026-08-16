@@ -14,7 +14,10 @@
     border-radius: 0 !important;
     background: #ffffff !important;
     box-shadow: none !important;
-    clip-path: path("M 78 0 H 93 V 112 H 78 C 78 94.327 63.673 80 46 80 H 24 C 10.745 80 0 69.255 0 56 C 0 42.745 10.745 32 24 32 H 46 C 63.673 32 78 17.673 78 0 Z") !important;
+    /* Start bending away from the rail sooner. This removes the short,
+       square-looking red block above and below the selected first step while
+       preserving the continuous white cut-out and its fixed icon position. */
+    clip-path: path("M 78 0 H 93 V 112 H 78 C 78 104 64 80 46 80 H 24 C 10.745 80 0 69.255 0 56 C 0 42.745 10.745 32 24 32 H 46 C 64 32 78 8 78 0 Z") !important;
     transform: translate3d(0, var(--liquid-y), 0) !important;
     transition: transform 820ms cubic-bezier(.22, .72, .18, 1) !important;
     animation: none !important;
