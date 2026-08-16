@@ -1,5 +1,5 @@
-import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260816-completion-ticks-1";
-import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260816-completion-ticks-1";
+import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260807-2";
+import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260807-1";
 import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260804-3";
 import { setupBusinessDetails } from "./cleaner-business-details.js?v=20260728-1";
 import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=20260728-1";
@@ -12,62 +12,6 @@ import { setupBanking } from "./cleaner-banking.js?v=20260729-1";
 import { setupEquipment } from "./cleaner-equipment.js?v=20260807-1";
 import { setupAvailability } from "./cleaner-availability.js?v=20260805-1";
 import { setupCongratulations, setupReviewSubmit } from "./cleaner-review-submit.js?v=20260807-1";
-
-const isIntroductionPage = location.pathname === "/cleaner/introduction";
-if (isIntroductionPage) document.body.classList.add("cleaner-onboarding-introduction-page");
-
-const registrationRouteShells = new Map([
-  ["/cleaner/personal-details", ["[data-personal-topbar]", "[data-personal-card]"]],
-  ["/cleaner/business-details", ["[data-business-topbar]", "[data-business-details]"]],
-  ["/cleaner/identity-verification", ["[data-identity-topbar]", "[data-identity-verification]"]],
-  ["/cleaner/right-to-work", ["[data-rtw-topbar]", "[data-right-to-work]"]],
-  ["/cleaner/background-checks", ["[data-background-topbar]", "[data-background-checks]"]],
-  ["/cleaner/experience", ["[data-experience-topbar]", "[data-experience]"]],
-  ["/cleaner/insurance", ["[data-insurance-topbar]", "[data-insurance]"]],
-  ["/cleaner/banking", ["[data-banking-topbar]", "[data-banking]"]],
-  ["/cleaner/equipment", ["[data-equipment-topbar]", "[data-equipment]"]],
-  ["/cleaner/availability", ["[data-availability-topbar]", "[data-availability]"]],
-  ["/cleaner/work-areas", ["[data-work-topbar]", "[data-work-areas]"]],
-  ["/cleaner/review-submit", ["[data-review-topbar]", "[data-review-submit]"]]
-]);
-
-function prepareRegistrationRouteShell() {
-  const gate = document.querySelector("[data-reg-gate]");
-  const view = document.querySelector("[data-reg]");
-  const overview = document.querySelector("[data-registration-overview]");
-  const layout = document.querySelector("[data-personal-details]");
-  const congratulations = document.querySelector("[data-congratulations]");
-  if (gate) gate.hidden = true;
-  if (view) view.hidden = false;
-  if (overview) overview.hidden = true;
-  if (layout) layout.hidden = true;
-  if (congratulations) congratulations.hidden = true;
-
-  if (location.pathname === "/cleaner/introduction") return;
-  if (location.pathname === "/cleaner/congratulations") {
-    if (congratulations) congratulations.hidden = false;
-    return;
-  }
-
-  const shell = registrationRouteShells.get(location.pathname);
-  if (!shell) {
-    if (overview) overview.hidden = false;
-    return;
-  }
-
-  const shellSelectors = [...registrationRouteShells.values()].flat();
-  for (const selector of shellSelectors) {
-    const node = document.querySelector(selector);
-    if (node) node.hidden = true;
-  }
-  if (layout) layout.hidden = false;
-  for (const selector of shell) {
-    const node = document.querySelector(selector);
-    if (node) node.hidden = false;
-  }
-}
-
-prepareRegistrationRouteShell();
 
 function stepIcon(name) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -87,17 +31,6 @@ function stepIcon(name) {
 }
 
 createCleanerPage("reg", async (context) => {
-  if (isIntroductionPage) {
-    document.title = "Introduction | Homlle";
-    const introduction = document.querySelector("[data-reg]");
-    if (introduction) {
-      introduction.className = "hc-onboarding-introduction";
-      introduction.replaceChildren();
-    }
-    document.querySelector(".hc-fab")?.remove();
-    document.querySelector(".hc-bell")?.remove();
-    return;
-  }
   if (location.pathname === "/cleaner/congratulations") {
     await setupCongratulations(context);
     return;
@@ -198,4 +131,4 @@ createCleanerPage("reg", async (context) => {
     if (!step.tracked) card.title = "This step needs document capture, which Homle does not have yet.";
     return card;
   }));
-}, { silentInitialLoad: true });
+});

@@ -21,6 +21,23 @@ function Test-SameOrChildPath([string]$Candidate, [string]$Parent) {
   return $Candidate.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
+function Get-Sha256Hex([string]$PathValue) {
+  # Use the framework directly instead of Get-FileHash. A parent process can
+  # prepend an incomplete Microsoft.PowerShell.Utility module to PSModulePath,
+  # making that cmdlet disappear even though file hashing is still available.
+  $stream = [System.IO.File]::OpenRead($PathValue)
+  try {
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try {
+      return ([System.BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace("-", "")
+    } finally {
+      $algorithm.Dispose()
+    }
+  } finally {
+    $stream.Dispose()
+  }
+}
+
 if (-not $DataDirectory) {
   $DataDirectory = if ($env:DATA_DIR) { $env:DATA_DIR } else { Join-Path $siteRoot "data" }
 }
@@ -101,7 +118,7 @@ foreach ($sourceFile in $sourceFiles) {
   $relativePath = $sourceFile.FullName.Substring($resolvedSource.Length).TrimStart([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
   $sourceSnapshot[$relativePath] = [PSCustomObject]@{
     Length = $sourceFile.Length
-    Hash = (Get-FileHash -LiteralPath $sourceFile.FullName -Algorithm SHA256).Hash
+    Hash = Get-Sha256Hex $sourceFile.FullName
   }
 }
 
@@ -129,8 +146,8 @@ foreach ($relativePath in $sourceSnapshot.Keys) {
 
   $expected = $sourceSnapshot[$relativePath]
   $currentSource = Get-Item -LiteralPath $sourcePath
-  $currentSourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash
-  $destinationHash = (Get-FileHash -LiteralPath $destinationPath -Algorithm SHA256).Hash
+  $currentSourceHash = Get-Sha256Hex $sourcePath
+  $destinationHash = Get-Sha256Hex $destinationPath
   if ($currentSource.Length -ne $expected.Length -or $currentSourceHash -ne $expected.Hash) {
     throw "Relocation verification failed: a source file changed during the copy. The source was not deleted; do not use this destination."
   }

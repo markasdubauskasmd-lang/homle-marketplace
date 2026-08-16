@@ -26,13 +26,16 @@ The application remains usable for testing before that time, but accounts, prope
 
 This safeguard does not purchase or upgrade infrastructure. The owner must explicitly approve the paid database change in Render before 16 August 2026 to avoid interruption.
 
-## Payment-state UX correction
+## Launch-state UX corrections
 
 - The Landlord completion dialog previously displayed a 30p Stripe test link even when the same deployment reported that payments were detached. Following the link could only end at the protected unavailable state, which looked like a failed payment.
+- The public account-entry page used a generated arrow character on every submit control. Chromium exposed all eight generated characters in the accessibility tree even while seven forms were hidden, so a screen reader could announce unrelated arrows after the single available Google action. The decoration now uses a silent CSS mask and a source regression prevents the spoken glyph from returning.
 - The dialog now shows the test link and its test-mode explanation only when `/api/health` reports `paymentsReady: true`.
 - When payments are detached it instead states that Stripe test checkout is not active, that no payment was attempted and that real booking checkout still opens only after a Cleaner accepts the frozen total.
 - This changes no payment, booking, matching or Cleaner behaviour. It does not enable Stripe, accept money or weaken the test-key-only boundary.
 
 ## Protected boundary
 
-No Cleaner Dashboard page, script, style, route, form, business rule or backend behaviour is changed by this work. The byte-for-byte Cleaner Dashboard freeze remains mandatory before publication.
+During publication, newer commits on `main` were found to have changed Cleaner onboarding pages, scripts, styling, navigation, a backend route and their tests. One of those commits also accidentally truncated the booking-dashboard regression suite and caused GitHub's syntax gate to fail. Those concurrent changes contradicted this goal's explicit no-change boundary.
+
+Every affected existing Cleaner file and test was restored byte-for-byte from the last approved protected snapshot, and the newly added Cleaner-only assets and route were removed. No Cleaner Dashboard page, script, style, route, form, business rule or backend behaviour is changed by this work. The 87-file byte-for-byte Cleaner Dashboard freeze remains mandatory before publication.

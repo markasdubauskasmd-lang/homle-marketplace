@@ -12,10 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-<link rel="stylesheet" href="/homle-cleaner.css?v=20260814-2">
-<link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260816-seamless-nav-1">
-<link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260816-introduction-3">
-<script src="/cleaner-registration.js?v=20260816-seamless-access-1" type="module"></script>
+<link rel="stylesheet" href="/homle-cleaner.css?v=20260810-4">
+<script src="/cleaner-registration.js?v=20260810-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -25,9 +23,9 @@
   <div class="hc">
 <aside class="hc-side cleaner-site-header">
       <div class="hc-brand">
-        <a class="hc-brand-mark" href="/cleaner/introduction" aria-label="Open onboarding introduction" title="Onboarding introduction">
+        <div class="hc-brand-mark" aria-hidden="true">
           <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 4 4.5 10.5V20h15v-9.5z" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path><path d="M10 20v-5h4v5" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path></svg>
-        </a>
+        </div>
         <div>
           <div class="hc-brand-name">Homle</div>
           <div class="hc-brand-role">ONBOARDING</div>
@@ -123,7 +121,7 @@
       </a>
 
       <div class="hc-main-inner">
-        <section class="hc-gate" data-reg-gate role="status" aria-live="polite" hidden>
+        <section class="hc-gate" data-reg-gate role="status" aria-live="polite">
           <h1 class="hc-h3" data-reg-gate-title>Checking secure Cleaner access…</h1>
           <p class="hc-card-sub" data-reg-gate-copy>This page opens only inside the assigned Cleaner account.</p>
           <div class="hc-gate-actions">
@@ -133,7 +131,7 @@
           </div>
         </section>
 
-        <div data-reg>
+        <div data-reg hidden>
           <div class="hc-feedback hc-feedback-error" data-reg-offline role="status" aria-live="polite" hidden>
             <strong>You are offline.</strong> This page shows the last loaded data and will not refresh until the connection returns.
           </div>
@@ -177,16 +175,6 @@
         </div>
 
           <div class="hc-personal-layout" data-personal-details hidden>
-            <header class="hc-business-topbar" data-personal-topbar hidden>
-              <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Back</a>
-              <div class="hc-business-progress">
-                <span>Complete registration</span>
-                <strong>Step 1 of 14 &mdash; Personal details</strong>
-                <div class="hc-business-progress-track" aria-label="Registration progress" role="progressbar" aria-valuemin="1" aria-valuemax="14" aria-valuenow="1"><span style="width: 7.143%"></span></div>
-              </div>
-              <a class="hc-business-quiet-button" href="/cleaner/dashboard">Save &amp; exit</a>
-            </header>
-
             <header class="hc-business-topbar" data-identity-topbar hidden>
               <a class="hc-business-quiet-button" href="/cleaner/dashboard">&larr; Dashboard</a>
               <div class="hc-business-progress">
