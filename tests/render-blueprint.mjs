@@ -11,7 +11,8 @@ assert.match(blueprint, /^\s+databaseName: homle_marketplace_homle_staging\s*$/m
 assert.match(blueprint, /^\s+user: homle_migration_owner\s*$/m, "Staging database must use a distinct migration owner.");
 assert.match(blueprint, /^\s+postgresMajorVersion: "16"\s*$/m, "Staging database must use the tested PostgreSQL 16 boundary.");
 assert.match(blueprint, /^\s+ipAllowList: \[\]\s*$/m, "Staging database must reject public network connections.");
-assert.equal((blueprint.match(/^\s+plan: free\s*$/gm) || []).length, 2, "Only the approved free web and free database plans may be created.");
+assert.equal((blueprint.match(/^\s+plan: free\s*$/gm) || []).length, 1, "Only the approved free web plan may remain.");
+assert.equal((blueprint.match(/^\s+plan: basic_256mb\s*$/gm) || []).length, 1, "The staging database must retain its durable basic_256mb plan.");
 assert.equal((blueprint.match(/^\s+region: frankfurt\s*$/gm) || []).length, 2, "Web and database resources must share the Frankfurt region.");
 assert.doesNotMatch(blueprint, /^\s*envVarGroups:\s*$/m, "Staging Blueprint must not create a shared secret group.");
 assert.doesNotMatch(blueprint, /^\s+- type: (?:worker|cron|pserv)\s*$/m, "Preview Blueprint must not create a paid or background service.");
@@ -48,6 +49,7 @@ assert.equal(environmentEntry("AUTHENTICATION_ENABLED"), 'value: "true"', "Appro
 assert.equal(environmentEntry("APP_ORIGIN"), 'value: "https://homlle.com"', "APP_ORIGIN must match the connected canonical HTTPS domain without a manual secret step.");
 assert.equal(environmentEntry("RENDER_STAGING_BOOTSTRAP_ENABLED"), 'value: "true"', "The staging database bootstrap must require an explicit deployment flag.");
 assert.equal(environmentEntry("RENDER_STAGING_BASELINE_MIGRATION_COUNT"), 'value: "45"', "The existing staging schema must establish its one-time locked migration baseline before applying upgrades.");
+assert.equal(environmentEntry("DATABASE_EXPIRES_AT"), "", "The durable staging database must not retain the obsolete free-plan expiry marker.");
 assert.equal(environmentEntry("STAGING_ACCOUNTS_ONLY"), 'value: "true"', "The public preview must deny all account creation until approved email fingerprints are added privately.");
 assert.equal(environmentEntry("STAGING_ACCOUNT_EMAIL_SHA256"), "", "Approved staging email fingerprints must not be committed to the Blueprint.");
 assert.equal(environmentEntry("ADMIN_KEY"), "generateValue: true", "The preview Administrator key must be generated, not committed.");
@@ -67,4 +69,4 @@ for (const secret of ["DATABASE_URL", "REALTIME_DATABASE_URL", "SMTP_URL", "GOOG
 }
 assert.match(blueprint, /^\s+- key: DATABASE_BOOTSTRAP_URL\s*\r?\n\s+fromDatabase:\s*\r?\n\s+name: homle-marketplace-staging-db\s*\r?\n\s+property: connectionString\s*$/m, "The guarded bootstrap does not use Render's private database connection reference.");
 
-console.log("Render Blueprint tests passed: one free Docker web service plus one isolated free PostgreSQL 16 staging database, guarded one-time schema bootstrap, operator-owned staging activation/providers, one explicitly authorised inline automatic-matching worker, no paid worker/disk/domain, generated secrets and all public marketplace/payment capabilities closed.");
+console.log("Render Blueprint tests passed: one free Docker web service plus one isolated durable basic_256mb PostgreSQL 16 staging database, guarded one-time schema bootstrap, operator-owned staging activation/providers, one explicitly authorised inline automatic-matching worker, no paid worker/disk/domain, generated secrets and all public marketplace/payment capabilities closed.");

@@ -1,6 +1,6 @@
-# Safe Render staging foundation. The owner approved one free PostgreSQL staging
-# database for real account and mobile-flow testing. Marketplace traffic remains
-# closed until the database is bootstrapped and every private dependency passes.
+# Safe Render staging foundation. The connected PostgreSQL staging database now
+# uses Render's durable basic_256mb plan. Marketplace traffic remains closed until
+# the database is bootstrapped and every private dependency passes.
 services:
   - type: web
     name: homle-marketplace-preview
@@ -32,10 +32,6 @@ services:
         fromDatabase:
           name: homle-marketplace-staging-db
           property: connectionString
-      # Required while the attached database has a provider-enforced expiry.
-      # Remove it only after moving to durable managed storage.
-      - key: DATABASE_EXPIRES_AT
-        sync: false
       - key: TIDEWAY_APP_PASSWORD
         generateValue: true
       - key: TIDEWAY_WORKER_PASSWORD
@@ -119,7 +115,7 @@ services:
 
 databases:
   - name: homle-marketplace-staging-db
-    plan: free
+    plan: basic_256mb
     region: frankfurt
     postgresMajorVersion: "16"
     databaseName: homle_marketplace_homle_staging
