@@ -87,12 +87,21 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
 }
 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand-mark {
+  display: grid;
+  place-items: center;
   width: 46px;
   height: 54px;
   border: 0;
   border-radius: 0;
-  background: url("/homlle-onboarding-logo.png?v=20260816-2") center / 44px 44px no-repeat;
+  background: url("/homlle-onboarding-logo.png?v=20260816-2") center / 46px 42px no-repeat;
   box-shadow: none;
+  color: #fff;
+  text-decoration: none;
+}
+
+body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand-mark:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
 }
 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand-logo {

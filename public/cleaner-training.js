@@ -1,4 +1,4 @@
-import { createCleanerPage, element } from "./cleaner-page.js?v=20260729-6";
+import { createCleanerPage, element } from "./cleaner-page.js?v=20260816-1";
 
 const trainingModules = [
   { category: "Required", lessons: 6, minutes: 45, title: "COSHH — safe use of chemicals", description: "Labels, dilution, storage and what to do after a spill. Required before commercial contracts." },

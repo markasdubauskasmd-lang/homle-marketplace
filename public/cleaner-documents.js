@@ -1,4 +1,4 @@
-import { createCleanerPage, element } from "./cleaner-page.js?v=20260729-6";
+import { createCleanerPage, element } from "./cleaner-page.js?v=20260816-1";
 import { uploadOnboardingDocument, validateOnboardingDocument } from "./cleaner-onboarding-documents.js?v=20260805-1";
 import { saveCsrf, storedCsrf } from "./session-csrf.js";
 

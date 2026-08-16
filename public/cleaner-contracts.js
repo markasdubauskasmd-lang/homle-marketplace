@@ -1,4 +1,4 @@
-import { createCleanerPage, element } from "./cleaner-page.js?v=20260729-6";
+import { createCleanerPage, element } from "./cleaner-page.js?v=20260816-1";
 
 const agreements = [
   { title: "GDPR consent", href: "/privacy", status: "Review available", tone: "available" },

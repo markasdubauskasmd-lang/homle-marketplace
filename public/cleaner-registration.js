@@ -1,5 +1,5 @@
 import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260807-2";
-import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260807-1";
+import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260816-1";
 import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260804-3";
 import { setupBusinessDetails } from "./cleaner-business-details.js?v=20260728-1";
 import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=20260728-1";
@@ -31,6 +31,17 @@ function stepIcon(name) {
 }
 
 createCleanerPage("reg", async (context) => {
+  if (location.pathname === "/cleaner/introduction") {
+    document.title = "Introduction | Homlle";
+    const introduction = document.querySelector("[data-reg]");
+    if (introduction) {
+      introduction.className = "hc-onboarding-introduction";
+      introduction.replaceChildren();
+    }
+    document.querySelector(".hc-fab")?.remove();
+    document.querySelector(".hc-bell")?.remove();
+    return;
+  }
   if (location.pathname === "/cleaner/congratulations") {
     await setupCongratulations(context);
     return;
