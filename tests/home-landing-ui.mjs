@@ -6,7 +6,7 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 const [page, css, script, homeScript, server] = await Promise.all([
   readFile(new URL("../public/home.html", import.meta.url), "utf8"),
   readFile(new URL("../public/landing-1b980c00.css", import.meta.url), "utf8"),
-  readFile(new URL("../public/landing-45b7fb42.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/landing-749f364a.js", import.meta.url), "utf8"),
   readFile(new URL("../public/home.js", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8")
 ]);
@@ -36,7 +36,7 @@ for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", 
 
 /* ── The design is actually wired in ────────────────── */
 
-assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-1b980c00.css"') && page.includes('src="/landing-45b7fb42.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
+assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-1b980c00.css"') && page.includes('src="/landing-749f364a.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
 assert(page.includes('<link rel="sitemap" type="application/xml" href="/sitemap.xml">'), "The public landing page does not advertise Homlle's canonical sitemap.");
 assert(page.includes('<link rel="canonical" href="https://homlle.com/">') && page.includes('<meta property="og:url" content="https://homlle.com/">'), "The public landing page does not declare the exact canonical production URL.");
 for (const metadata of [
@@ -58,8 +58,8 @@ for (const metadata of [
 assert(!page.includes("onrender.com"), "The public landing metadata exposes the infrastructure preview hostname.");
 assert(!page.includes('/landing.css?') && !page.includes('/landing.js?'), "The landing page regressed to stable code URLs that must be revalidated on every visit.");
 assert(createHash("sha256").update(css).digest("hex") === "1b980c009606b254e3d1e94c79c92beeb4e5cf5c67fb0d876dca2bfae1d3b3d7", "The landing stylesheet changed without receiving a new content-addressed filename.");
-assert(createHash("sha256").update(script).digest("hex") === "45b7fb425d7b2a10f219e4fb67f96a0f3ed66bdcd343dbbdd14f4dcd897456be", "The landing animation script changed without receiving a new content-addressed filename.");
-assert(server.includes('"/landing-1b980c00.css"') && server.includes('"/landing-45b7fb42.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
+assert(createHash("sha256").update(script).digest("hex") === "749f364a894be505f287719a2f08e7b5b54b79a6484a3b1020244b3c63d66003", "The landing animation script changed without receiving a new content-addressed filename.");
+assert(server.includes('"/landing-1b980c00.css"') && server.includes('"/landing-749f364a.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
 assert(page.includes("data-phone-source") && script.includes("this.phoneSource") && script.includes("ANGLE_WEBP"), "The phone view cannot update its visible WebP source as the scan story changes angle.");
 assert(page.includes('src="/home.js?v=20260729-1"') && page.includes('src="/account-menu.js?v=20260729-1"'), "The landing page still advertises stale shared or account-menu assets, so browsers can miss the latest navigation.");
 
@@ -213,6 +213,7 @@ assert(/@media \(prefers-reduced-motion: reduce\)/.test(css) && /animation: none
 // the write half would thrash layout on every scroll event.
 assert(script.includes("/* ---- read phase: rects only ---- */") && script.includes("/* ---- write phase ---- */"), "The scroll frame no longer separates its layout reads from its style writes.");
 assert(script.includes("if (moving) this.raf = requestAnimationFrame(this.frame);"), "The scroll loop no longer stops itself when nothing is moving.");
+assert(script.includes('if (o.kind === "open") cur = target;'), "The opening reveal once again trails behind wheel and trackpad input instead of tracking the current scroll position.");
 assert(!script.includes("14 * (1 - t)") && script.includes("this.lastSquare !== square"), "The growing hero animates its rounded clip every frame instead of changing it once before full bleed.");
 assert(css.includes("transform: translate3d(calc(var(--p, 1) * 118%), 0, 0)") && !css.includes("will-change: clip-path") && !css.includes("filter: saturate(.62) brightness(.8)"), "The opening wipe is not confined to compositor transforms.");
 

@@ -66,6 +66,30 @@ try {
     await browser.goto(`${server.origin}/home.html`);
     await browser.evaluate(`await new Promise((resolve) => setTimeout(resolve, 1500)); return true;`);
 
+    // Frame timing alone cannot detect an intentionally delayed animation. The
+    // old reveal held 60fps while following only 13% of a wheel movement per
+    // frame, so it looked laggy despite passing every timing assertion. Move
+    // through the opening act and require its CSS progress to meet the actual
+    // scroll position by the next painted frame.
+    const response = await browser.evaluate(`
+      const hero = document.querySelector('[data-stage="open"]');
+      const travel = Math.max(1, hero.offsetHeight - window.innerHeight);
+      window.scrollTo(0, Math.round(travel * 0.41));
+      window.dispatchEvent(new Event("scroll"));
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      // The page uses native smooth scrolling for anchor navigation, so compare
+      // against the browser's current position rather than the requested final
+      // position while that native movement is still in flight.
+      const position = Math.max(0, Math.min(1, -hero.getBoundingClientRect().top / travel));
+      const expected = Math.min(1, position / 0.82);
+      return {
+        expected,
+        actual: Number(hero.style.getPropertyValue("--p"))
+      };
+    `);
+    assert(Math.abs(response.actual - response.expected) <= 0.03,
+      `${viewport.label}: the opening reveal trails the scroll position (${response.actual} vs ${response.expected}), so smooth frames still feel laggy.`);
+
     const result = await browser.evaluate(measureHero);
     readings.push(`${viewport.label} median ${result.median}ms, p90 ${result.p90}ms, ${result.over32}/${result.frames} over 32ms`);
     assert(result.frames > 100, `${viewport.label}: only ${result.frames} hero frames were sampled.`);

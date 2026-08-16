@@ -185,7 +185,14 @@ class Cinematic {
       });
     }
 
-    /* ---- ease toward the scroll position, frame-rate independent, so it glides ---- */
+    /* ---- map the opening reveal directly; ease the later cinematic acts ----
+
+       The opening room used to inherit the same trailing ease as the long room
+       walk. That still rendered at 60fps, but it only moved 13% toward a new
+       wheel/trackpad position per frame. The result felt sticky because the
+       first slide visibly continued moving after the user's hand had stopped.
+       Keep the authored easing for the later storytelling acts, while making
+       the first interaction answer the current scroll position immediately. */
     const now = performance.now();
     const dt = Math.min(64, Math.max(8, now - (this.t0 || now - 16.7)));
     this.t0 = now;
@@ -194,7 +201,8 @@ class Cinematic {
     for (const o of reads) {
       const target = o.kind === "open" ? Math.min(1, o.p / 0.82) : o.p;
       let cur = this.cur[o.kind];
-      if (cur == null || !o.near) cur = target;
+      if (o.kind === "open") cur = target;
+      else if (cur == null || !o.near) cur = target;
       else {
         cur += (target - cur) * k;
         if (Math.abs(target - cur) < 0.0004) cur = target; else moving = true;
