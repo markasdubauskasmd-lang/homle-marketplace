@@ -13,6 +13,9 @@ import { setupEquipment } from "./cleaner-equipment.js?v=20260807-1";
 import { setupAvailability } from "./cleaner-availability.js?v=20260805-1";
 import { setupCongratulations, setupReviewSubmit } from "./cleaner-review-submit.js?v=20260807-1";
 
+const isIntroductionPage = location.pathname === "/cleaner/introduction";
+if (isIntroductionPage) document.body.classList.add("cleaner-onboarding-introduction-page");
+
 function stepIcon(name) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
   path.setAttribute("d", onboardingIcons[name] || onboardingIcons.folder);
@@ -31,7 +34,7 @@ function stepIcon(name) {
 }
 
 createCleanerPage("reg", async (context) => {
-  if (location.pathname === "/cleaner/introduction") {
+  if (isIntroductionPage) {
     document.title = "Introduction | Homlle";
     const introduction = document.querySelector("[data-reg]");
     if (introduction) {

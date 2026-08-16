@@ -289,6 +289,12 @@ body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liquid-in
   transition: none;
 }
 
+/* The logo opens a neutral introduction screen, before any onboarding step is active. */
+body.cleaner-onboarding-introduction-page .hc-preview-liquid-indicator[data-preview-liquid-indicator],
+body.cleaner-onboarding-introduction-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-nav-tick {
+  display: none !important;
+}
+
 body.cleaner-onboarding-page .hc-bell {
   top: 20px;
   right: 24px;
