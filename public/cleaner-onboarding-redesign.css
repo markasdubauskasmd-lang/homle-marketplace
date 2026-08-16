@@ -91,17 +91,12 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
   height: 54px;
   border: 0;
   border-radius: 0;
-  background: transparent;
+  background: url("/homlle-onboarding-logo.svg?v=20260816-1") center / 42px 42px no-repeat;
   box-shadow: none;
 }
 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand-logo {
-  display: block;
-  width: 42px;
-  height: 42px;
-  color: #fff;
-  overflow: visible;
-  shape-rendering: geometricPrecision;
+  display: none;
 }
 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand > div:last-child {
