@@ -8,7 +8,7 @@ await import(`${pathToFileURL(path.join(root, "public", "readiness-navigator.js"
 const navigator = globalThis.TidewayReadinessNavigator;
 
 const readiness = {
-  checks: { identity: false, contact: false, pilotArea: true, economics: false, insurance: false, payments: false, operatingRules: false },
+  checks: { identity: false, contact: false, pilotArea: true, economics: false, insurance: false, payments: false, participantRehearsal: false, operatingRules: false },
   missing: {
     identity: ["legal owner name", "business structure"],
     contact: ["valid support email", "valid public HTTPS website origin"],
@@ -16,13 +16,14 @@ const readiness = {
     economics: ["positive customer hourly rate", "founder contribution-margin floor", "founder minimum contribution per booking", "conservative travel distance for distance-based pricing"],
     insurance: ["insurance marked active and verified"],
     payments: ["payment provider marked live and verified"],
+    participantRehearsal: ["two-account mobile booking and payment rehearsal"],
     operatingRules: ["decided cleaner engagement model"]
   },
   next: { key: "identity", label: "Legal identity", missing: ["legal owner name", "business structure"] }
 };
 const unchanged = JSON.stringify(readiness);
 const model = navigator.navigationModel(readiness);
-assert.equal(model.areas.length, 7);
+assert.equal(model.areas.length, 8);
 assert.deepEqual(model.nextTarget, { label: "legal owner name", fieldName: "legalOwnerName" });
 assert.deepEqual(model.areas.find((area) => area.key === "economics")?.target, { label: "positive customer hourly rate", fieldName: "customerHourlyRate" });
 assert.equal(model.areas.find((area) => area.key === "pilotArea")?.target, null);
@@ -37,8 +38,8 @@ const [adminHtml, adminJs] = await Promise.all([
 ]);
 const formNames = new Set([...adminHtml.matchAll(/\bname="([A-Za-z0-9]+)"/g)].map((match) => match[1]));
 for (const fieldName of new Set(Object.values(navigator.requirementFields))) assert(formNames.has(fieldName), `Mapped readiness field is missing from the setup form: ${fieldName}`);
-assert.equal((adminHtml.match(/data-readiness-action/g) || []).length, 7);
-assert.equal((adminHtml.match(/data-readiness-action type="button"/g) || []).length, 7);
+assert.equal((adminHtml.match(/data-readiness-action/g) || []).length, 8);
+assert.equal((adminHtml.match(/data-readiness-action type="button"/g) || []).length, 8);
 assert(adminJs.includes("focusReadinessRequirement") && adminJs.includes("areaButton.onclick"));
 assert(!adminJs.includes("form.requestSubmit") && !adminJs.includes("form.submit()"), "Readiness navigation must never submit founder decisions automatically.");
 

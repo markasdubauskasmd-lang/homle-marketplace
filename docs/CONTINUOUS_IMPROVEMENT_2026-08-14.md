@@ -46,6 +46,22 @@ The Blueprint now declares `PAYMENTS_ENABLED` as `sync: false`. This keeps check
 - a real booking checkout still opens only after an eligible Cleaner accepts the exact frozen scope, time and total;
 - no capture, refund, transfer or public payment launch was performed by this activation.
 
+## Scroll reveal performance verified
+
+The landing-page hero reveal now follows one compositor-friendly scroll path rather than repeatedly recalculating expensive visual work. The real browser performance harness measured the hero and full-page journey on desktop and phone at a 16.7 ms median and 90th percentile frame interval, with no frame above 32 ms in 118 hero frames or 178 full-page frames. Reduced-motion behaviour remains available.
+
+## Participant rehearsal is now a launch gate
+
+The Administrator launch desk previously kept the final two-account mobile rehearsal only in explanatory copy. That meant the recorded business-readiness score could reach complete even when no Landlord-to-Cleaner, Stripe-test journey had been evidenced.
+
+Business readiness now has an eighth, separate participant-rehearsal area. It stays incomplete until the operator records all three pieces of privacy-safe evidence:
+
+- the complete non-customer Landlord and Cleaner journey passed on two devices;
+- a summary of at least 40 characters records the stages and device/browser classes without identities, provider references, card data or secrets;
+- the evidence has a valid verification date no later than today.
+
+The form rejects a checked “passed” claim with vague or missing evidence and rejects future dates. This evidence does not enable accounts, contact users, move money or substitute for the rehearsal itself; it prevents technical service attachment from being mistaken for launch proof.
+
 ## Protected boundary
 
 During publication, newer commits on `main` were found to have changed Cleaner onboarding pages, scripts, styling, navigation, a backend route and their tests. One of those commits also accidentally truncated the booking-dashboard regression suite and caused GitHub's syntax gate to fail. Those concurrent changes contradicted this goal's explicit no-change boundary.

@@ -260,7 +260,7 @@ function renderReadiness(readiness) {
   guidance.classList.toggle("readiness-next-complete", readiness.ready);
   guidance.textContent = readiness.next
     ? `Next required decision — ${readiness.next.label}: ${readiness.next.missing.join(", ")}. Do not guess or use placeholder claims.`
-    : "All seven recorded readiness areas are complete. Public launch, outreach and payment still require the founder's explicit approval.";
+    : "All eight recorded readiness areas are complete. Public launch, outreach and real-money payment still require the founder's explicit approval.";
   const continueButton = document.querySelector("#readiness-continue");
   nextReadinessRequirement = navigation.nextTarget;
   continueButton.hidden = !nextReadinessRequirement;
@@ -2564,11 +2564,11 @@ function renderConfigPreview(result, valid) {
   const title = configPreviewPanel.querySelector("[data-config-preview-title]");
   const summary = configPreviewPanel.querySelector("[data-config-preview-summary]");
   const list = configPreviewPanel.querySelector("[data-config-preview-list]");
-  const areaLabels = { identity: "Legal identity", contact: "Contact and public site", pilotArea: "Pilot area", economics: "Pricing and pay", insurance: "Insurance evidence", payments: "Payment readiness", operatingRules: "Operating rules" };
+  const areaLabels = { identity: "Legal identity", contact: "Contact and public site", pilotArea: "Pilot area", economics: "Pricing and pay", insurance: "Insurance evidence", payments: "Payment readiness", participantRehearsal: "Participant rehearsal", operatingRules: "Operating rules" };
   configPreviewPanel.classList.toggle("config-preview-invalid", !valid);
   title.textContent = valid ? `${result.readiness.completed} of ${result.readiness.total} areas would be ready` : "Readiness rehearsal found invalid inputs";
   summary.textContent = valid
-    ? (result.readiness.ready ? "All seven areas pass the current rules, but nothing has been saved or approved for launch." : "Nothing has been saved. Complete the items below before relying on these settings.")
+    ? (result.readiness.ready ? "All eight areas pass the current rules, but nothing has been saved or approved for launch." : "Nothing has been saved. Complete the items below before relying on these settings.")
     : "Nothing has been saved. Correct these validation errors before checking readiness again.";
   const entries = valid
     ? Object.entries(result.readiness.missing || {}).filter(([, missing]) => missing.length).map(([key, missing]) => `${areaLabels[key] || key}: ${missing.join(", ")}`)
