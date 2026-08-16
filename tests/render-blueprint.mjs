@@ -36,13 +36,13 @@ function environmentEntry(key) {
   return match?.[1] || "";
 }
 
-for (const key of ["PILOT_INTAKE_ENABLED", "PUBLIC_MARKETPLACE_APPROVED", "LEGAL_BUSINESS_READY", "INSURANCE_READY", "CLEANER_SUPPLY_READY", "PRICING_POLICY_APPROVED", "CUSTOMER_SUPPORT_READY", "CUSTOMER_TERMS_READY", "WORKER_EMAIL_ENABLED", "WORKER_MEDIA_ENABLED", "PAYMENTS_ENABLED", "PUBLIC_PAYMENTS_APPROVED", "PAYMENT_ACCOUNT_VERIFIED", "REFUND_PROCESS_READY"]) {
+for (const key of ["PILOT_INTAKE_ENABLED", "PUBLIC_MARKETPLACE_APPROVED", "LEGAL_BUSINESS_READY", "INSURANCE_READY", "CLEANER_SUPPLY_READY", "PRICING_POLICY_APPROVED", "CUSTOMER_SUPPORT_READY", "CUSTOMER_TERMS_READY", "WORKER_EMAIL_ENABLED", "WORKER_MEDIA_ENABLED", "PUBLIC_PAYMENTS_APPROVED", "PAYMENT_ACCOUNT_VERIFIED", "REFUND_PROCESS_READY"]) {
   assert.equal(environmentEntry(key), "value: \"false\"", `${key} must be explicitly false in the preview Blueprint.`);
 }
 for (const key of ["MARKETPLACE_INLINE_WORKERS", "MARKETPLACE_WORKER_ENABLED", "WORKER_AUTOMATIC_DISPATCH_ENABLED"]) {
   assert.equal(environmentEntry(key), 'value: "true"', `${key} must keep the explicitly authorised single-service automatic matching worker active.`);
 }
-for (const key of ["MARKETPLACE_ENABLED", "MAP_PROVIDER", "GEOCODING_PROVIDER", "ADDRESS_LOOKUP_PROVIDER", "ETA_PROVIDER"]) {
+for (const key of ["MARKETPLACE_ENABLED", "PAYMENTS_ENABLED", "MAP_PROVIDER", "GEOCODING_PROVIDER", "ADDRESS_LOOKUP_PROVIDER", "ETA_PROVIDER"]) {
   assert.equal(environmentEntry(key), "sync: false", `${key} must preserve the existing Render service value during Blueprint sync.`);
 }
 assert.equal(environmentEntry("AUTHENTICATION_ENABLED"), 'value: "true"', "Approved staging accounts must be able to create and access private profiles in the preview.");

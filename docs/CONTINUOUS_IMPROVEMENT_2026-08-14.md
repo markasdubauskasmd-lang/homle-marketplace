@@ -2,10 +2,10 @@
 
 ## Production evidence reviewed
 
-- The live custom domain serves packaged release `df2eadd2` with 98 locked migrations.
+- The live custom domain serves packaged release `570368b0` with 98 locked migrations.
 - Database integrity is healthy and writes are currently allowed.
 - Authentication, private media, real-time updates, postcode geocoding, pricing and matching, automatic dispatch, speech summarisation and room vision all report ready.
-- Stripe currently reports detached (`paymentsReady: false`). `render.yaml` deliberately keeps `PAYMENTS_ENABLED=false`, the source adapter is test-mode-only, and no payment should be advertised as available until the protected server capability reports ready.
+- Stripe test checkout now reports attached (`paymentsReady: true`) for approved staging accounts. The source adapter rejects live Stripe keys, public payment approvals remain false, and no real-money payment mode has been enabled.
 - Transactional email remains unavailable. This blocks password-recovery and off-site notification delivery until a verified sender and provider credential are supplied.
 - Address autocomplete remains optional and unavailable; manual protected address entry still works.
 - The only application error in the previous 24 hours was an expected same-origin rejection. The 503 request pattern was automated WordPress and crawler traffic, not a Homle customer API failure.
@@ -33,6 +33,18 @@ This repository correction does not purchase or upgrade infrastructure; it recor
 - The dialog now shows the test link and its test-mode explanation only when `/api/health` reports `paymentsReady: true`.
 - When payments are detached it instead states that Stripe test checkout is not active, that no payment was attempted and that real booking checkout still opens only after a Cleaner accepts the frozen total.
 - This changes no payment, booking, matching or Cleaner behaviour. It does not enable Stripe, accept money or weaken the test-key-only boundary.
+
+## Stripe test checkout activated
+
+On 16 August 2026, the existing Render Stripe test credentials were activated through the explicit `PAYMENTS_ENABLED` operator gate. The replacement deployment reached `live`, `/api/health` reported `paymentsReady: true`, marketplace readiness remained healthy and all 98 migrations remained verified.
+
+The Blueprint now declares `PAYMENTS_ENABLED` as `sync: false`. This keeps checkout under Render operator control and prevents a future Blueprint sync from silently replacing the verified dashboard value with a source default. The following boundaries remain unchanged:
+
+- the Stripe adapter accepts only `sk_test_` and `pk_test_` credentials and rejects live keys;
+- staging-account restriction remains enabled;
+- public marketplace and public payment approval flags remain false;
+- a real booking checkout still opens only after an eligible Cleaner accepts the exact frozen scope, time and total;
+- no capture, refund, transfer or public payment launch was performed by this activation.
 
 ## Protected boundary
 
