@@ -50,6 +50,14 @@ The Blueprint now declares `PAYMENTS_ENABLED` as `sync: false`. This keeps check
 
 The landing-page hero reveal now follows one compositor-friendly scroll path rather than repeatedly recalculating expensive visual work. The real browser performance harness measured the hero and full-page journey on desktop and phone at a 16.7 ms median and 90th percentile frame interval, with no frame above 32 ms in 118 hero frames or 178 full-page frames. Reduced-motion behaviour remains available.
 
+The opening reveal still inherited the later acts' cinematic trailing ease. It
+therefore rendered smooth frames while moving only 13% toward fresh wheel or
+trackpad input on each frame, which made the slide feel delayed. The opening
+act now maps directly to the browser's current scroll position; the later room
+walk and storytelling acts retain their authored easing. The browser test now
+checks scroll-response latency as well as frame timing so a smooth-but-late
+regression cannot pass unnoticed.
+
 ## Participant rehearsal is now a launch gate
 
 The Administrator launch desk previously kept the final two-account mobile rehearsal only in explanatory copy. That meant the recorded business-readiness score could reach complete even when no Landlord-to-Cleaner, Stripe-test journey had been evidenced.
