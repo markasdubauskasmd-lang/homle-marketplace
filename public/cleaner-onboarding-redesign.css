@@ -279,7 +279,7 @@ body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liquid-in
   height: 112px;
   pointer-events: none;
   background: #fff;
-  clip-path: path("M 78 0 H 93 V 112 H 78 C 78 94.327 63.673 80 46 80 H 24 C 10.745 80 0 69.255 0 56 C 0 42.745 10.745 32 24 32 H 46 C 63.673 32 78 17.673 78 0 Z");
+  clip-path: path("M 93 0 V 112 C 84.716 112 78 105.284 78 97 C 78 87.611 70.389 80 61 80 H 24 C 10.745 80 0 69.255 0 56 C 0 42.745 10.745 32 24 32 H 61 C 70.389 32 78 24.389 78 15 C 78 6.716 84.716 0 93 0 Z");
   transform: translate3d(0, var(--liquid-y), 0);
   transition: transform var(--hc-liquid-duration) var(--hc-liquid-ease);
   will-change: transform;

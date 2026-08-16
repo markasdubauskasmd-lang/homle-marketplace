@@ -1,4 +1,4 @@
-import { createCleanerPage, element } from "./cleaner-page.js?v=20260816-2";
+import { createCleanerPage, element } from "./cleaner-page.js?v=20260816-seamless-access-1";
 
 const agreements = [
   { title: "GDPR consent", href: "/privacy", status: "Review available", tone: "available" },
@@ -56,4 +56,4 @@ createCleanerPage("contracts", async ({ account, showFeedback }) => {
     showFeedback("Contract signing is not connected yet. Nothing was signed, stored, time-stamped, emailed or logged.", "error");
     document.querySelector("[data-contracts-feedback]")?.focus();
   });
-});
+}, { silentInitialLoad: true });

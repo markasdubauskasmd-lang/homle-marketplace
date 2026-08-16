@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="/homle-cleaner.css?v=20260814-2">
 <link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260816-seamless-nav-1">
 <link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260816-introduction-3">
-<script src="/cleaner-registration.js?v=20260816-introduction-2" type="module"></script>
+<script src="/cleaner-registration.js?v=20260816-seamless-access-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -123,7 +123,7 @@
       </a>
 
       <div class="hc-main-inner">
-        <section class="hc-gate" data-reg-gate role="status" aria-live="polite">
+        <section class="hc-gate" data-reg-gate role="status" aria-live="polite" hidden>
           <h1 class="hc-h3" data-reg-gate-title>Checking secure Cleaner access…</h1>
           <p class="hc-card-sub" data-reg-gate-copy>This page opens only inside the assigned Cleaner account.</p>
           <div class="hc-gate-actions">
@@ -133,7 +133,7 @@
           </div>
         </section>
 
-        <div data-reg hidden>
+        <div data-reg>
           <div class="hc-feedback hc-feedback-error" data-reg-offline role="status" aria-live="polite" hidden>
             <strong>You are offline.</strong> This page shows the last loaded data and will not refresh until the connection returns.
           </div>

@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="/homle-cleaner.css?v=20260814-2">
   <link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260816-seamless-nav-1">
   <link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260816-introduction-1">
-  <script src="/cleaner-documents.js?v=20260816-introduction-1" type="module"></script>
+  <script src="/cleaner-documents.js?v=20260816-seamless-access-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -112,7 +112,7 @@
       </a>
 
       <div class="hc-main-inner">
-        <section class="hc-gate" data-documents-gate role="status" aria-live="polite">
+        <section class="hc-gate" data-documents-gate role="status" aria-live="polite" hidden>
           <h1 class="hc-h3" data-documents-gate-title>Checking secure Cleaner access…</h1>
           <p class="hc-card-sub" data-documents-gate-copy>Your document centre opens only inside the assigned Cleaner account.</p>
           <div class="hc-gate-actions">
@@ -121,7 +121,7 @@
           </div>
         </section>
 
-        <div data-documents hidden>
+        <div data-documents>
           <div class="hc-feedback hc-feedback-error" data-documents-offline role="status" aria-live="polite" hidden>
             <strong>You are offline.</strong> Recorded checks will not refresh until the connection returns.
           </div>

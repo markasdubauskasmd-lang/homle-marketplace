@@ -12,7 +12,7 @@
 
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-9";
+import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260816-completion-ticks-1";
 import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260816-2";
 
 export function element(name, className, text) {
@@ -54,7 +54,7 @@ export async function requestJson(path, options = {}) {
  * Wires the standard gate for a page whose hooks are named `data-<key>-*`.
  * `render(context)` runs only once a Cleaner workspace is confirmed.
  */
-export function createCleanerPage(key, render) {
+export function createCleanerPage(key, render, { silentInitialLoad = false } = {}) {
   const gate = document.querySelector(`[data-${key}-gate]`);
   const view = document.querySelector(`[data-${key}]`);
   const offline = document.querySelector(`[data-${key}-offline]`);
@@ -63,6 +63,7 @@ export function createCleanerPage(key, render) {
   const createAccount = document.querySelector(`[data-${key}-create-account]`);
   const retry = document.querySelector(`[data-${key}-retry]`);
   let loading = false;
+  let initialLoad = true;
 
   function updateNetworkStatus() {
     if (offline) offline.hidden = !browserOffline();
@@ -88,7 +89,10 @@ export function createCleanerPage(key, render) {
   async function load() {
     if (loading) return;
     loading = true;
-    showGate("Checking secure Cleaner access…", "This page opens only inside the assigned Cleaner account.");
+    if (!silentInitialLoad || !initialLoad) {
+      showGate("Checking secure Cleaner access…", "This page opens only inside the assigned Cleaner account.");
+    }
+    initialLoad = false;
     try {
       const accountResult = await requestJson("/api/marketplace/account");
       const account = accountResult.account;

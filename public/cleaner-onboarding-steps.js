@@ -113,16 +113,21 @@ export function onboardingProgress(data) {
   const persisted = new Map((Array.isArray(source.onboardingSections) ? source.onboardingSections : [])
     .filter((section) => section && typeof section.section === "string")
     .map((section) => [section.section, section]));
-  const steps = onboardingSteps.map((step) => ({
-    ...step,
-    // Identity and DBS completion remains verification-authority only. Other
-    // sections can complete from either their established model or a submitted
-    // encrypted onboarding record.
-    done: typeof step.derive === "function" && step.derive(source) === true
-      ? true
-      : !["identity", "dbs"].includes(step.key) && ["submitted", "verified"].includes(persisted.get(step.key)?.status),
-    tracked: true
-  }));
+  const steps = onboardingSteps.map((step) => {
+    const persistedStatus = persisted.get(step.key)?.status;
+    const savedAsComplete = ["submitted", "verified"].includes(persistedStatus);
+    const verifiedByAuthority = ["identity", "dbs"].includes(step.key)
+      && typeof step.derive === "function"
+      && step.derive(source) === true;
+    return {
+      ...step,
+      // A navigation tick represents completion of the onboarding section, not
+      // the presence of pre-existing account/profile data. Save & continue creates
+      // the submitted record. Verified legacy Identity/DBS results remain complete.
+      done: savedAsComplete || verifiedByAuthority,
+      tracked: true
+    };
+  });
   const done = steps.filter((step) => step.done).length;
   return {
     steps,
