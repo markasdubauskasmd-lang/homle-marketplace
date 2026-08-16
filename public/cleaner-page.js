@@ -13,7 +13,7 @@
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-9";
-import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260816-1";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260816-2";
 
 export function element(name, className, text) {
   const node = document.createElement(name);

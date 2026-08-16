@@ -118,12 +118,33 @@ function positionOnboardingIndicator(host, item, immediate = false) {
   if (immediate) requestAnimationFrame(() => requestAnimationFrame(() => indicator.classList.remove("is-immediate")));
 }
 
+const prefetchedOnboardingPages = new Set();
+
+function prefetchOnboardingPage(link) {
+  if (!link?.href) return;
+  const destination = new URL(link.href, location.href);
+  if (destination.origin !== location.origin || destination.pathname === location.pathname) return;
+  const key = `${destination.pathname}${destination.search}`;
+  if (prefetchedOnboardingPages.has(key)) return;
+  prefetchedOnboardingPages.add(key);
+  const preload = document.createElement("link");
+  preload.rel = "prefetch";
+  preload.as = "document";
+  preload.href = destination.href;
+  document.head.append(preload);
+}
+
 function connectOnboardingMotion(host) {
   const current = host.querySelector('[aria-current="page"]');
   requestAnimationFrame(() => positionOnboardingIndicator(host, current, true));
   if (host.dataset.motionReady) return;
   host.dataset.motionReady = "true";
+  const warmOnboardingPages = () => host.querySelectorAll("a[data-preview-page]").forEach(prefetchOnboardingPage);
+  if ("requestIdleCallback" in window) window.requestIdleCallback(warmOnboardingPages, { timeout: 1800 });
+  else window.setTimeout(warmOnboardingPages, 450);
   window.addEventListener("resize", () => positionOnboardingIndicator(host, host.querySelector('[aria-current="page"]'), true));
+  host.addEventListener("pointerover", (event) => prefetchOnboardingPage(event.target.closest("a[data-preview-page]")));
+  host.addEventListener("focusin", (event) => prefetchOnboardingPage(event.target.closest("a[data-preview-page]")));
   host.addEventListener("click", (event) => {
     const link = event.target.closest("a[data-preview-page]");
     if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -138,7 +159,11 @@ function connectOnboardingMotion(host) {
     link.setAttribute("aria-current", "page");
     link.classList.add("is-preview-open");
     positionOnboardingIndicator(host, link);
-    window.setTimeout(() => location.assign(destination.href), 620);
+    document.documentElement.classList.add("hc-onboarding-navigating");
+    // Begin loading immediately. The cross-document View Transition keeps the
+    // current page visible and carries the white selection surface to its new
+    // icon while the destination document becomes ready.
+    requestAnimationFrame(() => location.assign(destination.href));
   });
 }
 

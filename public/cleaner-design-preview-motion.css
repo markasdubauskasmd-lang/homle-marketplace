@@ -1,5 +1,59 @@
 /* Stable preview-only navigation motion. The icons never reflow; only the
    selected white surface travels between their fixed positions. */
+@view-transition {
+  navigation: auto;
+}
+
+html body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] {
+  view-transition-name: hc-onboarding-sidebar;
+}
+
+html body.cleaner-onboarding-page .hc-main {
+  view-transition-name: hc-onboarding-content;
+}
+
+html body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liquid-indicator] {
+  view-transition-name: hc-onboarding-selection;
+}
+
+::view-transition-old(root),
+::view-transition-new(root),
+::view-transition-old(hc-onboarding-sidebar),
+::view-transition-new(hc-onboarding-sidebar) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-group(hc-onboarding-selection) {
+  animation-duration: 820ms;
+  animation-timing-function: cubic-bezier(.22, .72, .18, 1);
+}
+
+::view-transition-old(hc-onboarding-selection),
+::view-transition-new(hc-onboarding-selection) {
+  height: 100%;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(hc-onboarding-content) {
+  animation: hc-onboarding-content-out 110ms ease both;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(hc-onboarding-content) {
+  animation: hc-onboarding-content-in 220ms 70ms ease-out both;
+  mix-blend-mode: normal;
+}
+
+@keyframes hc-onboarding-content-out {
+  to { opacity: .94; }
+}
+
+@keyframes hc-onboarding-content-in {
+  from { opacity: .94; }
+  to { opacity: 1; }
+}
+
 @media (min-width: 901px) {
   html body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar]:not(.is-preview-expanded) [data-onboarding-nav] > .hc-preview-liquid-indicator[data-preview-liquid-indicator] {
     top: -32px !important;
@@ -91,5 +145,12 @@
 @media (prefers-reduced-motion: reduce) {
   html body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liquid-indicator] {
     transition-duration: 130ms !important;
+  }
+
+  ::view-transition-group(hc-onboarding-selection),
+  ::view-transition-old(hc-onboarding-content),
+  ::view-transition-new(hc-onboarding-content) {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
   }
 }
