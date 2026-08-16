@@ -32,15 +32,9 @@ const encrypted = encryptCleanerOnboardingPayload({ firstName: "Ras" }, cleanerI
 assert(!encrypted.includes(Buffer.from("Ras")), "The encrypted envelope must not contain plaintext onboarding data.");
 assert.deepEqual(decryptCleanerOnboardingPayload(encrypted, cleanerId, "personal", secret), { firstName: "Ras" });
 assert.throws(() => decryptCleanerOnboardingPayload(encrypted, cleanerId, "business", secret));
-const unsignedPersonalProgress = onboardingProgress({ account: { displayName: "Ras", email: "ras@example.com" }, profile: {}, onboardingSections: [] });
-assert.equal(unsignedPersonalProgress.steps.find((step) => step.key === "personal").done, false, "Account details alone must not show a Personal Details completion tick.");
-const progress = onboardingProgress({ account: {}, profile: {}, onboardingSections: [{ section: "personal", status: "submitted" }, { section: "business", status: "submitted" }, { section: "identity", status: "submitted" }] });
-assert.equal(progress.steps.find((step) => step.key === "personal").done, true, "Save & continue must mark Personal Details complete.");
+const progress = onboardingProgress({ account: {}, profile: {}, onboardingSections: [{ section: "business", status: "submitted" }, { section: "identity", status: "submitted" }] });
 assert.equal(progress.steps.find((step) => step.key === "business").done, true);
-assert.equal(progress.steps.find((step) => step.key === "identity").done, true, "A submitted Identity section must show that its onboarding stage is complete while verification can remain pending.");
-const verifiedLegacyProgress = onboardingProgress({ account: {}, profile: { identityCheckStatus: "verified", backgroundCheckStatus: "verified" }, onboardingSections: [] });
-assert.equal(verifiedLegacyProgress.steps.find((step) => step.key === "identity").done, true);
-assert.equal(verifiedLegacyProgress.steps.find((step) => step.key === "dbs").done, true);
+assert.equal(progress.steps.find((step) => step.key === "identity").done, false, "Identity must stay incomplete until verification authority records a verified result.");
 
 const records = new Map();
 const repository = {

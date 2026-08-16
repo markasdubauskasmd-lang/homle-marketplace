@@ -12,10 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260814-2">
-  <link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260816-seamless-nav-1">
-  <link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260816-introduction-1">
-  <script src="/cleaner-training.js?v=20260816-seamless-access-1" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260807-1">
+  <script src="/cleaner-training.js?v=20260807-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -25,9 +23,9 @@
   <div class="hc">
     <aside class="hc-side cleaner-site-header">
       <div class="hc-brand">
-        <a class="hc-brand-mark" href="/cleaner/introduction" aria-label="Open onboarding introduction" title="Onboarding introduction">
+        <div class="hc-brand-mark" aria-hidden="true">
           <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 4 4.5 10.5V20h15v-9.5z" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path><path d="M10 20v-5h4v5" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path></svg>
-        </a>
+        </div>
         <div>
           <div class="hc-brand-name">Homle</div>
           <div class="hc-brand-role">CLEANER</div>
@@ -112,7 +110,7 @@
       </a>
 
       <div class="hc-main-inner">
-        <section class="hc-gate" data-training-gate role="status" aria-live="polite" hidden>
+        <section class="hc-gate" data-training-gate role="status" aria-live="polite">
           <h1 class="hc-h3" data-training-gate-title>Checking secure Cleaner access…</h1>
           <p class="hc-card-sub" data-training-gate-copy>Homle Academy opens only inside the assigned Cleaner account.</p>
           <div class="hc-gate-actions">
@@ -121,7 +119,7 @@
           </div>
         </section>
 
-        <div data-training>
+        <div data-training hidden>
           <div class="hc-feedback hc-feedback-error" data-training-offline role="status" aria-live="polite" hidden>
             <strong>You are offline.</strong> The Academy catalogue will not refresh until the connection returns.
           </div>

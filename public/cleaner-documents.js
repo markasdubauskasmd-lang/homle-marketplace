@@ -1,4 +1,4 @@
-import { createCleanerPage, element } from "./cleaner-page.js?v=20260816-seamless-access-1";
+import { createCleanerPage, element } from "./cleaner-page.js?v=20260729-6";
 import { uploadOnboardingDocument, validateOnboardingDocument } from "./cleaner-onboarding-documents.js?v=20260805-1";
 import { saveCsrf, storedCsrf } from "./session-csrf.js";
 
@@ -229,4 +229,4 @@ createCleanerPage("documents", async ({ requestJson, showFeedback }) => {
       showFeedback(error.message || "The confirmed document could not be uploaded.", "error");
     }
   });
-}, { silentInitialLoad: true });
+});

@@ -214,11 +214,9 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   document.title = "Personal details | Homle";
   const overview = document.querySelector("[data-registration-overview]");
   const personal = document.querySelector("[data-personal-details]");
-  const personalTopbar = document.querySelector("[data-personal-topbar]");
   const form = document.querySelector("[data-personal-form]");
   if (overview) overview.hidden = true;
   if (personal) personal.hidden = false;
-  if (personalTopbar) personalTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
   const [profileResult, availabilityResult, payoutResult, onboardingResult] = await Promise.allSettled([

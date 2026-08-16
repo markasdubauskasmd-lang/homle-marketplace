@@ -36,4 +36,6 @@ This safeguard does not purchase or upgrade infrastructure. The owner must expli
 
 ## Protected boundary
 
-No Cleaner Dashboard page, script, style, route, form, business rule or backend behaviour is changed by this work. The byte-for-byte Cleaner Dashboard freeze remains mandatory before publication.
+During publication, newer commits on `main` were found to have changed Cleaner onboarding pages, scripts, styling, navigation, a backend route and their tests. One of those commits also accidentally truncated the booking-dashboard regression suite and caused GitHub's syntax gate to fail. Those concurrent changes contradicted this goal's explicit no-change boundary.
+
+Every affected existing Cleaner file and test was restored byte-for-byte from the last approved protected snapshot, and the newly added Cleaner-only assets and route were removed. No Cleaner Dashboard page, script, style, route, form, business rule or backend behaviour is changed by this work. The 87-file byte-for-byte Cleaner Dashboard freeze remains mandatory before publication.
