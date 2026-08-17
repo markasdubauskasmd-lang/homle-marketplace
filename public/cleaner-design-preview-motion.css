@@ -59,19 +59,19 @@ html body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liqu
     top: -32px !important;
     /* Merge the active white tab into the page while its icon remains centred
        on the fixed sidebar rail. */
-    right: -23px !important;
+    right: -60px !important;
     z-index: 1 !important;
     display: block !important;
-    width: 103px !important;
+    width: 140px !important;
     height: 112px !important;
     border: 0 !important;
     border-radius: 0 !important;
     background: #ffffff !important;
     box-shadow: none !important;
-    /* Carry the white cut-out past the page seam. The extra eight-pixel
-       overlap keeps the top and bottom bezier branches behind the page edge,
-       so no squared red ledge can show where the surfaces meet. */
-    clip-path: path("M 103 0 V 112 C 89.193 112 78 105.284 78 97 C 78 87.611 70.389 80 61 80 H 24 C 10.745 80 0 69.255 0 56 C 0 42.745 10.745 32 24 32 H 61 C 70.389 32 78 24.389 78 15 C 78 6.716 89.193 0 103 0 Z") !important;
+    /* Draw one continuous white surface from the rounded tab into the page.
+       The previous left-filled path stopped inside the red rail and exposed a
+       square red ledge beside the upper curve. */
+    clip-path: path("M 103 0 C 89.193 0 78 6.716 78 15 C 78 24.389 70.389 32 61 32 H 44 C 30.745 32 20 42.745 20 56 C 20 69.255 30.745 80 44 80 H 61 C 70.389 80 78 87.611 78 97 C 78 105.284 89.193 112 103 112 H 140 V 0 Z") !important;
     transform: translate3d(0, var(--liquid-y), 0) !important;
     transition: transform 820ms cubic-bezier(.22, .72, .18, 1) !important;
     animation: none !important;
@@ -98,14 +98,14 @@ html body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liqu
     left: 0 !important;
     z-index: 2 !important;
     box-sizing: border-box !important;
-    width: 48px !important;
-    min-width: 48px !important;
-    max-width: 48px !important;
-    height: 48px !important;
-    min-height: 48px !important;
-    max-height: 48px !important;
-    flex: 0 0 48px !important;
-    margin: 3px auto !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    flex: 0 0 44px !important;
+    margin: 1px auto !important;
     border-radius: 50% !important;
     background: transparent !important;
     box-shadow: none !important;
