@@ -1,5 +1,6 @@
 import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260807-2";
-import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260807-1";
+import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260816-restore-1";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260816-restore-1";
 import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260804-3";
 import { setupBusinessDetails } from "./cleaner-business-details.js?v=20260728-1";
 import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=20260728-1";
@@ -30,7 +31,24 @@ function stepIcon(name) {
   return svg;
 }
 
-createCleanerPage("reg", async (context) => {
+const localDesignPreview = ["127.0.0.1", "localhost"].includes(location.hostname)
+  && new URLSearchParams(location.search).has("design-preview");
+
+if (localDesignPreview) {
+  document.querySelector("[data-reg-gate]")?.setAttribute("hidden", "");
+  document.querySelector("[data-reg]")?.removeAttribute("hidden");
+  document.querySelector("[data-registration-overview]")?.setAttribute("hidden", "");
+  document.querySelector("[data-personal-details]")?.removeAttribute("hidden");
+  renderCleanerNav(onboardingProgress({
+    account: null,
+    profile: null,
+    payoutState: "not-started",
+    availabilityCount: 0,
+    onboardingSections: []
+  }));
+}
+
+if (!localDesignPreview) createCleanerPage("reg", async (context) => {
   if (location.pathname === "/cleaner/congratulations") {
     await setupCongratulations(context);
     return;
