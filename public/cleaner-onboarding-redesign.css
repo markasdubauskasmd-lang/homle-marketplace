@@ -31,9 +31,14 @@ body.cleaner-onboarding-page .hc {
 }
 
 body.cleaner-onboarding-page .hc-main {
+  position: relative;
   min-width: 0;
   background: #fff;
   scrollbar-gutter: stable;
+}
+
+body.cleaner-onboarding-page .hc-introduction-hero {
+  display: none;
 }
 
 body.cleaner-onboarding-page .hc-main-inner {
@@ -82,18 +87,19 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand {
   box-sizing: border-box;
   justify-content: center;
-  min-height: 92px;
-  padding: 18px 12px 10px;
+  min-height: 88px;
+  padding: 16px 12px 8px;
 }
 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand-mark {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 54px;
+  width: 64px;
+  height: 62px;
   border: 0;
   border-radius: 0;
-  background: url("/homlle-onboarding-logo.svg?v=20260817-curve-logo-1") center / 42px 42px no-repeat;
+  background: url("/homlle-onboarding-logo.svg?v=20260817-reference-sharp-small-1") center / 52px 54px no-repeat;
+  filter: contrast(1.2);
   box-shadow: none;
   color: #fff;
   text-decoration: none;
@@ -123,7 +129,7 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
   z-index: 1;
   flex: 1;
   width: 100%;
-  padding: 0 18px 74px;
+  padding: 0 18px 82px;
   overflow-y: auto;
   overflow-x: visible;
   scrollbar-width: none;
@@ -151,7 +157,7 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
   width: 60px;
   min-width: 60px;
   margin: 0 auto;
-  padding: 3px 0;
+  padding: 1px 0;
   overflow: visible;
   border-radius: 0;
   background: transparent !important;
@@ -169,14 +175,14 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
   box-sizing: border-box;
   display: grid;
   place-items: center;
-  flex: 0 0 48px;
-  width: 48px;
-  min-width: 48px;
-  max-width: 48px;
-  height: 48px;
-  min-height: 48px;
-  max-height: 48px;
-  margin: 3px auto;
+  flex: 0 0 44px;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+  margin: 1px auto;
   padding: 0;
   gap: 0;
   overflow: visible;
@@ -272,14 +278,14 @@ body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liquid-in
   --liquid-y: 0px;
   position: absolute;
   top: -32px;
-  right: 0;
+  right: -60px;
   z-index: 1;
   display: block;
-  width: 93px;
+  width: 140px;
   height: 112px;
   pointer-events: none;
   background: #fff;
-  clip-path: path("M 93 0 V 112 C 84.716 112 78 105.284 78 97 C 78 87.611 70.389 80 61 80 H 24 C 10.745 80 0 69.255 0 56 C 0 42.745 10.745 32 24 32 H 61 C 70.389 32 78 24.389 78 15 C 78 6.716 84.716 0 93 0 Z");
+  clip-path: path("M 103 0 C 89.193 0 78 6.716 78 15 C 78 24.389 70.389 32 61 32 H 44 C 30.745 32 20 42.745 20 56 C 20 69.255 30.745 80 44 80 H 61 C 70.389 80 78 87.611 78 97 C 78 105.284 89.193 112 103 112 H 140 V 0 Z");
   transform: translate3d(0, var(--liquid-y), 0);
   transition: transform var(--hc-liquid-duration) var(--hc-liquid-ease);
   will-change: transform;
@@ -290,13 +296,88 @@ body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liquid-in
 }
 
 /* The logo opens a neutral introduction screen, before any onboarding step is active. */
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc {
+  background:
+    radial-gradient(ellipse at 84% 15%, rgba(255, 255, 255, 0.95) 0 10%, rgba(255, 255, 255, 0) 38%),
+    linear-gradient(106deg, #ff1747 0%, #ff0034 8%, #f10021 20%, #ef6f79 39%, #efc7c9 54%, #f5f5f5 72%, #ffffff 100%);
+}
+
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-side.cleaner-site-header[data-preview-sidebar] {
+  background: transparent;
+}
+
 html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-main-inner,
 html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-bell {
   display: none !important;
 }
 
 html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-main {
-  background: #fff;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+  background: transparent;
+}
+
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-introduction-hero {
+  display: block;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-introduction-scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-introduction-scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 79% 108%, rgba(205, 209, 212, 0.34), transparent 48%);
+  border: 0;
+}
+
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-introduction-room-shape {
+  position: absolute;
+  right: -8%;
+  border: 1px solid rgba(196, 199, 201, 0.2);
+  background: rgba(255, 255, 255, 0.12);
+  transform: skewY(-7deg);
+}
+
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-introduction-room-shape-one {
+  top: 9%;
+  width: 49%;
+  height: 30%;
+}
+
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-introduction-room-shape-two {
+  top: 17%;
+  right: 1%;
+  width: 22%;
+  height: 38%;
+  opacity: 0.55;
+}
+
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-introduction-team {
+  position: absolute;
+  z-index: 3;
+  right: clamp(-68px, -2.2vw, -18px);
+  bottom: 0;
+  display: block;
+  width: min(76%, 1120px);
+  height: auto;
+  max-height: 94%;
+  object-fit: contain;
+  object-position: right bottom;
+  pointer-events: none;
+  user-select: none;
+  image-rendering: -webkit-optimize-contrast;
+  filter: none;
+  backface-visibility: hidden;
 }
 
 html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] > .hc-preview-liquid-indicator[data-preview-liquid-indicator],
@@ -327,6 +408,22 @@ body.cleaner-onboarding-page .hc-bell {
 
   body.cleaner-onboarding-page .hc-main {
     overflow: visible;
+  }
+
+  html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-main {
+    min-height: calc(100vh - 78px - env(safe-area-inset-bottom));
+    overflow: hidden;
+  }
+
+  html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-introduction-hero {
+    position: absolute;
+  }
+
+  html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-introduction-team {
+    right: -18%;
+    width: 116%;
+    max-width: none;
+    max-height: 85%;
   }
 
   body.cleaner-onboarding-page .hc-main-inner {
