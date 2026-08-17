@@ -93,7 +93,7 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
   height: 54px;
   border: 0;
   border-radius: 0;
-  background: url("/homlle-onboarding-logo.svg?v=20260816-restore-1") center / 46px 42px no-repeat;
+  background: url("/homlle-onboarding-logo.svg?v=20260817-curve-logo-1") center / 42px 42px no-repeat;
   box-shadow: none;
   color: #fff;
   text-decoration: none;
@@ -290,6 +290,15 @@ body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liquid-in
 }
 
 /* The logo opens a neutral introduction screen, before any onboarding step is active. */
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-main-inner,
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-bell {
+  display: none !important;
+}
+
+html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-main {
+  background: #fff;
+}
+
 html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] > .hc-preview-liquid-indicator[data-preview-liquid-indicator],
 html body.cleaner-onboarding-page.cleaner-onboarding-introduction-page .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub .hc-nav-tick {
   display: none !important;

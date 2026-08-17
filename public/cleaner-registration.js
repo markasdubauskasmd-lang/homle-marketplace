@@ -33,12 +33,20 @@ function stepIcon(name) {
 
 const localDesignPreview = ["127.0.0.1", "localhost"].includes(location.hostname)
   && new URLSearchParams(location.search).has("design-preview");
+const introductionPage = location.pathname === "/cleaner/introduction";
+
+if (introductionPage) {
+  document.body.classList.add("cleaner-onboarding-introduction-page");
+  document.title = "Onboarding introduction | Homlle";
+}
 
 if (localDesignPreview) {
+  const introductionLink = document.querySelector(".hc-brand-mark");
+  if (introductionLink) introductionLink.href = "/cleaner/introduction?design-preview=1";
   document.querySelector("[data-reg-gate]")?.setAttribute("hidden", "");
   document.querySelector("[data-reg]")?.removeAttribute("hidden");
   document.querySelector("[data-registration-overview]")?.setAttribute("hidden", "");
-  document.querySelector("[data-personal-details]")?.removeAttribute("hidden");
+  if (!introductionPage) document.querySelector("[data-personal-details]")?.removeAttribute("hidden");
   renderCleanerNav(onboardingProgress({
     account: null,
     profile: null,
@@ -49,6 +57,7 @@ if (localDesignPreview) {
 }
 
 if (!localDesignPreview) createCleanerPage("reg", async (context) => {
+  if (introductionPage) return;
   if (location.pathname === "/cleaner/congratulations") {
     await setupCongratulations(context);
     return;
