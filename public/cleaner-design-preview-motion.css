@@ -59,19 +59,19 @@ html body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liqu
     top: -32px !important;
     /* Merge the active white tab into the page while its icon remains centred
        on the fixed sidebar rail. */
-    right: -33px !important;
+    right: -23px !important;
     z-index: 1 !important;
     display: block !important;
-    width: 93px !important;
+    width: 103px !important;
     height: 112px !important;
     border: 0 !important;
     border-radius: 0 !important;
     background: #ffffff !important;
     box-shadow: none !important;
-    /* Carry the white cut-out past the page seam, then ease it back into the
-       rail. Starting the upper branch at the far edge removes the clipped,
-       square corner that otherwise appears above the selected step. */
-    clip-path: path("M 93 0 V 112 C 84.716 112 78 105.284 78 97 C 78 87.611 70.389 80 61 80 H 24 C 10.745 80 0 69.255 0 56 C 0 42.745 10.745 32 24 32 H 61 C 70.389 32 78 24.389 78 15 C 78 6.716 84.716 0 93 0 Z") !important;
+    /* Carry the white cut-out past the page seam. The extra eight-pixel
+       overlap keeps the top and bottom bezier branches behind the page edge,
+       so no squared red ledge can show where the surfaces meet. */
+    clip-path: path("M 103 0 V 112 C 89.193 112 78 105.284 78 97 C 78 87.611 70.389 80 61 80 H 24 C 10.745 80 0 69.255 0 56 C 0 42.745 10.745 32 24 32 H 61 C 70.389 32 78 24.389 78 15 C 78 6.716 89.193 0 103 0 Z") !important;
     transform: translate3d(0, var(--liquid-y), 0) !important;
     transition: transform 820ms cubic-bezier(.22, .72, .18, 1) !important;
     animation: none !important;
