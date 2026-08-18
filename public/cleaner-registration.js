@@ -56,6 +56,50 @@ if (localDesignPreview) {
   }));
 }
 
+/* Paint the step before the network, not after it.
+ *
+ * Every step's markup is already in this document and each setup function reveals its card
+ * and topbar synchronously, before it fetches anything. But those setups only run inside
+ * createCleanerPage's callback, which is reached after `await /api/marketplace/account`. So
+ * the page sat blank for a full round trip while holding everything it needed to paint, and
+ * moving between onboarding tabs showed an empty frame.
+ *
+ * This performs the same reveal immediately. It is a hint, not a decision: the setup function
+ * still runs afterwards and still sets the authoritative state, so this can only ever be
+ * early, never different. Steps absent from the table simply keep the old behaviour.
+ */
+const onboardingStepReveals = new Map([
+  ["/cleaner/personal-details", { title: "Personal details | Homle", card: "[data-personal-card]", topbar: "" }],
+  ["/cleaner/business-details", { title: "Business details | Homle", card: "[data-business-details]", topbar: "[data-business-topbar]" }],
+  ["/cleaner/identity-verification", { title: "Identity verification | Homle", card: "[data-identity-verification]", topbar: "[data-identity-topbar]" }],
+  ["/cleaner/right-to-work", { title: "Right to work | Homle", card: "[data-right-to-work]", topbar: "[data-rtw-topbar]" }],
+  ["/cleaner/background-checks", { title: "Background checks | Homle", card: "[data-background-checks]", topbar: "[data-background-topbar]" }],
+  ["/cleaner/work-areas", { title: "Work areas | Homle", card: "[data-work-areas]", topbar: "[data-work-topbar]" }],
+  ["/cleaner/experience", { title: "Skills and Experience | Homle", card: "[data-experience]", topbar: "[data-experience-topbar]" }],
+  ["/cleaner/insurance", { title: "Insurance | Homle", card: "[data-insurance]", topbar: "[data-insurance-topbar]" }],
+  ["/cleaner/banking", { title: "Banking & payments | Homle", card: "[data-banking]", topbar: "[data-banking-topbar]" }],
+  ["/cleaner/equipment", { title: "Equipment & Travel | Homle", card: "[data-equipment]", topbar: "[data-equipment-topbar]" }],
+  ["/cleaner/availability", { title: "Availability | Homle", card: "[data-availability]", topbar: "[data-availability-topbar]" }]
+]);
+
+function revealOnboardingStepEarly() {
+  const step = onboardingStepReveals.get(location.pathname);
+  const layout = document.querySelector("[data-personal-details]");
+  if (!step || !layout) return;
+  const card = step.card ? document.querySelector(step.card) : null;
+  const topbar = step.topbar ? document.querySelector(step.topbar) : null;
+  document.title = step.title;
+  const overview = document.querySelector("[data-registration-overview]");
+  if (overview) overview.hidden = true;
+  layout.hidden = false;
+  // The same two groups cleaner-right-to-work.js already switches on, so a step added to the
+  // markup without a table entry is left hidden rather than shown in the wrong place.
+  document.querySelectorAll(".hc-personal-layout > .hc-personal-card").forEach((node) => { node.hidden = node !== card; });
+  document.querySelectorAll(".hc-personal-layout > .hc-business-topbar").forEach((node) => { node.hidden = node !== topbar; });
+}
+
+if (!localDesignPreview && !introductionPage) revealOnboardingStepEarly();
+
 if (!localDesignPreview) createCleanerPage("reg", async (context) => {
   if (introductionPage) return;
   if (location.pathname === "/cleaner/congratulations") {
