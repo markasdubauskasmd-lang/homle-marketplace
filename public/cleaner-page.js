@@ -106,11 +106,14 @@ export function createCleanerPage(key, render) {
   async function load() {
     if (loading) return;
     loading = true;
+    // No "checking access" interstitial. The onboarding pages now ship with the gate hidden
+    // and the view visible, so a permitted Cleaner never sees a placeholder while moving between
+    // tabs. Pages that still ship the gate visible are revealed early once this tab has confirmed
+    // access. Every failure path below still shows the gate, and the server still authorises
+    // every read regardless of what the browser decided to paint.
     if (rememberedCleanerAccess()) {
       if (gate) gate.hidden = true;
       if (view) view.hidden = false;
-    } else {
-      showGate("Checking secure Cleaner access…", "This page opens only inside the assigned Cleaner account.");
     }
     try {
       const accountResult = await requestJson("/api/marketplace/account");
