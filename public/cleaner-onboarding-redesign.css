@@ -98,8 +98,12 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
   height: 62px;
   border: 0;
   border-radius: 0;
-  background: url("/homle-logo.png?v=20260818-approved-reference-1") center / 84px 84px no-repeat;
-  mix-blend-mode: lighten;
+    /* The approved mark is the white house glyph alone. This previously painted
+       homle-logo.png here - a 1.9 MB raster carrying its own red tile - and used
+       mix-blend-mode to hide that tile against the sidebar, which left a visible
+       square. The inline SVG below is the same artwork, with no tile and no raster. */
+    background: none;
+    mix-blend-mode: normal;
   filter: none;
   box-shadow: none;
   color: #fff;
@@ -112,7 +116,11 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
 }
 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand-logo {
-  display: none;
+    display: block;
+    width: 46px;
+    height: 46px;
+    /* The glyph paths draw with currentColor. */
+    color: #fff;
 }
 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand > div:last-child {

@@ -43,7 +43,9 @@ function configureCleanerShell() {
     const logo = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     logo.classList.add("hc-brand-logo");
     logo.setAttribute("viewBox", "0 0 64 64");
-    logo.setAttribute("preserveAspectRatio", "none");
+    // Keep the glyph square. "none" stretches it to whatever box it lands in,
+    // which distorts the roof pitch on any non-square container.
+    logo.setAttribute("preserveAspectRatio", "xMidYMid meet");
     logo.setAttribute("aria-hidden", "true");
     logo.setAttribute("focusable", "false");
     const roof = document.createElementNS("http://www.w3.org/2000/svg", "path");
