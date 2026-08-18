@@ -1,5 +1,25 @@
 # Homle continuous improvement record — 14 August 2026
 
+## Landlord workspace reads now overlap account verification
+
+The authenticated Landlord dashboard still had a two-stage startup waterfall:
+it waited for the protected account response before beginning the independently
+authorised profile, property, request, booking, support and readiness reads.
+On a waking Render service or mobile connection, that added a complete second
+network wait before the workspace could become interactive.
+
+Those read-only requests now begin in the same startup burst as account
+verification. The verified account and Landlord role still gate every render;
+each endpoint remains server-authorised, and no returned private data is used
+until that check passes. The optional Saved Cleaners panel remains outside the
+primary awaited path with its own bounded failure state.
+
+A real Chromium regression delays account verification and records request
+arrival times at the fixture server. It proves the account and property reads
+start together, then confirms the private workspace renders only after trusted
+access succeeds. The full Landlord matrix now covers 91 desktop/mobile states,
+and the 89-file Cleaner Dashboard freeze remains byte-for-byte unchanged.
+
 ## Production evidence reviewed
 
 - The live custom domain serves packaged release `570368b0` with 98 locked migrations.
