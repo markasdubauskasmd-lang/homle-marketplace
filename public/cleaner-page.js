@@ -132,7 +132,7 @@ export function createCleanerPage(key, render) {
       setText("[data-account-name]", account.displayName || "Cleaner");
       if (gate) gate.hidden = true;
       if (view) view.hidden = false;
-        rememberCleanerAccess(true);
+      rememberCleanerAccess(true);
       const payoutLink = document.querySelector("[data-cleaner-payout-link]");
       if (payoutLink) payoutLink.hidden = false;
       // One profile read so the shared sidebar shows the same completion marks here as on
