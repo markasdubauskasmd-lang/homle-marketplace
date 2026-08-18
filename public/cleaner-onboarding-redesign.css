@@ -98,8 +98,7 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
   height: 62px;
   border: 0;
   border-radius: 0;
-  background: url("/homle-logo.png?v=20260818-approved-reference-1") center / 84px 84px no-repeat;
-  mix-blend-mode: lighten;
+  background: transparent;
   filter: none;
   box-shadow: none;
   color: #fff;
@@ -112,7 +111,11 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
 }
 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand-logo {
-  display: none;
+  display: block;
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  object-position: center;
 }
 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand > div:last-child {
