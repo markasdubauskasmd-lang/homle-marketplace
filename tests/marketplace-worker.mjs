@@ -164,6 +164,9 @@ assert.equal(verificationPoolClosed, 1);
   assert.ok(serverSource.includes('!== "true") return null;'), "Inline marketplace workers are not strictly opt-in, so a second process could run every job twice.");
   assert.ok(serverSource.includes('TIDEWAY_EXPECT_RELEASE: releaseIdentity.sourceCommit'), "An inline worker can be disabled by a stale external release lock even though it necessarily shares the verified web package.");
   assert.ok(serverSource.includes('inlineWorkerAttachment.close(),'), "Inline marketplace workers are not closed during shutdown.");
+  const listenIndex = serverSource.indexOf('server.listen(port, host');
+  const workerStartIndex = serverSource.indexOf('void startInlineWorkers();');
+  assert.ok(listenIndex > 0 && workerStartIndex > listenIndex, "Inline workers block the HTTP listener, making a sleeping Render instance return 503 while non-fatal background jobs initialize.");
   const inlineIndex = serverSource.indexOf('Inline marketplace workers could not start.');
   assert.ok(inlineIndex > 0 && serverSource.slice(inlineIndex - 400, inlineIndex).includes('catch'), "A background worker that cannot start would take the whole site down with it.");
   // Offering automatic matching that nothing can act on is the exact failure

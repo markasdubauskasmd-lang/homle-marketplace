@@ -101,7 +101,8 @@ const marketplaceAttachment = await createMarketplaceAttachment({ env: process.e
 // hosts the same supervisor inside the web process instead. Set it on exactly
 // one process: enabling it alongside a standalone worker would run every job
 // twice. A free instance that sleeps pauses these jobs until the next request.
-const inlineWorkerAttachment = await (async () => {
+let inlineWorkerAttachment = null;
+async function startInlineWorkers() {
   if (String(process.env.MARKETPLACE_INLINE_WORKERS || "false").trim().toLowerCase() !== "true") return null;
   try {
     // An inline worker is loaded from the exact same immutable package as this
@@ -119,7 +120,15 @@ const inlineWorkerAttachment = await (async () => {
       await attachment.close();
       return null;
     }
+    // A sleeping Render instance has a short window in which to open its HTTP
+    // port. Worker construction includes database capability probes and used to
+    // hold every first page request behind work that is explicitly non-fatal.
+    // The listener is now opened first; only then do these jobs start. Health
+    // remains conservative (`automaticDispatchReady: false`) until this exact
+    // attachment is ready, so the faster wake-up cannot promise unavailable
+    // automatic matching.
     attachment.start();
+    inlineWorkerAttachment = attachment;
     console.log(`Inline marketplace workers started with ${attachment.snapshot().jobs.length} scheduled jobs.`);
     return attachment;
   } catch (error) {
@@ -128,7 +137,7 @@ const inlineWorkerAttachment = await (async () => {
     console.error("Inline marketplace workers could not start.", error?.message || error);
     return null;
   }
-})();
+}
 const standaloneAuthenticationAttachment = marketplaceAttachment.authenticationHttpReady
   ? null
   : await createAuthenticationAttachment({ env: process.env, workspaceReady: marketplaceAttachment.ready === true });
@@ -5829,6 +5838,7 @@ const trackingTestExpiryTimer = trackingTestStore ? setInterval(() => trackingTe
 trackingTestExpiryTimer?.unref?.();
 server.listen(port, host, () => {
   console.log(`Homle is running at http://${host}:${port}`);
+  void startInlineWorkers();
 });
 if (lanServer) {
   lanServer.listen(lanPort, lanHost, () => {

@@ -8,7 +8,7 @@
 - Stripe test checkout now reports attached (`paymentsReady: true`) for approved staging accounts. The source adapter rejects live Stripe keys, public payment approvals remain false, and no real-money payment mode has been enabled.
 - Transactional email remains unavailable. This blocks password-recovery and off-site notification delivery until a verified sender and provider credential are supplied.
 - Address autocomplete remains optional and unavailable; manual protected address entry still works.
-- The only application error in the previous 24 hours was an expected same-origin rejection. The 503 request pattern was automated WordPress and crawler traffic, not a Homle customer API failure.
+- The only application error in the previous 24 hours was an expected same-origin rejection. A deeper request-log review found that the `503` pattern was not limited to automated probes: valid homepage requests also reached a sleeping free web service before its HTTP listener opened.
 
 ## Database lifecycle finding resolved
 
@@ -85,6 +85,29 @@ eight seconds. A slow readiness result falls back to the existing conservative
 capability state and still opens the authenticated form. A slow directory read
 shows the existing honest retry/empty guidance instead of spinning forever.
 No request, booking, invitation or payment is attempted by these fallbacks.
+
+## Cold-start homepage availability improved
+
+Render request and application logs now prove the source of intermittent valid
+homepage `503` responses. At 18:36 UTC, for example, a free-plan instance began
+database verification, a homepage request waited 14.8 seconds and failed, the
+nine-job inline worker supervisor finished, and only then did Homle open port
+10000. Static homepage serving itself authors HTTP `200`; the failure was the
+platform reaching a sleeping process before its listener existed.
+
+Inline workers are explicitly non-fatal, so they no longer block the web
+listener. Homle now opens the port after its database and application safety
+boundaries, then starts the nine background jobs asynchronously. The health
+response remains fail-closed while that initialization is in progress:
+`automaticDispatchReady` stays false until the real worker attachment is ready.
+This removes roughly five seconds from the observed wake path without claiming
+matching readiness early or changing a request, invitation, booking or payment.
+
+The service remains on Render's free web plan. It can still sleep, and the
+database/bootstrap safety work still runs on every fresh instance, so fully
+eliminating cold starts requires an always-on hosting plan or a separate static
+front end. This change reduces avoidable startup delay; it does not represent a
+hosting upgrade or a public-availability guarantee.
 
 ## Protected boundary
 
