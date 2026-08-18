@@ -275,7 +275,7 @@ const mimeTypes = {
 // are still used inside the strictly untouched Cleaner Dashboard boundary.
 const immutableStaticAssets = new Set([
   "/landing-1b980c00.css",
-  "/landing-749f364a.js",
+  "/landing-a43fed4d.js",
   "/homle-logo-128-4f82ebad.png",
   "/homle-logo-192-c8defd4b.png",
   "/landing/open-plan-living-480-15f06faa.webp",

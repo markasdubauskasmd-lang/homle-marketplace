@@ -124,6 +124,27 @@ the request actions and removes the stale warning. A genuinely disabled worker
 remains fail-closed after those two attempts; there is no permanent polling and
 no request, invitation, booking or payment is sent by a readiness read.
 
+## The opening reveal no longer reads layout while scrolling
+
+The first cinematic slide still had a mobile-specific performance risk after
+its response-delay fix: every animation frame called `getBoundingClientRect()`
+for all five landing stages after the previous frame had changed their `--p`
+variables. A browser could therefore be forced to synchronously reconcile
+style and layout before it could draw the next touch-scroll frame.
+
+Stage geometry is now measured once on setup and remeasured on load, page show
+and viewport resize. Active scroll frames read only `scrollY`, use cached
+document-space geometry and write compositor-friendly transforms. Viewport
+dimensions are cached for the hero growth and room walk as well. The script has
+a new content-addressed URL so an existing phone cannot retain the older hot
+path from immutable cache. Regression coverage rejects any future
+`getBoundingClientRect()` inside the active frame.
+
+The real browser harness still records 16.7 ms median and 90th-percentile frame
+intervals on desktop and phone, with no frame over 32 ms across 118 hero frames
+or 178 full-page frames. Reduced-motion behaviour and every landing action are
+unchanged.
+
 ## Protected boundary
 
 During publication, newer commits on `main` were found to have changed Cleaner onboarding pages, scripts, styling, navigation, a backend route and their tests. One of those commits also accidentally truncated the booking-dashboard regression suite and caused GitHub's syntax gate to fail. Those concurrent changes contradicted this goal's explicit no-change boundary.
