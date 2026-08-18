@@ -140,6 +140,11 @@ a new content-addressed URL so an existing phone cannot retain the older hot
 path from immutable cache. Regression coverage rejects any future
 `getBoundingClientRect()` inside the active frame.
 
+The animated phone's rendered width and height are cached in that same
+measurement pass. The room walk and scan line no longer call `clientWidth` or
+`clientHeight` after transform writes, removing the last synchronous-layout
+opportunity from the active reveal frame.
+
 The real browser harness still records 16.7 ms median and 90th-percentile frame
 intervals on desktop and phone, with no frame over 32 ms across 118 hero frames
 or 178 full-page frames. Reduced-motion behaviour and every landing action are

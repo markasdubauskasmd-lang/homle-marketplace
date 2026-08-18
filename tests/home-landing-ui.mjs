@@ -6,7 +6,7 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 const [page, css, script, homeScript, server] = await Promise.all([
   readFile(new URL("../public/home.html", import.meta.url), "utf8"),
   readFile(new URL("../public/landing-1b980c00.css", import.meta.url), "utf8"),
-  readFile(new URL("../public/landing-a43fed4d.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/landing-0c783ae1.js", import.meta.url), "utf8"),
   readFile(new URL("../public/home.js", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8")
 ]);
@@ -36,7 +36,7 @@ for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", 
 
 /* ── The design is actually wired in ────────────────── */
 
-assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-1b980c00.css"') && page.includes('src="/landing-a43fed4d.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
+assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-1b980c00.css"') && page.includes('src="/landing-0c783ae1.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
 assert(page.includes('<link rel="sitemap" type="application/xml" href="/sitemap.xml">'), "The public landing page does not advertise Homlle's canonical sitemap.");
 assert(page.includes('<link rel="canonical" href="https://homlle.com/">') && page.includes('<meta property="og:url" content="https://homlle.com/">'), "The public landing page does not declare the exact canonical production URL.");
 for (const metadata of [
@@ -58,8 +58,8 @@ for (const metadata of [
 assert(!page.includes("onrender.com"), "The public landing metadata exposes the infrastructure preview hostname.");
 assert(!page.includes('/landing.css?') && !page.includes('/landing.js?'), "The landing page regressed to stable code URLs that must be revalidated on every visit.");
 assert(createHash("sha256").update(css).digest("hex") === "1b980c009606b254e3d1e94c79c92beeb4e5cf5c67fb0d876dca2bfae1d3b3d7", "The landing stylesheet changed without receiving a new content-addressed filename.");
-assert(createHash("sha256").update(script).digest("hex") === "a43fed4dd8fec57e2119d3b670fc2738a9d395eabe88e382213e6236960c4633", "The landing animation script changed without receiving a new content-addressed filename.");
-assert(server.includes('"/landing-1b980c00.css"') && server.includes('"/landing-a43fed4d.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
+assert(createHash("sha256").update(script).digest("hex") === "0c783ae170500a77710a3a13c419414ef2f3a81d5bd75b7e0d60934b08ea889f", "The landing animation script changed without receiving a new content-addressed filename.");
+assert(server.includes('"/landing-1b980c00.css"') && server.includes('"/landing-0c783ae1.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
 assert(page.includes("data-phone-source") && script.includes("this.phoneSource") && script.includes("ANGLE_WEBP"), "The phone view cannot update its visible WebP source as the scan story changes angle.");
 assert(page.includes('src="/home.js?v=20260729-1"') && page.includes('src="/account-menu.js?v=20260729-1"'), "The landing page still advertises stale shared or account-menu assets, so browsers can miss the latest navigation.");
 
@@ -215,6 +215,7 @@ assert(/@media \(prefers-reduced-motion: reduce\)/.test(css) && /animation: none
 const scrollFrame = script.slice(script.indexOf("  frame() {"), script.indexOf("  /* Hero:", script.indexOf("  frame() {")));
 assert(script.includes("this.stageMetrics = (this.stages || []).map") && script.includes("top: rect.top + scrollY"), "The landing controller no longer caches document-space stage geometry outside the scroll hot path.");
 assert(!scrollFrame.includes("getBoundingClientRect") && scrollFrame.includes("const scrollY = window.scrollY") && scrollFrame.includes("/* ---- write phase ---- */"), "The active landing scroll frame performs a synchronous layout read instead of using cached stage geometry.");
+assert(!scrollFrame.includes(".clientWidth") && !scrollFrame.includes(".clientHeight") && script.includes("this.phoneSize ="), "The landing room walk returned phone-size layout reads to its active animation frame.");
 assert(script.includes("if (moving) this.raf = requestAnimationFrame(this.frame);"), "The scroll loop no longer stops itself when nothing is moving.");
 assert(script.includes('if (o.kind === "open") cur = target;'), "The opening reveal once again trails behind wheel and trackpad input instead of tracking the current scroll position.");
 assert(!script.includes("14 * (1 - t)") && script.includes("this.lastSquare !== square"), "The growing hero animates its rounded clip every frame instead of changing it once before full bleed.");

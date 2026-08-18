@@ -157,6 +157,10 @@ class Cinematic {
         height: Math.max(1, rect.height)
       };
     });
+    this.phoneSize = {
+      width: this.phone?.clientWidth || 260,
+      height: this.phone?.clientHeight || 560
+    };
 
     if (!this.mwrap || !this.mcard) return;
     const wrapH = this.mwrap.clientHeight || window.innerHeight;
@@ -368,8 +372,8 @@ class Cinematic {
 
     /* --- the view through the lens: handheld, and pushed in on close beats --- */
     if (this.phoneView) {
-      const pw = this.phone.clientWidth || 260;
-      const ph = this.phone.clientHeight || 560;
+      const pw = this.phoneSize?.width || 260;
+      const ph = this.phoneSize?.height || 560;
       const bob = Math.sin(t * Math.PI * 5.2);
       this.phoneView.style.transform =
         `translate3d(${((-px * 0.05) + (bodySway * 0.05 + (t - 0.5) * 0.09) * pw).toFixed(1)}px, ` +
@@ -383,7 +387,7 @@ class Cinematic {
     if (this.scanline) {
       const eased = raw * raw * (3 - 2 * raw);
       this.scanline.style.transform =
-        `translateY(${(eased * 0.62 * (this.phone.clientHeight || 560)).toFixed(1)}px)`;
+        `translateY(${(eased * 0.62 * (this.phoneSize?.height || 560)).toFixed(1)}px)`;
       this.scanline.style.opacity = (0.3 + 0.7 * Math.sin(Math.PI * raw)).toFixed(2);
     }
 
