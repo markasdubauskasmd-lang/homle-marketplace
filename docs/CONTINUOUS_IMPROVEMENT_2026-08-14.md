@@ -109,6 +109,21 @@ eliminating cold starts requires an always-on hosting plan or a separate static
 front end. This change reduces avoidable startup delay; it does not represent a
 hosting upgrade or a public-availability guarantee.
 
+## Landlord readiness now recovers after a cold start
+
+Opening the HTTP listener before the non-fatal worker supervisor exposed one
+honest transient state: a Landlord could load the dashboard while automatic
+dispatch was still starting. The first `/api/health` response correctly said
+dispatch was unavailable, but the dashboard kept that answer for the whole
+session and continued to show matching as paused after the worker became ready.
+
+The dashboard now bounds its advisory health read at five seconds, renders the
+private workspace without waiting indefinitely, and performs at most two
+background rechecks after two and six seconds. A later ready response repaints
+the request actions and removes the stale warning. A genuinely disabled worker
+remains fail-closed after those two attempts; there is no permanent polling and
+no request, invitation, booking or payment is sent by a readiness read.
+
 ## Protected boundary
 
 During publication, newer commits on `main` were found to have changed Cleaner onboarding pages, scripts, styling, navigation, a backend route and their tests. One of those commits also accidentally truncated the booking-dashboard regression suite and caused GitHub's syntax gate to fail. Those concurrent changes contradicted this goal's explicit no-change boundary.

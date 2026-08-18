@@ -181,6 +181,9 @@ let geocodingReady = false;
 let matchingReady = false;
 let automaticDispatchReady = false;
 let paymentsReady = false;
+const readinessRequestTimeoutMs = 5_000;
+const readinessRecoveryDelaysMs = Object.freeze([2_000, 6_000]);
+let readinessRecoveryTimer = null;
 let requestRecoveryChecked = false;
 let requestRecoveryTimer = null;
 let manualQuoteTimer = null;
@@ -1285,13 +1288,13 @@ async function openMessages() {
 }
 
 async function requestJson(path, options = {}) {
-  const { headers = {}, ...rest } = options;
+  const { headers = {}, timeoutMs = 30_000, ...rest } = options;
   const mutation = Boolean(rest.method && rest.method !== "GET");
   if (browserOffline()) throw Object.assign(new Error(mutation
     ? "You are offline. This change was not sent; your entries are still here. Reconnect, then try again."
     : "You are offline. Reconnect to open your private workspace."), { code: "browser-offline" });
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), 30_000);
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers }, signal: controller.signal });
     const result = await response.json().catch(() => ({}));
@@ -3883,8 +3886,49 @@ async function removeFavouriteCleaner(cleanerId, button) {
   }
 }
 
+function applyMarketplaceReadiness(health, { repaint = false } = {}) {
+  const capabilities = landlordMarketplaceCapabilityState({
+    mediaReady: health?.marketplace?.mediaReady === true,
+    pricingReady: health?.marketplace?.matchingReady === true,
+    geocodingReady: health?.marketplace?.geocodingReady === true,
+    automaticDispatchReady: health?.marketplace?.automaticDispatchReady === true
+  });
+  ({ mediaReady, pricingReady, geocodingReady, matchingReady, automaticDispatchReady } = capabilities);
+  paymentsReady = health?.marketplace?.paymentsReady === true;
+  scheduleManualQuote();
+  mediaReadiness.hidden = capabilities.notice === null;
+  if (capabilities.notice) {
+    capabilityTitle.textContent = capabilities.notice.title;
+    capabilityCopy.textContent = capabilities.notice.copy;
+  }
+  if (repaint) renderRequests();
+  return capabilities;
+}
+
+/* Render opens the HTTP listener before the non-fatal background workers now,
+   so a customer can use Homle while dispatch is still warming. A health read
+   in those first seconds must not leave a truthful-but-stale "paused" banner
+   on screen for the rest of the visit. Retry twice, in the background, then
+   stop: a genuinely disabled dispatcher stays fail-closed and the dashboard
+   never polls forever. */
+function scheduleReadinessRecovery(attempt = 0) {
+  window.clearTimeout(readinessRecoveryTimer);
+  if (automaticDispatchReady || attempt >= readinessRecoveryDelaysMs.length || browserOffline()) return;
+  readinessRecoveryTimer = window.setTimeout(async () => {
+    try {
+      const health = await requestJson("/api/health", {
+        credentials: "omit",
+        timeoutMs: readinessRequestTimeoutMs
+      });
+      applyMarketplaceReadiness(health, { repaint: true });
+    } catch {}
+    if (!automaticDispatchReady) scheduleReadinessRecovery(attempt + 1);
+  }, readinessRecoveryDelaysMs[attempt]);
+}
+
 async function loadWorkspace() {
   if (loading) return;
+  window.clearTimeout(readinessRecoveryTimer);
   loading = true;
   showState("Checking secure Landlord access…", "Your properties and drafts open only inside an authenticated Landlord session.");
   try {
@@ -3910,7 +3954,7 @@ async function loadWorkspace() {
       requestJson("/api/marketplace/cleaning-requests"),
       requestJson("/api/marketplace/bookings?limit=50"),
       requestJson("/api/marketplace/landlord/support-requests?limit=25&offset=0"),
-      requestJson("/api/health")
+      requestJson("/api/health", { credentials: "omit", timeoutMs: readinessRequestTimeoutMs })
     ]);
     const results = [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult];
     const failures = results.filter((result) => result.status === "rejected");
@@ -3927,20 +3971,8 @@ async function loadWorkspace() {
     landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";
     landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
     landlordProfileDirty = false;
-    const capabilities = landlordMarketplaceCapabilityState({
-      mediaReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.mediaReady === true,
-      pricingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.matchingReady === true,
-      geocodingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.geocodingReady === true,
-      automaticDispatchReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.automaticDispatchReady === true
-    });
-    ({ mediaReady, pricingReady, geocodingReady, matchingReady, automaticDispatchReady } = capabilities);
-    paymentsReady = healthResult.status === "fulfilled" && healthResult.value?.marketplace?.paymentsReady === true;
-    scheduleManualQuote();
-    mediaReadiness.hidden = capabilities.notice === null;
-    if (capabilities.notice) {
-      capabilityTitle.textContent = capabilities.notice.title;
-      capabilityCopy.textContent = capabilities.notice.copy;
-    }
+    const capabilities = applyMarketplaceReadiness(healthResult.status === "fulfilled" ? healthResult.value : null);
+    if (!capabilities.automaticDispatchReady) scheduleReadinessRecovery();
     renderProperties();
     renderArchivedProperties();
     restoreWorkingRequest();
