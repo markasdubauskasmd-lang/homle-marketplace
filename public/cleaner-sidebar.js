@@ -285,3 +285,8 @@ export function renderCleanerAccountNav() {
 // controllers, so their event listeners see these shared buttons and hooks on first load.
 configureCleanerShell();
 renderCleanerAccountNav();
+// Paint the fourteen step icons straight away. Their completion marks need the account,
+// profile, availability and onboarding reads, but the icons themselves do not, and waiting
+// on four round trips is what left this rail empty while moving between tabs. cleaner-page.js
+// calls this again with real progress once those reads land.
+renderCleanerNav();

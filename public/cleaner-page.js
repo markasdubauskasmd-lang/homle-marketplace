@@ -50,6 +50,24 @@ export async function requestJson(path, options = {}) {
   return body;
 }
 
+// Remembers only that this tab already confirmed a Cleaner workspace. No account data is
+// stored. The marker is per-tab (sessionStorage), is cleared the moment a check comes back
+// denied, and never grants access on its own: every API call is enforced server-side, so the
+// worst case is a page painting its own chrome a moment before the check closes it again.
+const cleanerAccessMarker = "homle.cleaner.access";
+
+function rememberedCleanerAccess() {
+  try { return window.sessionStorage.getItem(cleanerAccessMarker) === "ready"; }
+  catch { return false; }
+}
+
+function rememberCleanerAccess(ready) {
+  try {
+    if (ready) window.sessionStorage.setItem(cleanerAccessMarker, "ready");
+    else window.sessionStorage.removeItem(cleanerAccessMarker);
+  } catch { /* Private browsing can refuse storage; the check simply runs visibly instead. */ }
+}
+
 /**
  * Wires the standard gate for a page whose hooks are named `data-<key>-*`.
  * `render(context)` runs only once a Cleaner workspace is confirmed.
@@ -88,12 +106,18 @@ export function createCleanerPage(key, render) {
   async function load() {
     if (loading) return;
     loading = true;
-    showGate("Checking secure Cleaner access…", "This page opens only inside the assigned Cleaner account.");
+    if (rememberedCleanerAccess()) {
+      if (gate) gate.hidden = true;
+      if (view) view.hidden = false;
+    } else {
+      showGate("Checking secure Cleaner access…", "This page opens only inside the assigned Cleaner account.");
+    }
     try {
       const accountResult = await requestJson("/api/marketplace/account");
       const account = accountResult.account;
       const access = dashboardWorkspaceAccess(account, "cleaner");
       if (!access.ready) {
+        rememberCleanerAccess(false);
         if (createAccount) {
           createAccount.href = access.reason === "role-missing" ? "/onboarding?intent=work" : "/login?intent=work";
           createAccount.textContent = access.reason === "role-missing" ? "Add Cleaner workspace" : "Switch to Cleaner workspace";
@@ -108,6 +132,7 @@ export function createCleanerPage(key, render) {
       setText("[data-account-name]", account.displayName || "Cleaner");
       if (gate) gate.hidden = true;
       if (view) view.hidden = false;
+        rememberCleanerAccess(true);
       const payoutLink = document.querySelector("[data-cleaner-payout-link]");
       if (payoutLink) payoutLink.hidden = false;
       // One profile read so the shared sidebar shows the same completion marks here as on
@@ -129,6 +154,7 @@ export function createCleanerPage(key, render) {
       showFeedback("");
       await render({ account, showFeedback, requestJson });
     } catch (error) {
+      if (error.statusCode === 401 || error.statusCode === 403) rememberCleanerAccess(false);
       if (error.code === "browser-offline") showGate("You are offline.", "Reconnect to load this page.", { allowRetry: true });
       else if (error.statusCode === 401) showGate("Sign in as a Cleaner to open this page.", "This workspace is private to the assigned Cleaner account.", { allowSignIn: true });
       else if (error.statusCode === 403) showGate("This account cannot open the Cleaner workspace.", "Use a Cleaner account selected during onboarding.", { allowSignIn: true });
