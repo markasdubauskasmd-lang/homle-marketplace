@@ -58,9 +58,15 @@ assert(accountScript.includes("availableAccountMethodLabel(providers)") && !acco
 // What must never happen is an unavailable or ready claim on first paint, so
 // this asserts both verdict strings appear only inside the branches that run
 // after the fetch resolves.
-const loadTimeCopy = accountScript.slice(0, accountScript.indexOf('fetch("/api/auth/providers"'));
+const loadTimeCopy = accountScript.slice(0, accountScript.indexOf('accountFetch("/api/auth/providers"'));
 assert(accountScript.includes('title.textContent = "Opening your workspace."'), "Account entry no longer sets neutral loading copy while it checks live provider capabilities.");
 assert(!loadTimeCopy.includes("Account access is safely unavailable.") && !loadTimeCopy.includes("Secure account access is ready."), "Account entry states a readiness verdict before the provider check resolves, so it can flash a false unavailable or ready state.");
+const providerFetch = accountScript.indexOf('accountFetch("/api/auth/providers"');
+const providerActivation = accountScript.indexOf("activateForm(providers);", providerFetch);
+assert(providerFetch >= 0 && providerActivation > providerFetch, "Account entry no longer waits for the dedicated provider capability route before enabling sign-in.");
+assert(!accountScript.includes("const [response, healthResponse] = await Promise.all"), "Sign-in providers are still blocked behind the slower marketplace health probe.");
+assert(accountScript.includes("workspaceReadinessPromise = readWorkspaceReadiness();") && accountScript.includes("A slow worker or readiness probe must"), "Account entry no longer starts a bounded advisory workspace check alongside provider discovery.");
+assert(!accountScript.slice(providerFetch, providerActivation).includes("await resolveWorkspaceReadiness()"), "Account entry waits for marketplace health before showing available sign-in providers.");
 const staticMarkup = await readFile(new URL("../public/account.html", import.meta.url), "utf8");
 const accountStyles = await readFile(new URL("../public/account-entry.css", import.meta.url), "utf8");
 assert(staticMarkup.includes("Checking secure account access"), "The served account page does not say that the capability check is still running.");

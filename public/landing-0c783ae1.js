@@ -138,6 +138,30 @@ class Cinematic {
   /* Layout reads happen here only — never inside the scroll frame. The booking
      card is authored at 620px wide; scale it to whatever space is left. */
   measure() {
+    /* Cache document-space stage geometry outside the animation hot path.
+       Reading getBoundingClientRect() after the previous frame changed --p can
+       force a synchronous style/layout flush on mobile browsers. Scroll frames
+       now need only scrollY plus arithmetic; resize/load/pageshow remeasure the
+       handful of tall authored stages. */
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    this.viewport = {
+      width: window.innerWidth || document.documentElement.clientWidth || 1280,
+      height: window.innerHeight || document.documentElement.clientHeight || 800
+    };
+    this.stageMetrics = (this.stages || []).map((st) => {
+      const rect = st.getBoundingClientRect();
+      return {
+        st,
+        kind: st.dataset.stage,
+        top: rect.top + scrollY,
+        height: Math.max(1, rect.height)
+      };
+    });
+    this.phoneSize = {
+      width: this.phone?.clientWidth || 260,
+      height: this.phone?.clientHeight || 560
+    };
+
     if (!this.mwrap || !this.mcard) return;
     const wrapH = this.mwrap.clientHeight || window.innerHeight;
     const visH = Math.min(wrapH, window.innerHeight);
@@ -170,18 +194,23 @@ class Cinematic {
 
   frame() {
     this.raf = null;
-    const vh = window.innerHeight || 800;
-    const stages = this.stages || [];
+    const vh = this.viewport?.height || window.innerHeight || 800;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
 
-    /* ---- read phase: rects only ---- */
+    /* ---- read phase: scroll position only ----
+
+       Stage geometry was measured on setup/load/resize. Avoiding layout reads
+       here keeps a touch scroll on the compositor even while --p changes the
+       reveal transforms. */
     const reads = [];
-    for (const st of stages) {
-      const r = st.getBoundingClientRect();
+    for (const metric of this.stageMetrics || []) {
+      const top = metric.top - scrollY;
+      const bottom = top + metric.height;
       reads.push({
-        st,
-        kind: st.dataset.stage,
-        p: Math.max(0, Math.min(1, -r.top / Math.max(1, r.height - vh))),
-        near: r.top < vh * 1.35 && r.bottom > -vh * 0.35
+        st: metric.st,
+        kind: metric.kind,
+        p: Math.max(0, Math.min(1, -top / Math.max(1, metric.height - vh))),
+        near: top < vh * 1.35 && bottom > -vh * 0.35
       });
     }
 
@@ -273,8 +302,8 @@ class Cinematic {
   grow(p) {
     if (!this.heroFrame || !this.motion) return;
     const t = Math.max(0, Math.min(1, p));
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = this.viewport?.width || window.innerWidth;
+    const h = this.viewport?.height || window.innerHeight;
     const boxW = w * 0.52;
     const boxH = w * 0.3467;
     const full = Math.max(w / boxW, h / boxH);
@@ -305,10 +334,10 @@ class Cinematic {
     const a = BEATS[i];
     const b = BEATS[i + 1];
     const mix = (u, v) => u + (v - u) * k;
-    const vw = window.innerWidth / 100;
-    const vhUnit = window.innerHeight / 100;
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = this.viewport?.width || window.innerWidth;
+    const h = this.viewport?.height || window.innerHeight;
+    const vw = w / 100;
+    const vhUnit = h / 100;
 
     /* --- phone: position, aim, distance --- */
     const px = mix(a.ph.x, b.ph.x) * vw;
@@ -343,8 +372,8 @@ class Cinematic {
 
     /* --- the view through the lens: handheld, and pushed in on close beats --- */
     if (this.phoneView) {
-      const pw = this.phone.clientWidth || 260;
-      const ph = this.phone.clientHeight || 560;
+      const pw = this.phoneSize?.width || 260;
+      const ph = this.phoneSize?.height || 560;
       const bob = Math.sin(t * Math.PI * 5.2);
       this.phoneView.style.transform =
         `translate3d(${((-px * 0.05) + (bodySway * 0.05 + (t - 0.5) * 0.09) * pw).toFixed(1)}px, ` +
@@ -358,7 +387,7 @@ class Cinematic {
     if (this.scanline) {
       const eased = raw * raw * (3 - 2 * raw);
       this.scanline.style.transform =
-        `translateY(${(eased * 0.62 * (this.phone.clientHeight || 560)).toFixed(1)}px)`;
+        `translateY(${(eased * 0.62 * (this.phoneSize?.height || 560)).toFixed(1)}px)`;
       this.scanline.style.opacity = (0.3 + 0.7 * Math.sin(Math.PI * raw)).toFixed(2);
     }
 

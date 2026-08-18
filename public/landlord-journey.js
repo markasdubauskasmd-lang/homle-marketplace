@@ -145,6 +145,14 @@ const state = {
   confirming: false
 };
 
+// Core account and mutation requests receive the full mobile allowance. The
+// readiness and directory reads below are advisory: they must never hold the
+// booking journey open while a sleeping service or a weak connection catches
+// up, so those callers deliberately choose the shorter bounds.
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const DIRECTORY_REQUEST_TIMEOUT_MS = 8_000;
+const READINESS_REQUEST_TIMEOUT_MS = 5_000;
+
 function toast(message) {
   el.toast.textContent = message;
   el.toast.hidden = false;
@@ -170,18 +178,19 @@ function browserOffline() {
 }
 
 async function requestJson(path, options = {}) {
-  const mutation = Boolean(options.method && options.method !== "GET");
+  const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...requestOptions } = options;
+  const mutation = Boolean(requestOptions.method && requestOptions.method !== "GET");
   if (browserOffline()) throw Object.assign(new Error(mutation
     ? "You are offline. Nothing was sent; your answers are still here."
     : "You are offline. Reconnect to open your private account."), { code: "browser-offline" });
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), 30_000);
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(path, {
       credentials: "same-origin",
       cache: "no-store",
-      ...options,
-      headers: { Accept: "application/json", ...(options.headers || {}) },
+      ...requestOptions,
+      headers: { Accept: "application/json", ...(requestOptions.headers || {}) },
       signal: controller.signal
     });
     const result = await response.json().catch(() => ({}));
@@ -367,13 +376,9 @@ function renderScanPropertyChoice() {
 // stays usable and simply says nothing, rather than inventing a count.
 async function checkSupply(outward) {
   try {
-    const response = await fetch(`/api/marketplace/cleaners?outwardPostcode=${encodeURIComponent(outward)}&limit=50`, {
-      headers: { Accept: "application/json" },
-      credentials: "same-origin",
-      cache: "no-store"
+    const payload = await requestJson(`/api/marketplace/cleaners?outwardPostcode=${encodeURIComponent(outward)}&limit=50`, {
+      timeoutMs: DIRECTORY_REQUEST_TIMEOUT_MS
     });
-    if (!response.ok) return;
-    const payload = await response.json();
     const count = Array.isArray(payload?.cleaners) ? payload.cleaners.length : 0;
     const message = supplyMessage(count, outward);
     el.supplyHead.textContent = message.headline;
@@ -533,9 +538,9 @@ async function loadCleaners() {
     const params = new URLSearchParams({ limit: "12" });
     if (state.draft.outward) params.set("outwardPostcode", state.draft.outward);
     if (state.draft.serviceCode) params.set("serviceCode", state.draft.serviceCode);
-    const response = await fetch(`/api/marketplace/cleaners?${params}`, { headers: { Accept: "application/json" }, credentials: "same-origin", cache: "no-store" });
-    if (!response.ok) throw new Error("unavailable");
-    const payload = await response.json();
+    const payload = await requestJson(`/api/marketplace/cleaners?${params}`, {
+      timeoutMs: DIRECTORY_REQUEST_TIMEOUT_MS
+    });
     const cleaners = Array.isArray(payload?.cleaners) ? payload.cleaners : [];
     if (!cleaners.length) {
       el.cleanerState.textContent = `No cleaners cover ${state.draft.outward || "your area"} yet. You can still save this request — we'll tell you when someone does.`;
@@ -1665,9 +1670,10 @@ async function confirmJourney() {
 
 async function loadCapabilities() {
   try {
-    const response = await fetch("/api/health", { headers: { Accept: "application/json" }, cache: "no-store" });
-    if (!response.ok) return;
-    const payload = await response.json();
+    const payload = await requestJson("/api/health", {
+      credentials: "omit",
+      timeoutMs: READINESS_REQUEST_TIMEOUT_MS
+    });
     state.capabilities = {
       mediaReady: payload?.marketplace?.mediaReady === true,
       matchingReady: payload?.marketplace?.matchingReady === true
@@ -1784,11 +1790,20 @@ if (state.draft.postcode) {
   const parsed = normalisedPostcode(state.draft.postcode);
   if (parsed) checkSupply(parsed.outward);
 }
-await loadCapabilities();
-if (await openAuthenticatedJourney()) {
+// Readiness is useful for the final matching/upload copy, but it is not an
+// access decision. Start it alongside account recovery so a sleeping health
+// endpoint never leaves a signed-in customer staring at the access gate. If a
+// restored journey opens directly on checkout, repaint that one step when the
+// bounded advisory read finishes; every earlier step has ample time before it
+// can depend on these flags.
+const capabilitiesReady = loadCapabilities();
+const journeyOpened = await openAuthenticatedJourney();
+if (journeyOpened) {
   show(state.step);
   if (cameFromScan) toast("Your scan is here. Check the checklist before continuing.");
 }
+await capabilitiesReady;
+if (journeyOpened && state.step === "checkout") renderCheckout();
 
 // The scanner's object detector weighs several megabytes, and until now the
 // download only began once the scan overlay opened — the "getting the object
