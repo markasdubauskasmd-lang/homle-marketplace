@@ -98,7 +98,8 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
   height: 62px;
   border: 0;
   border-radius: 0;
-  background: url("/homlle-onboarding-logo.svg?v=20260818-true-vector-1") center / 52px 54px no-repeat;
+  background: url("/homle-logo.png?v=20260818-approved-reference-1") center / 84px 84px no-repeat;
+  mix-blend-mode: lighten;
   filter: none;
   box-shadow: none;
   color: #fff;
@@ -278,7 +279,7 @@ body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liquid-in
   --liquid-y: 0px;
   position: absolute;
   top: -32px;
-  right: -60px;
+  right: -68px;
   z-index: 1;
   display: block;
   width: 140px;
