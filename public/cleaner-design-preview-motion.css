@@ -59,7 +59,7 @@ html body.cleaner-onboarding-page .hc-preview-liquid-indicator[data-preview-liqu
     top: -32px !important;
     /* Merge the active white tab into the page while its icon remains centred
        on the fixed sidebar rail. */
-    right: -60px !important;
+    right: -68px !important;
     z-index: 1 !important;
     display: block !important;
     width: 140px !important;
