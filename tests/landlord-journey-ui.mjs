@@ -144,7 +144,7 @@ assert(page.includes("exact address stays private") && page.includes("Private ac
 assert(!page.includes("Enhanced DBS") && !page.includes("Insured incl. theft") && !page.includes("Free cancellation 24h") && !page.includes("cancel free up to"), "The booking journey invents unverified screening, insurance or cancellation claims.");
 assert(page.includes("data-rail") && page.includes("data-step-label") && page.includes("data-back"), "The progress rail is missing.");
 assert(styles.includes(".rail-seg") && styles.includes(".rail-lbl") && styles.includes(".jstep"), "The journey presentation is missing.");
-assert(page.includes("/styles.css?v=20260728-3") && page.includes("/noncleaner-scroll.css?v=20260814-1") && page.includes("/landlord-journey-property.css?v=20260814-1") && page.includes("/landlord-journey.js?v=journey9") && script.includes("./landlord-journey-model.js?v=journey8"), "The property-first journey, page styling, isolated non-Cleaner scrolling or matching model can remain stuck behind previous cached assets.");
+assert(page.includes("/styles.css?v=20260728-3") && page.includes("/noncleaner-scroll.css?v=20260814-1") && page.includes("/landlord-journey-property.css?v=20260814-1") && page.includes("/landlord-journey.js?v=journey10") && script.includes("./landlord-journey-model.js?v=journey8"), "The property-first journey, page styling, isolated non-Cleaner scrolling or matching model can remain stuck behind previous cached assets.");
 assert(script.includes("selectScanProperty(property)") && script.includes("state.draft.propertyId = property.propertyId") && script.includes("checkSupply(parsed.outward)"), "Selecting a saved property does not bind its private postcode to coverage and the rest of the journey.");
 assert(script.includes("Drafts created before the property-first journey") && script.includes('if (stepIndex(state.step) > 0) state.step = "postcode"'), "An old postcode-only draft can bypass the new first-step property choice.");
 assert(page.includes("data-access-gate") && page.includes("data-journey-shell hidden") && page.includes('href="/signup?intent=book" data-access-sign-in'), "A copied or installed-app booking link can expose the scanner before secure Landlord access is checked.");
@@ -176,6 +176,18 @@ assert(invitationFlow.indexOf("const replacementApproved = window.confirm") < in
 assert((invitationFlow.match(/await sendCleanerInvitation/g) || []).length === 2 && (invitationFlow.match(/loadQuoteVerifiedAlternative/g) || []).length === 2, "The guided journey can retry invitation writes or replacement searches without the intended bounded decisions.");
 assert(script.includes("excludeCleanerIds") && script.includes("initiallySelectedCleanerId") && !script.includes("payoutReady:"), "The alternative-match recovery can retry the unavailable Cleaner or expose a private payout-readiness flag.");
 assert(script.includes("new AbortController()") && script.includes("120_000") && script.includes("photo upload took too long"), "A stalled mobile room-photo upload can leave checkout spinning indefinitely.");
+
+// Readiness and directory lookups improve the presentation but are not a
+// prerequisite for recovering the signed-in account or opening the form. They
+// therefore need a much shorter bound than writes and private photo uploads.
+assert(script.includes("const DEFAULT_REQUEST_TIMEOUT_MS = 30_000") && script.includes("const DIRECTORY_REQUEST_TIMEOUT_MS = 8_000") && script.includes("const READINESS_REQUEST_TIMEOUT_MS = 5_000"), "The booking journey does not distinguish core request, directory and advisory readiness timeouts.");
+assert(script.includes("const { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, ...requestOptions } = options") && script.includes("window.setTimeout(() => controller.abort(), timeoutMs)"), "The shared Landlord journey request boundary cannot enforce a caller-specific timeout.");
+assert(/async function checkSupply[\s\S]{0,500}requestJson\(`\/api\/marketplace\/cleaners\?outwardPostcode=[\s\S]{0,220}timeoutMs: DIRECTORY_REQUEST_TIMEOUT_MS/.test(script), "The optional area-supply check can leave the journey waiting indefinitely.");
+assert(/async function loadCleaners[\s\S]{0,900}requestJson\(`\/api\/marketplace\/cleaners\?\$\{params\}`[\s\S]{0,160}timeoutMs: DIRECTORY_REQUEST_TIMEOUT_MS/.test(script), "The Cleaner-choice step can remain stuck on a slow directory response.");
+assert(/async function loadCapabilities[\s\S]{0,260}requestJson\("\/api\/health"[\s\S]{0,180}timeoutMs: READINESS_REQUEST_TIMEOUT_MS/.test(script), "An advisory health response can block the signed-in Landlord journey from opening.");
+assert(/const capabilitiesReady = loadCapabilities\(\);[\s\S]{0,180}const journeyOpened = await openAuthenticatedJourney\(\);/.test(script), "Readiness does not begin in parallel with account recovery.");
+assert(/await capabilitiesReady;[\s\S]{0,120}state\.step === "checkout"[\s\S]{0,80}renderCheckout\(\)/.test(script), "A restored checkout is not refreshed when readiness settles.");
+assert(script.indexOf("const journeyOpened = await openAuthenticatedJourney();") < script.indexOf("await capabilitiesReady;"), "Account recovery still waits for the advisory readiness result.");
 
 // Coverage and cleaners come from the live directory, never from a placeholder.
 assert(script.includes("/api/marketplace/cleaners?outwardPostcode=") && script.includes("payload?.cleaners"), "Coverage is not read from the real Cleaner directory.");

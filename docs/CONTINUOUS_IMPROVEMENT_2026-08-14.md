@@ -70,6 +70,22 @@ Business readiness now has an eighth, separate participant-rehearsal area. It st
 
 The form rejects a checked “passed” claim with vague or missing evidence and rejects future dates. This evidence does not enable accounts, contact users, move money or substitute for the rehearsal itself; it prevents technical service attachment from being mistaken for launch proof.
 
+## The Landlord booking journey no longer waits indefinitely on advisory reads
+
+The property-first booking page previously awaited `/api/health` before it
+recovered the signed-in Landlord account. Its area-supply and Cleaner-directory
+lookups also used raw, unbounded browser requests. A sleeping service or weak
+connection could therefore leave the journey looking stuck even though those
+readiness and directory results are advisory and the Landlord's answers were
+otherwise usable.
+
+The journey now keeps the existing 30-second safety boundary for account reads
+and mutations, but bounds readiness at five seconds and directory lookups at
+eight seconds. A slow readiness result falls back to the existing conservative
+capability state and still opens the authenticated form. A slow directory read
+shows the existing honest retry/empty guidance instead of spinning forever.
+No request, booking, invitation or payment is attempted by these fallbacks.
+
 ## Protected boundary
 
 During publication, newer commits on `main` were found to have changed Cleaner onboarding pages, scripts, styling, navigation, a backend route and their tests. One of those commits also accidentally truncated the booking-dashboard regression suite and caused GitHub's syntax gate to fail. Those concurrent changes contradicted this goal's explicit no-change boundary.
