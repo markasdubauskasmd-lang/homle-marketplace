@@ -61,6 +61,8 @@ let activeProviders = Object.freeze({});
 let workspaceReady = false;
 let signedInAccount = null;
 const accountRequestTimeoutMs = 15_000;
+const workspaceReadinessTimeoutMs = 5_000;
+let workspaceReadinessPromise = Promise.resolve(false);
 
 if (location.hash) history.replaceState(null, "", `${location.pathname}${location.search}`);
 document.title = `${selectedMode.title} — Homle`;
@@ -201,6 +203,34 @@ async function accountFetch(path, options = {}) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function readWorkspaceReadiness() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), workspaceReadinessTimeoutMs);
+  try {
+    const response = await fetch("/api/health", {
+      headers: { Accept: "application/json" },
+      credentials: "omit",
+      cache: "no-store",
+      signal: controller.signal
+    });
+    if (!response.ok) return false;
+    const health = await response.json().catch(() => null);
+    return health?.marketplace?.enabled === true && health?.marketplace?.ready === true;
+  } catch {
+    // Health is advisory on account entry. A slow worker or readiness probe must
+    // never hide a sign-in provider that the dedicated provider route already
+    // confirmed is available.
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function resolveWorkspaceReadiness() {
+  workspaceReady = await workspaceReadinessPromise;
+  return workspaceReady;
 }
 
 async function post(path, body, csrfToken = "") {
@@ -379,6 +409,7 @@ async function submitAccountForm(event) {
         return;
       }
       signedInAccount = await activateIntendedWorkspace(result.account);
+      await resolveWorkspaceReadiness();
       const destination = workspacePath(signedInAccount);
       if (destination) {
         clearCompletedIntent();
@@ -436,6 +467,7 @@ async function submitAccountForm(event) {
         await post("/api/marketplace/auth/logout", {}, result.csrfToken);
         throw new Error("Secure browser storage is unavailable, so Homle closed the rotated session. Sign in again in a standard browser window.");
       }
+      await resolveWorkspaceReadiness();
       const destination = workspacePath(result.account);
       if (destination) {
         clearCompletedIntent();
@@ -477,14 +509,14 @@ if ((bookingIntent || cleanerIntent) && selectedMode.form === "onboarding") {
   if (submit) submit.textContent = bookingIntent ? "Continue to property details" : "Continue to Cleaner profile";
 }
 
+// Provider discovery controls whether the visitor may sign in. Marketplace
+// health only controls the destination after sign-in, so start both together
+// but never keep Google/email buttons hidden behind the slower advisory probe.
+workspaceReadinessPromise = readWorkspaceReadiness();
+
 try {
-  const [response, healthResponse] = await Promise.all([
-    fetch("/api/auth/providers", { headers: { Accept: "application/json" }, cache: "no-store" }),
-    fetch("/api/health", { headers: { Accept: "application/json" }, credentials: "omit", cache: "no-store" }).catch(() => null)
-  ]);
+  const response = await accountFetch("/api/auth/providers", { headers: { Accept: "application/json" }, cache: "no-store" });
   const result = response.ok ? await response.json() : null;
-  const health = healthResponse?.ok ? await healthResponse.json().catch(() => null) : null;
-  workspaceReady = health?.marketplace?.enabled === true && health?.marketplace?.ready === true;
   const providers = result?.providers || {};
   const authenticationReady = providers.emailPassword === true || providers.google === true || providers.apple === true || providers.facebook === true;
   if (authenticationReady) {

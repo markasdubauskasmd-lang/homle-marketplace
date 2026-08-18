@@ -150,6 +150,28 @@ intervals on desktop and phone, with no frame over 32 ms across 118 hero frames
 or 178 full-page frames. Reduced-motion behaviour and every landing action are
 unchanged.
 
+## Account entry no longer waits for marketplace health
+
+The sign-in and sign-up pages previously awaited both provider discovery and
+the complete marketplace health response before revealing Google or verified
+email. Provider availability is the security decision that controls those
+buttons; marketplace health is only advisory until Homle chooses the private
+workspace destination after a successful sign-in. A waking worker or slow
+database check could therefore make a working Google button look unavailable.
+
+Provider discovery and the advisory readiness read now begin together, but the
+available sign-in controls render as soon as the dedicated provider response
+arrives. The readiness read has a five-second boundary and is awaited only when
+email sign-in or onboarding needs to choose a workspace destination. Social
+handoff and account-ready pages continue to verify the authenticated account
+through the existing protected account endpoint, which returns its own trusted
+workspace state.
+
+A Chromium regression holds `/api/health` back for four seconds and proves that
+Google is already visible, correctly routed and usable while that request is
+still pending. No role, session, onboarding or Cleaner Dashboard behaviour was
+changed.
+
 ## Protected boundary
 
 During publication, newer commits on `main` were found to have changed Cleaner onboarding pages, scripts, styling, navigation, a backend route and their tests. One of those commits also accidentally truncated the booking-dashboard regression suite and caused GitHub's syntax gate to fail. Those concurrent changes contradicted this goal's explicit no-change boundary.
