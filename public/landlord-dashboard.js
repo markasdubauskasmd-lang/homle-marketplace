@@ -182,6 +182,7 @@ let matchingReady = false;
 let automaticDispatchReady = false;
 let paymentsReady = false;
 const readinessRequestTimeoutMs = 5_000;
+const optionalDashboardRequestTimeoutMs = 8_000;
 const readinessRecoveryDelaysMs = Object.freeze([2_000, 6_000]);
 let readinessRecoveryTimer = null;
 let requestRecoveryChecked = false;
@@ -3846,7 +3847,7 @@ function renderFavouriteCleaners() {
 async function refreshFavouriteCleaners({ quiet = false } = {}) {
   const feedback = document.querySelector("[data-landlord-favourite-feedback]");
   try {
-    const result = await requestJson("/api/marketplace/landlord/favourite-cleaners");
+    const result = await requestJson("/api/marketplace/landlord/favourite-cleaners", { timeoutMs: optionalDashboardRequestTimeoutMs });
     favouriteCleaners = Array.isArray(result.cleaners) ? result.cleaners : [];
     renderFavouriteCleaners();
     if (quiet) return true;
@@ -3978,7 +3979,13 @@ async function loadWorkspace() {
     restoreWorkingRequest();
     renderRequests();
     renderBookings();
-    await refreshFavouriteCleaners();
+    // Saved Cleaners are useful, but they are not required to open the
+    // Landlord workspace. Keeping this optional request inside the awaited
+    // startup chain left the whole dashboard aria-busy for up to 30 seconds
+    // when that one endpoint was slow, even though properties, requests and
+    // bookings had already rendered. Finish primary startup immediately and
+    // let this isolated panel report its own bounded failure state.
+    void refreshFavouriteCleaners();
     loadStatus.hidden = failures.length === 0;
     if (location.hash === "#landlord-account-title") selectWorkspaceTab("account");
     continueBookingStart();

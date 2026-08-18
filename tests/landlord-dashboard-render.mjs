@@ -511,6 +511,48 @@ try {
       await server.close();
     }
   }
+
+  /* Saved Cleaners is an optional account enhancement, not a prerequisite for
+     opening the Landlord workspace. Prove that a slow response there cannot
+     keep every dashboard control aria-busy after the primary records render. */
+  const slowFavouriteFiles = endpoints();
+  slowFavouriteFiles["/api/marketplace/landlord/favourite-cleaners"] = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    return { body: { ok: true, cleaners: [] } };
+  };
+  const slowFavouriteServer = await serveStatic({
+    extraFiles: {
+      "/landlord/home": dashboardHtml,
+      ...slowFavouriteFiles
+    }
+  });
+  try {
+    await browser.setViewport({ width: 390, height: 844, mobile: true });
+    const startedAt = Date.now();
+    await browser.goto(`${slowFavouriteServer.origin}/landlord/home`);
+    const optionalRead = await browser.evaluate(`
+      const deadline = Date.now() + 1800;
+      for (;;) {
+        const workspace = document.querySelector("[data-landlord-workspace]");
+        if (workspace && !workspace.hidden && !workspace.hasAttribute("aria-busy")) {
+          return {
+            ready: true,
+            bodyText: document.querySelector("#landlord-main")?.innerText || ""
+          };
+        }
+        if (Date.now() > deadline) return { ready: false, bodyText: "" };
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    `);
+    const elapsedMs = Date.now() - startedAt;
+    assert(optionalRead.ready,
+      `slow saved-Cleaners read: the primary Landlord workspace stayed busy for at least 1.8 seconds (${elapsedMs}ms observed).`);
+    assert(/What do you need cleaned|Your places|Bookings/i.test(optionalRead.bodyText),
+      "slow saved-Cleaners read: the workspace stopped reporting busy before its primary content rendered.");
+    checked.push("slow saved-Cleaners read · primary workspace stays interactive");
+  } finally {
+    await slowFavouriteServer.close();
+  }
 } catch (error) {
   failure = error;
 } finally {
