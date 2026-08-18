@@ -553,6 +553,50 @@ try {
   } finally {
     await slowFavouriteServer.close();
   }
+
+  /* Account verification still gates every render, but it must not create a
+     second round trip before the server-authorised workspace reads even start.
+     Capture request arrival times at the fixture server so this regression is
+     deterministic without depending on a narrow total-render stopwatch. */
+  const primaryReadStarts = { account: 0, properties: 0 };
+  const overlappingPrimaryFiles = endpoints();
+  overlappingPrimaryFiles["/api/marketplace/account"] = async () => {
+    primaryReadStarts.account = Date.now();
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    return { body: endpoints()["/api/marketplace/account"] };
+  };
+  overlappingPrimaryFiles["/api/marketplace/properties"] = async () => {
+    primaryReadStarts.properties = Date.now();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    return { body: endpoints()["/api/marketplace/properties"] };
+  };
+  const overlappingPrimaryServer = await serveStatic({
+    extraFiles: {
+      "/landlord/home": dashboardHtml,
+      ...overlappingPrimaryFiles
+    }
+  });
+  try {
+    await browser.setViewport({ width: 390, height: 844, mobile: true });
+    await browser.goto(`${overlappingPrimaryServer.origin}/landlord/home`);
+    const workspaceReady = await browser.evaluate(`
+      const deadline = Date.now() + 3000;
+      for (;;) {
+        const workspace = document.querySelector("[data-landlord-workspace]");
+        if (workspace && !workspace.hidden && !workspace.hasAttribute("aria-busy")) return true;
+        if (Date.now() > deadline) return false;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    `);
+    assert(workspaceReady, "overlapping primary reads: the Landlord workspace did not finish opening.");
+    assert(primaryReadStarts.account > 0 && primaryReadStarts.properties > 0,
+      "overlapping primary reads: the account or properties request never reached the server.");
+    assert(Math.abs(primaryReadStarts.properties - primaryReadStarts.account) < 300,
+      `overlapping primary reads: properties started ${Math.abs(primaryReadStarts.properties - primaryReadStarts.account)}ms away from account verification instead of in the same startup burst.`);
+    checked.push("account verification + primary reads · overlap safely");
+  } finally {
+    await overlappingPrimaryServer.close();
+  }
 } catch (error) {
   failure = error;
 } finally {

@@ -3933,6 +3933,20 @@ async function loadWorkspace() {
   loading = true;
   showState("Checking secure Landlord access…", "Your properties and drafts open only inside an authenticated Landlord session.");
   try {
+    // These are independently authorised, read-only endpoints. Start them
+    // alongside the account check so a cold service or mobile connection does
+    // not turn workspace startup into two consecutive network waits. Nothing
+    // is rendered until the verified account passes the Landlord role check
+    // below, and allSettled prevents abandoned reads becoming unhandled errors.
+    const primaryWorkspaceReads = Promise.allSettled([
+      requestJson("/api/marketplace/landlord/profile"),
+      requestJson("/api/marketplace/properties"),
+      requestJson("/api/marketplace/properties/archived"),
+      requestJson("/api/marketplace/cleaning-requests"),
+      requestJson("/api/marketplace/bookings?limit=50"),
+      requestJson("/api/marketplace/landlord/support-requests?limit=25&offset=0"),
+      requestJson("/api/health", { credentials: "omit", timeoutMs: readinessRequestTimeoutMs })
+    ]);
     const accountResult = await requestJson("/api/marketplace/account");
     const account = accountResult.account;
     const access = dashboardWorkspaceAccess(account, "landlord");
@@ -3948,15 +3962,7 @@ async function loadWorkspace() {
     workspace.setAttribute("aria-busy", "true");
     loadStatus.hidden = true;
 
-    const [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult] = await Promise.allSettled([
-      requestJson("/api/marketplace/landlord/profile"),
-      requestJson("/api/marketplace/properties"),
-      requestJson("/api/marketplace/properties/archived"),
-      requestJson("/api/marketplace/cleaning-requests"),
-      requestJson("/api/marketplace/bookings?limit=50"),
-      requestJson("/api/marketplace/landlord/support-requests?limit=25&offset=0"),
-      requestJson("/api/health", { credentials: "omit", timeoutMs: readinessRequestTimeoutMs })
-    ]);
+    const [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult] = await primaryWorkspaceReads;
     const results = [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult];
     const failures = results.filter((result) => result.status === "rejected");
     const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
