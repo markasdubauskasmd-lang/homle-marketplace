@@ -98,11 +98,11 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
   height: 62px;
   border: 0;
   border-radius: 0;
-    /* The approved mark is the white house glyph alone. This previously painted
-       homle-logo.png here - a 1.9 MB raster carrying its own red tile - and used
-       mix-blend-mode to hide that tile against the sidebar, which left a visible
-       square. The inline SVG below is the same artwork, with no tile and no raster. */
-    background: none;
+    /* The supplied white artwork on transparency. The previous rule painted
+       homle-logo.png here - a 1.9 MB raster carrying its own red tile - and leaned on
+       mix-blend-mode to hide that tile against the sidebar, which is what left the
+       visible red square. A transparent asset needs no blend trick. */
+    background: url("/homlle-onboarding-logo-white.png?v=20260818-white-1") center / contain no-repeat;
     mix-blend-mode: normal;
   filter: none;
   box-shadow: none;
@@ -116,11 +116,8 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
 }
 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand-logo {
-    display: block;
-    width: 46px;
-    height: 46px;
-    /* The glyph paths draw with currentColor. */
-    color: #fff;
+    /* Hidden: these inline paths approximate the artwork; the PNG above is the real one. */
+    display: none;
 }
 
 body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] .hc-brand > div:last-child {
