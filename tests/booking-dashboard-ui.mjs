@@ -295,8 +295,13 @@ for (const copiedSample of ["Oven not deep cleaned as agreed", "Whitfield Lettin
 }
 assert(cleanerStyles.includes(".hc-disputes") && cleanerStyles.includes(".hc-dispute-row") && cleanerStyles.includes(".hc-dispute-date") && cleanerStyles.includes(".cleaner-disputes-page .hc-side.cleaner-site-header"), "The supplied My disputes card, compact rows, recorded date or cream sidebar treatment is missing.");
 assert(server.includes('"/cleaner/settings": "cleaner-settings.html"') && cleanerOnboardingSteps.includes('label: "Settings", icon: "gear", href: "/cleaner/settings"'), "The Cleaner Settings tab does not open its dedicated private account page.");
-for (const onboardingShell of [cleanerRegistrationPage, cleanerContractsPage, cleanerDocumentsPage, cleanerTrainingPage]) {
-  assert(onboardingShell.includes('/cleaner-design-preview-motion.css?v=20260816-restore-1') && onboardingShell.includes('/cleaner-onboarding-redesign.css?v=20260817-introduction-1'), "An onboarding page shell can fall back to the retired text-sidebar design.");
+for (const [onboardingShell, motionStylesheet, redesignStylesheet] of [
+  [cleanerRegistrationPage, '/cleaner-design-preview-motion.css?v=20260817-sharp-visuals-1', '/cleaner-onboarding-redesign.css?v=20260817-sharp-visuals-1'],
+  [cleanerContractsPage, '/cleaner-design-preview-motion.css?v=20260816-restore-1', '/cleaner-onboarding-redesign.css?v=20260817-introduction-1'],
+  [cleanerDocumentsPage, '/cleaner-design-preview-motion.css?v=20260816-restore-1', '/cleaner-onboarding-redesign.css?v=20260817-introduction-1'],
+  [cleanerTrainingPage, '/cleaner-design-preview-motion.css?v=20260816-restore-1', '/cleaner-onboarding-redesign.css?v=20260817-introduction-1'],
+]) {
+  assert(onboardingShell.includes(motionStylesheet) && onboardingShell.includes(redesignStylesheet), "An onboarding page shell can fall back to the retired text-sidebar design.");
 }
 assert(cleanerOnboardingRedesign.includes('background: linear-gradient(180deg, #ff1747 0%, #ff0034 55%, #d9002c 100%)') && cleanerOnboardingRedesign.includes('url("/homlle-onboarding-logo.svg?v=20260818-true-vector-1")') && cleanerOnboardingRedesign.includes('border: 7px solid #2d2b2a') && cleanerOnboardingMotion.includes('.hc-nav-sub[data-preview-page][aria-current="page"]'), "The approved framed red icon rail, white active-step cutout or Homlle logo treatment is missing.");
 assert(cleanerOnboardingMotion.includes('data-preview-liquid-indicator') && cleanerOnboardingMotion.includes('cubic-bezier(.22, .72, .18, 1)') && cleanerSidebar.includes('data-preview-page') && cleanerSidebar.includes('prefetchOnboardingPage') && cleanerSidebar.includes('hc-preview-liquid-indicator'), "The approved smooth active-step motion or seamless onboarding navigation is missing.");
