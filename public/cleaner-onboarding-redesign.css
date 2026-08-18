@@ -98,8 +98,8 @@ body.cleaner-onboarding-page .hc-side.cleaner-site-header[data-preview-sidebar] 
   height: 62px;
   border: 0;
   border-radius: 0;
-  background: url("/homlle-onboarding-logo.svg?v=20260817-reference-sharp-small-1") center / 52px 54px no-repeat;
-  filter: contrast(1.2);
+  background: url("/homlle-onboarding-logo.svg?v=20260818-true-vector-1") center / 52px 54px no-repeat;
+  filter: none;
   box-shadow: none;
   color: #fff;
   text-decoration: none;
