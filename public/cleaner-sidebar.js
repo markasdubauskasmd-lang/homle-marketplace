@@ -135,8 +135,14 @@ function prefetchOnboardingPage(link) {
 }
 
 function connectOnboardingMotion(host) {
-  const current = host.querySelector('[aria-current="page"]');
-  requestAnimationFrame(() => positionOnboardingIndicator(host, current, true));
+  // Look the active entry up when the frame runs, not before it is scheduled. A normal load
+  // renders this rail twice - once at module load so the icons appear immediately, again once
+  // progress data arrives - and the second render replaces every node. An element captured
+  // beforehand is detached by the time the frame fires, which left the indicator unpositioned
+  // and parked at the top of the rail while a lower step was the active one.
+  const place = () => positionOnboardingIndicator(host, host.querySelector('[aria-current="page"]'), true);
+  place();
+  requestAnimationFrame(place);
   if (host.dataset.motionReady) return;
   host.dataset.motionReady = "true";
   const warmOnboardingPages = () => host.querySelectorAll("a[data-preview-page]").forEach(prefetchOnboardingPage);
