@@ -140,9 +140,11 @@ assert(elapsedSince(5000, 1000) === null, "A backwards clock produced a negative
 
 const overlay = await readFile(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
 assert(overlay.includes("createScanEventReporter"), "The scanner reports nothing.");
-for (const metric of ["scan.session.started", "scan.room.completed", "scan.session.abandoned", "scan.redaction.applied", "scan.camera.unavailable"]) {
+for (const metric of ["scan.session.started", "scan.room.completed", "scan.session.abandoned", "scan.redaction.applied", "scan.camera.unavailable", "scan.camera.denied", "scan.detector.unavailable"]) {
   assert(overlay.includes(`"${metric}"`), `The scanner never emits ${metric}.`);
 }
+assert(/blockCamera\(denied[\s\S]{0,500}\{ denied \}\)/.test(overlay),
+  "A rejected camera permission is no longer distinguished from an unavailable camera.");
 // An unsent batch would simply vanish when the overlay is torn down.
 assert(/scanEvents\.flush\(\)/.test(overlay), "The scanner never flushes its queue.");
 // The reporter is created per scan, so a queue cannot outlive the overlay that

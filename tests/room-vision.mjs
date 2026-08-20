@@ -256,5 +256,12 @@ assert(/const selectedItems = Array\.isArray\(body\?\.items\)[\s\S]{0,900}readSe
 // request body. Compared against the exact string so an unrecognised value lands
 // on the cheap tier: it must never be able to escalate, only stay cheap.
 assert(/body\?\.purpose === "confirmation" \? "confirmation" : "walking"/.test(marketplaceHttpSource), "The room-reading route passes `purpose` through rather than comparing it to the exact string, so a crafted request could select the dearer model and run up the bill.");
+const roomReadingRoute = marketplaceHttpSource.slice(
+  marketplaceHttpSource.indexOf('pathname === "/api/marketplace/landlord/room-reading"'),
+  marketplaceHttpSource.indexOf('pathname === "/api/marketplace/pricing/scan-ruleset"')
+);
+assert(roomReadingRoute.includes("const readingStartedAt = Date.now()")
+  && /finally \{[\s\S]{0,200}observeScan\("scan\.reading\.latency_ms", \{ durationMs: Date\.now\(\) - readingStartedAt \}\)/.test(roomReadingRoute),
+  "Room-reading latency is defined but no longer observed on both success and failure paths.");
 
 console.log("Room vision tests passed: optional capability, photograph-only bounded requests, malformed-box rejection, honest empty readings, selected-item naming that cannot invent an item or a coordinate, no invented measurement and clean failure for every provider fault.");

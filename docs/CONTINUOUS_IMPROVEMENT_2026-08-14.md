@@ -1,5 +1,22 @@
 # Homle continuous improvement record — 14 August 2026
 
+## Scanner observability now identifies mobile failure modes — 20 August 2026
+
+- Confirmed scanner telemetry is connected end to end: the browser reporter
+  posts an allowlisted, identifier-free batch through an authenticated,
+  CSRF-protected Landlord route; the runtime shares the collector with scan
+  services; and the Administrator scan-operations screen reads aggregate rates.
+- Added the missing provider-read latency observation on both success and
+  failure paths. Exact time is immediately reduced to a coarse bucket.
+- Split camera permission denial from general camera unavailability and now
+  report on-device detector load/runtime failure, so mobile recovery work can
+  target the real failure mode rather than one blended count.
+- Corrected the architecture record, which still claimed telemetry and scan
+  retention were unimplemented. The remaining limitation is explicit:
+  telemetry is process-local and resets across deploys/restarts.
+- No Cleaner Dashboard file, route, style, form, feature or backend behaviour
+  changed.
+
 ## Landlord notification retries now stop when the session ends
 
 Production request evidence included a private notification event request that

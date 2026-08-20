@@ -995,6 +995,12 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             return true;
           }
           const body = await readJsonObject(request, maximumRoomPhotoBodyBytes);
+          // Start only after authentication, rate limiting and bounded JSON
+          // parsing have succeeded. This measures the provider-facing read the
+          // customer is waiting for, not unrelated request setup. The collector
+          // immediately converts it to a coarse bucket, so the exact duration
+          // never leaves this call.
+          const readingStartedAt = Date.now();
           try {
             // Two shapes, one route. When the device has already found and
             // boxed the objects it sends them for naming only. When it has not —
@@ -1029,6 +1035,8 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
               type: String(error?.error?.type || error?.type || "").slice(0, 80)
             });
             sendJson(response, 502, { ok: false, error: "This room could not be read automatically." });
+          } finally {
+            observeScan("scan.reading.latency_ms", { durationMs: Date.now() - readingStartedAt });
           }
           return true;
         }
