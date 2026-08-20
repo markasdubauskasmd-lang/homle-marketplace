@@ -294,6 +294,14 @@ function renderActivationReadiness(readiness = {}) {
     item.querySelector(":scope > span").textContent = complete ? "✓" : "○";
     item.querySelector("small").textContent = complete ? "Verified by the current running environment" : missing;
   });
+  const emailSetup = document.querySelector("#transactional-email-setup");
+  if (emailSetup) {
+    const emailReady = readiness.checks?.transactionalEmail === true;
+    emailSetup.hidden = emailReady;
+    // A successful re-check closes the guide before hiding it, so returning to
+    // a later failed state never inherits an unexplained open disclosure.
+    if (emailReady) emailSetup.open = false;
+  }
   const next = document.querySelector("#technical-readiness-next");
   next.classList.toggle("technical-readiness-complete", readiness.ready === true);
   next.textContent = readiness.ready === true
