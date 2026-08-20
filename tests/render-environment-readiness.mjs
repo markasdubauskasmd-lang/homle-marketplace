@@ -18,6 +18,7 @@ const privateValues = Object.freeze({
   fingerprint: "a".repeat(64),
   anthropic: "sk-ant-never-print-a-real-vision-provider-key",
   resend: "re_test_never_print",
+  resendWebhook: `whsec_${"w".repeat(32)}`,
   storage: "storage-secret-never-print",
   stripeSecret: `sk_test_${"s".repeat(32)}`,
   stripePublic: `pk_test_${"p".repeat(32)}`,
@@ -92,6 +93,7 @@ for (const secret of Object.values(privateValues)) assert(!JSON.stringify(accoun
 const mediaAndEmailOnly = renderEnvironmentActivationReport(entriesFrom({
   ...safeAccountEnvironment,
   RESEND_API_KEY: privateValues.resend,
+  RESEND_WEBHOOK_SECRET: privateValues.resendWebhook,
   EMAIL_FROM: "Homle <test@homle.example>",
   OBJECT_STORAGE_ENDPOINT: "https://objects.example.com",
   OBJECT_STORAGE_BUCKET: "homle-private-media",
@@ -101,6 +103,21 @@ const mediaAndEmailOnly = renderEnvironmentActivationReport(entriesFrom({
 }));
 assert.equal(mediaAndEmailOnly.activation.marketplaceDependencies, false);
 assert.equal(mediaAndEmailOnly.next.key, "marketplace-runtime");
+
+const missingSuppressionWebhook = renderEnvironmentActivationReport(entriesFrom({
+  ...safeAccountEnvironment,
+  RESEND_API_KEY: privateValues.resend,
+  EMAIL_FROM: "Homle <test@homle.example>"
+}));
+assert.deepEqual(missingSuppressionWebhook.missing.transactionalEmail, ["RESEND_WEBHOOK_SECRET"]);
+assert.equal(missingSuppressionWebhook.checks.transactionalEmailConfigured, false);
+const invalidSuppressionWebhook = renderEnvironmentActivationReport(entriesFrom({
+  ...safeAccountEnvironment,
+  RESEND_API_KEY: privateValues.resend,
+  RESEND_WEBHOOK_SECRET: "whsec_short",
+  EMAIL_FROM: "Homle <test@homle.example>"
+}));
+assert.deepEqual(invalidSuppressionWebhook.missing.transactionalEmail, ["valid RESEND_WEBHOOK_SECRET"]);
 
 const renderBootstrapRehearsal = renderEnvironmentActivationReport(entriesFrom({
   ...safeAccountEnvironment,
@@ -125,6 +142,7 @@ const marketplaceDependencies = renderEnvironmentActivationReport(entriesFrom({
   ...safeAccountEnvironment,
   ...marketplaceRuntimeEnvironment,
   RESEND_API_KEY: privateValues.resend,
+  RESEND_WEBHOOK_SECRET: privateValues.resendWebhook,
   EMAIL_FROM: "Homle <test@homle.example>",
   OBJECT_STORAGE_ENDPOINT: "https://objects.example.com",
   OBJECT_STORAGE_BUCKET: "homle-private-media",
@@ -140,6 +158,7 @@ const everyDependency = {
   ...safeAccountEnvironment,
   ...marketplaceRuntimeEnvironment,
   RESEND_API_KEY: privateValues.resend,
+  RESEND_WEBHOOK_SECRET: privateValues.resendWebhook,
   EMAIL_FROM: "Homle <test@homle.example>",
   OBJECT_STORAGE_ENDPOINT: "https://objects.example.com",
   OBJECT_STORAGE_BUCKET: "homle-private-media",

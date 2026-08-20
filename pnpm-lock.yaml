@@ -29,6 +29,9 @@ importers:
       stripe:
         specifier: 22.1.1
         version: 22.1.1
+      svix:
+        specifier: 2.0.0
+        version: 2.0.0
 
 packages:
 
@@ -410,6 +413,10 @@ packages:
     peerDependenciesMeta:
       '@types/node':
         optional: true
+
+  svix@2.0.0:
+    resolution: {integrity: sha512-rywid6EHCJZwonqXCuo3nF/tovnz+CIoHlH0sMdxCTtgKwTRNmqJn2TCM40DTvMZUgshLhiP1KUfOZoTrli2/Q==}
+    engines: {node: '>=22'}
 
   ts-algebra@2.0.0:
     resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
@@ -850,6 +857,10 @@ snapshots:
       fast-sha256: 1.3.0
 
   stripe@22.1.1: {}
+
+  svix@2.0.0:
+    dependencies:
+      standardwebhooks: 1.0.0
 
   ts-algebra@2.0.0: {}
 

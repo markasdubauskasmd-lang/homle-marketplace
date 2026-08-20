@@ -90,7 +90,7 @@ const pool = {
     return {
       async query(sql) {
         probeQueries.push(sql);
-        return { rows: [{ database_role: "tideway_app", database_name: "tideway", server_version_num: 160004, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_realtime_ready: true, request_room_scan_ready: true, rate_limit_ready: true, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true }] };
+        return { rows: [{ database_role: "tideway_app", database_name: "tideway", server_version_num: 160004, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_realtime_ready: true, request_room_scan_ready: true, rate_limit_ready: true, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true, email_suppression_ready: true }] };
       },
       release() { released += 1; }
     };
@@ -285,7 +285,7 @@ let unsafeReleased = 0;
 await assert.rejects(probeMarketplaceDatabase({
   async connect() {
     return {
-      async query() { return { rows: [{ database_role: "migration_owner", server_version_num: 160000, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_realtime_ready: true, request_room_scan_ready: true, rate_limit_ready: true, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true }] }; },
+      async query() { return { rows: [{ database_role: "migration_owner", server_version_num: 160000, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_realtime_ready: true, request_room_scan_ready: true, rate_limit_ready: true, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true, email_suppression_ready: true }] }; },
       release() { unsafeReleased += 1; }
     };
   }
@@ -306,7 +306,7 @@ assert.equal(realtimeUnsafeReleased, 1);
 await assert.rejects(probeMarketplaceDatabase({
   async connect() {
     return {
-      async query() { return { rows: [{ database_role: "tideway_app", server_version_num: 160000, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_realtime_ready: true, request_room_scan_ready: true, rate_limit_ready: false, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true }] }; },
+      async query() { return { rows: [{ database_role: "tideway_app", server_version_num: 160000, role_is_safe: true, lookup_session_ready: true, booking_workflow_ready: true, booking_summaries_ready: true, automatic_dispatch_ready: true, request_realtime_ready: true, request_room_scan_ready: true, rate_limit_ready: false, facebook_pending_identity_ready: true, provider_connection_ready: true, payment_ledger_ready: true, payment_access_ready: true, payment_journey_gate_ready: true, unexpected_task_terms_ready: true, privacy_request_ready: true, facebook_data_deletion_ready: true, email_suppression_ready: true }] }; },
       release() {}
     };
   }

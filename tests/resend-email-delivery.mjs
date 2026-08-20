@@ -5,6 +5,7 @@ import { createResendEmailDelivery, resendEndpoint } from "../src/marketplace/re
 const env = Object.freeze({
   EMAIL_DELIVERY_PROVIDER: "resend",
   RESEND_API_KEY: `re_${"a".repeat(32)}`,
+  RESEND_WEBHOOK_SECRET: `whsec_${"b".repeat(32)}`,
   EMAIL_FROM: "Homle <onboarding@resend.dev>",
   APP_ORIGIN: "https://homle-marketplace-preview.onrender.com"
 });
@@ -16,6 +17,7 @@ for (const invalid of [
   { ...env, EMAIL_DELIVERY_PROVIDER: "unknown" },
   { ...env, SMTP_URL: "smtps://mail.invalid" },
   { ...env, RESEND_API_KEY: "re_short" },
+  { ...env, RESEND_WEBHOOK_SECRET: "whsec_short" },
   { ...env, EMAIL_FROM: "" },
   { EMAIL_DELIVERY_PROVIDER: "resend", EMAIL_FROM: env.EMAIL_FROM }
 ]) assert.equal(emailDeliveryEnvironment(invalid).configured, false);

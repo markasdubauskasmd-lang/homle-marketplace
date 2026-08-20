@@ -64,6 +64,8 @@ import { createPostgresRealtimeSignalSource } from "./realtime-signal-source.mjs
 import { createRealtimeService } from "./realtime-service.mjs";
 import { createNotificationRepository } from "./notification-repository.mjs";
 import { createNotificationService } from "./notification-service.mjs";
+import { createEmailSuppressionRepository } from "./email-suppression-repository.mjs";
+import { createResendWebhookService } from "./resend-webhook.mjs";
 import { createReviewRepository } from "./review-repository.mjs";
 import { createReviewService } from "./review-service.mjs";
 import { createDisputeRepository } from "./dispute-repository.mjs";
@@ -229,6 +231,12 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const realtimeService = createRealtimeService(realtimeRepository, realtimeSignalSource, options.realtimeOptions);
   const notificationRepository = createNotificationRepository(database);
   const notificationService = createNotificationService(notificationRepository);
+  const emailSuppressionRepository = environment.emailConfigured && environment.email.provider === "resend"
+    ? createEmailSuppressionRepository(database)
+    : null;
+  const emailSuppressionService = emailSuppressionRepository
+    ? createResendWebhookService(emailSuppressionRepository, env)
+    : null;
   const reviewRepository = createReviewRepository(database);
   const reviewService = createReviewService(reviewRepository);
   const disputeRepository = createDisputeRepository(database);
@@ -247,7 +255,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const landlordCareService = createLandlordCareService(landlordCareRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
+  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
     clientKey: options.clientKey,
     onUnexpectedError: options.onUnexpectedError,
     pricingConfiguration: (actor) => pricingConfigurationRepository.activeConfig(actor),
@@ -337,6 +345,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     realtimeService,
     notificationRepository,
     notificationService,
+    emailSuppressionRepository,
+    emailSuppressionService,
     reviewRepository,
     reviewService,
     disputeRepository,

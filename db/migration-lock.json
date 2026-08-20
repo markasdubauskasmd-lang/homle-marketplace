@@ -491,12 +491,17 @@
       "order": 98,
       "file": "098_landlord_care_summary.sql",
       "sha256": "2d8e15c7c060458caaeeb2b5634aa0f2a0bd21ce3644cccc5ecc19ac973f4f1f"
+    },
+    {
+      "order": 99,
+      "file": "099_resend_email_suppression.sql",
+      "sha256": "684f0ecb3368ca263c55cd1c18e8f578e19fb41c406cef5883712268c565a17b"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "e95fb80cad1c48e7fffc962328947948b4385b6d3112d79a3c122d7c8f00e3eb"
+      "sha256": "ba1c301181f650a431f8b97fb82d0a4dc18e4e2c1f289e9413b0c4ded08520a9"
     },
     {
       "file": "worker-role-grants.sql",

@@ -100,6 +100,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_cleaning_request_realtime_snapshot
 GRANT EXECUTE ON FUNCTION tideway_private.get_my_notifications(timestamptz,uuid,integer) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.mark_my_notification_read(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.mark_all_my_notifications_read(timestamptz) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_resend_email_suppression(text,citext,text,text,timestamptz,bytea) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.confirm_booking_completion(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.submit_booking_review(uuid,uuid,smallint,smallint,smallint,smallint,smallint,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.get_booking_review(uuid) TO tideway_app;

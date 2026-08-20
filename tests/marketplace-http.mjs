@@ -166,6 +166,13 @@ const notificationService = {
   async markNotificationRead(actor, notificationId) { calls.push({ kind: "notification-read", actor, notificationId }); return { notificationId, readAt: "2026-07-15T18:05:00.000Z" }; },
   async markAllNotificationsRead(actor, input) { calls.push({ kind: "notification-read-all", actor, input }); return { markedRead: 2, cutoffCreatedAt: input.cutoffCreatedAt }; }
 };
+const emailSuppressionService = {
+  async handle(body, headers) {
+    calls.push({ kind: "email-suppression-webhook", body, headers });
+    if (headers["svix-signature"] === "bad") throw Object.assign(new Error("The email-delivery webhook could not be verified."), { statusCode: 400, code: "invalid-email-webhook" });
+    return { accepted: true, duplicate: headers["svix-id"] === "evt_duplicate", ignored: false, matched: true };
+  }
+};
 const reviewService = {
   async confirmCompletion(actor, bookingId) { calls.push({ kind: "review-complete-booking", actor, bookingId }); return { bookingId, status: "completed", completedAt: "2026-07-15T18:55:00.000Z" }; },
   async submitReview(actor, bookingId, input) { calls.push({ kind: "review-submit", actor, bookingId, input }); return { reviewId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", bookingId, cleanerId: "22222222-2222-4222-8222-222222222222", rating: input.rating, moderationStatus: "pending", createdAt: "2026-07-15T19:00:00.000Z" }; },
@@ -335,7 +342,7 @@ const landlordCareService = {
     };
   }
 };
-const dependencies = { security, scanGroundTruthService, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
+const dependencies = { security, scanGroundTruthService, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, rateLimiter };
 const router = createMarketplaceHttpRouter(dependencies, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
 const authHeaders = {
   cookie: `${developmentSessionCookieName}=${material.token}`,
@@ -358,6 +365,35 @@ const administratorAuthHeaders = {
 
 const unrelated = response();
 assert(await router.handle(request("GET", "/api/health"), unrelated, new URL("http://127.0.0.1:4173/api/health")) === false && unrelated.statusCode === null, "Marketplace router intercepted an existing pilot API route.");
+
+const exactEmailWebhookBody = Buffer.from('{"type":"email.bounced", "preserve":"spacing"}');
+const signedEmailWebhook = await dispatch(router, "POST", "/api/marketplace/email/resend/webhook", {
+  body: exactEmailWebhookBody,
+  headers: { "svix-id": "evt_01", "svix-timestamp": "1785322800", "svix-signature": "v1,signed" }
+});
+const emailWebhookCall = calls.find((call) => call.kind === "email-suppression-webhook");
+assert(signedEmailWebhook.response.statusCode === 200 && signedEmailWebhook.body.accepted === true && Buffer.compare(emailWebhookCall.body, exactEmailWebhookBody) === 0, "Resend webhook routing changed the signed raw bytes or required an account session.");
+assert(
+  emailWebhookCall.headers["svix-id"] === "evt_01"
+    && emailWebhookCall.headers["svix-timestamp"] === "1785322800"
+    && emailWebhookCall.headers["svix-signature"] === "v1,signed",
+  "The Resend webhook route did not forward the exact signed provider headers."
+);
+const rejectedEmailWebhook = await dispatch(router, "POST", "/api/marketplace/email/resend/webhook", {
+  body: Buffer.from("{}"),
+  headers: { "svix-id": "evt_02", "svix-timestamp": "1785322800", "svix-signature": "bad" }
+});
+assert(rejectedEmailWebhook.response.statusCode === 400 && rejectedEmailWebhook.body.code === "invalid-email-webhook" && !rejectedEmailWebhook.response.body.includes("secret"), "Invalid Resend signatures did not fail closed with a bounded response.");
+const duplicateEmailWebhook = await dispatch(router, "POST", "/api/marketplace/email/resend/webhook", {
+  body: exactEmailWebhookBody,
+  headers: { "svix-id": "evt_duplicate", "svix-timestamp": "1785322800", "svix-signature": "v1,signed" }
+});
+assert(duplicateEmailWebhook.response.statusCode === 200 && duplicateEmailWebhook.body.duplicate === true, "A duplicate signed Resend event was not acknowledged idempotently.");
+const wrongEmailWebhookMethod = await dispatch(router, "GET", "/api/marketplace/email/resend/webhook");
+assert(wrongEmailWebhookMethod.response.statusCode === 405 && wrongEmailWebhookMethod.response.headers.Allow === "POST", "Resend webhook accepted a non-POST method.");
+const noEmailSuppressionRouter = createMarketplaceHttpRouter({ ...dependencies, emailSuppressionService: null }, { clientKey: () => trustedClientKey });
+const absentEmailWebhookResponse = response();
+assert(await noEmailSuppressionRouter.handle(request("POST", "/api/marketplace/email/resend/webhook", { body: Buffer.from("{}") }), absentEmailWebhookResponse, new URL("http://127.0.0.1:4173/api/marketplace/email/resend/webhook")) === false && absentEmailWebhookResponse.statusCode === null, "Unconfigured Resend delivery exposed a webhook route.");
 
 const exactWebhookBody = Buffer.from('{"amount":12000, "preserve":"spacing"}');
 const signedWebhook = await dispatch(router, "POST", "/api/marketplace/payments/webhook", { body: exactWebhookBody, headers: { "stripe-signature": "t=1,v1=signed" } });

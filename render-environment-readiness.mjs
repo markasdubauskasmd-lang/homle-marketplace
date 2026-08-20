@@ -175,6 +175,8 @@ export function renderEnvironmentActivationReport(entries) {
   const emailProvider = exact(values.get("RESEND_API_KEY")) ? "resend" : exact(values.get("SMTP_URL")) ? "smtp" : null;
   const transactionalEmailMissing = [
     ...(!emailProvider ? ["RESEND_API_KEY or SMTP_URL"] : []),
+    ...(emailProvider === "resend" && !exact(values.get("RESEND_WEBHOOK_SECRET")) ? ["RESEND_WEBHOOK_SECRET"] : []),
+    ...(emailProvider === "resend" && exact(values.get("RESEND_WEBHOOK_SECRET")) && !/^whsec_[A-Za-z0-9+/_=-]{16,512}$/.test(exact(values.get("RESEND_WEBHOOK_SECRET"))) ? ["valid RESEND_WEBHOOK_SECRET"] : []),
     ...(!exact(values.get("EMAIL_FROM")) ? ["EMAIL_FROM"] : [])
   ];
   const privateMediaMissing = missingPresentKeys(values, objectStorageKeys);
