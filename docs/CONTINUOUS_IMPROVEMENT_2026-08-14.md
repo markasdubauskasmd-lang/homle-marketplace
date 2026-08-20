@@ -271,3 +271,25 @@ The full repository suite, all 190 registered test files, database/dependency
 asset gates, signed-webhook hostile-input coverage and the 89-file
 Cleaner Dashboard freeze pass. No Cleaner Dashboard file, route, component,
 style or business workflow was changed.
+
+## Render activation handoff is now self-checking
+
+The deployment handoff had accumulated useful implementation history, but its
+opening section still described an old pull request, an old live commit and an
+obsolete payment-readiness state as if they were current instructions. That
+made a correct release vulnerable to an operator repeating old work or
+validating the wrong commit.
+
+The handoff now starts with one canonical release checklist: merge through CI,
+pin `TIDEWAY_EXPECT_RELEASE` to the exact current `main` commit, deploy the
+latest commit explicitly, run the live activation verifier, confirm the health
+identity and migrations, and check the marketplace worker startup evidence.
+Current external activation boundaries are recorded separately from the
+historical archive, including Resend suppression handling, provider-backed
+authentication, Stripe test-only readiness, automatic dispatch and database
+capacity. The Cleaner Dashboard remains an explicit protected boundary.
+
+A deployment regression test now rejects stale release claims in the current
+section and requires the release pin, live verifier, worker evidence and
+external activation safeguards to remain present. This changes no runtime UI,
+route, marketplace behaviour or Cleaner Dashboard file.

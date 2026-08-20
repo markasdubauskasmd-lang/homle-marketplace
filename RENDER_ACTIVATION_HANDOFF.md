@@ -1,5 +1,58 @@
 # Render activation handoff
 
+## Canonical operator checklist
+
+This section is the only current deployment instruction in this file. Everything
+below **Historical archive** is implementation history and must not be treated as
+a publication queue or a statement about the live service.
+
+1. Confirm the intended changes are merged to `main` and GitHub CI is green.
+2. Read the current `main` commit with `git rev-parse --short=8 origin/main`.
+3. Set `TIDEWAY_EXPECT_RELEASE` to that exact eight-character commit in Render.
+4. Trigger **Deploy latest commit**. `render.yaml` deliberately has
+   `autoDeployTrigger: "off"`, so a merge alone does not publish anything.
+5. Wait for the deploy to reach `live`, then run:
+
+   ```powershell
+   pnpm run verify:live-activation https://homlle.com --expect-release=<exact-eight-character-main-commit>
+   ```
+
+6. Verify `GET https://homlle.com/api/health` reports the same `sourceCommit`,
+   all locked migrations, healthy data integrity and `writesAllowed: true`.
+7. Check the Render startup log for `Inline marketplace workers started`. A web
+   process can serve safely while optional workers are unavailable, so a green
+   homepage alone is not dispatch evidence.
+
+Never paste a historical commit into `TIDEWAY_EXPECT_RELEASE`, sync an old
+Blueprint merely to redeploy, or infer a capability from a button being visible.
+The live health response and the dedicated activation verifier are authoritative.
+
+## Current activation boundaries
+
+These are operational boundaries, not missing UI work:
+
+- Transactional email stays off until the Resend sending domain, sender, API key
+  and signed suppression webhook are configured and a monitored delivery passes.
+  `WORKER_EMAIL_ENABLED` is operator-owned and preserved across Blueprint syncs.
+- Google is the currently configured social provider. Apple, Facebook and
+  email/password recovery require their provider-backed activation work before
+  their controls may be advertised.
+- Payment readiness means the Stripe **test** integration is attached. It is not
+  approval to take live money, promise a Cleaner, or treat an authorization as a
+  receipt.
+- Automatic dispatch requires exactly one healthy worker process, approved supply
+  and pricing, and an operator rehearsal. Do not toggle flags solely to make a
+  readiness field green.
+- The Render database is a small, non-HA staging resource. Complete the explicit
+  capacity, backup and recovery review before public launch.
+- The Cleaner Dashboard is a protected boundary for the continuous improvement
+  goal. Do not change its files, routes, styles, forms or backend behaviour.
+
+## Historical archive
+
+The entries below explain earlier implementation decisions. Their status wording,
+commit hashes and deployment instructions are intentionally non-authoritative.
+
 ## Open PR #283 — Landlord dashboard v2 design (needs a redeploy, nothing else)
 
 Not yet merged. CI green on `8f00450`. **No migration, no new secret and no
