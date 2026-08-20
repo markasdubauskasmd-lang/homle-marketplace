@@ -216,3 +216,25 @@ changed.
 During publication, newer commits on `main` were found to have changed Cleaner onboarding pages, scripts, styling, navigation, a backend route and their tests. One of those commits also accidentally truncated the booking-dashboard regression suite and caused GitHub's syntax gate to fail. Those concurrent changes contradicted this goal's explicit no-change boundary.
 
 Every affected existing Cleaner file and test was restored byte-for-byte from the last approved protected snapshot, and the newly added Cleaner-only assets and route were removed. No Cleaner Dashboard page, script, style, route, form, business rule or backend behaviour is changed by this work. The 87-file byte-for-byte Cleaner Dashboard freeze remains mandatory before publication.
+
+## Landlord startup now uses one secure bootstrap
+
+The Landlord dashboard previously opened the account, profile, active places,
+archived places, requests, bookings and support history through seven separate
+private requests. A valid session usually hid that cost, but an expired mobile
+session produced a burst of authorization failures and made the workspace look
+stuck while every request failed independently.
+
+A Landlord-only bootstrap route now authenticates and authorizes once, then
+loads the six owner-bound datasets concurrently on the server. The browser
+receives the account identity and available workspace data in one response.
+Individual read failures are reported as named unavailable sections, so the
+existing truthful partial-data state remains available without exposing error
+internals or mixing owners. Public health still loads independently because it
+is advisory, and Saved Cleaners remains an optional bounded panel after the
+primary workspace is visible.
+
+This reduces signed-out or expired-session dashboard startup from seven private
+requests to one and preserves the role gate before any private content renders.
+The full project suite, 91 Landlord rendered states, 764 computed-style checks,
+two end-to-end booking journeys and the 89-file Cleaner Dashboard freeze pass.

@@ -349,6 +349,37 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, account: { displayName: context.account.displayName, email: context.account.email, avatarUrl: context.account.avatarUrl, selectedRole: context.account.selectedRole, roles: context.actor.roles } });
           return true;
         }
+        if (pathname === "/api/marketplace/landlord/bootstrap") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          // Authenticate and authorize once before starting any owner-bound read.
+          // The dashboard previously opened seven private routes in parallel,
+          // which turned one expired mobile session into seven avoidable 401s.
+          const context = await security.protect(request, { roles: ["landlord"] });
+          const reads = await Promise.allSettled([
+            properties.getLandlordProfile(context.actor),
+            properties.listOwnProperties(context.actor),
+            properties.listArchivedOwnProperties(context.actor),
+            cleaningRequests.listOwnRequests(context.actor),
+            bookings.listParticipantBookings(context.actor, { limit: "50" }),
+            supportRequests.listOwn(context.actor, { limit: "25", offset: "0" })
+          ]);
+          const names = ["profile", "properties", "archivedProperties", "cleaningRequests", "bookings", "supportRequests"];
+          const unavailable = names.filter((_, index) => reads[index].status === "rejected");
+          const value = (index, fallback) => reads[index].status === "fulfilled" ? reads[index].value : fallback;
+          const supportPage = value(5, { supportRequests: [] });
+          sendJson(response, 200, {
+            ok: true,
+            account: { displayName: context.account.displayName, email: context.account.email, avatarUrl: context.account.avatarUrl, selectedRole: context.account.selectedRole, roles: context.actor.roles },
+            profile: value(0, { organisationName: null, biography: "" }),
+            properties: value(1, []),
+            archivedProperties: value(2, []),
+            cleaningRequests: value(3, []),
+            bookings: value(4, []),
+            supportRequests: Array.isArray(supportPage?.supportRequests) ? supportPage.supportRequests : [],
+            unavailable
+          });
+          return true;
+        }
         if (pathname === "/api/marketplace/privacy-requests") {
           if (request.method !== "GET" && request.method !== "POST") return methodNotAllowed(response, ["GET", "POST"]), true;
           const mutation = request.method === "POST";

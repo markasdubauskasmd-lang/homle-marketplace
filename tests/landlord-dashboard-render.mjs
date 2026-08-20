@@ -150,20 +150,22 @@ const health = {
  * risk asserting against a contract that does not exist.
  */
 function endpoints({ properties = [], cleaningRequests = [], bookings = [], omit = [] } = {}) {
+  const unavailable = [];
+  if (omit.includes("/api/marketplace/bookings")) unavailable.push("bookings");
   const files = {
-    "/api/marketplace/account": account,
-    "/api/marketplace/landlord/profile": { ok: true, profile: { organisationName: null, biography: "" } },
-    "/api/marketplace/properties": { ok: true, properties },
-    "/api/marketplace/properties/archived": { ok: true, properties: [] },
-    "/api/marketplace/cleaning-requests": { ok: true, cleaningRequests },
-    "/api/marketplace/bookings": { ok: true, bookings },
-    "/api/marketplace/landlord/support-requests": { ok: true, supportRequests: [] },
+    "/api/marketplace/landlord/bootstrap": {
+      ...account,
+      profile: { organisationName: null, biography: "" },
+      properties,
+      archivedProperties: [],
+      cleaningRequests,
+      bookings: unavailable.includes("bookings") ? [] : bookings,
+      supportRequests: [],
+      unavailable
+    },
     "/api/marketplace/landlord/favourite-cleaners": { ok: true, cleaners: [] },
     "/api/health": health
   };
-  // An omitted endpoint 404s, which is the rejection branch of loadWorkspace's
-  // Promise.allSettled — the same path a 500 takes.
-  for (const path of omit) delete files[path];
   return Object.fromEntries(Object.entries(files).map(([path, body]) => [path, JSON.stringify(body)]));
 }
 
@@ -554,21 +556,20 @@ try {
     await slowFavouriteServer.close();
   }
 
-  /* Account verification still gates every render, but it must not create a
-     second round trip before the server-authorised workspace reads even start.
-     Capture request arrival times at the fixture server so this regression is
-     deterministic without depending on a narrow total-render stopwatch. */
-  const primaryReadStarts = { account: 0, properties: 0 };
+  /* The server-authorised bootstrap and public health read may overlap, but
+     owner data must reach the browser through one private request. Capture
+     arrival times so this stays deterministic without a render stopwatch. */
+  const primaryReadStarts = { bootstrap: 0, health: 0 };
   const overlappingPrimaryFiles = endpoints();
-  overlappingPrimaryFiles["/api/marketplace/account"] = async () => {
-    primaryReadStarts.account = Date.now();
+  overlappingPrimaryFiles["/api/marketplace/landlord/bootstrap"] = async () => {
+    primaryReadStarts.bootstrap = Date.now();
     await new Promise((resolve) => setTimeout(resolve, 650));
-    return { body: endpoints()["/api/marketplace/account"] };
+    return { body: endpoints()["/api/marketplace/landlord/bootstrap"] };
   };
-  overlappingPrimaryFiles["/api/marketplace/properties"] = async () => {
-    primaryReadStarts.properties = Date.now();
+  overlappingPrimaryFiles["/api/health"] = async () => {
+    primaryReadStarts.health = Date.now();
     await new Promise((resolve) => setTimeout(resolve, 50));
-    return { body: endpoints()["/api/marketplace/properties"] };
+    return { body: endpoints()["/api/health"] };
   };
   const overlappingPrimaryServer = await serveStatic({
     extraFiles: {
@@ -589,11 +590,11 @@ try {
       }
     `);
     assert(workspaceReady, "overlapping primary reads: the Landlord workspace did not finish opening.");
-    assert(primaryReadStarts.account > 0 && primaryReadStarts.properties > 0,
-      "overlapping primary reads: the account or properties request never reached the server.");
-    assert(Math.abs(primaryReadStarts.properties - primaryReadStarts.account) < 300,
-      `overlapping primary reads: properties started ${Math.abs(primaryReadStarts.properties - primaryReadStarts.account)}ms away from account verification instead of in the same startup burst.`);
-    checked.push("account verification + primary reads · overlap safely");
+    assert(primaryReadStarts.bootstrap > 0 && primaryReadStarts.health > 0,
+      "overlapping primary reads: the Landlord bootstrap or health request never reached the server.");
+    assert(Math.abs(primaryReadStarts.health - primaryReadStarts.bootstrap) < 300,
+      `overlapping primary reads: health started ${Math.abs(primaryReadStarts.health - primaryReadStarts.bootstrap)}ms away from the secure bootstrap instead of concurrently.`);
+    checked.push("one secure bootstrap + public health · overlap safely");
   } finally {
     await overlappingPrimaryServer.close();
   }
