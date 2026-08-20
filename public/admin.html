@@ -8,6 +8,7 @@
   <link rel="icon" href="/homle-logo.png" type="image/png">
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <link rel="stylesheet" href="/admin-launch.css?v=20260820-1">
   <link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1">
   <script src="/scope-time-breakdown.js?v=20260715-1" defer></script>
   <script src="/proposal-economics.js?v=20260716-1" defer></script>
@@ -15,7 +16,7 @@
   <script src="/scan-review-draft.js?v=20260715-1" defer></script>
   <script src="/readiness-navigator.js?v=20260715-1" defer></script>
   <script src="/dispatch-order.js?v=20260715-1" defer></script>
-  <script src="/admin.js?v=20260716-61" defer></script>
+  <script src="/admin.js?v=20260820-1" defer></script>
 </head>
 <body class="admin-page">
   <a class="skip-link" href="#admin-main">Skip to leads</a>
@@ -115,6 +116,19 @@
         <li data-activation-check="payments"><span>○</span><div><strong>Test payment service</strong><small>Checking payment attachment…</small></div></li>
         <li data-activation-check="productionSafety"><span>○</span><div><strong>Production safety mode</strong><small>Checking deployment mode…</small></div></li>
       </ul>
+      <details class="transactional-email-setup" id="transactional-email-setup" hidden>
+        <summary>Finish transactional email setup</summary>
+        <div class="transactional-email-setup-body">
+          <p>Complete these steps in order. Homle never asks you to paste a provider key into this page.</p>
+          <ol>
+            <li><strong>Verify the sender domain in Resend.</strong> Add the DNS records Resend supplies for <code>homlle.com</code> and wait until the domain is verified.</li>
+            <li><strong>Add the four Render environment keys.</strong> Set <code>EMAIL_DELIVERY_PROVIDER</code> to <code>resend</code>, then add <code>RESEND_API_KEY</code>, <code>RESEND_WEBHOOK_SECRET</code> and a verified <code>EMAIL_FROM</code> address.</li>
+            <li><strong>Register the signed webhook.</strong> In Resend, send bounce, complaint and suppression events to <code>https://homlle.com/api/marketplace/email/resend/webhook</code>.</li>
+            <li><strong>Deploy and re-check this panel.</strong> Only after Transactional email turns green should <code>WORKER_EMAIL_ENABLED</code> be set to <code>true</code> for booking notifications.</li>
+          </ol>
+          <small>Do not put API keys, webhook secrets, passwords or customer email addresses in launch notes or screenshots.</small>
+        </div>
+      </details>
       <p id="technical-readiness-next" class="technical-readiness-next" role="status">Checking the next technical launch gate…</p>
       <small class="technical-readiness-boundary">This panel proves each core service attachment separately—never a real two-account booking rehearsal. It exposes no credentials, database addresses, provider keys or private storage paths, and it does not enable a service or publish the website.</small>
     </section>
