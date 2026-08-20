@@ -646,6 +646,11 @@ Environment tab, add either provider (pick one). **RESEND is easiest on Render f
 - `EMAIL_DELIVERY_PROVIDER` = `resend`
 - `RESEND_API_KEY` = `re_…`  *(secret — dashboard only)*
 - `EMAIL_FROM` = `Homle <no-reply@YOURDOMAIN>`
+- `RESEND_WEBHOOK_SECRET` = `whsec_…` *(secret — dashboard only)*
+
+Register `https://homlle.com/api/marketplace/email/resend/webhook` for
+`email.bounced`, `email.complained` and `email.suppressed`. Homle deliberately
+reports email as not ready without this signed permanent-suppression path.
 
 *(SMTP alternative: `EMAIL_DELIVERY_PROVIDER=smtp`, `SMTP_URL=smtps://user:pass@host:465`.)*
 
@@ -698,7 +703,11 @@ Rules that matter:
    disabled because the value still named `66e93539`. Updating the value to the
    release actually deployed restored all nine scheduled jobs. Confirm the startup
    log says `Inline marketplace workers started` after each deployment.
-4. A free Render instance sleeps when idle, which pauses these jobs. They catch up on
+4. `WORKER_EMAIL_ENABLED` is operator-owned (`sync: false` in `render.yaml`). Keep
+   it false until `/api/health` reports `emailReady: true`, the signed suppression
+   webhook has been exercised, and a monitored staging delivery has passed. Then
+   set it true in Render; later Blueprint syncs preserve that explicit decision.
+5. A free Render instance sleeps when idle, which pauses these jobs. They catch up on
    the next request, so due work is not lost, but **wall-clock timing is not guaranteed
    on the free plan.** Do not promise customers timed automatic dispatch until the
    service no longer sleeps.

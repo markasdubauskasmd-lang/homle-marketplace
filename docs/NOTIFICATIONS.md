@@ -1,6 +1,6 @@
 # Account notifications and email outbox
 
-Homle now has a source-complete notification boundary for authenticated marketplace accounts. Stable internal database and environment identifiers still use `tideway`. The separate worker process can schedule email, but `WORKER_EMAIL_ENABLED` remains false because there is no approved transactional-email account or managed staging evidence.
+Homle now has a source-complete notification boundary for authenticated marketplace accounts. Stable internal database and environment identifiers still use `tideway`. The worker can schedule email, but delivery must remain disabled until a verified transactional sender, signed permanent-suppression webhook and monitored staging delivery have passed together. `WORKER_EMAIL_ENABLED` is therefore an operator-owned Render value: the Blueprint preserves the dashboard setting but never turns it on.
 
 ## In-app inbox
 
@@ -43,9 +43,12 @@ A separately credentialed `tideway_worker` claims due rows with `FOR UPDATE SKIP
 2. Reapply `db/runtime-role-grants.sql` and `db/worker-role-grants.sql` after the functions exist.
 3. Give the web process only the `tideway_app` database identity.
 4. Give the separate [worker process](WORKER_OPERATIONS.md) a pool authenticated only as `tideway_worker`; it receives execute rights on claim/complete functions and no direct table rights.
-5. Configure `APP_ORIGIN` with the verified HTTPS host and keep exactly one of `RESEND_API_KEY` or `SMTP_URL`, plus `EMAIL_FROM`, in the deployment secret manager.
-6. Run the internal SMTP adapter and one worker instance in staging, and prove provider duplicate behavior, retry classification, lease expiry, inactive/unverified-recipient suppression and no-address/no-location email content.
-7. Monitor pending age, retry count and permanent-failure rate without logging recipient addresses or payloads.
+5. For Resend, configure `EMAIL_DELIVERY_PROVIDER=resend`, `RESEND_API_KEY`, a verified `EMAIL_FROM`, and `RESEND_WEBHOOK_SECRET`. Register the exact signed callback documented in [SMTP_EMAIL_DELIVERY.md](SMTP_EMAIL_DELIVERY.md).
+6. Confirm `/api/health` reports `emailReady: true`, exercise delivery and permanent suppression only with approved staging recipients, and inspect private worker monitoring.
+7. Only after those checks, set `WORKER_EMAIL_ENABLED=true` in the Render dashboard. Blueprint sync preserves this explicit operator decision; source configuration alone cannot start delivery.
+8. Configure `APP_ORIGIN` with the verified HTTPS host and keep exactly one of `RESEND_API_KEY` or `SMTP_URL`, plus `EMAIL_FROM`, in the deployment secret manager.
+9. Run the selected delivery adapter and one worker instance in staging, and prove provider duplicate behavior, retry classification, lease expiry, inactive/unverified-recipient suppression and no-address/no-location email content.
+10. Monitor pending age, retry count and permanent-failure rate without logging recipient addresses or payloads.
 
 The scheduler and restricted database-only jobs pass locally, but email scheduling remains capability-disabled. No SMTP provider was called and no participant was contacted by this change.
 

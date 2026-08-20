@@ -8,10 +8,15 @@ Render free web services block outbound SMTP ports 25, 465 and 587. Homle theref
 EMAIL_DELIVERY_PROVIDER=resend
 RESEND_API_KEY=re_store_the_real_key_only_in_the_host_secret_manager
 EMAIL_FROM=Homle <onboarding@resend.dev>
+RESEND_WEBHOOK_SECRET=whsec_store_the_real_secret_only_in_the_host_secret_manager
 APP_ORIGIN=https://homlle.com
 ```
 
 The temporary `onboarding@resend.dev` sender is only suitable for a controlled owner-mailbox test. Before public intake, verify the Homle domain with the provider and replace it with a domain-aligned sender.
+
+Register `https://homlle.com/api/marketplace/email/resend/webhook` in Resend for `email.bounced`, `email.complained` and `email.suppressed`. The signed webhook secret is mandatory: Homle refuses to declare Resend ready without it so a permanently bounced, complained-about or provider-suppressed address can be stopped before another outbox claim.
+
+After the provider, webhook and monitored staging delivery pass, set `WORKER_EMAIL_ENABLED=true` in the Render dashboard. The Blueprint preserves that operator-owned value with `sync: false`; it does not enable delivery itself and later Blueprint syncs no longer silently switch a verified worker back off.
 
 `src/marketplace/resend-email-delivery.mjs` posts text-only messages to the fixed `https://api.resend.com/emails` endpoint with a bounded timeout, no redirects, a required user agent, and a stable SHA-256 `Idempotency-Key`. Retries of the same logical verification, reset or booking notification therefore use the same provider key. Provider response text, recipients and secrets do not enter public errors or monitoring.
 
