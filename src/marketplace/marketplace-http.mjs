@@ -141,6 +141,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const roomVision = dependencies?.roomVision || null;
   const realtime = dependencies?.realtimeService;
   const notifications = dependencies?.notificationService;
+  const emailSuppressions = dependencies?.emailSuppressionService || null;
   const reviews = dependencies?.reviewService;
   const disputes = dependencies?.disputeService;
   const supportRequests = dependencies?.supportRequestService;
@@ -170,6 +171,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!messages || !["sendMessage", "listMessages"].every((method) => typeof messages[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-message service.");
   if (!realtime || typeof realtime.openStream !== "function" || typeof realtime.openRequestStream !== "function" || typeof realtime.openNotificationStream !== "function") throw new TypeError("Marketplace HTTP routes require the real-time marketplace service.");
   if (!notifications || !["listNotifications", "markNotificationRead", "markAllNotificationsRead"].every((method) => typeof notifications[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account notification service.");
+  if (emailSuppressions && typeof emailSuppressions.handle !== "function") throw new TypeError("Resend webhook routes require the complete email-suppression service.");
   if (!reviews || !["confirmCompletion", "submitReview", "getBookingReview", "getPublicReviews", "respondToReview", "moderateReview"].every((method) => typeof reviews[method] === "function")) throw new TypeError("Marketplace HTTP routes require the verified booking-review service.");
   if (!disputes || !["open", "getForBooking", "listForAdministrator", "review"].every((method) => typeof disputes[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking-case service.");
   if (!supportRequests || !["create", "listOwn", "listForAdministrator", "review"].every((method) => typeof supportRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the Landlord support-request service.");
@@ -213,6 +215,22 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
       const pathname = url.pathname;
       if (!pathname.startsWith(apiPrefix)) return false;
       try {
+        if (pathname === "/api/marketplace/email/resend/webhook") {
+          if (!emailSuppressions) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const result = await emailSuppressions.handle(await readRawBody(request), {
+            "svix-id": request.headers?.["svix-id"],
+            "svix-timestamp": request.headers?.["svix-timestamp"],
+            "svix-signature": request.headers?.["svix-signature"]
+          });
+          sendJson(response, 200, {
+            ok: true,
+            accepted: result?.accepted === true,
+            duplicate: result?.duplicate === true,
+            ignored: result?.ignored === true
+          });
+          return true;
+        }
         if (pathname === "/api/marketplace/payments/webhook") {
           if (!payments) return false;
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;

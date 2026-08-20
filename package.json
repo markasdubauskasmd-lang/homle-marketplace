@@ -119,7 +119,7 @@
     "test:realtime": "node tests/realtime-service.mjs",
     "test:notifications": "node tests/notification-service.mjs && node tests/notification-inbox-ui.mjs",
     "test:reviews": "node tests/review-service.mjs",
-    "check:notifications": "node --check src/marketplace/notification-repository.mjs && node --check src/marketplace/notification-service.mjs && node --check src/marketplace/email-notification-repository.mjs && node --check src/marketplace/email-notification-worker.mjs && node --check public/notification-inbox-model.js && node --check public/notification-badge.js && node --check public/notifications.js && node --check public/cleaner-notifications.js && node --check tests/notification-service.mjs && node --check tests/notification-inbox-ui.mjs",
+    "check:notifications": "node --check src/marketplace/notification-repository.mjs && node --check src/marketplace/notification-service.mjs && node --check src/marketplace/email-notification-repository.mjs && node --check src/marketplace/email-notification-worker.mjs && node --check src/marketplace/email-suppression-repository.mjs && node --check src/marketplace/resend-webhook.mjs && node --check public/notification-inbox-model.js && node --check public/notification-badge.js && node --check public/notifications.js && node --check public/cleaner-notifications.js && node --check tests/notification-service.mjs && node --check tests/resend-webhook.mjs && node --check tests/notification-inbox-ui.mjs",
     "test:http": "node tests/marketplace-http.mjs",
     "test:attachment": "node tests/marketplace-attachment.mjs",
     "test:scan-review": "node tests/scan-review-workspace.mjs",
@@ -153,6 +153,7 @@
     "nodemailer": "9.0.3",
     "pg": "8.22.0",
     "sharp": "0.35.3",
+    "svix": "2.0.0",
     "stripe": "22.1.1"
   }
 }

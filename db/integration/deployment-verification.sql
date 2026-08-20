@@ -30,6 +30,7 @@ DECLARE
   bookings_cleaning_request_index_installed boolean := false;
   payment_and_directory_indexes_installed boolean := false;
   account_notification_realtime_installed boolean := false;
+  email_suppression_migration_installed boolean := false;
   structured_room_scans_installed boolean := false;
   room_measurements_installed boolean := false;
   landlord_support_installed boolean := false;
@@ -102,6 +103,7 @@ DECLARE
     'tideway_private.get_my_privacy_requests()',
     'tideway_private.request_facebook_data_deletion(uuid,text,bytea,bytea)',
     'tideway_private.get_facebook_data_deletion_status(bytea)',
+    'tideway_private.record_resend_email_suppression(text,citext,text,text,timestamp with time zone,bytea)',
     'tideway_private.get_my_cleaner_payout_onboarding()',
     'tideway_private.begin_my_cleaner_payout_onboarding(uuid)',
     'tideway_private.attach_my_cleaner_payout_account(uuid,text)',
@@ -237,6 +239,8 @@ BEGIN
       INTO payment_and_directory_indexes_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 72)'
       INTO account_notification_realtime_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 99)'
+      INTO email_suppression_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 73)'
       INTO structured_room_scans_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 74)'
@@ -288,6 +292,7 @@ BEGIN
     minimum_contribution_migration_installed := to_regprocedure('tideway_private.invite_cleaner(uuid,uuid,uuid,timestamp with time zone,integer,integer,integer,integer,integer,integer,integer,integer,integer)') IS NOT NULL;
     public_cleaner_lookup_migration_installed := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)') IS NOT NULL;
     account_notification_realtime_installed := to_regprocedure('tideway_private.emit_account_notification_realtime_event()') IS NOT NULL;
+    email_suppression_migration_installed := to_regprocedure('tideway_private.record_resend_email_suppression(text,citext,text,text,timestamp with time zone,bytea)') IS NOT NULL;
     structured_room_scans_installed := to_regclass('public.room_scan_sessions') IS NOT NULL;
     room_measurements_installed := to_regclass('public.room_scan_measurements') IS NOT NULL;
     landlord_support_installed := to_regprocedure('tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)') IS NOT NULL;
@@ -662,6 +667,29 @@ BEGIN
       OR position('NEW.recipient_user_id' IN COALESCE(selected_source,''))=0
       OR position('NEW.id' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'The account notification real-time trigger leaks payload data or does not emit the privacy-minimal account wake-up';
+    END IF;
+  END IF;
+  IF email_suppression_migration_installed THEN
+    selected_function := to_regprocedure('tideway_private.record_resend_email_suppression(text,citext,text,text,timestamp with time zone,bytea)');
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure WHERE procedure.oid=selected_function;
+    IF selected_function IS NULL
+      OR to_regclass('tideway_private.email_delivery_suppressions') IS NULL
+      OR NOT has_function_privilege('tideway_app', selected_function, 'EXECUTE')
+      OR has_function_privilege('public', selected_function, 'EXECUTE')
+      OR has_function_privilege('tideway_worker', selected_function, 'EXECUTE')
+      OR position('recipient-suppressed' IN COALESCE(selected_source,''))=0
+      OR position('email_delivery_suppressions' IN COALESCE(selected_source,''))=0
+      OR to_regclass('tideway_private.email_delivery_suppressions_email_hash_idx') IS NULL
+      OR has_table_privilege('tideway_app', to_regclass('tideway_private.email_delivery_suppressions'), 'SELECT')
+      OR has_table_privilege('tideway_worker', to_regclass('tideway_private.email_delivery_suppressions'), 'SELECT') THEN
+      RAISE EXCEPTION 'The email suppression ledger is missing its signed-callback, privacy or least-privilege boundary';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.claim_due_email_notifications(uuid,integer,integer)');
+    IF position('email_delivery_suppressions' IN COALESCE(selected_source,''))=0
+      OR position('recipient-suppressed' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'The email outbox does not exclude the exact currently suppressed account address';
     END IF;
   END IF;
   IF structured_room_scans_installed THEN
@@ -1189,7 +1217,7 @@ SELECT json_build_object(
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 39 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regclass('public.cleaner_onboarding_sections') IS NULL THEN 0 ELSE 2 END,
-  'appFunctionChecks', 48
+  'appFunctionChecks', 49
     + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END
     + CASE WHEN to_regprocedure('tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END

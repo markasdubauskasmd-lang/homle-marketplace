@@ -5587,8 +5587,11 @@ async function handleHttpRequest(request, response) {
     const localTrackingPath = ["/tracking-test", "/tracking-test.html", "/tracking-test.js"].includes(requestUrl.pathname) || requestUrl.pathname.startsWith("/api/tracking-test/");
     if (!localDemoEnabled && localTrackingPath) return json(response, 404, { ok: false, error: "Not found." });
     if (!enforceRateLimit(request, response, rateLimitPolicyFor(request, requestUrl.pathname))) return;
-    const signedPaymentWebhook = request.method === "POST" && requestUrl.pathname === "/api/marketplace/payments/webhook";
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "") && !signedPaymentWebhook) ensureSameOrigin(request);
+    const signedProviderWebhook = request.method === "POST" && [
+      "/api/marketplace/payments/webhook",
+      "/api/marketplace/email/resend/webhook"
+    ].includes(requestUrl.pathname);
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "") && !signedProviderWebhook) ensureSameOrigin(request);
     if (request.method === "GET" && requestUrl.pathname === "/api/health") {
       return json(response, 200, {
         ok: true,

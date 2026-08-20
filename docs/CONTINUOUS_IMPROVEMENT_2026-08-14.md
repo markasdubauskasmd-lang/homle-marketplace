@@ -238,3 +238,36 @@ This reduces signed-out or expired-session dashboard startup from seven private
 requests to one and preserves the role gate before any private content renders.
 The full project suite, 91 Landlord rendered states, 764 computed-style checks,
 two end-to-end booking journeys and the 89-file Cleaner Dashboard freeze pass.
+
+## Transactional email now has a safe activation boundary
+
+The live activation audit found that core authentication, booking, scanning,
+matching, dispatch, media, payments and real-time features are ready, while
+transactional email is still deliberately unavailable. Enabling Resend with an
+API key alone would have delivered messages without a durable way to stop mail
+to addresses that permanently bounced, complained or were suppressed by the
+provider.
+
+Resend activation now fails closed unless a valid webhook signing secret is
+also present. The new callback route verifies the exact raw request with Svix,
+accepts only the three permanent suppression events, rejects tampering, stale
+timestamps, malformed recipients and conflicting retries, and stores no raw
+email address or callback body. A private, function-only suppression ledger
+keeps hashes and bounded provider identifiers. Email claiming excludes the
+exact currently suppressed address through a dedicated hash index; changing to
+a newly verified address does not inherit an old address's history.
+
+Activation still requires external provider setup and must not be represented
+as live until it is complete:
+
+1. verify Homle's sending domain and approved `EMAIL_FROM` in Resend;
+2. set `EMAIL_DELIVERY_PROVIDER=resend`, `RESEND_API_KEY`, `EMAIL_FROM` and
+   `RESEND_WEBHOOK_SECRET` in Render;
+3. register `https://homlle.com/api/marketplace/email/resend/webhook` for
+   `email.bounced`, `email.complained` and `email.suppressed`;
+4. send and observe a test notification before customer use.
+
+The full repository suite, all 190 registered test files, database/dependency
+asset gates, signed-webhook hostile-input coverage and the 89-file
+Cleaner Dashboard freeze pass. No Cleaner Dashboard file, route, component,
+style or business workflow was changed.

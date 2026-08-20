@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import "./resend-webhook.mjs";
 import { createNotificationRepository } from "../src/marketplace/notification-repository.mjs";
 import { createNotificationService, safePayloadKeys } from "../src/marketplace/notification-service.mjs";
 import { createEmailNotificationRepository } from "../src/marketplace/email-notification-repository.mjs";
@@ -72,12 +73,17 @@ const disputeMigration = await readFile(new URL("../db/migrations/033_audited_bo
 const paymentReminderMigration = await readFile(new URL("../db/migrations/041_due_payment_readiness_notifications.sql", import.meta.url), "utf8");
 const paymentScheduleMigration = await readFile(new URL("../db/migrations/043_two_stage_payment_reminders.sql", import.meta.url), "utf8");
 const visitReminderMigration = await readFile(new URL("../db/migrations/044_confirmed_visit_reminders.sql", import.meta.url), "utf8");
+const suppressionMigration = await readFile(new URL("../db/migrations/099_resend_email_suppression.sql", import.meta.url), "utf8");
 const runtimeGrants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
 const workerGrants = await readFile(new URL("../db/worker-role-grants.sql", import.meta.url), "utf8");
 for (const required of ["safe_notification_payload", "queue_email_for_in_app_notification", "get_my_notifications", "mark_my_notification_read", "mark_all_my_notifications_read", "claim_due_email_notifications", "complete_email_notification", "FOR UPDATE OF notification SKIP LOCKED", "attempt_count>=5", "attempt_count<5", "attempt-limit", "email:'||NEW.idempotency_key", "lease_token IS DISTINCT FROM worker_lease_token"]) assert(migration.includes(required), `Notification migration omitted ${required}.`);
 assert(migration.includes("notification.recipient_user_id=actor_id") && !migration.includes("exactAddress") && !migration.includes("latitude") && !migration.includes("longitude"), "Notification inbox authorization or payload redaction is incomplete.");
 assert(runtimeGrants.includes("get_my_notifications") && runtimeGrants.includes("mark_my_notification_read") && runtimeGrants.includes("REVOKE SELECT ON notifications"), "The web role can bypass the authorized notification inbox functions.");
 assert(workerGrants.includes("claim_due_email_notifications") && workerGrants.includes("complete_email_notification") && !workerGrants.includes("GRANT SELECT ON notifications"), "The email worker is missing narrow functions or has direct notification-table access.");
+for (const required of ["email_delivery_suppressions", "record_resend_email_suppression", "recipient_email_sha256", "payload_sha256", "email_delivery_suppressions_email_hash_idx", "ON CONFLICT (provider_event_id) DO NOTHING", "email-webhook-event-conflict", "recipient-suppressed", "digest(convert_to(lower(trim(account.email::text)),'UTF8'),'sha256')"]) assert(suppressionMigration.includes(required), `Signed email suppression migration omitted ${required}.`);
+assert(!/^\s*recipient_email\s+citext/m.test(suppressionMigration) && !suppressionMigration.includes("callback_body") && !suppressionMigration.includes("raw_payload"), "The private suppression ledger stores a raw address or provider callback body.");
+assert(runtimeGrants.includes("record_resend_email_suppression(text,citext,text,text,timestamptz,bytea)") && !workerGrants.includes("record_resend_email_suppression") && suppressionMigration.includes("REVOKE ALL ON TABLE tideway_private.email_delivery_suppressions FROM tideway_app") && suppressionMigration.includes("REVOKE ALL ON TABLE tideway_private.email_delivery_suppressions FROM tideway_worker"), "Provider suppression ingestion escaped its function-only application boundary.");
+assert(!/WHERE suppression\.recipient_user_id=account\.id\s+AND suppression\.recipient_email_sha256/.test(suppressionMigration), "Suppression would be lost after an account is deleted and recreated with the same exact address.");
 for (const required of ["queue_due_booking_payment_reminders", "batch_limit NOT BETWEEN 1 AND 500", "booking.status='confirmed'", "scheduled_start_at<=now()+interval '24 hours'", "payment.status='authorized'", "payment.authorized_at BETWEEN booking.scheduled_start_at-interval '5 days'", "FOR UPDATE OF booking SKIP LOCKED", "ON CONFLICT(idempotency_key) DO NOTHING", "payment-action-required", "REVOKE ALL ON FUNCTION tideway_private.queue_due_booking_payment_reminders(integer) FROM PUBLIC"]) assert(paymentReminderMigration.includes(required), `Payment-readiness migration omitted ${required}.`);
 assert(!paymentReminderMigration.includes("UPDATE booking_payments") && !paymentReminderMigration.includes("INSERT INTO booking_payments") && !paymentReminderMigration.includes("UPDATE bookings"), "Payment readiness can mutate a payment or booking instead of only warning the Landlord.");
 assert(workerGrants.includes("queue_due_booking_payment_reminders(integer)") && !runtimeGrants.includes("queue_due_booking_payment_reminders(integer)"), "Payment readiness escaped its function-only worker boundary.");
@@ -135,4 +141,4 @@ const claimedEmail = await emailWorkerRepository.claimDue(leaseToken, 10, 120);
 await emailWorkerRepository.complete(notificationId, leaseToken, "sent");
 assert(claimedEmail[0].notificationId === notificationId && workerPoolCalls[0].queryText.includes("claim_due_email_notifications") && workerPoolCalls[1].queryText.includes("complete_email_notification") && workerPoolCalls.every((call) => !call.queryText.includes("landlord@example.com")), "Email worker repository bypassed its narrow functions or interpolated recipient data.");
 
-console.log("Notification tests passed: account-only inbox, race-safe read actions, strict payload redaction and leased retrying email outbox.");
+console.log("Notification tests passed: account-only inbox, race-safe read actions, strict payload redaction, signed suppression callbacks and leased retrying email outbox.");
