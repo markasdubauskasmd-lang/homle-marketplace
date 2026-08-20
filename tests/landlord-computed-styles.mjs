@@ -100,6 +100,13 @@ const files = {
   "/api/marketplace/properties/archived": { ok: true, properties: [] },
   "/api/marketplace/cleaning-requests": { ok: true, cleaningRequests: [request] },
   "/api/marketplace/bookings": { ok: true, bookings: [booking] },
+  /* Keep one explicit failed-conversation state in the visual baseline. The
+     response is deliberately malformed rather than a 404 fall-through, so the
+     error banner is deterministic and cannot race another dashboard request. */
+  [`/api/marketplace/bookings/${BOOKING_ID}/messages`]: {
+    ok: false,
+    error: "The private booking conversation could not be verified."
+  },
   "/api/marketplace/landlord/support-requests": { ok: true, supportRequests: [] },
   "/api/marketplace/landlord/favourite-cleaners": { ok: true, cleaners: [] },
   // The journey's access gate calls this through recoverCsrf; without it the

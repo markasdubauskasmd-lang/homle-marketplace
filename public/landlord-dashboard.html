@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260814-1">
   <script src="/landlord-dashboard.js?v=20260818-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
-  <script src="/notification-badge.js?v=20260726-2" type="module"></script>
+  <script src="/landlord-notification-badge.js?v=20260820-1" type="module"></script>
 </head>
 <body class="landlord-dashboard-page">
   <a class="skip-link" href="#landlord-main">Skip to Landlord workspace</a>
@@ -45,7 +45,7 @@
       <!-- The manual-request CTA and the notification bell both moved out of the
            sidebar: the design gives manual its own card beside Scan on Home, and
            the bell sits in the top bar. Neither hook is lost — landlord-dashboard.js
-           and notification-badge.js both bind with querySelectorAll. -->
+           and landlord-notification-badge.js both bind with querySelectorAll. -->
       <details class="account-menu landlord-account-menu landlord-sidebar-account-menu" data-account-menu hidden>
         <summary aria-label="Open Landlord account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span><span class="account-summary-copy"><strong data-account-name>Landlord</strong><small><span class="account-status-dot" aria-hidden="true"></span>Signed in securely</small></span></summary>
         <div class="account-menu-panel">
