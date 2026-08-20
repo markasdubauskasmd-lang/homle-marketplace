@@ -1,5 +1,24 @@
 # Homle continuous improvement record — 14 August 2026
 
+## Landlord notification retries now stop when the session ends
+
+Production request evidence included a private notification event request that
+returned `403` after the same handset's account read returned `401`. Native
+`EventSource` retries a failed connection automatically, so the shared badge
+client could keep attempting that forbidden endpoint while the page stayed
+open. That wastes mobile radio/battery and gives the user no path back to a
+valid session.
+
+The Landlord dashboard now loads a Landlord-owned notification badge client.
+It closes the native stream on its first error, rechecks the bounded unread
+endpoint, treats `401` and `403` as terminal until a deliberate page/online
+recovery, and caps transient reconnects at 60 seconds. Hiding the page, going
+offline or leaving it cancels both the stream and its timer. The existing
+Cleaner notification client is still frozen and unchanged.
+
+Focused notification and Landlord dashboard checks pass, as does the 89-file
+byte-for-byte Cleaner Dashboard freeze.
+
 ## Landlord workspace reads now overlap account verification
 
 The authenticated Landlord dashboard still had a two-stage startup waterfall:

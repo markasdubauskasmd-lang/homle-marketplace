@@ -25,7 +25,7 @@ assert(notificationWorkspace({ selectedRole: "landlord", roles: ["landlord"] }).
 assert(notificationUnreadBadge(3).visible && notificationUnreadBadge(3).label === "3" && notificationUnreadBadge(100).label === "99+", "Unread counts are not presented compactly.");
 assert(!notificationUnreadBadge(0).visible && !notificationUnreadBadge(-1).visible && !notificationUnreadBadge("not-a-count").visible, "Invalid or empty unread counts create a badge.");
 
-const [page, script, cleanerPage, cleanerScript, cleanerStyles, accountMenu, badgeScript, model, styles, landlordStyles, server, cleanerDashboard, cleanerDashboardScript, landlordDashboard, landlordDashboardScript, packageFile] = await Promise.all([
+const [page, script, cleanerPage, cleanerScript, cleanerStyles, accountMenu, badgeScript, landlordBadgeScript, model, styles, landlordStyles, server, cleanerDashboard, cleanerDashboardScript, landlordDashboard, landlordDashboardScript, packageFile] = await Promise.all([
   readFile(new URL("../public/notifications.html", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-notifications.html", import.meta.url), "utf8"),
@@ -33,6 +33,7 @@ const [page, script, cleanerPage, cleanerScript, cleanerStyles, accountMenu, bad
   readFile(new URL("../public/homle-cleaner.css", import.meta.url), "utf8"),
   readFile(new URL("../public/account-menu.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notification-badge.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/landlord-notification-badge.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notification-inbox-model.js", import.meta.url), "utf8"),
   readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.css", import.meta.url), "utf8"),
@@ -73,8 +74,10 @@ assert(landlordStyles.includes(".landlord-notification-link") && landlordStyles.
 assert(badgeScript.includes('/api/marketplace/notifications?limit=1') && badgeScript.includes('credentials: "same-origin"') && badgeScript.includes('cache: "no-store"') && badgeScript.includes("event.persisted") && badgeScript.includes('document.visibilityState === "visible"'), "The dashboard badge is not private, bounded or refreshed after returning to the page.");
 assert(badgeScript.includes('link.dataset.notificationLabel || "Notifications"') && badgeScript.includes("`${label}, ${badge.count} unread`"), "The shared unread indicator cannot distinguish Messages from Notifications for assistive technology.");
 assert(badgeScript.includes('new EventSource("/api/marketplace/notifications/events"') && badgeScript.includes('"notification-updated"') && badgeScript.includes('"homle:notification-updated"') && cleanerDashboardScript.includes('window.addEventListener("homle:notification-updated"') && cleanerDashboardScript.includes("void loadDashboard()"), "A newly dispatched Cleaner invitation cannot refresh the open Cleaner dashboard through the private account stream.");
-assert(cleanerDashboard.includes("/notification-badge.js?v=20260729-1") && landlordDashboard.includes("/notification-badge.js?v=20260726-2"), "A dashboard can keep an older notification badge after its latest real-time or account-label behavior ships.");
+assert(cleanerDashboard.includes("/notification-badge.js?v=20260729-1") && landlordDashboard.includes("/landlord-notification-badge.js?v=20260820-1"), "A dashboard can keep an older notification badge after its latest real-time or account-label behavior ships.");
 assert(badgeScript.includes("textContent") && !badgeScript.includes("innerHTML") && !badgeScript.includes("setInterval"), "The dashboard badge uses unsafe rendering or constant polling.");
+assert(landlordBadgeScript.includes("stream.onerror") && landlordBadgeScript.includes("closeStream()") && landlordBadgeScript.includes("lastResponseStatus !== 401") && landlordBadgeScript.includes("lastResponseStatus !== 403") && landlordBadgeScript.includes("Math.min(60_000") && landlordBadgeScript.includes('addEventListener("offline", stop)') && landlordBadgeScript.includes('addEventListener("pagehide", stop)'), "A failed or expired Landlord notification stream can keep retrying a private endpoint indefinitely, or survives offline/page exit.");
+assert(!landlordBadgeScript.includes("setInterval") && landlordBadgeScript.includes("textContent") && !landlordBadgeScript.includes("innerHTML"), "The Landlord notification badge uses constant polling or unsafe rendering.");
 assert(styles.includes(".cleaner-workspace-page .directory-nav, .landlord-dashboard-page .directory-nav") && styles.includes(".cleaner-workspace-page .directory-nav a, .landlord-dashboard-page .directory-nav a") && styles.includes(".notifications-page .directory-nav a") && styles.includes(".workspace-role-nav[hidden]"), "Mobile navigation can hide the Updates or workspace return action.");
 assert(packageFile.includes("tests/notification-inbox-ui.mjs"), "Notification inbox verification is not part of the project gate.");
 assert(script.includes('new URLSearchParams(location.search).get("view") === "messages"') && script.includes('location.replace("/cleaner/messages")'), "The old Messages query-string destination does not forward to the dedicated Cleaner inbox.");
