@@ -1,5 +1,6 @@
 import { storedCsrf } from "./session-csrf.js";
 import { poundsToPence, penceToPounds } from "./admin-scan-pricing-model.js";
+import { scanOperationalWarnings, scanTimingSummary } from "./admin-scan-operations-model.js";
 
 // Administrator view of whether the scan estimate has earned its way out of
 // shadow mode, plus the two settings that were previously unreachable: how long
@@ -71,6 +72,9 @@ function renderShadow(report) {
 function renderTelemetry(payload) {
   const rates = element("[data-admin-scan-rates]");
   const counters = element("[data-admin-scan-counters]");
+  const latency = element("[data-admin-scan-latency]");
+  const latencyBuckets = element("[data-admin-scan-latency-buckets]");
+  const warnings = element("[data-admin-scan-warnings]");
   const labels = {
     startedSessions: "Scans started", completionRate: "Completed", correctionRate: "Objects corrected per room",
     readingFailureRate: "Reading failures", crashFreeRate: "Crash-free", redactionRate: "Redactions per room",
@@ -83,6 +87,20 @@ function renderTelemetry(payload) {
   )));
   const entries = Object.entries(payload?.snapshot?.counters || {});
   counters.replaceChildren(...(entries.length ? entries.map(([key, value]) => listItem(`${key} — ${value}`)) : [listItem("Nothing recorded yet.")]));
+
+  const timing = scanTimingSummary(payload?.snapshot);
+  latency.textContent = timing.total
+    ? `${timing.total} assisted room ${timing.total === 1 ? "read" : "reads"} measured · ${timing.slowCount} took 8 seconds or longer (${percent(timing.slowRate)}).`
+    : "No assisted room-reading time has been measured in this app instance yet.";
+  const measuredBuckets = timing.buckets.filter((entry) => entry.count > 0);
+  latencyBuckets.replaceChildren(...(measuredBuckets.length
+    ? measuredBuckets.map((entry) => listItem(`${entry.bucket} — ${entry.count}`))
+    : [listItem("Nothing measured yet.")]));
+
+  const attention = scanOperationalWarnings(payload?.snapshot);
+  warnings.replaceChildren(...(attention.length
+    ? attention.map((entry) => listItem(`${entry.title} — ${entry.count}. ${entry.guidance}`))
+    : [listItem("No scanner reliability warning has been measured in this app instance.")]));
 }
 
 /* ── Ground truth: the scanner's accuracy, measured on real scans ────────── */

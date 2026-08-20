@@ -548,8 +548,14 @@ success, failure, availability and bucketed latency, plus saved-scan corrections
 and estimate outcomes. Both paths feed one bounded, process-local collector.
 Only an Administrator can read its aggregate snapshot and derived rates at
 `GET /api/marketplace/admin/scan-telemetry`; the scan-operations screen renders
-that same endpoint. Telemetry delivery is deliberately batched, best-effort and
-never retried, so it cannot delay or break a customer's scan.
+that same endpoint. It now separates assisted-reading latency into the approved
+coarse buckets, calls out reads taking eight seconds or longer, and turns camera,
+detector, assisted-reading, upload and crash counters into plain operational
+attention items. The eight-second boundary is a diagnostic threshold, not a
+published SLA. The screen also states that its snapshot resets with the app
+instance so an operator cannot mistake it for a durable historical report.
+Telemetry delivery is deliberately batched, best-effort and never retried, so
+it cannot delay or break a customer's scan.
 
 ## Honest limitations
 
