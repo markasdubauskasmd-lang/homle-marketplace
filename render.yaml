@@ -98,8 +98,12 @@ services:
         value: "true"
       - key: MARKETPLACE_WORKER_ENABLED
         value: "true"
+      # Email delivery is an operator-controlled launch gate. Keep it disabled
+      # in Render until the verified sender, signed suppression webhook and
+      # monitored staging delivery have all passed, then preserve that explicit
+      # dashboard decision across later Blueprint syncs.
       - key: WORKER_EMAIL_ENABLED
-        value: "false"
+        sync: false
       - key: WORKER_MEDIA_ENABLED
         value: "false"
       - key: WORKER_AUTOMATIC_DISPATCH_ENABLED
