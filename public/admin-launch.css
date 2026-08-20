@@ -44,3 +44,81 @@
   margin-top: 12px;
   color: #795d41;
 }
+
+.participant-rehearsal-guide {
+  border: 1px solid #b8d9cf;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.participant-rehearsal-guide summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  color: #0d5e50;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.participant-rehearsal-guide summary::marker { color: #0d7665; }
+
+.participant-rehearsal-guide summary small {
+  color: #61736e;
+  font-size: .75rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+.participant-rehearsal-guide[data-complete="true"] summary small { color: #08734d; }
+
+.participant-rehearsal-guide-body { padding: 0 16px 16px; }
+
+.participant-rehearsal-guide-body > p {
+  margin: 0 0 12px;
+  color: #526762;
+  font-size: .82rem;
+}
+
+.participant-rehearsal-guide-body ol {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.participant-rehearsal-guide-body li label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e1ebe8;
+  border-radius: 10px;
+  background: #f9fcfb;
+  color: #203f38;
+  cursor: pointer;
+}
+
+.participant-rehearsal-guide-body li input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  accent-color: #0d7665;
+}
+
+.participant-rehearsal-guide-body li label:has(input:checked) {
+  border-color: #96d4c3;
+  background: #eef9f5;
+}
+
+@media (max-width: 640px) {
+  .participant-rehearsal-guide summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .participant-rehearsal-guide summary small { text-align: left; }
+}
