@@ -1274,15 +1274,15 @@ export function openRoomScan() {
           ? "Live camera permission is blocked. Open the phone camera below, or allow Camera in your browser settings and retry."
           : stalled
             ? "The live camera opened but no picture arrived. Open the phone camera below, or try the live camera again."
-            : "No live camera could be opened. Use the phone camera below to take each room photo instead.");
+            : "No live camera could be opened. Use the phone camera below to take each room photo instead.", { denied });
       }
     }
 
-    function blockCamera(reason) {
+    function blockCamera(reason, { denied = false } = {}) {
       // The single most useful device-compatibility signal there is, and one only
       // the browser can see. The reason string is deliberately not sent — it is
       // written for a person and can name a file the customer chose.
-      scanEvents.record("scan.camera.unavailable");
+      scanEvents.record(denied ? "scan.camera.denied" : "scan.camera.unavailable");
       el.blockedReason.textContent = reason;
       el.blocked.hidden = false;
       // The recovery card sits over the camera deck. Inert keeps the covered
@@ -3081,6 +3081,7 @@ export function openRoomScan() {
         // walk-around room reading as well as photos, notes and manual marking.
         state.detectorState = "unavailable";
         state.liveDetectionAvailable = false;
+        scanEvents.record("scan.detector.unavailable");
         renderDetectorState();
       });
     }
@@ -3437,6 +3438,7 @@ export function openRoomScan() {
         console.warn("Homle room scan: on-device detection stopped.", error?.message || error);
         state.detectorState = "unavailable";
         state.liveDetectionAvailable = false;
+        scanEvents.record("scan.detector.unavailable");
         state.tracks = [];
         clearBoxes();
       } finally {

@@ -540,17 +540,30 @@ identifier. Timings are bucketed, because an exact duration is a weak identifier
 when joined against anything else. A rate with no denominator is `null`, not
 zero — "no scans completed" and "no scans started" are different facts.
 
+The browser now batches the events only it can observe — session and room
+completion, abandonment, camera permission/unavailability, detector failure,
+redaction and coarse session/room duration — and sends them through the
+authenticated, CSRF-protected Landlord endpoint. The server records room-reader
+success, failure, availability and bucketed latency, plus saved-scan corrections
+and estimate outcomes. Both paths feed one bounded, process-local collector.
+Only an Administrator can read its aggregate snapshot and derived rates at
+`GET /api/marketplace/admin/scan-telemetry`; the scan-operations screen renders
+that same endpoint. Telemetry delivery is deliberately batched, best-effort and
+never retried, so it cannot delay or break a customer's scan.
+
 ## Honest limitations
 
-- **Telemetry is not yet emitted or collected.** The module, its allowlist and
-  its rate definitions are complete and tested; the call sites in the scanner
-  and the monitoring adapter that drains it are not written. Nothing measures
-  the acceptance criteria in production yet.
+- **Telemetry is process-local rather than durable.** Events are emitted and
+  collected, but the aggregate resets on every deploy/restart and is not merged
+  across multiple instances. It is suitable for a live fault snapshot, not yet
+  for long-term trend reporting or release-to-release comparisons.
 - **No benchmark dataset exists.** §10 of the audit specifies 200 rooms; none
   have been collected, so no precision, recall, agreement or price-error figure
   in this project has been measured. Every accuracy claim remains a target.
-- **No retention policy or automatic deletion job.** Customer-initiated scan
-  deletion works; time-based expiry does not exist.
+- **Retention is implemented but needs operational evidence.** Migration 078
+  added the policy and bounded deletion routine, and the supervised worker runs
+  it hourly. The policy still needs production monitoring to prove old scans
+  are actually being removed on schedule.
 - **Model rollback is still an environment variable.** Readings are now
   attributed to a model version, so a regression is traceable; reverting is
   still a redeploy.
@@ -662,8 +675,8 @@ The error is the difference, and it accrues from ordinary trading.
 | Complexity within ±1 | **Harness works.** |
 | Price error | **Accrues automatically** from real bookings. Zero comparisons so far. |
 | Measurement error | **Not measured.** Needs real scans with known ground-truth dimensions. |
-| Completion / correction / crash-free rate | **Definitions exist** in `scan-telemetry.mjs`; not yet emitted. |
-| Time to complete a room, latency | **Buckets defined**; not yet emitted. |
+| Completion / correction / crash-free rate | **Emitted and visible to Administrators.** Process-local, so not durable across restarts or instances. |
+| Time to complete a room, latency | **Emitted as privacy-safe buckets.** Process-local, so not a longitudinal history yet. |
 
 **No figure in this project has been measured on real homes.** Every accuracy
 number remains a target. What has changed is that measuring them is now a matter
