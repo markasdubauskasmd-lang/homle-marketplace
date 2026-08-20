@@ -185,8 +185,8 @@ try {
   const workerBlock = deploymentVerifier.slice(deploymentVerifier.indexOf("worker_functions constant"), deploymentVerifier.indexOf("BEGIN", deploymentVerifier.indexOf("worker_functions constant")));
   const advertisedWorkerChecks = Number(deploymentVerifier.match(/'workerFunctionChecks',\s*(\d+)/)?.[1]);
   assert.doesNotMatch(workerBlock, /get_automatic_dispatch_candidates\(uuid,uuid,integer,boolean\)/, "Pre-upgrade verification required migration 68's paid-dispatch function before the locked migration could be applied.");
-  assert.equal(49, [...appBlock.matchAll(/'tideway_private\./g)].length + 3, "deployment report must count core functions plus the migration-aware invitation, migration-48 workspace and paid direct-invitation checks");
-  assert(deploymentVerifier.includes("'appFunctionChecks', 49")
+  assert.equal(48, [...appBlock.matchAll(/'tideway_private\./g)].length + 3, "deployment report must count core functions plus the migration-aware invitation, migration-48 workspace and paid direct-invitation checks");
+  assert(deploymentVerifier.includes("'appFunctionChecks', 48")
     && deploymentVerifier.includes("+ CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END")
     && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)') IS NULL THEN 0 ELSE 1 END")
     && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END")

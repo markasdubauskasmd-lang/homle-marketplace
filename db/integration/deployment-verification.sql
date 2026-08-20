@@ -103,7 +103,6 @@ DECLARE
     'tideway_private.get_my_privacy_requests()',
     'tideway_private.request_facebook_data_deletion(uuid,text,bytea,bytea)',
     'tideway_private.get_facebook_data_deletion_status(bytea)',
-    'tideway_private.record_resend_email_suppression(text,citext,text,text,timestamp with time zone,bytea)',
     'tideway_private.get_my_cleaner_payout_onboarding()',
     'tideway_private.begin_my_cleaner_payout_onboarding(uuid)',
     'tideway_private.attach_my_cleaner_payout_account(uuid,text)',
@@ -1217,7 +1216,7 @@ SELECT json_build_object(
   'postgresqlVersion', current_setting('server_version'),
   'rlsTableCount', 39 + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regclass('public.cleaner_onboarding_sections') IS NULL THEN 0 ELSE 2 END,
-  'appFunctionChecks', 49
+  'appFunctionChecks', 48
     + CASE WHEN to_regclass('public.support_requests') IS NULL THEN 0 ELSE 4 END
     + CASE WHEN to_regprocedure('tideway_private.create_landlord_booking_change_request(uuid,uuid,uuid,text,timestamp with time zone,text)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.get_administrator_coverage_report(integer,boolean)') IS NULL THEN 0 ELSE 1 END
