@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1">
   <script type="module" src="/admin-private-navigation.js?v=20260805-1"></script>
-  <script type="module" src="/admin-scan-operations.js?v=20260729-1"></script>
+  <script type="module" src="/admin-scan-operations.js?v=20260820-1"></script>
 </head>
 <body class="booking-dashboard-page admin-payments-page">
   <a class="skip-link" href="#admin-scan-main">Skip to scan operations</a>
@@ -49,8 +49,16 @@
 
       <section class="booking-dashboard-card">
         <h2>Scanner in use</h2>
-        <p class="hint">Counts only. No image, room name, object label or note is ever recorded, and timings are bucketed rather than exact.</p>
+        <p class="hint">Counts only since this app instance started. No image, room name, object label or note is ever recorded, timings are bucketed rather than exact, and a deployment resets this view.</p>
         <ul data-admin-scan-rates></ul>
+        <h3>Assisted reading speed</h3>
+        <p class="hint" data-admin-scan-latency>Loading…</p>
+        <details>
+          <summary>Latency buckets</summary>
+          <ul data-admin-scan-latency-buckets></ul>
+        </details>
+        <h3>Reliability attention</h3>
+        <ul data-admin-scan-warnings></ul>
         <details>
           <summary>Raw counters</summary>
           <ul data-admin-scan-counters></ul>

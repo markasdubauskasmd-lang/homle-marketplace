@@ -3,6 +3,7 @@ import {
   basisPointsToPercent, changeReasonError, levelFields, penceToPounds, percentToBasisPoints,
   poundsToPence, pricingChangeSummary, pricingFields, pricingRulesFromForm
 } from "../public/admin-scan-pricing-model.js";
+import { scanOperationalWarnings, scanTimingSummary } from "../public/admin-scan-operations-model.js";
 import { normalizedPricingRuleset } from "../src/marketplace/scan-pricing.mjs";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
@@ -17,6 +18,36 @@ const validForm = {
   unresolvedRangeBasisPointsEach: "200", maximumRangeBasisPoints: "6000",
   level1: "9000", level2: "10000", level3: "12500", level4: "15000"
 };
+
+/* ── Anonymous scanner operations evidence ─────────────────────────────── */
+
+{
+  const summary = scanTimingSummary({ timings: {
+    "scan.reading.latency_ms|outcome=ok|0-250ms": 2,
+    "scan.reading.latency_ms|outcome=ok|8000-15000ms": 1,
+    "scan.reading.latency_ms|outcome=error|15000-30000ms": 1,
+    "scan.room.duration_ms|8000-15000ms": 99,
+    "scan.reading.latency_ms|outcome=ok|invented-bucket": 99
+  } });
+  assert(summary.total === 4, "Assisted-reading latency mixed in another timing or an unknown bucket.");
+  assert(summary.slowCount === 2 && summary.slowRate === 0.5, "Slow assisted reads were not calculated from the 8-second boundary.");
+  assert(summary.buckets.find((entry) => entry.bucket === "0-250ms")?.count === 2,
+    "Latency dimensions were not aggregated into their safe bucket.");
+}
+
+{
+  const warnings = scanOperationalWarnings({ counters: {
+    "scan.camera.denied|deviceClass=guided-web": 2,
+    "scan.camera.denied|deviceClass=mobile": 1,
+    "scan.detector.unavailable": 1,
+    "scan.session.started": 500
+  } });
+  assert(warnings.length === 2, "Routine counters became scanner reliability warnings.");
+  assert(warnings[0].code === "camera-denied" && warnings[0].count === 3,
+    "Camera-denial dimensions were not safely aggregated.");
+  assert(warnings[1].code === "detector-unavailable" && warnings[1].count === 1,
+    "Detector unavailability was not surfaced to operations.");
+}
 
 /* ── Money in and out of a form ────────────────────────────────────────── */
 
@@ -143,6 +174,10 @@ assert(operationsScript.includes("That is different from it being good") && oper
   "The report presents an unmeasured or under-sampled accuracy as a clean bill of health.");
 // The false-clean rate — the dirty-sink number — is named on its own.
 assert(operationsScript.includes("falseCleanRate"), "The false-clean rate is not reported.");
+assert(operationsPage.includes("data-admin-scan-latency") && operationsPage.includes("data-admin-scan-warnings"),
+  "The operations page collects scanner latency and failures without showing them to an operator.");
+assert(operationsScript.includes("scanTimingSummary") && operationsScript.includes("scanOperationalWarnings"),
+  "The operations page does not interpret its privacy-safe scanner evidence.");
 // Everything rendered with textContent; model output must never become markup.
 assert(!/innerHTML\s*=/.test(operationsScript), "The operations page assigns innerHTML.");
 
