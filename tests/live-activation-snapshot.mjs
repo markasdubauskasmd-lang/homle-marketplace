@@ -114,4 +114,23 @@ await assert.rejects(fetchLiveActivationSnapshot({
   async fetch() { return new Response("cached", { status: 200, headers: { "content-type": "application/json" } }); }
 }), /non-cacheable/);
 
-console.log("Live activation snapshot tests passed: exact release, secret-free health and account-provider projections, current provider gaps, test-only payment boundary and bounded no-credential public verification requests.");
+await assert.rejects(fetchLiveActivationSnapshot({
+  origin: "https://homle.example",
+  async fetch() {
+    return new Response("", { status: 503, headers: { "x-render-routing": "hibernate-wake-error" } });
+  }
+}), (error) => {
+  assert.equal(error.code, "RENDER_HIBERNATE_WAKE_ERROR");
+  assert.equal(error.retryable, true);
+  assert.match(error.message, /before Homle started/i);
+  assert.match(error.message, /expected release pin/i);
+  assert.match(error.message, /redeploy the latest main commit/i);
+  return true;
+});
+
+await assert.rejects(fetchLiveActivationSnapshot({
+  origin: "https://homle.example",
+  async fetch() { return new Response("", { status: 503 }); }
+}), /did not return a successful JSON response/);
+
+console.log("Live activation snapshot tests passed: exact release, secret-free health and account-provider projections, current provider gaps, test-only payment boundary, bounded no-credential public verification requests and platform wake-failure diagnosis.");
