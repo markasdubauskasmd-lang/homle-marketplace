@@ -293,3 +293,20 @@ A deployment regression test now rejects stale release claims in the current
 section and requires the release pin, live verifier, worker evidence and
 external activation safeguards to remain present. This changes no runtime UI,
 route, marketplace behaviour or Cleaner Dashboard file.
+
+## Platform wake failures are now diagnosed before app repair
+
+The live service became unavailable with Render's
+`x-render-routing: hibernate-wake-error` response while no Homle instance or
+application log was being produced. This routing failure happens before the
+container starts, but the activation verifier previously collapsed it into the
+same generic message used for an unhealthy application response. That could
+send an operator towards database or marketplace repairs when the application
+had never received the request.
+
+The live verifier now recognizes this exact fail-before-start signal, marks it
+retryable and directs the operator to verify the expected release pin, redeploy
+the latest `main` commit and retry. Other 503 responses remain generic and are
+not misclassified as Render wake failures. Regression coverage pins both paths.
+No marketplace runtime, public page, private workspace or Cleaner Dashboard
+file is changed.

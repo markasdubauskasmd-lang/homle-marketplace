@@ -77,6 +77,20 @@ function action(key, copy) {
   return Object.freeze({ key, action: copy });
 }
 
+function unsuccessfulEndpointError(response, label) {
+  // Render can return this routing header before the Homle container starts.
+  // Calling it an unhealthy application response sends an operator towards
+  // database and runtime repairs that cannot help a platform wake failure.
+  const renderRouting = exact(response.headers.get("x-render-routing")).toLowerCase();
+  if (response.status === 503 && renderRouting === "hibernate-wake-error") {
+    const error = new Error(`${label} could not wake the Render service. This failure happened before Homle started; verify the expected release pin, redeploy the latest main commit, then retry.`);
+    error.code = "RENDER_HIBERNATE_WAKE_ERROR";
+    error.retryable = true;
+    return error;
+  }
+  return new Error(`${label} did not return a successful JSON response.`);
+}
+
 function accountAccessProjection(payload) {
   const root = object(payload, "Account provider response");
   if (root.ok !== true) throw new Error("The public account provider endpoint is not healthy.");
@@ -197,7 +211,8 @@ export async function fetchLiveActivationSnapshot(options = {}) {
         signal: controller.signal,
         headers: { accept: "application/json", "user-agent": "Homle-Live-Activation-Snapshot/1.0" }
       });
-      if (response.status !== 200 || !/^application\/json\b/i.test(response.headers.get("content-type") || "")) throw new Error(`${label} did not return a successful JSON response.`);
+      if (response.status !== 200) throw unsuccessfulEndpointError(response, label);
+      if (!/^application\/json\b/i.test(response.headers.get("content-type") || "")) throw new Error(`${label} did not return a successful JSON response.`);
       if (!/(?:^|,)\s*no-store\b/i.test(response.headers.get("cache-control") || "")) throw new Error(`${label} must be non-cacheable.`);
       try { return JSON.parse(await boundedText(response)); } catch (error) {
         if (error instanceof SyntaxError) throw new Error(`${label} returned invalid JSON.`);
