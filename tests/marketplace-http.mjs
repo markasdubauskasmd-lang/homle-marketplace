@@ -493,6 +493,27 @@ const noSession = await dispatch(router, "GET", "/api/marketplace/properties");
 assert(noSession.response.statusCode === 401 && noSession.body.code === "authentication-required" && noSession.response.headers["Cache-Control"] === "no-store", "Private property listing accepted a missing session or allowed caching.");
 const privateAccount = await dispatch(router, "GET", "/api/marketplace/account", { headers: { cookie: authHeaders.cookie } });
 assert(privateAccount.response.statusCode === 200 && privateAccount.body.account.displayName === "Landlord Example" && privateAccount.body.account.email === "landlord@example.com" && privateAccount.body.account.selectedRole === "landlord" && privateAccount.body.account.roles.join(",") === "landlord" && !JSON.stringify(privateAccount.body).includes(sessions.landlord.session_id) && !JSON.stringify(privateAccount.body).includes("csrf"), "The private self-account route omitted role context or exposed session material.");
+const bootstrapCallStart = calls.length;
+const missingLandlordBootstrap = await dispatch(router, "GET", "/api/marketplace/landlord/bootstrap");
+const cleanerLandlordBootstrap = await dispatch(router, "GET", "/api/marketplace/landlord/bootstrap", { headers: { cookie: cleanerAuthHeaders.cookie } });
+const landlordBootstrap = await dispatch(router, "GET", "/api/marketplace/landlord/bootstrap", { headers: { cookie: authHeaders.cookie } });
+const bootstrapCalls = calls.slice(bootstrapCallStart);
+assert(missingLandlordBootstrap.response.statusCode === 401
+  && cleanerLandlordBootstrap.response.statusCode === 403
+  && landlordBootstrap.response.statusCode === 200
+  && landlordBootstrap.body.account.displayName === "Landlord Example"
+  && landlordBootstrap.body.profile.organisationName === "Example PM"
+  && Array.isArray(landlordBootstrap.body.properties)
+  && landlordBootstrap.body.archivedProperties[0].name === "Archived flat"
+  && Array.isArray(landlordBootstrap.body.cleaningRequests)
+  && landlordBootstrap.body.bookings[0].pricePerspective === "customer-total"
+  && Array.isArray(landlordBootstrap.body.supportRequests)
+  && landlordBootstrap.body.unavailable.length === 0
+  && bootstrapCalls.map((call) => call.kind).join(",") === "landlord-get,property-list,property-archived-list,request-list,booking-list,support-list-own"
+  && bootstrapCalls.every((call) => call.actor.userId === sessions.landlord.user_id)
+  && bootstrapCalls.find((call) => call.kind === "booking-list").input.limit === "50"
+  && bootstrapCalls.find((call) => call.kind === "support-list-own").input.limit === "25",
+"The Landlord bootstrap lost one-time role authorization, bounded owner reads, safe account projection or its complete workspace payload.");
 const favouriteCleanerId = "22222222-2222-4222-8222-222222222222";
 const favouriteCleanerList = await dispatch(router, "GET", "/api/marketplace/landlord/favourite-cleaners", { headers: { cookie: authHeaders.cookie } });
 const cleanerFavouriteList = await dispatch(router, "GET", "/api/marketplace/landlord/favourite-cleaners", { headers: { cookie: cleanerAuthHeaders.cookie } });

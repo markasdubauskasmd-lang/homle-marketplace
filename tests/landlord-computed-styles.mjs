@@ -94,12 +94,27 @@ const booking = {
 };
 
 const files = {
+  // The booking and checkout pages still own their narrower account/record
+  // reads. The persistent Landlord dashboard uses the aggregate bootstrap
+  // below; keeping both contracts in this shared visual fixture is deliberate.
   "/api/marketplace/account": { ok: true, account: { roles: ["landlord"], selectedRole: "landlord", displayName: "Test Landlord", email: "landlord@example.com" } },
   "/api/marketplace/landlord/profile": { ok: true, profile: { organisationName: null, biography: "" } },
   "/api/marketplace/properties": { ok: true, properties: [property] },
   "/api/marketplace/properties/archived": { ok: true, properties: [] },
   "/api/marketplace/cleaning-requests": { ok: true, cleaningRequests: [request] },
   "/api/marketplace/bookings": { ok: true, bookings: [booking] },
+  "/api/marketplace/landlord/support-requests": { ok: true, supportRequests: [] },
+  "/api/marketplace/landlord/bootstrap": {
+    ok: true,
+    account: { roles: ["landlord"], selectedRole: "landlord", displayName: "Test Landlord", email: "landlord@example.com" },
+    profile: { organisationName: null, biography: "" },
+    properties: [property],
+    archivedProperties: [],
+    cleaningRequests: [request],
+    bookings: [booking],
+    supportRequests: [],
+    unavailable: []
+  },
   /* Keep one explicit failed-conversation state in the visual baseline. The
      response is deliberately malformed rather than a 404 fall-through, so the
      error banner is deterministic and cannot race another dashboard request. */
@@ -107,7 +122,6 @@ const files = {
     ok: false,
     error: "The private booking conversation could not be verified."
   },
-  "/api/marketplace/landlord/support-requests": { ok: true, supportRequests: [] },
   "/api/marketplace/landlord/favourite-cleaners": { ok: true, cleaners: [] },
   // The journey's access gate calls this through recoverCsrf; without it the
   // gate never opens and only the locked state would be measured.

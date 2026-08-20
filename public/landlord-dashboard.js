@@ -3933,22 +3933,16 @@ async function loadWorkspace() {
   loading = true;
   showState("Checking secure Landlord access…", "Your properties and drafts open only inside an authenticated Landlord session.");
   try {
-    // These are independently authorised, read-only endpoints. Start them
-    // alongside the account check so a cold service or mobile connection does
-    // not turn workspace startup into two consecutive network waits. Nothing
-    // is rendered until the verified account passes the Landlord role check
-    // below, and allSettled prevents abandoned reads becoming unhandled errors.
-    const primaryWorkspaceReads = Promise.allSettled([
-      requestJson("/api/marketplace/landlord/profile"),
-      requestJson("/api/marketplace/properties"),
-      requestJson("/api/marketplace/properties/archived"),
-      requestJson("/api/marketplace/cleaning-requests"),
-      requestJson("/api/marketplace/bookings?limit=50"),
-      requestJson("/api/marketplace/landlord/support-requests?limit=25&offset=0"),
+    // One authenticated bootstrap replaces seven competing private requests.
+    // Health is public and independent, so it can still overlap the secured
+    // read without multiplying authorization failures for an expired session.
+    const [bootstrapResult, healthResult] = await Promise.allSettled([
+      requestJson("/api/marketplace/landlord/bootstrap"),
       requestJson("/api/health", { credentials: "omit", timeoutMs: readinessRequestTimeoutMs })
     ]);
-    const accountResult = await requestJson("/api/marketplace/account");
-    const account = accountResult.account;
+    if (bootstrapResult.status === "rejected") throw bootstrapResult.reason;
+    const bootstrap = bootstrapResult.value;
+    const account = bootstrap.account;
     const access = dashboardWorkspaceAccess(account, "landlord");
     if (!access.ready) return access.reason === "different-workspace"
       ? showState(`Your ${access.label} workspace is active.`, "Properties, room scans and cleaning requests remain in a separate private Landlord dashboard.", { kind: "authentication", workspaceDestination: access.destination, workspaceLabel: access.label })
@@ -3962,19 +3956,15 @@ async function loadWorkspace() {
     workspace.setAttribute("aria-busy", "true");
     loadStatus.hidden = true;
 
-    const [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult] = await primaryWorkspaceReads;
-    const results = [profileResult, propertyResult, archivedPropertyResult, requestResult, bookingResult, supportResult, healthResult];
-    const failures = results.filter((result) => result.status === "rejected");
-    const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
-    if (authorizationFailure) throw authorizationFailure.reason;
-    if (propertyResult.status === "fulfilled") properties = Array.isArray(propertyResult.value.properties) ? propertyResult.value.properties : [];
-    if (archivedPropertyResult.status === "fulfilled") archivedProperties = Array.isArray(archivedPropertyResult.value.properties) ? archivedPropertyResult.value.properties : [];
-    if (requestResult.status === "fulfilled") requests = Array.isArray(requestResult.value.cleaningRequests) ? requestResult.value.cleaningRequests : [];
-    if (bookingResult.status === "fulfilled") bookings = Array.isArray(bookingResult.value.bookings) ? bookingResult.value.bookings : [];
-    bookingsUnavailable = bookingResult.status === "rejected";
+    const unavailable = new Set(Array.isArray(bootstrap.unavailable) ? bootstrap.unavailable : []);
+    if (!unavailable.has("properties")) properties = Array.isArray(bootstrap.properties) ? bootstrap.properties : [];
+    if (!unavailable.has("archivedProperties")) archivedProperties = Array.isArray(bootstrap.archivedProperties) ? bootstrap.archivedProperties : [];
+    if (!unavailable.has("cleaningRequests")) requests = Array.isArray(bootstrap.cleaningRequests) ? bootstrap.cleaningRequests : [];
+    if (!unavailable.has("bookings")) bookings = Array.isArray(bootstrap.bookings) ? bootstrap.bookings : [];
+    bookingsUnavailable = unavailable.has("bookings");
     renderBookingSourceState();
-    supportRequests = supportResult.status === "fulfilled" ? [...supportRequestPage(supportResult.value).supportRequests] : [];
-    landlordProfile = profileResult.status === "fulfilled" ? (profileResult.value.profile || { organisationName: null, biography: "" }) : { organisationName: null, biography: "" };
+    if (!unavailable.has("supportRequests")) supportRequests = Array.isArray(bootstrap.supportRequests) ? [...bootstrap.supportRequests] : [];
+    if (!unavailable.has("profile")) landlordProfile = bootstrap.profile || { organisationName: null, biography: "" };
     landlordProfileForm.elements.organisationName.value = landlordProfile.organisationName || "";
     landlordProfileForm.elements.biography.value = landlordProfile.biography || "";
     landlordProfileDirty = false;
@@ -3992,7 +3982,7 @@ async function loadWorkspace() {
     // bookings had already rendered. Finish primary startup immediately and
     // let this isolated panel report its own bounded failure state.
     void refreshFavouriteCleaners();
-    loadStatus.hidden = failures.length === 0;
+    loadStatus.hidden = unavailable.size === 0 && healthResult.status === "fulfilled";
     if (location.hash === "#landlord-account-title") selectWorkspaceTab("account");
     continueBookingStart();
     void refreshSelectedCleanerProfile();

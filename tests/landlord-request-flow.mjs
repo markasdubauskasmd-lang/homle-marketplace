@@ -220,6 +220,17 @@ const staticFiles = {
 const server = await serveStatic({
   extraFiles: {
     ...staticFiles,
+    "/api/marketplace/landlord/bootstrap": () => ({ body: {
+      ok: true,
+      account: { roles: ["landlord"], selectedRole: "landlord", displayName: "Journey Landlord", email: "landlord@example.com" },
+      profile: { organisationName: null, biography: "" },
+      properties: PROPERTIES,
+      archivedProperties: [],
+      cleaningRequests: createdRequests.map((entry) => entry.record),
+      bookings: [],
+      supportRequests: [],
+      unavailable: []
+    } }),
     "/api/marketplace/pricing/quote": engineQuote,
     "/api/marketplace/cleaning-requests": ({ method, body }) => method === "POST"
       ? createRequest(body)
