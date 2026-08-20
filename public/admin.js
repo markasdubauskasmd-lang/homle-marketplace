@@ -2717,4 +2717,26 @@ function updateQuoteCalculator() {
 }
 
 quoteFields.forEach((field) => field.addEventListener("input", updateQuoteCalculator));
+
+function attachParticipantRehearsalGuide() {
+  const guide = document.querySelector("[data-participant-rehearsal-guide]");
+  if (!guide) return;
+  const steps = [...guide.querySelectorAll("[data-rehearsal-step]")];
+  const progress = guide.querySelector("[data-rehearsal-progress]");
+  const reset = guide.querySelector("[data-rehearsal-reset]");
+  const update = () => {
+    const completed = steps.filter((step) => step.checked).length;
+    progress.textContent = `${completed} of ${steps.length} checked in this tab`;
+    guide.dataset.complete = completed === steps.length ? "true" : "false";
+  };
+  steps.forEach((step) => step.addEventListener("change", update));
+  reset.addEventListener("click", () => {
+    steps.forEach((step) => { step.checked = false; });
+    update();
+    steps[0]?.focus();
+  });
+  update();
+}
+
+attachParticipantRehearsalGuide();
 Promise.all([loadRecords(), loadConfig(), loadMediaRetention(), loadDataIntegrity()]);

@@ -118,7 +118,7 @@ const [adminPage, adminScript, server] = await Promise.all([
   readFile(new URL("../public/admin.js", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8")
 ]);
-assert(adminPage.includes('/admin-launch.css?v=20260820-1'), "The Administrator email activation guide omitted its isolated stylesheet.");
+assert(adminPage.includes('/admin-launch.css?v=20260821-1') && adminPage.includes('/admin.js?v=20260821-1'), "The Administrator launch guides omitted their cache-safe assets.");
 for (const key of ["privateMedia", "transactionalEmail", "realtimeUpdates", "postcodeGeocoding", "matchingPricing"]) assert(adminPage.includes(`data-activation-check="${key}"`), `The Administrator activation panel omitted ${key}.`);
 assert(adminPage.includes('id="technical-readiness-score">0/11'), "The Administrator activation panel retained the old bundled score.");
 for (const evidence of [
@@ -131,6 +131,10 @@ for (const evidence of [
   "WORKER_EMAIL_ENABLED"
 ]) assert(adminPage.includes(evidence), `The Administrator email activation guide omitted ${evidence}.`);
 assert(adminScript.includes('readiness.checks?.transactionalEmail === true') && adminScript.includes("emailSetup.hidden = emailReady") && adminScript.includes("emailSetup.open = false"), "The Administrator email activation guide does not follow the live readiness state.");
+assert(adminPage.includes("data-participant-rehearsal-guide") && adminPage.includes("Checking a step does not change launch readiness or save evidence."), "The Administrator launch desk omitted the non-authoritative two-device rehearsal guide.");
+assert((adminPage.match(/data-rehearsal-step/g) || []).length === 10, "The two-device rehearsal guide does not cover the full participant lifecycle.");
+assert(!/<input[^>]+data-rehearsal-step[^>]+name=/.test(adminPage), "A temporary rehearsal step could be serialized as authoritative launch evidence.");
+assert(adminScript.includes("function attachParticipantRehearsalGuide()") && adminScript.includes("checked in this tab") && adminScript.includes("step.checked = false"), "The temporary rehearsal checklist lost its progress or reset behaviour.");
 for (const binding of ["emailReady: marketplaceAttachment.emailReady", "mediaReady: marketplaceAttachment.mediaReady", "realtimeReady: marketplaceAttachment.realtimeReady", "geocodingReady: marketplaceAttachment.geocodingReady", "matchingReady: marketplaceAttachment.matchingReady", "databaseExpiresAt: process.env.DATABASE_EXPIRES_AT || null"]) assert(server.includes(binding), `The Administrator readiness response omitted ${binding}.`);
 assert(adminScript.includes("technical service and matching checks"), "The Administrator completed state lost its separate technical-evidence boundary.");
 
