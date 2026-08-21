@@ -242,6 +242,18 @@ try {
         }
       `);
       assert(ready, `${view} at ${viewport.label}: the workspace never finished loading, so nothing could be measured.`);
+      if (view === "messages") {
+        const messagesReady = await browser.evaluate(`
+          const deadline = Date.now() + 15000;
+          for (;;) {
+            const panel = document.querySelector('[data-landlord-panel="messages"]');
+            if (panel && !panel.hasAttribute("aria-busy")) return true;
+            if (Date.now() > deadline) return false;
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+        `);
+        assert(messagesReady, `${view} at ${viewport.label}: the private conversation never settled, so an intermediate loading state would have been measured.`);
+      }
       captured[`${viewport.label} · ${view}`] = await browser.evaluate(PROBE(DASHBOARD_PREFIXES));
     }
 

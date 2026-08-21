@@ -1272,20 +1272,32 @@ function continueBookingStart() {
  * screen.
  */
 let landlordMessagesLoad = null;
+let landlordMessagesOpenSequence = 0;
 async function openMessages() {
-  if (!landlordMessagesLoad) {
-    landlordMessagesLoad = import("./landlord-messages.js?v=20260813-1").catch((error) => {
-      console.warn("The Messages view could not be loaded.", error);
-      return null;
+  const sequence = ++landlordMessagesOpenSequence;
+  const panel = document.querySelector('[data-landlord-panel="messages"]');
+  panel?.setAttribute("aria-busy", "true");
+  try {
+    if (!landlordMessagesLoad) {
+      landlordMessagesLoad = import("./landlord-messages.js?v=20260813-1").catch((error) => {
+        console.warn("The Messages view could not be loaded.", error);
+        return null;
+      });
+    }
+    const module = await landlordMessagesLoad;
+    if (!module) return;
+    await module.openLandlordMessages({
+      requestJson,
+      bookings,
+      selectBookingId: new URLSearchParams(location.search).get("bookingId") || ""
     });
+  } finally {
+    // loadWorkspace can refresh the booking list while the first lazy import is
+    // still resolving. Only the newest open owns the settled state; an older
+    // request must not announce that Messages is ready while the refreshed
+    // conversation is still loading.
+    if (sequence === landlordMessagesOpenSequence) panel?.removeAttribute("aria-busy");
   }
-  const module = await landlordMessagesLoad;
-  if (!module) return;
-  await module.openLandlordMessages({
-    requestJson,
-    bookings,
-    selectBookingId: new URLSearchParams(location.search).get("bookingId") || ""
-  });
 }
 
 async function requestJson(path, options = {}) {
