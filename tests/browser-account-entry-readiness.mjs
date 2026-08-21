@@ -64,6 +64,50 @@ try {
     `Google did not become usable from the provider response: ${JSON.stringify(state)}.`);
   assert(state.runtimeHidden === false && state.readiness === "Secure account access is ready.",
     `Account entry did not reach its provider-ready state independently of health: ${JSON.stringify(state)}.`);
+
+  // A visitor can legitimately abandon a booking or Cleaner application and
+  // later use the site's generic Log in action. That fresh entry must not
+  // inherit the old role intent and silently steer a dual-role account into
+  // the wrong workspace.
+  await browser.evaluate(`
+    const now = Date.now();
+    sessionStorage.setItem("tidewayAccountIntentV1", JSON.stringify({
+      version: 1,
+      intent: "book",
+      savedAt: now,
+      expiresAt: now + 30 * 60 * 1000
+    }));
+    return null;
+  `);
+  await browser.goto(`${server.origin}/login`);
+  const neutralEntry = await browser.evaluate(`
+    return await new Promise((resolve) => {
+      const startedAt = performance.now();
+      const inspect = () => {
+        const state = {
+          title: document.querySelector('[data-account-title]')?.textContent.trim(),
+          googleHref: document.querySelector('[data-social-provider="google"]')?.getAttribute('href'),
+          storedIntent: sessionStorage.getItem("tidewayAccountIntentV1")
+        };
+        if (state.title === "Sign in to Homle" || performance.now() - startedAt >= 2_500) return resolve(state);
+        setTimeout(inspect, 25);
+      };
+      inspect();
+    });
+  `);
+  assert(neutralEntry.title === "Sign in to Homle"
+      && neutralEntry.googleHref === "/api/marketplace/auth/google/start"
+      && neutralEntry.storedIntent === null,
+  `Bare login inherited a stale booking intent: ${JSON.stringify(neutralEntry)}.`);
+
+  await browser.goto(`${server.origin}/login?intent=work`);
+  const explicitEntry = await browser.evaluate(`return ({
+    title: document.querySelector('[data-account-title]')?.textContent.trim(),
+    googleHref: document.querySelector('[data-social-provider="google"]')?.getAttribute('href')
+  });`);
+  assert(explicitEntry.title === "Sign in to work as a Cleaner"
+      && explicitEntry.googleHref === "/api/marketplace/auth/google/start?intent=work",
+  `Explicit Cleaner intent was not preserved: ${JSON.stringify(explicitEntry)}.`);
   assert(browser.pageErrors.length === 0,
     `The fast account-entry path threw in Chromium: ${browser.pageErrors.join(" | ")}`);
 } catch (error) {
@@ -74,4 +118,4 @@ try {
 }
 
 if (failure) throw failure;
-console.log("Browser account-readiness check passed: Google becomes usable while the advisory workspace probe is still pending.");
+console.log("Browser account-readiness check passed: Google becomes usable before advisory health, bare login clears stale role intent and explicit intent remains authoritative.");
