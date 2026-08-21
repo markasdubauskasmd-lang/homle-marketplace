@@ -88,6 +88,31 @@ try {
   assert(entry.detailVideo.poster === null && entry.detailVideo.deferredPoster === "/landing/dark-kitchen-1600-f930f4ce.webp",
     `The below-the-fold detail poster joined the initial mobile load: ${JSON.stringify(entry.detailVideo)}.`);
 
+  // The public page can recover an existing session after first paint. Every
+  // conversion prompt must then acknowledge that account instead of sending a
+  // signed-in Landlord back through sign-up or Log in again.
+  const recoveredAccount = await browser.evaluate(`
+    window.dispatchEvent(new CustomEvent("homle:account-ready", {
+      detail: { workspace: { role: "landlord", label: "Landlord", href: "/landlord/dashboard" } }
+    }));
+    const manual = document.querySelector("[data-home-manual-entry]");
+    const closing = document.querySelector("[data-home-workspace-entry]");
+    const signedOutOnly = [...document.querySelectorAll("[data-home-signed-out-only]")];
+    const result = {
+      manualHref: manual?.getAttribute("href"),
+      manualText: manual?.textContent.trim(),
+      closingHref: closing?.getAttribute("href"),
+      closingText: closing?.textContent.trim(),
+      signedOutPromptsHidden: signedOutOnly.every((element) => element.hidden)
+    };
+    window.dispatchEvent(new CustomEvent("homle:account-ready", { detail: { workspace: null } }));
+    return result;
+  `);
+  assert(recoveredAccount.manualHref === "/landlord/dashboard#landlord-requests" && recoveredAccount.manualText === "Continue to manual request",
+    `A recovered Landlord session still loops through account creation: ${JSON.stringify(recoveredAccount)}.`);
+  assert(recoveredAccount.closingHref === "/landlord/dashboard" && recoveredAccount.closingText === "Open Landlord dashboard" && recoveredAccount.signedOutPromptsHidden,
+    `The closing conversion prompt does not acknowledge a recovered Landlord session: ${JSON.stringify(recoveredAccount)}.`);
+
   // Walk the whole page the way a visitor would. Every act pins and unpins, and
   // none of them may push the document sideways while it moves — the design is
   // built from vw-sized transforms, which is exactly how that happens.
