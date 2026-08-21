@@ -75,6 +75,7 @@ function renderTelemetry(payload) {
   const latency = element("[data-admin-scan-latency]");
   const latencyBuckets = element("[data-admin-scan-latency-buckets]");
   const warnings = element("[data-admin-scan-warnings]");
+  const releases = element("[data-admin-scan-releases]");
   const labels = {
     startedSessions: "Scans started", completionRate: "Completed", correctionRate: "Objects corrected per room",
     readingFailureRate: "Reading failures", crashFreeRate: "Crash-free", redactionRate: "Redactions per room",
@@ -85,6 +86,14 @@ function renderTelemetry(payload) {
     // denominator must not read as a clean bill of health.
     `${labels[key] || key}: ${key === "startedSessions" ? value : percent(value)}`
   )));
+  const releaseRows = Array.isArray(payload?.releaseRates) ? payload.releaseRates : [];
+  releases.replaceChildren(...(releaseRows.length
+    ? releaseRows.map((release) => {
+      const current = release.releaseCommit === payload.currentRelease ? " · current" : "";
+      const measured = Number(release.rates?.startedSessions) || 0;
+      return listItem(`${release.releaseCommit}${current} — ${measured} started · ${percent(release.rates?.completionRate)} completed · ${percent(release.rates?.crashFreeRate)} crash-free`);
+    })
+    : [listItem("No release-specific scans have been recorded yet.")]));
   const entries = Object.entries(payload?.snapshot?.counters || {});
   counters.replaceChildren(...(entries.length ? entries.map(([key, value]) => listItem(`${key} — ${value}`)) : [listItem("Nothing recorded yet.")]));
 

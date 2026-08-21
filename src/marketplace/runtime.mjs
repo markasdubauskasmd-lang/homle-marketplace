@@ -189,7 +189,12 @@ export function createMarketplaceRuntime(pool, options = {}) {
   // Recording remains synchronous and in-memory on the scan path. The adapter
   // flushes only fixed anonymous aggregates in the background, preserving the
   // evidence across deploys without making telemetry a booking dependency.
-  const scanTelemetry = options.scanTelemetry || createDurableScanTelemetry(createScanTelemetryRepository(database));
+  const scanTelemetry = options.scanTelemetry || createDurableScanTelemetry(createScanTelemetryRepository(database), {
+    // This comes from homle-release.json, not a request or browser field. It
+    // lets operations compare scanner builds without attaching a scan, home,
+    // booking or person to the aggregate.
+    releaseCommit: options.releaseIdentity?.sourceCommit
+  });
   const scanPricingService = createScanPricingService(createScanPricingRepository(database));
   // The operator's price list. Reads fall back to the shipped defaults when
   // nothing has been published, so a fresh deployment quotes the same numbers

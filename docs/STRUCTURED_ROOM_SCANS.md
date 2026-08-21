@@ -550,7 +550,13 @@ collector, then a background adapter writes only that fixed anonymous shape to
 hourly database aggregates. Only an Administrator can read the rolling 30-day
 aggregate snapshot and derived rates at
 `GET /api/marketplace/admin/scan-telemetry`; the scan-operations screen renders
-that same endpoint. It now separates assisted-reading latency into the approved
+that same endpoint. Each new aggregate is also attributed to the immutable
+eight-character packaged commit supplied by the server. The browser cannot
+choose or override that value, existing pre-migration aggregates remain
+labelled `unknown`, and no customer or scan identifier was added. The protected
+screen compares completion and crash-free rates for the current and seven most
+recent releases, making scanner regressions visible without building a user-level
+tracking trail. It also separates assisted-reading latency into the approved
 coarse buckets, calls out reads taking eight seconds or longer, and turns camera,
 detector, assisted-reading, upload and crash counters into plain operational
 attention items. The eight-second boundary is a diagnostic threshold, not a

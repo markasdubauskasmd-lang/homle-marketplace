@@ -232,6 +232,7 @@ export async function createMarketplaceAttachment(options = {}) {
     realtimeSignalSource = createRealtimeSignalSource(realtimePool);
     runtime = (options.createRuntime || createMarketplaceRuntime)(pool, {
       env,
+      releaseIdentity: options.releaseIdentity,
       rateLimiter,
       clientKey,
       emailDelivery,

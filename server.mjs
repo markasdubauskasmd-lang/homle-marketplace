@@ -92,7 +92,7 @@ const objectStorageOrigins = (() => {
   if (!pathStyle && endpoint.hostname !== "localhost" && isIP(endpoint.hostname) === 0) origins.push(`${endpoint.protocol}//${process.env.OBJECT_STORAGE_BUCKET.trim()}.${endpoint.host}`);
   return [...new Set(origins)];
 })();
-const marketplaceAttachment = await createMarketplaceAttachment({ env: process.env });
+const marketplaceAttachment = await createMarketplaceAttachment({ env: process.env, releaseIdentity });
 
 // Background jobs (automatic dispatch, invitation expiry/requeue, the email
 // outbox) live in their own worker service, which needs a paid Render plan. On

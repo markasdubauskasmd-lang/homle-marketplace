@@ -120,6 +120,7 @@ let limiterCreated = 0;
 let clientKeyCreated = 0;
 const attachment = await createMarketplaceAttachment({
   env: completeEnvironment,
+  releaseIdentity: { sourceCommit: "e8b3c3e1" },
   adapters,
   async createPool() { return pool; },
   async createRealtimePool() { return realtimePool; },
@@ -154,6 +155,7 @@ const attachment = await createMarketplaceAttachment({
     assert.equal(options.clientKey, trustedClientKey);
     assert.equal(options.emailDelivery, emailDelivery);
     assert.equal(options.objectStorage, objectStorage);
+    assert.equal(options.releaseIdentity.sourceCommit, "e8b3c3e1");
     assert.equal(typeof options.realtimeSignalSource.close, "function");
     return {
       router,
