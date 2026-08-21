@@ -1,5 +1,5 @@
 import {
-  allowedDimensions, createDurableScanTelemetry, createScanTelemetry, durationBucket, scanEvent, scanMetrics, scanRates, scanTimings
+  allowedDimensions, createDurableScanTelemetry, createScanTelemetry, durationBucket, scanEvent, scanMetrics, scanRates, scanReleaseRates, scanTimings
 } from "../src/marketplace/scan-telemetry.mjs";
 import { createScanTelemetryRepository } from "../src/marketplace/scan-telemetry-repository.mjs";
 
@@ -147,6 +147,7 @@ assert(scanMetrics.every((name) => /^scan\.[a-z_.]+$/.test(name)), "A metric nam
     }
   };
   const telemetry = createDurableScanTelemetry(repository, {
+    releaseCommit: "e8b3c3e1",
     scheduler: {
       setTimeout(callback) { scheduled = callback; return { unref() {} }; },
       clearTimeout() {}
@@ -159,11 +160,37 @@ assert(scanMetrics.every((name) => /^scan\.[a-z_.]+$/.test(name)), "A metric nam
   assert(typeof scheduled === "function", "A durable flush was not scheduled without blocking the caller.");
   await telemetry.flush();
   assert(JSON.stringify(batches) === JSON.stringify([[{
-    metric: "scan.session.started", dimensions: { deviceClass: "guided-web" }, count: 1
+    metric: "scan.session.started", dimensions: { deviceClass: "guided-web" }, count: 1, releaseCommit: "e8b3c3e1"
   }]]), "A private or unbounded field escaped into durable telemetry.");
   const result = await telemetry.durableSnapshot({ userId: "00000000-0000-4000-8000-000000000001", roles: ["administrator"] });
-  assert(result.durable === true && result.windowDays === 30 && result.snapshot.counters["scan.session.started|deviceClass=guided-web"] === 7,
+  assert(result.durable === true && result.windowDays === 30 && result.currentRelease === "e8b3c3e1" && result.snapshot.counters["scan.session.started|deviceClass=guided-web"] === 7,
     "The Administrator did not receive the durable aggregate.");
+}
+
+// The release is owned by the server configuration, never by record() input.
+{
+  const batches = [];
+  const telemetry = createDurableScanTelemetry({
+    async recordBatch(events) { batches.push(events); },
+    async snapshot() { return { counters: {}, timings: {}, releases: [] }; }
+  }, {
+    releaseCommit: "ABCDEF12",
+    scheduler: { setTimeout() { return { unref() {} }; }, clearTimeout() {} }
+  });
+  telemetry.record("scan.session.started", { releaseCommit: "badc0ffe", accountId: "private" });
+  await telemetry.flush();
+  assert(batches[0][0].releaseCommit === "abcdef12" && !JSON.stringify(batches).includes("badc0ffe"),
+    "A caller overrode the packaged telemetry release.");
+}
+
+{
+  const releaseRates = scanReleaseRates({ releases: [{
+    releaseCommit: "e8b3c3e1",
+    counters: { "scan.session.started": 10, "scan.session.completed": 8, "scan.crash": 1 },
+    timings: {}
+  }] });
+  assert(releaseRates.length === 1 && releaseRates[0].rates.completionRate === 0.8
+    && releaseRates[0].rates.crashFreeRate === 0.9, "Per-release scanner rates were not derived consistently.");
 }
 
 // Storage failure is honest and cannot break scanning or the operations view.

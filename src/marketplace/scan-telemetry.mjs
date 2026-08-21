@@ -173,7 +173,12 @@ export function createScanTelemetry({ maximumSeries = 500 } = {}) {
 function eventKey(event) {
   const labels = Object.entries(event.dimensions).sort(([left], [right]) => left.localeCompare(right))
     .map(([name, value]) => `${name}=${value}`).join(",");
-  return `${event.metric}|${labels}|${event.bucket || ""}`;
+  return `${event.releaseCommit || "unknown"}|${event.metric}|${labels}|${event.bucket || ""}`;
+}
+
+function normalizedReleaseCommit(value) {
+  const supplied = String(value || "").trim().toLowerCase();
+  return /^[0-9a-f]{8}$/.test(supplied) ? supplied : "unknown";
 }
 
 /**
@@ -186,12 +191,16 @@ export function createDurableScanTelemetry(repository, {
   maximumSeries = 500,
   flushDelayMs = 1000,
   scheduler = globalThis,
-  windowDays = 30
+  windowDays = 30,
+  releaseCommit
 } = {}) {
   if (!repository || typeof repository.recordBatch !== "function" || typeof repository.snapshot !== "function") {
     throw new TypeError("A complete scan telemetry repository is required.");
   }
   const local = createScanTelemetry({ maximumSeries });
+  // A fixed server-owned label. Callers of record() cannot override it, so a
+  // crafted scanner request cannot move broken traffic into another release.
+  const packagedReleaseCommit = normalizedReleaseCommit(releaseCommit);
   const pending = new Map();
   let timer = null;
   let flushing = null;
@@ -242,7 +251,7 @@ export function createDurableScanTelemetry(repository, {
     record(metric, options) {
       const event = scanEvent(metric, options);
       if (!event || !local.record(metric, options)) return false;
-      const durableEvent = Object.freeze({ ...event, count: event.count ?? 1 });
+      const durableEvent = Object.freeze({ ...event, count: event.count ?? 1, releaseCommit: packagedReleaseCommit });
       const key = eventKey(durableEvent);
       if (!pending.has(key) && pending.size >= maximumSeries) return true;
       const previous = pending.get(key);
@@ -254,9 +263,14 @@ export function createDurableScanTelemetry(repository, {
     async durableSnapshot(actor, requestedWindowDays = windowDays) {
       await flush();
       try {
-        return Object.freeze({ snapshot: await repository.snapshot(actor, requestedWindowDays), durable: true, windowDays: requestedWindowDays });
+        return Object.freeze({
+          snapshot: await repository.snapshot(actor, requestedWindowDays),
+          durable: true,
+          windowDays: requestedWindowDays,
+          currentRelease: packagedReleaseCommit
+        });
       } catch {
-        return Object.freeze({ snapshot: local.snapshot(), durable: false, windowDays: null });
+        return Object.freeze({ snapshot: local.snapshot(), durable: false, windowDays: null, currentRelease: packagedReleaseCommit });
       }
     },
     flush,
@@ -303,4 +317,15 @@ export function scanRates(snapshot) {
     redactionRate: ratio(total("scan.redaction.applied"), rooms),
     estimateRefusalRate: ratio(total("scan.estimate.refused"), total("scan.estimate.produced") + total("scan.estimate.refused"))
   });
+}
+
+/** Rates for each bounded release aggregate returned by PostgreSQL. */
+export function scanReleaseRates(snapshot) {
+  const releases = Array.isArray(snapshot?.releases) ? snapshot.releases : [];
+  return Object.freeze(releases.map((release) => Object.freeze({
+    releaseCommit: normalizedReleaseCommit(release?.releaseCommit),
+    firstObservedHour: release?.firstObservedHour || null,
+    lastObservedHour: release?.lastObservedHour || null,
+    rates: scanRates(release)
+  })));
 }

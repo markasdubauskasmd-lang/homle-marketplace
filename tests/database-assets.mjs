@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 101);
-  assert.equal(repositoryResult.migrations.at(-1), "101_durable_scan_telemetry.sql");
+  assert.equal(repositoryResult.migrations.length, 102);
+  assert.equal(repositoryResult.migrations.at(-1), "102_scan_telemetry_release_comparison.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
@@ -47,6 +47,7 @@ try {
   const optionalRequestPhotosMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "097_optional_request_photos.sql"), "utf8");
   const requestRescheduleMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "100_open_request_reschedule.sql"), "utf8");
   const durableScanTelemetryMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "101_durable_scan_telemetry.sql"), "utf8");
+  const scanTelemetryReleaseMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "102_scan_telemetry_release_comparison.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
   const publicCleanerProfileBehaviour = await readFile(path.join(sourceDatabaseDirectory, "integration", "public-cleaner-profile-behaviour.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
@@ -74,6 +75,7 @@ try {
   assert(deploymentVerifier.includes("The Administrator Cleaner verification queue does not paginate, or lost its Administrator-only boundary") && deploymentVerifier.includes("list_cleaner_verification_queue(text,integer,integer)"), "Migration-69 verification must prove the Cleaner verification queue slices before aggregating and stays Administrator-only.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 70\)'/, "Deployment verification must detect the bookings(cleaning_request_id) index dynamically.");
   assert.match(deploymentVerifier, /migration_order = 101/, "Deployment verification must detect durable scanner telemetry dynamically.");
+  assert.match(deploymentVerifier, /migration_order = 102/, "Deployment verification must detect scanner release comparisons dynamically.");
   assert.match(durableScanTelemetryMigration, /scan_telemetry_hourly ENABLE ROW LEVEL SECURITY/, "Durable scanner telemetry must retain a private RLS boundary.");
   assert.match(durableScanTelemetryMigration, /jsonb_object_keys\(entry\).*NOT IN \('metric','dimensions','bucket','count'\)/s, "The telemetry write function must reject every field outside its fixed anonymous shape.");
   assert.match(durableScanTelemetryMigration, /now\(\)-interval '90 days'/, "Detailed scanner aggregates must expire after 90 days.");
@@ -82,6 +84,13 @@ try {
     durableScanTelemetryMigration.indexOf("ALTER TABLE")
   );
   assert.doesNotMatch(durableScanTelemetryTable, /account_id|property_id|request_id|session_id|room_name|object_label|transcript|media_key/i, "Durable scanner telemetry introduced an identity or home-content field.");
+  assert.match(scanTelemetryReleaseMigration, /releaseCommit.*\^\[0-9a-f\]\{8\}\$/s, "Release attribution must accept only an exact server-owned commit label.");
+  assert.match(scanTelemetryReleaseMigration, /'releases'.*releaseCommit/s, "The Administrator aggregate must expose bounded release comparisons.");
+  const releaseColumnChange = scanTelemetryReleaseMigration.slice(
+    scanTelemetryReleaseMigration.indexOf("ALTER TABLE"),
+    scanTelemetryReleaseMigration.indexOf("CREATE OR REPLACE FUNCTION")
+  );
+  assert.doesNotMatch(releaseColumnChange, /account_id|property_id|request_id|session_id|room_name|object_label|transcript|media_key/i, "Release comparison introduced an identity or home-content field.");
   assert(deploymentVerifier.includes("Scanner telemetry aggregate is missing or directly reachable by the app role")
     && deploymentVerifier.includes("Scanner telemetry aggregate lost its Administrator-only read boundary"),
   "Deployment verification must prove private storage and Administrator-only aggregate reads.");

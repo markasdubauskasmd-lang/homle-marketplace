@@ -49,8 +49,11 @@
 
       <section class="booking-dashboard-card">
         <h2>Scanner in use</h2>
-        <p class="hint">Rolling 30-day aggregate across deployments. No image, room name, object label, note, account, property or request identifier is ever recorded, and timings are bucketed rather than exact.</p>
+        <p class="hint">Rolling 30-day aggregate. No image, room name, object label, note, account, property or request identifier is ever recorded, and timings are bucketed rather than exact.</p>
         <ul data-admin-scan-rates></ul>
+        <h3>Release comparison</h3>
+        <p class="hint">Server-labelled scanner releases only. A release needs real started scans before its rates can be interpreted.</p>
+        <ul data-admin-scan-releases></ul>
         <h3>Assisted reading speed</h3>
         <p class="hint" data-admin-scan-latency>Loading…</p>
         <details>

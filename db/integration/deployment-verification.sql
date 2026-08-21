@@ -33,6 +33,7 @@ DECLARE
   email_suppression_migration_installed boolean := false;
   request_reschedule_installed boolean := false;
   durable_scan_telemetry_installed boolean := false;
+  scan_telemetry_release_comparison_installed boolean := false;
   structured_room_scans_installed boolean := false;
   room_measurements_installed boolean := false;
   landlord_support_installed boolean := false;
@@ -246,6 +247,8 @@ BEGIN
       INTO request_reschedule_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 101)'
       INTO durable_scan_telemetry_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 102)'
+      INTO scan_telemetry_release_comparison_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 73)'
       INTO structured_room_scans_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 74)'
@@ -300,6 +303,11 @@ BEGIN
     email_suppression_migration_installed := to_regprocedure('tideway_private.record_resend_email_suppression(text,citext,text,text,timestamp with time zone,bytea)') IS NOT NULL;
     request_reschedule_installed := to_regprocedure('tideway_private.reschedule_open_cleaning_request(uuid,timestamp with time zone)') IS NOT NULL;
     durable_scan_telemetry_installed := to_regprocedure('tideway_private.record_scan_telemetry_batch(jsonb)') IS NOT NULL;
+    scan_telemetry_release_comparison_installed := EXISTS (
+      SELECT 1 FROM pg_attribute
+      WHERE attrelid=to_regclass('tideway_private.scan_telemetry_hourly')
+        AND attname='release_commit' AND NOT attisdropped
+    );
     structured_room_scans_installed := to_regclass('public.room_scan_sessions') IS NOT NULL;
     room_measurements_installed := to_regclass('public.room_scan_measurements') IS NOT NULL;
     landlord_support_installed := to_regprocedure('tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)') IS NOT NULL;
@@ -427,6 +435,26 @@ BEGIN
     WHERE procedure.oid=to_regprocedure('tideway_private.get_administrator_scan_telemetry(integer)');
     IF position('administrator-required' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Scanner telemetry aggregate lost its Administrator-only read boundary';
+    END IF;
+  END IF;
+  IF scan_telemetry_release_comparison_installed THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_attribute
+      WHERE attrelid=to_regclass('tideway_private.scan_telemetry_hourly')
+        AND attname='release_commit' AND NOT attisdropped
+    ) THEN
+      RAISE EXCEPTION 'Scanner telemetry release identity column is missing';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.record_scan_telemetry_batch(jsonb)');
+    IF position('releaseCommit' IN COALESCE(selected_source,''))=0
+       OR position('^[0-9a-f]{8}$' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Scanner telemetry release identity lost its server-bounded vocabulary';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.get_administrator_scan_telemetry(integer)');
+    IF position('releases' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Scanner telemetry no longer exposes release comparisons to Administrators';
     END IF;
   END IF;
   IF landlord_booking_changes_installed THEN

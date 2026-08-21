@@ -1,4 +1,4 @@
-import { scanRates } from "./scan-telemetry.mjs";
+import { scanRates, scanReleaseRates } from "./scan-telemetry.mjs";
 import { measureFromReference, measurementLabel, referenceScale } from "./room-measurement.mjs";
 import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
@@ -1112,7 +1112,12 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const result = typeof scanTelemetry.durableSnapshot === "function"
             ? await scanTelemetry.durableSnapshot(context.actor, 30)
             : { snapshot: scanTelemetry.snapshot(), durable: false, windowDays: null };
-          sendJson(response, 200, { ok: true, ...result, rates: scanRates(result.snapshot) });
+          sendJson(response, 200, {
+            ok: true,
+            ...result,
+            rates: scanRates(result.snapshot),
+            releaseRates: scanReleaseRates(result.snapshot)
+          });
           return true;
         }
         if (pathname === "/api/marketplace/admin/pricing/scan-shadow-report") {

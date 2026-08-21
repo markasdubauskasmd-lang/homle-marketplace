@@ -176,6 +176,8 @@ assert(operationsScript.includes("That is different from it being good") && oper
 assert(operationsScript.includes("falseCleanRate"), "The false-clean rate is not reported.");
 assert(operationsPage.includes("data-admin-scan-latency") && operationsPage.includes("data-admin-scan-warnings"),
   "The operations page collects scanner latency and failures without showing them to an operator.");
+assert(operationsPage.includes("data-admin-scan-releases") && operationsScript.includes("payload.currentRelease"),
+  "The operations page cannot compare scanner reliability by packaged release.");
 assert(operationsScript.includes("scanTimingSummary") && operationsScript.includes("scanOperationalWarnings"),
   "The operations page does not interpret its privacy-safe scanner evidence.");
 // Everything rendered with textContent; model output must never become markup.
