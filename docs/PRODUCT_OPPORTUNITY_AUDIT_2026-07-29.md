@@ -259,6 +259,35 @@ booking logic or the Cleaner Dashboard.
 
 ## Prioritised opportunities
 
+### P0 — move the public web service to an always-on instance before acquisition
+
+Problem: the live Render web service remains on the free instance type. Render
+documents that free services spin down after 15 minutes without inbound traffic,
+can take about a minute to wake and should not be used for production applications.
+Homle's live request logs confirm this is not theoretical: valid homepage and health
+requests have received platform-level `503` responses during wake-up, including a
+health request that waited about 29 seconds on 21 August 2026.
+
+Evidence: the same deployment's application log shows the required 102-migration
+integrity check completed and Homle opened port 10000 about 12 seconds after Render
+began deploying the container. Optional workers already start after the listener.
+The remaining failure window is therefore a hosting availability boundary, not a
+landing animation, a missing retry button or a safe application delay that can be
+deleted.
+
+Action:
+
+1. Obtain explicit founder approval for the recurring Render web-instance cost.
+2. Upgrade the existing web service—not the workspace plan—from `free` to an
+   always-on paid instance.
+3. Re-run the exact-release live verifier, then perform idle-to-first-request and
+   two-device booking checks against `https://homlle.com`.
+4. Record response-time and error evidence before directing any customer traffic.
+
+Benefit: removes the known cold-start failure that can make a first customer believe
+the booking service is offline, without weakening database verification or creating
+a second deployment architecture.
+
 ### P0 — prove one genuine two-account booking rehearsal
 
 Problem: source and integration tests are broad, but they do not prove the complete
@@ -381,9 +410,9 @@ causal attribution, and small cohorts must not be over-interpreted.
 
 ## Next implementation order
 
-1. Ship and verify the focused account-entry fix.
+1. Obtain approval and move the public web service off the free sleeping instance.
 2. Run the genuine two-account hosted rehearsal.
 3. Activate and evidence transactional email.
-4. Complete the founder-approved Stripe test-mode cycle.
-5. Build the privacy-minimal supply/demand report only after the rehearsal exposes the
-   real operating-area data required.
+4. Complete the remaining founder-approved Stripe test-mode participant cycle.
+5. Use the implemented privacy-minimal coverage and funnel reports to decide where
+   supply activation and customer acquisition are safe.

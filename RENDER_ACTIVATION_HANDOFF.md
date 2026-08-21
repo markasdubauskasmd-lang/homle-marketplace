@@ -36,6 +36,17 @@ does not replace the complete post-deploy release check above.
 
 These are operational boundaries, not missing UI work:
 
+- The web service is still on Render's `free` instance type. Render's own
+  production guidance says free web services spin down after idle time and are
+  not for production applications. Live request logs on 21 August 2026 include
+  valid homepage and `/api/health` requests that received platform-level `503`
+  responses while the instance woke; one health request waited about 29
+  seconds. Homle's listener opened about 12 seconds after the container deploy
+  began, including the required locked-migration and database-integrity check,
+  so removing the remaining gap requires an always-on paid web instance rather
+  than weakening startup safety. Do not call the service publicly launch-ready
+  while it remains free, and do not purchase an upgrade without explicit
+  founder approval.
 - Transactional email stays off until the Resend sending domain, sender, API key
   and signed suppression webhook are configured and a monitored delivery passes.
   `WORKER_EMAIL_ENABLED` is operator-owned and preserved across Blueprint syncs.
