@@ -5443,6 +5443,7 @@ async function serveFile(requestPath, response, cspNonce = "") {
     "/signup": "account.html",
     "/verify-email": "account.html",
     "/verify-facebook": "account.html",
+    "/forgot-password": "account.html",
     "/reset-password": "account.html",
     "/onboarding": "account.html",
     "/account-ready": "account.html",
