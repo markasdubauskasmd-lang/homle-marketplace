@@ -15,6 +15,7 @@ assert(current.includes("TIDEWAY_EXPECT_RELEASE"), "The handoff omits the releas
 assert(current.includes("verify:live-activation"), "The handoff omits the secret-free live activation verifier.");
 assert(current.includes("Inline marketplace workers started"), "The handoff does not require worker-start evidence.");
 assert(current.includes("signed suppression webhook"), "The handoff can enable transactional email without the suppression boundary.");
+assert(/free web services[\s\S]*platform-level `503`[\s\S]*explicit\s+founder approval/.test(current), "The handoff can mistake a sleeping free preview service for production-ready hosting or authorize an unapproved upgrade.");
 assert(current.includes("Cleaner Dashboard is a protected boundary"), "The continuous goal's Cleaner Dashboard freeze is absent from the handoff.");
 
 for (const staleClaim of [
