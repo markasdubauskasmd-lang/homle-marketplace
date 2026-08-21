@@ -1,5 +1,26 @@
 # Homle continuous improvement record — 14 August 2026
 
+## Landlord Messages now exposes its true loading boundary — 21 August 2026
+
+The Landlord dashboard could announce that its workspace had settled while the
+lazy Messages module was still loading a private conversation. Two legitimate
+message opens can overlap during startup: the initial empty workspace render
+and the refreshed render after bookings arrive. The older call could finish
+first and make automated browser checks—and assistive technology—observe an
+intermediate Messages panel instead of its final empty, error or conversation
+state.
+
+The Messages panel now owns an explicit `aria-busy` lifecycle and a monotonically
+increasing open sequence. Only the newest open may clear the busy state, so an
+older asynchronous result cannot announce completion for newer work. The real
+Chromium dashboard matrix now waits for this panel-specific boundary before it
+measures Messages. The Landlord controller asset version advances so deployed
+browsers cannot retain the affected implementation. The focused regression,
+five consecutive computed-style dashboard runs, full syntax/dependency checks,
+all 192 registered tests and the 89-file Cleaner Dashboard freeze pass. No
+Cleaner Dashboard file, route, style, form, workflow, feature, API or business
+logic changed.
+
 ## The visible password-recovery link now uses the conventional route — 21 August 2026
 
 Homle already served `/forgot-password` through the same capability-gated

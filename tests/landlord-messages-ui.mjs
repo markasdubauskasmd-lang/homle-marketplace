@@ -110,6 +110,10 @@ assert(dashboard.includes('if (selected === "messages") void openMessages();'),
   "Opening the Messages view does not load the conversation client.");
 assert(dashboard.includes('import("./landlord-messages.js') && dashboard.includes(".catch("),
   "The Messages client is eagerly loaded, or a failed load is unhandled.");
+assert(dashboard.includes('panel?.setAttribute("aria-busy", "true")')
+  && dashboard.includes('panel?.removeAttribute("aria-busy")')
+  && dashboard.includes("sequence === landlordMessagesOpenSequence"),
+"The Messages view does not expose a race-safe busy lifecycle while its private conversation is loading.");
 
 /* ── The composer keeps the text when a send fails ───────────────────────── */
 
