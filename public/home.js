@@ -54,11 +54,51 @@ function applyEntryMode(mode) {
   if (status) status.textContent = presentation.statusCopy;
 }
 
+function applySignedInLanding(workspace) {
+  const signedIn = Boolean(workspace);
+  const isLandlord = workspace?.role === "landlord";
+  const dashboardHref = workspace?.href || "/onboarding";
+  const workspaceLabel = workspace?.label || "Account";
+  const manualEntry = document.querySelector("[data-home-manual-entry]");
+  const manualLede = document.querySelector("[data-home-manual-lede]");
+  const workspaceEntry = document.querySelector("[data-home-workspace-entry]");
+  const joinEyebrow = document.querySelector("[data-home-join-eyebrow]");
+  const joinLineOne = document.querySelector("[data-home-join-line-1]");
+  const joinLineTwo = document.querySelector("[data-home-join-line-2]");
+
+  document.querySelectorAll("[data-home-signed-out-only]").forEach((element) => {
+    element.hidden = signedIn;
+  });
+
+  if (manualEntry) {
+    manualEntry.href = signedIn
+      ? (isLandlord ? "/landlord/dashboard#landlord-requests" : dashboardHref)
+      : "/signup?intent=book";
+    manualEntry.textContent = signedIn
+      ? (isLandlord ? "Continue to manual request" : `Open ${workspaceLabel} dashboard`)
+      : "Create account to book";
+  }
+  if (manualLede) {
+    manualLede.textContent = isLandlord
+      ? "Continue in your Landlord workspace, choose a property and add the cleaning details in five short steps. Review the live estimate before matching starts."
+      : "Prefer typing? Sign in, then add the property, cleaning type, timing and room details in six short steps. Review the scope and price before matching starts.";
+  }
+  if (workspaceEntry) {
+    workspaceEntry.href = signedIn ? dashboardHref : "/signup?intent=book";
+    workspaceEntry.textContent = signedIn ? `Open ${workspaceLabel} dashboard` : "Create your Homle account";
+  }
+  if (joinEyebrow) joinEyebrow.textContent = signedIn ? `Verified ${workspaceLabel} account` : "Verified account · role-specific workspace";
+  if (joinLineOne) joinLineOne.textContent = signedIn ? "Welcome" : "Quick";
+  if (joinLineTwo) joinLineTwo.textContent = signedIn ? "back." : "sign up.";
+}
+
 window.addEventListener("homle:account-ready", (event) => {
   signedInWorkspace = event.detail?.workspace || null;
   applyEntryMode(currentEntryMode);
+  applySignedInLanding(signedInWorkspace);
 });
 
+applySignedInLanding(null);
 applyEntryMode("concierge");
 fetch("/api/health", { credentials: "omit", cache: "no-store", headers: { Accept: "application/json" } })
   .then(async (response) => response.ok ? response.json() : null)

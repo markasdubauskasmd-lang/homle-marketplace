@@ -32,7 +32,7 @@
   <link rel="preload" as="image" type="image/webp" href="/landing/open-plan-living-960-bacccd4e.webp" imagesrcset="/landing/open-plan-living-480-15f06faa.webp 480w, /landing/open-plan-living-960-bacccd4e.webp 960w, /landing/open-plan-living-1600-c403e366.webp 1600w, /landing/open-plan-living-2200-f5b34bda.webp 2200w" imagesizes="100vw">
   <link rel="stylesheet" href="/landing-1b980c00.css">
   <script src="/landing-0c783ae1.js" type="module"></script>
-  <script src="/home.js?v=20260729-1" type="module"></script>
+  <script src="/home.js?v=20260821-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
 </head>
 <body class="ci-body">
@@ -267,14 +267,14 @@
           <div>
             <p class="ci-eyebrow-acc">No camera needed</p>
             <h2 class="ci-manual-h2">Or just book it <span class="ci-ital">manually.</span></h2>
-            <p class="ci-manual-lede">Prefer typing? Sign in, then add the property, cleaning type, timing and room details in six short steps. Review the scope and price before matching starts.</p>
+            <p class="ci-manual-lede" data-home-manual-lede>Prefer typing? Sign in, then add the property, cleaning type, timing and room details in six short steps. Review the scope and price before matching starts.</p>
             <div class="ci-mstep ci-ticks" data-mstep data-at=".08">
               <p class="ci-tick"><span></span>No camera or room photos required</p>
               <p class="ci-tick"><span></span>Nothing is booked or charged until you approve</p>
             </div>
             <div class="ci-manual-cta">
-              <a class="ci-btn-lg" href="/signup?intent=book">Create account to book</a>
-              <a class="ci-btn-ghost" href="/login">Log in</a>
+              <a class="ci-btn-lg" href="/signup?intent=book" data-home-manual-entry>Create account to book</a>
+              <a class="ci-btn-ghost" href="/login" data-home-signed-out-only>Log in</a>
             </div>
           </div>
 
@@ -388,21 +388,21 @@
         <div class="ci-join-glow" aria-hidden="true"></div>
 
         <div class="ci-join-inner">
-          <p class="ci-join-eyebrow">Verified account · role-specific workspace</p>
+          <p class="ci-join-eyebrow" data-home-join-eyebrow>Verified account · role-specific workspace</p>
 
           <h2 class="ci-join-h2">
-            <span class="ci-join-l1">Quick</span>
-            <span class="ci-join-l2">sign up.</span>
+            <span class="ci-join-l1" data-home-join-line-1>Quick</span>
+            <span class="ci-join-l2" data-home-join-line-2>sign up.</span>
           </h2>
 
           <span class="ci-join-rule" aria-hidden="true"></span>
 
           <span class="ci-join-btn" data-join data-at=".3">
             <span class="ci-join-tail" aria-hidden="true"></span>
-            <a class="ci-btn-join" href="/signup?intent=book" data-book-entry data-entry-label-fixed>Create your Homle account</a>
+            <a class="ci-btn-join" href="/signup?intent=book" data-book-entry data-entry-label-fixed data-home-workspace-entry>Create your Homle account</a>
           </span>
 
-          <p class="ci-join-foot">Already with us? <a href="/login">Log in</a></p>
+          <p class="ci-join-foot" data-home-signed-out-only>Already with us? <a href="/login">Log in</a></p>
         </div>
       </div>
     </section>
