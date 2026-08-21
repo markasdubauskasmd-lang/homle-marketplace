@@ -1,0 +1,53 @@
+/* This stylesheet is loaded only by the Landlord booking journey. Keeping the
+   zero-supply recovery here prevents a shared visual change from reaching the
+   strictly frozen Cleaner Dashboard. */
+.landlord-supply-recovery.empty-supply {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 0;
+  padding: 18px;
+  border: 1px solid #efb4b7;
+  border-radius: 16px;
+  background: #fff4f4;
+  color: #4b2022;
+}
+
+.landlord-supply-recovery.empty-supply strong,
+.landlord-supply-recovery.empty-supply span {
+  display: block;
+}
+
+.landlord-supply-recovery.empty-supply strong {
+  color: #a50f15;
+  font-size: 1rem;
+}
+
+.landlord-supply-recovery.empty-supply span {
+  line-height: 1.5;
+}
+
+.landlord-supply-recovery.empty-supply a {
+  width: fit-content;
+  margin-top: 4px;
+  color: #a50f15;
+  font-weight: 800;
+  text-underline-offset: 3px;
+}
+
+.landlord-supply-recovery.empty-supply a:focus-visible {
+  border-radius: 4px;
+  outline: 3px solid #e11b22;
+  outline-offset: 4px;
+}
+
+@media (max-width: 640px) {
+  .landlord-supply-recovery.empty-supply {
+    padding: 16px;
+  }
+
+  .landlord-supply-recovery.empty-supply a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
