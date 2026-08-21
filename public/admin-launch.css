@@ -132,6 +132,45 @@
   color: #795d41;
 }
 
+.transactional-email-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid rgba(13, 82, 73, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.transactional-email-actions pre {
+  max-width: 100%;
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+  border-radius: 10px;
+  background: #102a26;
+  color: #f7fffd;
+  font: 600 0.78rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre;
+}
+
+.transactional-email-actions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.transactional-email-actions p {
+  margin: 0;
+  color: #31564f;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 620px) {
+  .transactional-email-actions > div,
+  .transactional-email-actions .button { width: 100%; }
+}
+
 .participant-rehearsal-guide {
   border: 1px solid #b8d9cf;
   border-radius: 12px;
