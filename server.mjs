@@ -2348,12 +2348,32 @@ function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, pr
   const completedRequestIds = new Set(completedOutcomes.map((entry) => entry.requestId));
   const profitablePaidOutcomes = completedOutcomes.filter(({ outcome }) => outcome.settlementEvidence?.confirmedExternally === true && outcome.settlementEvidence.customerReceiptReference && outcome.settlementEvidence.cleanerPayoutReference && moneyValue(outcome.settlementEvidence.customerCollected) === moneyValue(outcome.original?.customerCollected ?? outcome.customerCollected) && moneyValue(outcome.settlementEvidence.cleanerPaid) === moneyValue(outcome.original?.cleanerPaid ?? outcome.cleanerPaid) && Number(outcome.customerCollected) > 0 && outcome.profitable === true && outcome.metTargetMargin === true && outcome.metTargetContribution === true && Number(outcome.contribution) > 0);
   const profitableRequestIds = new Set(profitablePaidOutcomes.map((entry) => entry.requestId));
+  // Keep the supply milestones cumulative. An "approved" count without the
+  // screening evidence that approval depends on would make the runway look
+  // healthier than the dispatch gate actually is.
+  const screenedCleanerIds = new Set(cleaners.filter((cleaner) => latestCleanerScreening(cleaner.id, screenings)?.complete === true).map((cleaner) => cleaner.id));
+  const approvedCleanerIds = new Set(cleaners.filter((cleaner) => screenedCleanerIds.has(cleaner.id) && (latestStatuses.get(cleaner.id) || cleaner.status || "new") === "approved").map((cleaner) => cleaner.id));
   const dispatchReadyCleanerIds = new Set(cleaners.filter((cleaner) => {
     const status = latestStatuses.get(cleaner.id) || cleaner.status || "new";
     const screened = latestCleanerScreening(cleaner.id, screenings)?.complete === true;
     const hasFutureAvailability = activeCleanerAvailability(availabilityEvents, cleaner.id).some((slot) => availabilitySlotSchedule(slot)?.endMs > businessWallClockMs());
     return status === "approved" && screened && hasFutureAvailability;
   }).map((cleaner) => cleaner.id));
+  const supplyStages = [
+    { key: "applications", label: "Applications received", count: cleaners.length, detail: "Genuine Cleaner applications stored" },
+    { key: "screened", label: "Screening complete", count: screenedCleanerIds.size, detail: "All seven checks recorded" },
+    { key: "approved", label: "Approved Cleaners", count: approvedCleanerIds.size, detail: "Screened applications with an approval decision" },
+    { key: "available", label: "Dispatch-ready", count: dispatchReadyCleanerIds.size, detail: "Approved with confirmed future availability" }
+  ];
+  const supplyBottleneck = !cleaners.length
+    ? { key: "applications", title: "Recruit the first genuine Cleaner", detail: "No Cleaner application is recorded yet. Share the public application yourself; applying does not guarantee work." }
+    : !screenedCleanerIds.size
+      ? { key: "screening", title: "Review the first Cleaner application", detail: "An application exists, but no Cleaner has completed all seven screening checks." }
+      : !approvedCleanerIds.size
+        ? { key: "approval", title: "Record the first Cleaner approval decision", detail: "Screening is complete, but no screened Cleaner has an approved status." }
+        : !dispatchReadyCleanerIds.size
+          ? { key: "availability", title: "Confirm one future availability window", detail: "An approved, screened Cleaner exists but has no confirmed future window for matching." }
+          : { key: "ready", title: "Cleaner supply is dispatch-ready", detail: "At least one approved, screened Cleaner has confirmed future availability." };
   const activeRequestIds = new Set(requests.filter((customerRequest) => !["lost", "completed"].includes(latestStatuses.get(customerRequest.id) || customerRequest.status || "new")).map((customerRequest) => customerRequest.id));
   const activeSubmittedScanCount = [...submittedScanRequestIds].filter((requestId) => activeRequestIds.has(requestId)).length;
   const activeReviewedScanCount = [...reviewedScanRequestIds].filter((requestId) => activeRequestIds.has(requestId)).length;
@@ -2386,6 +2406,8 @@ function launchFunnelSummary({ requests, cleaners, latestStatuses, proposals, pr
   const parallelAction = !profitableRequestIds.size && !readiness.ready ? operationalBottleneck : null;
   return {
     stages,
+    supplyStages,
+    supplyBottleneck,
     dispatchReadyCleaners: dispatchReadyCleanerIds.size,
     readiness: { completed: readiness.completed, total: readiness.total, ready: readiness.ready },
     goal: {

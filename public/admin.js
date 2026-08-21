@@ -635,27 +635,62 @@ function renderLaunchFunnel() {
     const supplyAction = document.createElement("div");
     supplyAction.className = "launch-supply-action";
     addText(supplyAction, "span", "Cleaner supply required");
-    addText(supplyAction, "strong", "Recruit the first genuine Cleaner");
-    addText(supplyAction, "p", "Copy the genuine public application link or the honest recruitment message, then choose where to share it yourself. Copying never contacts anyone. An application is not dispatch-ready until Homle completes screening, approval and future availability checks.");
+    addText(supplyAction, "strong", funnel.supplyBottleneck?.title || "Move one genuine Cleaner through verification");
+    addText(supplyAction, "p", funnel.supplyBottleneck?.detail || "An application is not dispatch-ready until Homle completes screening, approval and future availability checks.");
+    if (Array.isArray(funnel.supplyStages) && funnel.supplyStages.length) {
+      const supplyStages = document.createElement("div");
+      supplyStages.className = "cleaner-supply-stages";
+      supplyStages.setAttribute("aria-label", "Cleaner supply progress");
+      for (const stage of funnel.supplyStages) {
+        const item = document.createElement("div");
+        item.className = `cleaner-supply-stage${stage.count > 0 ? " cleaner-supply-stage-reached" : ""}`;
+        const count = document.createElement("b");
+        count.textContent = String(stage.count);
+        const copy = document.createElement("div");
+        addText(copy, "strong", stage.label);
+        addText(copy, "small", stage.detail);
+        item.append(count, copy);
+        supplyStages.append(item);
+      }
+      supplyAction.append(supplyStages);
+    }
     const actions = document.createElement("div");
     actions.className = "launch-supply-actions";
-    const link = document.createElement("a");
-    link.className = "button button-small";
-    link.href = publicCleanerApplicationUrl;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = "Open Cleaner application";
-    const copyLink = document.createElement("button");
-    copyLink.type = "button";
-    copyLink.className = "button button-small button-outline";
-    copyLink.textContent = "Copy application link";
-    copyLink.addEventListener("click", () => copyDraft(publicCleanerApplicationUrl, copyLink));
-    const copyMessage = document.createElement("button");
-    copyMessage.type = "button";
-    copyMessage.className = "button button-small button-outline";
-    copyMessage.textContent = "Copy honest recruitment message";
-    copyMessage.addEventListener("click", () => copyDraft(cleanerRecruitmentDraft, copyMessage));
-    actions.append(link, copyLink, copyMessage);
+    if (funnel.supplyBottleneck?.key === "applications") {
+      const link = document.createElement("a");
+      link.className = "button button-small";
+      link.href = publicCleanerApplicationUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Open Cleaner application";
+      const copyLink = document.createElement("button");
+      copyLink.type = "button";
+      copyLink.className = "button button-small button-outline";
+      copyLink.textContent = "Copy application link";
+      copyLink.addEventListener("click", () => copyDraft(publicCleanerApplicationUrl, copyLink));
+      const copyMessage = document.createElement("button");
+      copyMessage.type = "button";
+      copyMessage.className = "button button-small button-outline";
+      copyMessage.textContent = "Copy honest recruitment message";
+      copyMessage.addEventListener("click", () => copyDraft(cleanerRecruitmentDraft, copyMessage));
+      actions.append(link, copyLink, copyMessage);
+    } else {
+      const nextSupplyRecord = state.records.find((record) => record.kind === "cleaner" && (record.dispatchActions || []).some((action) => action.group === "supply"));
+      const openRecord = document.createElement("button");
+      openRecord.type = "button";
+      openRecord.className = "button button-small";
+      openRecord.textContent = "Open next Cleaner record";
+      openRecord.addEventListener("click", () => {
+        if (nextSupplyRecord) showDispatchRecord(nextSupplyRecord.id, { group: "supply" });
+        else {
+          state.action = "supply";
+          document.querySelector("#action-filter").value = "supply";
+          renderRecords();
+          document.querySelector("#lead-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+      actions.append(openRecord);
+    }
     supplyAction.append(actions);
     bottleneck.append(supplyAction);
   }
