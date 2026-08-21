@@ -37,6 +37,61 @@
   gap: 8px;
 }
 
+.cleaner-supply-stages {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.cleaner-supply-stage {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #e4cfad;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, .68);
+}
+
+.cleaner-supply-stage > b {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: #f3e4c8;
+  color: #70400c;
+}
+
+.cleaner-supply-stage strong,
+.cleaner-supply-stage small { display: block; }
+
+.cleaner-supply-stage strong {
+  color: var(--homle-ink-2, #211d1e);
+  font-size: .8rem;
+}
+
+.cleaner-supply-stage small {
+  margin-top: 2px;
+  color: #795d41;
+  font-size: .7rem;
+  line-height: 1.35;
+}
+
+.cleaner-supply-stage-reached {
+  border-color: #a9d4c8;
+  background: #f4fbf8;
+}
+
+.cleaner-supply-stage-reached > b {
+  background: var(--green, #0d7665);
+  color: #fff;
+}
+
 .transactional-email-setup[hidden] { display: none; }
 
 .transactional-email-setup summary {
@@ -147,6 +202,8 @@
 }
 
 @media (max-width: 640px) {
+  .cleaner-supply-stages { grid-template-columns: 1fr; }
+
   .launch-supply-actions {
     width: 100%;
   }
