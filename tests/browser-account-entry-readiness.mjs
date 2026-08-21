@@ -19,6 +19,7 @@ const healthDelayMs = 4_000;
 const server = await serveStatic({
   extraFiles: {
     "/login": accountHtml,
+    "/forgot-password": accountHtml,
     "/api/auth/providers": () => ({
       body: { ok: true, providers: { emailPassword: false, google: true, apple: false, facebook: false } }
     }),
@@ -100,6 +101,29 @@ try {
       && neutralEntry.storedIntent === null,
   `Bare login inherited a stale booking intent: ${JSON.stringify(neutralEntry)}.`);
 
+  await browser.goto(`${server.origin}/forgot-password`);
+  const recoveryEntry = await browser.evaluate(`
+    return await new Promise((resolve) => {
+      const startedAt = performance.now();
+      const inspect = () => {
+        const state = {
+          title: document.querySelector('[data-account-title]')?.textContent.trim(),
+          action: document.querySelector('[data-account-unavailable-action]')?.getAttribute('href'),
+          unavailableHidden: document.querySelector('[data-account-unavailable]')?.hidden,
+          resetFormHidden: document.querySelector('[data-account-form="reset-request"]')?.hidden
+        };
+        if (state.title === "Password reset is unavailable" || performance.now() - startedAt >= 2_500) return resolve(state);
+        setTimeout(inspect, 25);
+      };
+      inspect();
+    });
+  `);
+  assert(recoveryEntry.title === "Password reset is unavailable"
+      && recoveryEntry.action === "/login"
+      && recoveryEntry.unavailableHidden === false
+      && recoveryEntry.resetFormHidden === true,
+  `Conventional recovery entry advertised an email that cannot be sent or failed to offer Google sign-in: ${JSON.stringify(recoveryEntry)}.`);
+
   await browser.goto(`${server.origin}/login?intent=work`);
   const explicitEntry = await browser.evaluate(`return ({
     title: document.querySelector('[data-account-title]')?.textContent.trim(),
@@ -118,4 +142,4 @@ try {
 }
 
 if (failure) throw failure;
-console.log("Browser account-readiness check passed: Google becomes usable before advisory health, bare login clears stale role intent and explicit intent remains authoritative.");
+console.log("Browser account-readiness check passed: Google becomes usable before advisory health, bare login clears stale role intent, conventional password recovery fails safely and explicit intent remains authoritative.");

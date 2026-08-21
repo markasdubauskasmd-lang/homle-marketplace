@@ -9,6 +9,12 @@ const modes = Object.freeze({
   "/signup": { form: "signup", title: "Create a Homle account", lead: "Start as a Cleaner or Landlord/Property Manager after verifying your email." },
   "/verify-email": { form: "verify", title: "Verify your email", lead: "Use the private one-time link sent to your email address." },
   "/verify-facebook": { form: "facebook-verify", title: "Finish Facebook sign-in", lead: "Verify the private email link before Homle creates or connects an account." },
+  // `/forgot-password` is the conventional recovery URL users and password
+  // managers try. It intentionally enters the same capability-gated request
+  // form as `/reset-password`: when email delivery is unavailable the shared
+  // account shell explains that clearly and offers the configured provider,
+  // rather than exposing a dead route or pretending an email can be sent.
+  "/forgot-password": { form: "reset", title: "Reset your password", lead: "Replace your password and close every existing session." },
   "/reset-password": { form: "reset", title: "Reset your password", lead: "Replace your password and close every existing session." },
   "/onboarding": { form: "onboarding", title: "Choose your Homle workspace", lead: "Select Cleaner or Landlord/Property Manager to complete account setup." },
   "/account-ready": { form: "ready", title: "Your Homle profile is ready", lead: "Your secure role profile has been created for the private marketplace rehearsal." }
