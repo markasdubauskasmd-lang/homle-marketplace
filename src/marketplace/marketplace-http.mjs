@@ -768,9 +768,15 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           return true;
         }
         if (pathname === "/api/marketplace/notifications/events") {
-          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
-          const context = await security.protect(request);
-          security.requireOrigin(request);
+          if (!["GET", "POST"].includes(request.method)) return methodNotAllowed(response, ["GET", "POST"]), true;
+          // Native EventSource remains available to the frozen Cleaner client.
+          // The Landlord client uses a streamed POST because it can carry CSRF
+          // proof even when Chrome omits Origin from a same-origin EventSource
+          // GET. This branch is additive and role-isolated from Cleaner traffic.
+          const context = request.method === "POST"
+            ? await security.protect(request, { mutation: true, roles: ["landlord"] })
+            : await security.protect(request);
+          if (request.method === "GET") security.requireOrigin(request);
           await realtime.openNotificationStream(context.actor, request, response, context.expiresAt);
           return true;
         }

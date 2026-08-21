@@ -1,4 +1,5 @@
 import { notificationUnreadBadge } from "./notification-inbox-model.js";
+import { storedCsrf } from "./session-csrf.js";
 
 // The Cleaner workspace deliberately keeps its frozen notification client. The
 // Landlord dashboard owns this copy so a Landlord session ending cannot leave a
@@ -7,7 +8,7 @@ const links = [...document.querySelectorAll("[data-notification-link]")];
 let pending = null;
 let lastLoadedAt = 0;
 let lastResponseStatus = 0;
-let stream = null;
+let streamController = null;
 let reconnectTimer = null;
 let reconnectAttempt = 0;
 
@@ -43,8 +44,8 @@ async function refresh(force = false) {
 }
 
 function closeStream() {
-  stream?.close();
-  stream = null;
+  streamController?.abort();
+  streamController = null;
 }
 
 function cancelReconnect() {
@@ -61,24 +62,73 @@ function scheduleReconnect() {
   }, delay);
 }
 
-function openStream() {
-  if (!accessReady() || stream || typeof EventSource !== "function" || !links.length) return;
-  stream = new EventSource("/api/marketplace/notifications/events", { withCredentials: true });
-  stream.addEventListener("notification-ready", () => {
-    reconnectAttempt = 0;
-    void refresh(true);
-  });
-  stream.addEventListener("notification-updated", async () => {
-    await refresh(true);
-    dispatchEvent(new Event("homle:notification-updated"));
-  });
-  stream.onerror = () => {
-    // EventSource otherwise retries 401/403 responses forever. Close the native
-    // retry loop and re-check the bounded account read before opening a new one.
-    closeStream();
+function parseEventBlock(block) {
+  let eventName = "message";
+  const data = [];
+  for (const line of block.split("\n")) {
+    if (!line || line.startsWith(":")) continue;
+    const separator = line.indexOf(":");
+    const field = separator < 0 ? line : line.slice(0, separator);
+    const value = separator < 0 ? "" : line.slice(separator + 1).replace(/^ /, "");
+    if (field === "event") eventName = value;
+    if (field === "data") data.push(value);
+  }
+  return { eventName, data: data.join("\n") };
+}
+
+async function consumeStream(response, signal) {
+  if (!response.ok) throw Object.assign(new Error("The private notification stream could not be opened."), { statusCode: response.status });
+  if (!String(response.headers.get("content-type") || "").startsWith("text/event-stream") || !response.body?.getReader) throw new Error("Live notification updates are unavailable in this browser.");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (!signal.aborted) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n?/g, "\n");
+    if (buffer.length > 65_536) throw new Error("The private notification stream sent an invalid response.");
+    let boundary;
+    while ((boundary = buffer.indexOf("\n\n")) >= 0) {
+      const event = parseEventBlock(buffer.slice(0, boundary));
+      buffer = buffer.slice(boundary + 2);
+      if (event.eventName === "notification-ready") {
+        reconnectAttempt = 0;
+        void refresh(true);
+      } else if (event.eventName === "notification-updated") {
+        await refresh(true);
+        dispatchEvent(new Event("homle:notification-updated"));
+      }
+    }
+  }
+}
+
+async function openStream() {
+  if (!accessReady() || streamController || !links.length) return;
+  const csrf = storedCsrf();
+  if (!csrf) return;
+  const controller = new AbortController();
+  streamController = controller;
+  try {
+    // EventSource cannot attach the CSRF header and Chrome can omit Origin from
+    // its same-origin GET. A streamed POST preserves real-time delivery while
+    // proving both exact origin and the current Landlord session to the server.
+    const response = await fetch("/api/marketplace/notifications/events", {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { Accept: "text/event-stream", "X-CSRF-Token": csrf },
+      signal: controller.signal
+    });
+    await consumeStream(response, controller.signal);
+    if (!controller.signal.aborted) scheduleReconnect();
+  } catch (error) {
+    if (controller.signal.aborted) return;
+    lastResponseStatus = Number(error?.statusCode) || 0;
     reconnectAttempt += 1;
-    scheduleReconnect();
-  };
+    if (lastResponseStatus !== 401 && lastResponseStatus !== 403) scheduleReconnect();
+  } finally {
+    if (streamController === controller) streamController = null;
+  }
 }
 
 async function start() {
@@ -92,8 +142,7 @@ async function start() {
   cancelReconnect();
   const count = await refresh(true);
   if (count !== null) {
-    reconnectAttempt = 0;
-    openStream();
+    void openStream();
     return;
   }
   // An ended session is terminal until the page is signed in or shown again.
@@ -120,4 +169,3 @@ document.addEventListener("visibilitychange", () => {
 addEventListener("online", () => { void start(); });
 addEventListener("offline", stop);
 addEventListener("pagehide", stop);
-
