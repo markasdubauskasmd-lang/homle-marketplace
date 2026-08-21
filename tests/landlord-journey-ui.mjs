@@ -35,6 +35,7 @@ const [page, script, styles, server, scanPage] = await Promise.all([
   readFile(new URL("../server.mjs", import.meta.url), "utf8"),
   readFile(new URL("../public/room-scan.html", import.meta.url), "utf8")
 ]);
+const supplyRecoveryStyles = await readFile(new URL("../public/landlord-supply-recovery.css", import.meta.url), "utf8");
 
 // Six steps, starting with a saved-property choice. The internal step id stays
 // `postcode` because the existing request contract uses the chosen property's
@@ -57,7 +58,7 @@ assert(postcodeMessage("") === "", "An empty postcode field was treated as an er
 // Coverage must state what the directory actually returned; nothing is dressed up.
 assert(supplyMessage(14, "SM4").headline === "14 cleaners near SM4" && supplyMessage(1, "SM4").headline === "1 cleaner near SM4", "The coverage line does not report the real number.");
 const none = supplyMessage(0, "SM4");
-assert(!none.available && none.headline.includes("No cleaners") && none.detail.includes("save your request"), "Having no cleaners in an area is hidden instead of said plainly.");
+assert(!none.available && none.headline.includes("No Cleaner profiles") && none.detail.includes("save the exact request") && none.detail.includes("no payment is taken") && !none.detail.includes("we'll tell you"), "Having no Cleaner supply is hidden, falsely promises a notification or fails to preserve the request honestly.");
 
 // A step cannot be left with a gap the next one needs.
 assert(!canLeaveStep("postcode", {}) && !canLeaveStep("postcode", { postcode: "SM4 4LE" }) && canLeaveStep("postcode", { propertyId: "one", postcode: "SM4 4LE" }), "The property gate is wrong.");
@@ -144,7 +145,7 @@ assert(page.includes("exact address stays private") && page.includes("Private ac
 assert(!page.includes("Enhanced DBS") && !page.includes("Insured incl. theft") && !page.includes("Free cancellation 24h") && !page.includes("cancel free up to"), "The booking journey invents unverified screening, insurance or cancellation claims.");
 assert(page.includes("data-rail") && page.includes("data-step-label") && page.includes("data-back"), "The progress rail is missing.");
 assert(styles.includes(".rail-seg") && styles.includes(".rail-lbl") && styles.includes(".jstep"), "The journey presentation is missing.");
-assert(page.includes("/styles.css?v=20260728-3") && page.includes("/noncleaner-scroll.css?v=20260814-1") && page.includes("/landlord-journey-property.css?v=20260814-1") && page.includes("/landlord-journey.js?v=journey10") && script.includes("./landlord-journey-model.js?v=journey8"), "The property-first journey, page styling, isolated non-Cleaner scrolling or matching model can remain stuck behind previous cached assets.");
+assert(page.includes("/styles.css?v=20260728-3") && page.includes("/noncleaner-scroll.css?v=20260814-1") && page.includes("/landlord-journey-property.css?v=20260814-1") && page.includes("/landlord-supply-recovery.css?v=20260821-1") && page.includes("/landlord-journey.js?v=journey11") && script.includes("./landlord-journey-model.js?v=journey8"), "The property-first journey, page styling, zero-supply recovery, isolated non-Cleaner scrolling or matching model can remain stuck behind previous cached assets.");
 assert(script.includes("selectScanProperty(property)") && script.includes("state.draft.propertyId = property.propertyId") && script.includes("checkSupply(parsed.outward)"), "Selecting a saved property does not bind its private postcode to coverage and the rest of the journey.");
 assert(script.includes("Drafts created before the property-first journey") && script.includes('if (stepIndex(state.step) > 0) state.step = "postcode"'), "An old postcode-only draft can bypass the new first-step property choice.");
 assert(page.includes("data-access-gate") && page.includes("data-journey-shell hidden") && page.includes('href="/signup?intent=book" data-access-sign-in'), "A copied or installed-app booking link can expose the scanner before secure Landlord access is checked.");
@@ -192,6 +193,8 @@ assert(script.indexOf("const journeyOpened = await openAuthenticatedJourney();")
 // Coverage and cleaners come from the live directory, never from a placeholder.
 assert(script.includes("/api/marketplace/cleaners?outwardPostcode=") && script.includes("payload?.cleaners"), "Coverage is not read from the real Cleaner directory.");
 assert(!/\b14 cleaners\b/.test(script), "A placeholder cleaner count is hardcoded in the journey.");
+assert(script.includes('supplyLink.href = "/cleaner/onboarding"') && script.includes('supplyLink.target = "_blank"') && script.includes('supplyLink.rel = "noopener"') && script.includes("Continue to save this exact request for Homle review") && script.includes("No Cleaner is contacted and no payment is taken") && script.includes('classList.add("empty-supply")'), "Zero Cleaner supply remains a dead end, makes an untrue notification promise, destroys the in-progress journey or does not expose the existing supply-onboarding path.");
+assert(supplyRecoveryStyles.includes("strictly frozen Cleaner Dashboard") && supplyRecoveryStyles.includes("@media (max-width: 640px)") && supplyRecoveryStyles.includes(":focus-visible"), "The zero-supply recovery is not isolated from the Cleaner Dashboard, mobile-friendly or keyboard accessible.");
 
 // Guide time must stay a range, as on the scan.
 assert(script.includes("function guideRange") && script.includes("–"), "Guide time is presented as a single confident figure.");

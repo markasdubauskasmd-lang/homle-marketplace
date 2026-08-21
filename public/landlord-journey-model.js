@@ -55,7 +55,11 @@ export function postcodeMessage(value) {
 // is a real and useful answer, not something to paper over.
 export function supplyMessage(count, outward) {
   const cleaners = Math.max(0, Math.trunc(Number(count) || 0));
-  if (!cleaners) return Object.freeze({ available: false, headline: `No cleaners cover ${outward} yet`, detail: "You can still scan and save your request — we'll tell you as soon as someone covers your area." });
+  if (!cleaners) return Object.freeze({
+    available: false,
+    headline: `No Cleaner profiles are live in ${outward} yet`,
+    detail: "You can still build and save the exact request. It will stay open for Homle review; no Cleaner is contacted and no payment is taken."
+  });
   return Object.freeze({
     available: true,
     headline: `${cleaners} ${cleaners === 1 ? "cleaner" : "cleaners"} near ${outward}`,

@@ -533,6 +533,7 @@ async function loadCleaners() {
   el.cleaners.innerHTML = "";
   renderCleaner({ cleanerId: "marketplace", displayName: "Find the best available Cleaner", marketplaceChoice: true });
   el.cleanerState.hidden = false;
+  el.cleanerState.classList.remove("empty-supply");
   el.cleanerState.textContent = "Finding cleaners who cover your area…";
   try {
     const params = new URLSearchParams({ limit: "12" });
@@ -543,12 +544,24 @@ async function loadCleaners() {
     });
     const cleaners = Array.isArray(payload?.cleaners) ? payload.cleaners : [];
     if (!cleaners.length) {
-      el.cleanerState.textContent = `No cleaners cover ${state.draft.outward || "your area"} yet. You can still save this request — we'll tell you when someone does.`;
+      const heading = document.createElement("strong");
+      heading.textContent = `No Cleaner profiles are live in ${state.draft.outward || "your area"} yet.`;
+      const detail = document.createElement("span");
+      detail.textContent = "Continue to save this exact request for Homle review. No Cleaner is contacted and no payment is taken.";
+      const supplyLink = document.createElement("a");
+      supplyLink.href = "/cleaner/onboarding";
+      supplyLink.target = "_blank";
+      supplyLink.rel = "noopener";
+      supplyLink.textContent = "Apply to work with Homle";
+      supplyLink.setAttribute("aria-label", "Apply to work with Homle as a Cleaner (opens in a new tab)");
+      el.cleanerState.replaceChildren(heading, detail, supplyLink);
+      el.cleanerState.classList.add("empty-supply");
       return;
     }
     el.cleanerState.hidden = true;
     for (const cleaner of cleaners) renderCleaner(cleaner);
   } catch {
+    el.cleanerState.classList.remove("empty-supply");
     el.cleanerState.textContent = "We couldn't load cleaners just now. Your answers are saved — try again in a moment.";
   }
 }
