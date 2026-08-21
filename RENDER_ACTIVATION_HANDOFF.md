@@ -11,10 +11,13 @@ a publication queue or a statement about the live service.
 3. Set `TIDEWAY_EXPECT_RELEASE` to that exact eight-character commit in Render.
 4. Trigger **Deploy latest commit**. `render.yaml` deliberately has
    `autoDeployTrigger: "off"`, so a merge alone does not publish anything.
-5. Wait for the deploy to reach `live`, then run:
+5. Wait for the deploy to reach `live`, then run the complete public release
+   check. It verifies the exact release and capabilities, plus the landing,
+   account entry, Landlord booking entry, private-dashboard shell, crawler
+   boundary, redirects, no-store policy and security headers:
 
    ```powershell
-   pnpm run verify:live-activation https://homlle.com --expect-release=<exact-eight-character-main-commit>
+   pnpm run verify:live-release https://homlle.com --expect-release=<exact-eight-character-main-commit>
    ```
 
 6. Verify `GET https://homlle.com/api/health` reports the same `sourceCommit`,
@@ -26,6 +29,8 @@ a publication queue or a statement about the live service.
 Never paste a historical commit into `TIDEWAY_EXPECT_RELEASE`, sync an old
 Blueprint merely to redeploy, or infer a capability from a button being visible.
 The live health response and the dedicated activation verifier are authoritative.
+`verify:live-activation` remains available for a capability-only diagnostic; it
+does not replace the complete post-deploy release check above.
 
 ## Current activation boundaries
 
