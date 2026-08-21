@@ -1104,13 +1104,15 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         }
         if (pathname === "/api/marketplace/admin/scan-telemetry") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
-          await security.protect(request, { roles: ["administrator"] });
+          const context = await security.protect(request, { roles: ["administrator"] });
           if (!scanTelemetry) {
             sendJson(response, 503, { ok: false, error: "Scan telemetry is not configured." });
             return true;
           }
-          const snapshot = scanTelemetry.snapshot();
-          sendJson(response, 200, { ok: true, snapshot, rates: scanRates(snapshot) });
+          const result = typeof scanTelemetry.durableSnapshot === "function"
+            ? await scanTelemetry.durableSnapshot(context.actor, 30)
+            : { snapshot: scanTelemetry.snapshot(), durable: false, windowDays: null };
+          sendJson(response, 200, { ok: true, ...result, rates: scanRates(result.snapshot) });
           return true;
         }
         if (pathname === "/api/marketplace/admin/pricing/scan-shadow-report") {

@@ -28,7 +28,8 @@ import { defaultPricingConfig, normalizedPricingConfig } from "../../public/pric
 import { quoteRooms } from "../../public/pricing-engine.js";
 import { defaultPricingEconomics, normalizedPricingEconomics, reviewedQuote } from "./pricing-economics.mjs";
 import { createScanGroundTruthRepository, createScanGroundTruthService } from "./scan-ground-truth.mjs";
-import { createScanTelemetry } from "./scan-telemetry.mjs";
+import { createDurableScanTelemetry } from "./scan-telemetry.mjs";
+import { createScanTelemetryRepository } from "./scan-telemetry-repository.mjs";
 import { marketplaceEnvironment, validateMarketplaceEnvironment } from "./config.mjs";
 import { createCredentialService } from "./credential-service.mjs";
 import { createMarketplaceDatabase } from "./database.mjs";
@@ -185,10 +186,10 @@ export function createMarketplaceRuntime(pool, options = {}) {
   // The vision reader is passed in so a stored scan can name the model that
   // read it. It stays optional: with no provider configured the scan still
   // records everything the device found, simply without attribution.
-  // In-memory and process-local by design. Telemetry must not be able to slow
-  // down or fail a scan, so it neither writes to the database nor contacts a
-  // network; an Administrator reads the snapshot out.
-  const scanTelemetry = options.scanTelemetry || createScanTelemetry();
+  // Recording remains synchronous and in-memory on the scan path. The adapter
+  // flushes only fixed anonymous aggregates in the background, preserving the
+  // evidence across deploys without making telemetry a booking dependency.
+  const scanTelemetry = options.scanTelemetry || createDurableScanTelemetry(createScanTelemetryRepository(database));
   const scanPricingService = createScanPricingService(createScanPricingRepository(database));
   // The operator's price list. Reads fall back to the shipped defaults when
   // nothing has been published, so a fresh deployment quotes the same numbers

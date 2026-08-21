@@ -545,24 +545,27 @@ completion, abandonment, camera permission/unavailability, detector failure,
 redaction and coarse session/room duration — and sends them through the
 authenticated, CSRF-protected Landlord endpoint. The server records room-reader
 success, failure, availability and bucketed latency, plus saved-scan corrections
-and estimate outcomes. Both paths feed one bounded, process-local collector.
-Only an Administrator can read its aggregate snapshot and derived rates at
+and estimate outcomes. Both paths first feed one bounded, process-local
+collector, then a background adapter writes only that fixed anonymous shape to
+hourly database aggregates. Only an Administrator can read the rolling 30-day
+aggregate snapshot and derived rates at
 `GET /api/marketplace/admin/scan-telemetry`; the scan-operations screen renders
 that same endpoint. It now separates assisted-reading latency into the approved
 coarse buckets, calls out reads taking eight seconds or longer, and turns camera,
 detector, assisted-reading, upload and crash counters into plain operational
 attention items. The eight-second boundary is a diagnostic threshold, not a
-published SLA. The screen also states that its snapshot resets with the app
-instance so an operator cannot mistake it for a durable historical report.
-Telemetry delivery is deliberately batched, best-effort and never retried, so
-it cannot delay or break a customer's scan.
+published SLA. Detailed aggregates expire after 90 days. Telemetry delivery is
+deliberately batched, best-effort and retried only from a bounded in-process
+queue, so it cannot delay or break a customer's scan. If the database is
+unavailable, the Administrator view labels its current-process fallback rather
+than presenting it as durable evidence.
 
 ## Honest limitations
 
-- **Telemetry is process-local rather than durable.** Events are emitted and
-  collected, but the aggregate resets on every deploy/restart and is not merged
-  across multiple instances. It is suitable for a live fault snapshot, not yet
-  for long-term trend reporting or release-to-release comparisons.
+- **Telemetry is intentionally aggregate-only.** It supports 7-, 30- and
+  90-day operational comparisons across deploys, but cannot answer questions
+  about one customer, property, room, object, note, transcript or image. That
+  privacy boundary is deliberate rather than a reporting gap.
 - **No benchmark dataset exists.** §10 of the audit specifies 200 rooms; none
   have been collected, so no precision, recall, agreement or price-error figure
   in this project has been measured. Every accuracy claim remains a target.

@@ -32,6 +32,7 @@ DECLARE
   account_notification_realtime_installed boolean := false;
   email_suppression_migration_installed boolean := false;
   request_reschedule_installed boolean := false;
+  durable_scan_telemetry_installed boolean := false;
   structured_room_scans_installed boolean := false;
   room_measurements_installed boolean := false;
   landlord_support_installed boolean := false;
@@ -243,6 +244,8 @@ BEGIN
       INTO email_suppression_migration_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 100)'
       INTO request_reschedule_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 101)'
+      INTO durable_scan_telemetry_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 73)'
       INTO structured_room_scans_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 74)'
@@ -296,6 +299,7 @@ BEGIN
     account_notification_realtime_installed := to_regprocedure('tideway_private.emit_account_notification_realtime_event()') IS NOT NULL;
     email_suppression_migration_installed := to_regprocedure('tideway_private.record_resend_email_suppression(text,citext,text,text,timestamp with time zone,bytea)') IS NOT NULL;
     request_reschedule_installed := to_regprocedure('tideway_private.reschedule_open_cleaning_request(uuid,timestamp with time zone)') IS NOT NULL;
+    durable_scan_telemetry_installed := to_regprocedure('tideway_private.record_scan_telemetry_batch(jsonb)') IS NOT NULL;
     structured_room_scans_installed := to_regclass('public.room_scan_sessions') IS NOT NULL;
     room_measurements_installed := to_regclass('public.room_scan_measurements') IS NOT NULL;
     landlord_support_installed := to_regprocedure('tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)') IS NOT NULL;
@@ -399,6 +403,30 @@ BEGIN
       OR position('booking.status<>''cancelled''' IN replace(COALESCE(selected_source,''),' ',''))=0
       OR position('cleaning-request-rescheduled' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Open request rescheduling lost its owner, live-booking or audit boundary';
+    END IF;
+  END IF;
+  IF durable_scan_telemetry_installed THEN
+    app_functions := app_functions || ARRAY[
+      'tideway_private.record_scan_telemetry_batch(jsonb)',
+      'tideway_private.get_administrator_scan_telemetry(integer)'
+    ];
+    IF to_regclass('tideway_private.scan_telemetry_hourly') IS NULL
+       OR has_table_privilege('tideway_app','tideway_private.scan_telemetry_hourly','SELECT')
+       OR has_table_privilege('tideway_app','tideway_private.scan_telemetry_hourly','INSERT')
+       OR has_table_privilege('tideway_app','tideway_private.scan_telemetry_hourly','UPDATE')
+       OR has_table_privilege('tideway_app','tideway_private.scan_telemetry_hourly','DELETE') THEN
+      RAISE EXCEPTION 'Scanner telemetry aggregate is missing or directly reachable by the app role';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.record_scan_telemetry_batch(jsonb)');
+    IF position('90 days' IN COALESCE(selected_source,''))=0
+       OR position('invalid-scan-telemetry-event' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Scanner telemetry lost its bounded vocabulary or 90-day retention boundary';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.get_administrator_scan_telemetry(integer)');
+    IF position('administrator-required' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Scanner telemetry aggregate lost its Administrator-only read boundary';
     END IF;
   END IF;
   IF landlord_booking_changes_installed THEN
@@ -1240,7 +1268,8 @@ SELECT json_build_object(
     + CASE WHEN to_regprocedure('tideway_private.restore_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NULL THEN 0 ELSE 2 END
     + CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)') IS NULL THEN 0 ELSE 4 END
-    + CASE WHEN to_regprocedure('tideway_private.reschedule_open_cleaning_request(uuid,timestamp with time zone)') IS NULL THEN 0 ELSE 1 END,
+    + CASE WHEN to_regprocedure('tideway_private.reschedule_open_cleaning_request(uuid,timestamp with time zone)') IS NULL THEN 0 ELSE 1 END
+    + CASE WHEN to_regprocedure('tideway_private.record_scan_telemetry_batch(jsonb)') IS NULL THEN 0 ELSE 2 END,
   'workerFunctionChecks', 14
 ) AS tideway_deployment_verification;
 

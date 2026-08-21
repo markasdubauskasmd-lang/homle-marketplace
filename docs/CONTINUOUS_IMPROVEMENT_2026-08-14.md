@@ -48,8 +48,9 @@ file, route, style, form, feature or backend behaviour changed.
   report on-device detector load/runtime failure, so mobile recovery work can
   target the real failure mode rather than one blended count.
 - Corrected the architecture record, which still claimed telemetry and scan
-  retention were unimplemented. The remaining limitation is explicit:
-  telemetry is process-local and resets across deploys/restarts.
+  retention were unimplemented. This was true for that release; migration 101
+  later added privacy-minimal hourly aggregates with 90-day retention so
+  reliability can now be compared across deploys.
 - No Cleaner Dashboard file, route, style, form, feature or backend behaviour
   changed.
 
