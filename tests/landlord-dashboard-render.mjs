@@ -240,7 +240,7 @@ try {
               await new Promise((resolve) => setTimeout(resolve, 100));
             }
           `);
-          assert(ready === "ready", `${where}: the workspace never finished loading — ${ready}`);
+          assert(ready === "ready", `${where}: the workspace never finished loading — ${ready}; page errors: ${browser.pageErrors.slice(errorsBefore).join(" | ") || "none"}`);
 
           const view_ = await browser.evaluate(`
             const main = document.querySelector("#landlord-main");

@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 99);
-  assert.equal(repositoryResult.migrations.at(-1), "099_resend_email_suppression.sql");
+  assert.equal(repositoryResult.migrations.length, 100);
+  assert.equal(repositoryResult.migrations.at(-1), "100_open_request_reschedule.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
@@ -45,6 +45,7 @@ try {
   const rightToWorkBirthCertificateMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "093_right_to_work_birth_certificate.sql"), "utf8");
   const insurancePolicyDocumentTypesMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "096_insurance_policy_document_types.sql"), "utf8");
   const optionalRequestPhotosMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "097_optional_request_photos.sql"), "utf8");
+  const requestRescheduleMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "100_open_request_reschedule.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
   const publicCleanerProfileBehaviour = await readFile(path.join(sourceDatabaseDirectory, "integration", "public-cleaner-profile-behaviour.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
@@ -81,6 +82,7 @@ try {
   assert(t71Payment(deploymentVerifier) && t71Directory(deploymentVerifier), "Migration-71 verification must prove the Administrator payment page and the unauthenticated Cleaner directory both have an index that their query shape can actually use.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 72\)'/, "Deployment verification must detect account notification real-time signals dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 99\)'/, "Deployment verification must detect signed email suppression dynamically.");
+  assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 100\)'/, "Deployment verification must detect open-request rescheduling dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 73\)'/, "Deployment verification must detect the structured room-scan migration dynamically.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 92\)'/, "Deployment verification must detect the final Cleaner submission migration dynamically.");
   assert(deploymentVerifier.includes("IF cleaner_final_submission_installed AND NOT EXISTS") && deploymentVerifier.includes("Cleaner onboarding final review submission is not an allowed encrypted section") && deploymentVerifier.includes("position('review' IN pg_get_constraintdef(oid))>0"), "Deployment verification must allow the supported pre-upgrade schema and prove the upgraded encrypted onboarding table accepts the final review submission record.");
@@ -146,6 +148,15 @@ try {
   assert(deploymentVerifier.includes("claim an accuracy no browser delivers"), "Migration-74 verification must prove a web client cannot store a sensor measurement.");
   assert(deploymentVerifier.includes("The account notification real-time trigger is missing or unsafe") && deploymentVerifier.includes("account_notification_realtime_after_insert"), "Migration-72 verification must prove the notification trigger is commit-bound, internal-only and safe.");
   assert(deploymentVerifier.includes("The email suppression ledger is missing its signed-callback, privacy or least-privilege boundary") && deploymentVerifier.includes("The email outbox does not exclude the exact currently suppressed account address"), "Migration-99 verification must prove provider callbacks suppress the exact current address without exposing the private ledger.");
+  assert(requestRescheduleMigration.includes("reschedule_open_cleaning_request")
+    && requestRescheduleMigration.includes("request.landlord_user_id=actor_id")
+    && requestRescheduleMigration.includes("booking.status<>'cancelled'")
+    && requestRescheduleMigration.includes("automatic_dispatch_lease_token=NULL")
+    && requestRescheduleMigration.includes("cleaning-request-rescheduled"),
+  "Migration 100 must preserve owner, live-booking, dispatch-lease and audit boundaries while rescheduling the same request.");
+  assert(deploymentVerifier.includes("Open request rescheduling lost its owner, live-booking or audit boundary")
+    && deploymentVerifier.includes("reschedule_open_cleaning_request(uuid,timestamp with time zone)"),
+  "Deployment verification must prove the optional request-reschedule function before granting runtime execution.");
   assert(deploymentVerifier.includes("A fully manual fresh install has no private migration ledger") && deploymentVerifier.includes("activate_my_workspace(user_role)") && deploymentVerifier.includes("recommend_cleaners_for_request_v2(uuid,integer)") && deploymentVerifier.includes("position('avatar_url' IN pg_get_function_result(procedure.oid))") && deploymentVerifier.includes("get_public_cleaner_profile(uuid)') IS NOT NULL"), "A ledger-free fresh install can still be mistaken for the historical migration-45 baseline instead of detecting its actual schema level.");
   const migration48VerificationStart = deploymentVerifier.indexOf("IF latest_migration_installed THEN");
   assert(migration48VerificationStart >= 0 && deploymentVerifier.indexOf("conname='bookings_distinct_participants'", migration48VerificationStart) >= 0, "Migration-48 verification must defer its new constraint check until after that locked migration is installed.");
@@ -195,6 +206,7 @@ try {
     && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.restore_my_property(uuid)') IS NULL THEN 0 ELSE 1 END")
     && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NULL THEN 0 ELSE 2 END")
     && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)') IS NULL THEN 0 ELSE 4 END")
+    && deploymentVerifier.includes("+ CASE WHEN to_regprocedure('tideway_private.reschedule_open_cleaning_request(uuid,timestamp with time zone)') IS NULL THEN 0 ELSE 1 END")
     && deploymentVerifier.includes("+ CASE WHEN to_regclass('public.cleaner_onboarding_sections') IS NULL THEN 0 ELSE 2 END"),
   "deployment report must distinguish the verified pre-upgrade schema from migration-80 support through migration-88 booking-change intake");
   assert.equal(advertisedWorkerChecks, [...workerBlock.matchAll(/'tideway_private\./g)].length + 1, "deployment report must count core worker functions plus the migration-aware automatic-dispatch function");

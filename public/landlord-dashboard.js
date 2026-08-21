@@ -80,7 +80,6 @@ const matchOutcomeFeedback = document.querySelector("[data-match-outcome-feedbac
 const matchOutcomeBack = document.querySelector("[data-match-outcome-back]");
 const matchOutcomeContinue = document.querySelector("[data-match-outcome-continue]");
 const matchOutcomeSequence = document.querySelector("[data-match-outcome-sequence]");
-const matchOutcomeBuilderMount = document.querySelector("[data-match-outcome-builder-mount]");
 const dispatchPriceDialog = document.querySelector("[data-dispatch-price-dialog]");
 const dispatchPriceMaximum = document.querySelector("[data-dispatch-price-maximum]");
 const dispatchPriceAttempts = document.querySelector("[data-dispatch-price-attempts]");
@@ -806,8 +805,6 @@ function showMatchOutcomeStep(step) {
   matchOutcomeDialog?.setAttribute("aria-labelledby", "match-outcome-title");
   matchOutcomeDialog?.removeAttribute("aria-label");
   if (matchOutcomeSequence) matchOutcomeSequence.hidden = false;
-  if (matchOutcomeBuilderMount) matchOutcomeBuilderMount.hidden = true;
-  matchOutcomeDialog?.classList.remove("is-builder-sequence");
   if (matchOutcomeResult) matchOutcomeResult.hidden = timing;
   if (matchOutcomeTiming) matchOutcomeTiming.hidden = !timing;
   if (matchOutcomeFeedback) matchOutcomeFeedback.hidden = true;
@@ -832,44 +829,42 @@ function prepareAnotherTime(requestId) {
   matchOutcomeDate.focus({ preventScroll: true });
 }
 
-function continueAnotherTime(requestId) {
+async function continueAnotherTime(requestId) {
   const request = requests.find((item) => item.requestId === requestId);
   if (!request || !matchOutcomeDate.value || !matchOutcomeStart.value || !matchOutcomeDuration.value) {
     showFeedback(matchOutcomeFeedback, "Choose a date, start time and duration to continue.", "error");
     return;
   }
-  requestForm.reset();
-  delete cleaningTypeSelect.dataset.selectionSource;
-  initialiseRequestDefaults();
-  propertySelect.value = request.propertyId || "";
-  cleaningTypeSelect.value = request.cleaningType || "";
-  if (cleaningTypeSelect.value) cleaningTypeSelect.dataset.selectionSource = "user";
-  requestForm.elements.requestedDate.value = matchOutcomeDate.value;
-  requestForm.elements.requestedTime.value = matchOutcomeStart.value;
-  requestForm.elements.durationMinutes.value = matchOutcomeDuration.value;
-  if (request.frequency && [...requestForm.elements.frequency.options].some((option) => option.value === request.frequency)) requestForm.elements.frequency.value = request.frequency;
-  if (Array.isArray(request.tasks)) requestForm.elements.tasks.value = request.tasks.map((task) => task?.description || task?.title || "").filter(Boolean).join("\n");
-  if (request.specialInstructions) requestForm.elements.specialInstructions.value = request.specialInstructions;
-  if (Number.isInteger(request.budgetPence) && request.budgetPence > 0) requestForm.elements.budget.value = (request.budgetPence / 100).toFixed(2);
-  // Keep this as one modal sequence. Moving the existing panel preserves all
-  // proven form listeners and avoids opening a second dialog over the first.
-  if (matchOutcomeSequence) matchOutcomeSequence.hidden = true;
-  if (matchOutcomeBuilderMount && requestBuilderPanel) {
-    matchOutcomeBuilderMount.hidden = false;
-    matchOutcomeBuilderMount.append(requestBuilderPanel);
+  let requestedTimeWindow;
+  try {
+    requestedTimeWindow = requestedWindow(matchOutcomeDate.value, matchOutcomeStart.value, matchOutcomeDuration.value, new Date());
+  } catch (error) {
+    showFeedback(matchOutcomeFeedback, error.message, "error");
+    return;
   }
-  matchOutcomeDialog.classList.add("is-builder-sequence");
-  matchOutcomeDialog.removeAttribute("aria-labelledby");
-  matchOutcomeDialog.setAttribute("aria-label", "Review another cleaning time");
-  requestBuilderPanel.hidden = false;
-  requestBuilderPanel.classList.remove("pac-collapsed");
-  if (requestBuilderToggle) {
-    requestBuilderToggle.setAttribute("aria-expanded", "true");
-    requestBuilderToggle.textContent = "Close";
+  setPending(matchOutcomeContinue, true, "Updating time…");
+  const csrf = await recoverCsrf(matchOutcomeFeedback, "updating the requested time");
+  if (!csrf) {
+    setPending(matchOutcomeContinue, false, "Update time and check again");
+    return;
   }
-  void loadPrepareWizard();
-  showFeedback(requestFeedback, "Your new time and saved cleaning details are ready to review. The original request remains open until you withdraw it.", "success");
-  requestForm.scrollIntoView({ block: "start" });
+  try {
+    const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/reschedule`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ requestedStartAt: requestedTimeWindow.requestedStartAt })
+    });
+    if (result.reschedule?.cleaningRequestId !== requestId || result.reschedule?.status !== "searching-for-cleaner") throw new Error("The updated request could not be verified. Refresh before trying again.");
+    requests = requests.map((item) => item.requestId === requestId ? { ...item, ...result.reschedule } : item);
+    matchOutcomeDialog.close();
+    await refreshBookingTransition();
+    showFeedback(requestStatus, `Time updated to ${formatBookingMoment(result.reschedule.requestedStartAt)}. Homle is checking eligible Cleaners now.`, "success");
+    await inviteBestEligibleCleaner(requestId, matchOutcomeContinue, requestStatus, { idleLabel: "Update time and check again" });
+  } catch (error) {
+    showFeedback(matchOutcomeFeedback, error.message, "error");
+  } finally {
+    if (matchOutcomeContinue.isConnected) setPending(matchOutcomeContinue, false, "Update time and check again");
+  }
 }
 
 function selectedCleanerInvitationRecovery(error) {
@@ -1065,11 +1060,6 @@ if (placesMount && placesPanel) placesMount.replaceWith(placesPanel);
 
 function setRequestBuilderExpanded(expanded) {
   if (!requestBuilderPanel) return;
-  const insideMatchSequence = requestBuilderPanel.parentElement === matchOutcomeBuilderMount;
-  if (!expanded && insideMatchSequence) {
-    if (matchOutcomeDialog.open) matchOutcomeDialog.close();
-    return;
-  }
   // The builder is its own view now. It used to sit collapsed at the foot of
   // every panel, which in the v2 layout would put a second "Manual request"
   // banner directly under the Manual card on Home offering the same thing.
@@ -2632,13 +2622,14 @@ function renderRequests() {
   syncHappeningNowLabel();
 }
 
-async function inviteBestEligibleCleaner(requestId, button, feedback) {
+async function inviteBestEligibleCleaner(requestId, button, feedback, options = {}) {
+  const idleLabel = options.idleLabel || "See best Cleaner & exact price";
   feedback.hidden = true;
   if (!matchingReady) return showFeedback(feedback, "Cleaner pricing and distance matching are temporarily unavailable. This request remains safely open and no payment was started.");
   setPending(button, true, "Finding the best eligible Cleaner…");
   const csrf = await recoverCsrf(feedback, "choosing a Cleaner");
   if (!csrf) {
-    setPending(button, false, "See best Cleaner & exact price");
+    setPending(button, false, idleLabel);
     return;
   }
   let invitationStarted = false;
@@ -2679,7 +2670,7 @@ async function inviteBestEligibleCleaner(requestId, button, feedback) {
       } else showFeedback(feedback, error.message);
     }
   } finally {
-    if (button.isConnected) setPending(button, false, "See best Cleaner & exact price");
+    if (button.isConnected) setPending(button, false, idleLabel);
   }
 }
 
@@ -4585,15 +4576,9 @@ matchOutcomeChangeTime?.addEventListener("click", () => prepareAnotherTime(match
 matchOutcomeBack?.addEventListener("click", () => showMatchOutcomeStep("result"));
 matchOutcomeContinue?.addEventListener("click", () => continueAnotherTime(matchOutcomeRequestId));
 onDialogDismissal(matchOutcomeDialog, () => {
-  // Return the single working request panel to its normal dialog after this
-  // sequence closes; the entered values remain available if it is reopened.
-  if (requestBuilderPanel?.parentElement === matchOutcomeBuilderMount) requestBuilderDialog?.append(requestBuilderPanel);
-  if (matchOutcomeBuilderMount) matchOutcomeBuilderMount.hidden = true;
   if (matchOutcomeSequence) matchOutcomeSequence.hidden = false;
-  matchOutcomeDialog.classList.remove("is-builder-sequence");
   matchOutcomeDialog.setAttribute("aria-labelledby", "match-outcome-title");
   matchOutcomeDialog.removeAttribute("aria-label");
-  if (requestBuilderToggle) requestBuilderToggle.textContent = "Reveal builder ↓";
 });
 matchOutcomeDialog?.addEventListener("click", (event) => {
   if (event.target !== matchOutcomeDialog) return;

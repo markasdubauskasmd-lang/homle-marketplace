@@ -196,8 +196,24 @@ function withdrawalProjection(record) {
   });
 }
 
+function rescheduleProjection(record) {
+  if (!record || !uuidPattern.test(record.cleaningRequestId || "") || record.status !== "searching-for-cleaner" || !/^[0-9a-f]{64}$/.test(record.scopeFingerprint || "")) throw new Error("Cleaning-request reschedule could not be verified.");
+  const requestedStartAt = new Date(record.requestedStartAt);
+  const requestedEndAt = new Date(record.requestedEndAt);
+  const rescheduledAt = new Date(record.rescheduledAt);
+  if ([requestedStartAt, requestedEndAt, rescheduledAt].some((value) => Number.isNaN(value.getTime())) || requestedEndAt <= requestedStartAt) throw new Error("Cleaning-request reschedule could not be verified.");
+  return Object.freeze({
+    cleaningRequestId: record.cleaningRequestId.toLowerCase(),
+    status: "searching-for-cleaner",
+    requestedStartAt: requestedStartAt.toISOString(),
+    requestedEndAt: requestedEndAt.toISOString(),
+    scopeFingerprint: record.scopeFingerprint,
+    rescheduledAt: rescheduledAt.toISOString()
+  });
+}
+
 export function createCleaningRequestService(repository, options = {}) {
-  if (!repository || typeof repository.createOwnRequest !== "function" || typeof repository.listOwnRequests !== "function" || typeof repository.submitOwnRequest !== "function" || typeof repository.configureAutomaticDispatch !== "function" || typeof repository.withdrawOwnRequest !== "function") throw new TypeError("A complete cleaning-request repository is required.");
+  if (!repository || typeof repository.createOwnRequest !== "function" || typeof repository.listOwnRequests !== "function" || typeof repository.submitOwnRequest !== "function" || typeof repository.configureAutomaticDispatch !== "function" || typeof repository.withdrawOwnRequest !== "function" || typeof repository.rescheduleOwnRequest !== "function") throw new TypeError("A complete cleaning-request repository is required.");
   return {
     async createOwnRequest(actor, input) {
       if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to create a cleaning request.");
@@ -246,6 +262,13 @@ export function createCleaningRequestService(repository, options = {}) {
       const reasonCode = boundedText(input.reasonCode, 40, "Withdrawal reason", 1).toLowerCase();
       if (!withdrawalReasons.includes(reasonCode)) throw new TypeError("Choose a supported reason for withdrawing this request.");
       return withdrawalProjection(await repository.withdrawOwnRequest(actor, uuid(cleaningRequestId, "cleaning request id"), { reasonCode }));
+    },
+    async rescheduleOwnRequest(actor, cleaningRequestId, input = {}) {
+      if (!actor?.userId || !actor.roles?.includes("landlord")) throw new TypeError("A Landlord account is required to reschedule a cleaning request.");
+      const requestedStartAt = new Date(input.requestedStartAt);
+      const now = new Date(options.clock?.() ?? Date.now());
+      if (Number.isNaN(requestedStartAt.getTime()) || requestedStartAt <= now || requestedStartAt > new Date(now.getTime() + 366 * 86_400_000)) throw new TypeError("Choose a future cleaning time within the next 366 days.");
+      return rescheduleProjection(await repository.rescheduleOwnRequest(actor, uuid(cleaningRequestId, "cleaning request id"), { requestedStartAt: requestedStartAt.toISOString() }));
     }
   };
 }
