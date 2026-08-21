@@ -31,6 +31,12 @@
   margin-top: 7px;
 }
 
+.launch-supply-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .transactional-email-setup[hidden] { display: none; }
 
 .transactional-email-setup summary {
@@ -141,6 +147,15 @@
 }
 
 @media (max-width: 640px) {
+  .launch-supply-actions {
+    width: 100%;
+  }
+
+  .launch-supply-actions .button {
+    justify-content: center;
+    width: 100%;
+  }
+
   .participant-rehearsal-guide summary {
     align-items: flex-start;
     flex-direction: column;
