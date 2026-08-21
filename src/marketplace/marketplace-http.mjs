@@ -20,6 +20,7 @@ const requestMatchesPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uu
 const requestAutomaticDispatchPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/automatic-dispatch$`);
 const requestSubmissionPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/submit$`);
 const requestWithdrawalPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/withdraw$`);
+const requestReschedulePath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/reschedule$`);
 const requestScanPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/scan$`);
 // The structured scan lives beside the photo metadata rather than replacing
 // it: `/scan` reports which private images exist, `/room-scan` reports what
@@ -161,7 +162,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!cleanerOnboardingDocuments || !["listOwnDocuments", "saveOwnDocument", "getOwnDocument", "deleteOwnDocument"].every((method) => typeof cleanerOnboardingDocuments[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner onboarding document service.");
   if (!cleanerProfilePhotos || !["getOwnPhoto", "saveOwnPhoto"].every((method) => typeof cleanerProfilePhotos[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete Cleaner profile photo service.");
   if (!favouriteCleaners || !["listOwn", "setOwn"].every((method) => typeof favouriteCleaners[method] === "function")) throw new TypeError("Marketplace HTTP routes require the favourite-Cleaner service.");
-  if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
+  if (!cleaningRequests || !["createOwnRequest", "listOwnRequests", "submitOwnRequest", "withdrawOwnRequest", "rescheduleOwnRequest", "configureAutomaticDispatch"].every((method) => typeof cleaningRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the complete cleaning-request service.");
   if (!bookings || typeof bookings.listParticipantBookings !== "function" || typeof bookings.previewInvitation !== "function" || typeof bookings.inviteCleaner !== "function" || typeof bookings.respondToInvitation !== "function") throw new TypeError("Marketplace HTTP routes require the booking workflow service.");
   if (!matching || typeof matching.recommendForRequest !== "function") throw new TypeError("Marketplace HTTP routes require the request matching service.");
   if (!journeys || !["getJourneyReadiness", "startJourney", "updateLocation", "markArrived", "getTracking"].every((method) => typeof journeys[method] === "function")) throw new TypeError("Marketplace HTTP routes require the booking journey service.");
@@ -680,6 +681,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
           const withdrawal = await cleaningRequests.withdrawOwnRequest(context.actor, selectedRequestWithdrawal[1], await readJsonObject(request));
           sendJson(response, 200, { ok: true, withdrawal });
+          return true;
+        }
+        const selectedRequestReschedule = pathname.match(requestReschedulePath);
+        if (selectedRequestReschedule) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const reschedule = await cleaningRequests.rescheduleOwnRequest(context.actor, selectedRequestReschedule[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, reschedule });
           return true;
         }
         const selectedVoiceInstructions = pathname.match(requestVoiceInstructionPath);

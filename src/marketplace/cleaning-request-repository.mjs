@@ -103,6 +103,23 @@ export function createCleaningRequestRepository(database) {
           throw Object.assign(new Error(mapped[2]), { statusCode: mapped[0], code: mapped[1], cause: error });
         }
       });
+    },
+    rescheduleOwnRequest(actor, requestId, choice) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.reschedule_open_cleaning_request($1::uuid,$2::timestamptz) AS reschedule", [requestId, choice.requestedStartAt]);
+          return result.rows[0]?.reschedule;
+        } catch (error) {
+          const mapped = {
+            "request-not-found": [404, "request-not-found", "The cleaning request was not found."],
+            "request-not-reschedulable": [409, "request-not-reschedulable", "Only an open reviewed request without a live Cleaner invitation can be rescheduled."],
+            "request-live-booking": [409, "request-live-booking", "This request already has a live Cleaner invitation or booking. Open the booking to request a change."],
+            "invalid-request-reschedule-window": [400, "invalid-request-reschedule-window", "Choose a future cleaning time within the next 366 days."]
+          }[error?.message];
+          if (!mapped) throw error;
+          throw Object.assign(new Error(mapped[2]), { statusCode: mapped[0], code: mapped[1], cause: error });
+        }
+      });
     }
   };
 }

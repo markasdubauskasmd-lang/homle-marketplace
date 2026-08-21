@@ -31,6 +31,7 @@ DECLARE
   payment_and_directory_indexes_installed boolean := false;
   account_notification_realtime_installed boolean := false;
   email_suppression_migration_installed boolean := false;
+  request_reschedule_installed boolean := false;
   structured_room_scans_installed boolean := false;
   room_measurements_installed boolean := false;
   landlord_support_installed boolean := false;
@@ -240,6 +241,8 @@ BEGIN
       INTO account_notification_realtime_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 99)'
       INTO email_suppression_migration_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 100)'
+      INTO request_reschedule_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 73)'
       INTO structured_room_scans_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 74)'
@@ -292,6 +295,7 @@ BEGIN
     public_cleaner_lookup_migration_installed := to_regprocedure('tideway_private.get_public_cleaner_profile(uuid)') IS NOT NULL;
     account_notification_realtime_installed := to_regprocedure('tideway_private.emit_account_notification_realtime_event()') IS NOT NULL;
     email_suppression_migration_installed := to_regprocedure('tideway_private.record_resend_email_suppression(text,citext,text,text,timestamp with time zone,bytea)') IS NOT NULL;
+    request_reschedule_installed := to_regprocedure('tideway_private.reschedule_open_cleaning_request(uuid,timestamp with time zone)') IS NOT NULL;
     structured_room_scans_installed := to_regclass('public.room_scan_sessions') IS NOT NULL;
     room_measurements_installed := to_regclass('public.room_scan_measurements') IS NOT NULL;
     landlord_support_installed := to_regprocedure('tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)') IS NOT NULL;
@@ -385,6 +389,17 @@ BEGIN
       'tideway_private.list_administrator_support_requests(text,text,integer,integer)',
       'tideway_private.review_landlord_support_request(uuid,text,text)'
     ];
+  END IF;
+  IF request_reschedule_installed THEN
+    app_functions := app_functions || ARRAY['tideway_private.reschedule_open_cleaning_request(uuid,timestamp with time zone)'];
+    SELECT procedure.prosrc INTO selected_source
+    FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.reschedule_open_cleaning_request(uuid,timestamp with time zone)');
+    IF position('request.landlord_user_id=actor_id' IN replace(COALESCE(selected_source,''),' ',''))=0
+      OR position('booking.status<>''cancelled''' IN replace(COALESCE(selected_source,''),' ',''))=0
+      OR position('cleaning-request-rescheduled' IN COALESCE(selected_source,''))=0 THEN
+      RAISE EXCEPTION 'Open request rescheduling lost its owner, live-booking or audit boundary';
+    END IF;
   END IF;
   IF landlord_booking_changes_installed THEN
     app_functions := app_functions || ARRAY[
@@ -1224,7 +1239,8 @@ SELECT json_build_object(
     + CASE WHEN to_regprocedure('tideway_private.archive_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.restore_my_property(uuid)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_section(text,bytea,text,smallint)') IS NULL THEN 0 ELSE 2 END
-    + CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)') IS NULL THEN 0 ELSE 4 END,
+    + CASE WHEN to_regprocedure('tideway_private.save_my_cleaner_onboarding_document(text,text,bytea,text,text,integer,text,bytea)') IS NULL THEN 0 ELSE 4 END
+    + CASE WHEN to_regprocedure('tideway_private.reschedule_open_cleaning_request(uuid,timestamp with time zone)') IS NULL THEN 0 ELSE 1 END,
   'workerFunctionChecks', 14
 ) AS tideway_deployment_verification;
 

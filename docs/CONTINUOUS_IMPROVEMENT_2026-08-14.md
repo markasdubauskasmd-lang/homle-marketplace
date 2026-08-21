@@ -363,3 +363,30 @@ the latest `main` commit and retry. Other 503 responses remain generic and are
 not misclassified as Render wake failures. Regression coverage pins both paths.
 No marketplace runtime, public page, private workspace or Cleaner Dashboard
 file is changed.
+
+## No-match recovery now preserves one request
+
+The highest-value conversion gap found in the Landlord journey was the
+`Try another time` path after no eligible Cleaner was available. It copied the
+old request into the request builder and asked the Landlord to submit a second
+record while the first request remained open. Two open requests for one clean
+could later be matched independently, and the user had to repeat a review they
+had already completed.
+
+The recovery popup now changes only the requested start time on the same open
+request and checks eligible Cleaners again immediately. The reviewed duration,
+tasks, optional photos and saved price estimate remain unchanged; the request
+scope fingerprint is renewed so a later invitation freezes the new time rather
+than stale terms. Existing automatic-dispatch consent is re-armed for the new
+time without widening its approved maximum price or attempt limit.
+
+The mutation is Landlord-only, owner-bound, CSRF-protected and limited to a
+reviewed `searching-for-cleaner` request with no non-cancelled booking. It locks
+the request row, rejects past or distant dates, clears any stale dispatch lease,
+and records both request history and an audit event. It cannot alter a confirmed
+or pending Cleaner commitment; those continue through the booking-change flow.
+
+Regression coverage checks service validation, repository error mapping, HTTP
+authorization, the one-popup browser sequence, migration locking and the live
+deployment verifier. The Cleaner Dashboard remains untouched and its
+byte-for-byte freeze is part of the release gate.
