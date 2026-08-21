@@ -20,3 +20,10 @@ email delivery, booking behavior and every Cleaner Dashboard file remain
 unchanged. Provider account creation, sender-domain verification and secret
 entry are still external operator actions; the UI does not pretend they have
 already happened.
+
+The guide now also provides a copyable **key-name-only** Render template and an
+in-page live readiness re-check. The template contains no secret or claimed
+sender value, keeps worker email disabled, and the re-check reads only the
+server's boolean activation evidence. This removes transcription and stale-page
+friction without reading Render credentials, enabling notifications, or sending
+an email.

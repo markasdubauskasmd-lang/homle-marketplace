@@ -337,6 +337,34 @@ document.querySelector("#readiness-continue").addEventListener("click", () => {
   focusReadinessRequirement(nextReadinessRequirement);
 });
 
+const emailActivationStatus = document.querySelector("[data-email-activation-status]");
+const emailReadinessRefresh = document.querySelector("[data-email-readiness-refresh]");
+const emailTemplateCopy = document.querySelector("[data-email-template-copy]");
+
+emailTemplateCopy?.addEventListener("click", async () => {
+  const template = document.querySelector("#transactional-email-render-template")?.textContent || "";
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+    await navigator.clipboard.writeText(template);
+    emailActivationStatus.textContent = "Render key names copied. Paste secret values only inside Render's protected Environment page.";
+  } catch {
+    emailActivationStatus.textContent = "Automatic copy is unavailable in this browser. Select the key-name template above and copy it manually.";
+  }
+});
+
+emailReadinessRefresh?.addEventListener("click", async () => {
+  emailReadinessRefresh.disabled = true;
+  emailActivationStatus.textContent = "Checking the running Homle service…";
+  const loaded = await loadConfig();
+  const ready = state.activationReadiness?.checks?.transactionalEmail === true;
+  emailActivationStatus.textContent = loaded && ready
+    ? "Transactional email is connected in the running release. Complete controlled staging delivery evidence before enabling booking notifications."
+    : loaded
+      ? "Transactional email is still not connected in the running release. Check the sender verification, four provider keys and latest deployment."
+      : "Homle could not re-check the running service. No environment setting was changed; try again after the deployment is healthy.";
+  emailReadinessRefresh.disabled = false;
+});
+
 async function loadConfig() {
   try {
     const response = await fetch("/api/admin/config", { headers: adminHeaders({ "Accept": "application/json" }) });
@@ -349,8 +377,10 @@ async function loadConfig() {
     renderPrivateDataStorage(result.storageSafety);
     renderActivationReadiness(result.activationReadiness);
     updateQuoteCalculator();
+    return true;
   } catch (error) {
     showAdminError(error.message);
+    return false;
   }
 }
 
