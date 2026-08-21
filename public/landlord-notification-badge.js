@@ -11,6 +11,10 @@ let stream = null;
 let reconnectTimer = null;
 let reconnectAttempt = 0;
 
+function accessReady() {
+  return links.some((link) => !link.hidden);
+}
+
 function render(value) {
   const badge = notificationUnreadBadge(value);
   for (const link of links) {
@@ -49,7 +53,7 @@ function cancelReconnect() {
 }
 
 function scheduleReconnect() {
-  if (reconnectTimer !== null || document.visibilityState !== "visible" || !navigator.onLine) return;
+  if (!accessReady() || reconnectTimer !== null || document.visibilityState !== "visible" || !navigator.onLine) return;
   const delay = Math.min(60_000, 2 ** Math.min(reconnectAttempt, 6) * 1_000);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
@@ -58,7 +62,7 @@ function scheduleReconnect() {
 }
 
 function openStream() {
-  if (stream || typeof EventSource !== "function" || !links.length) return;
+  if (!accessReady() || stream || typeof EventSource !== "function" || !links.length) return;
   stream = new EventSource("/api/marketplace/notifications/events", { withCredentials: true });
   stream.addEventListener("notification-ready", () => {
     reconnectAttempt = 0;
@@ -78,6 +82,13 @@ function openStream() {
 }
 
 async function start() {
+  // The link is revealed only after the Landlord bootstrap authorises this
+  // account. A module-load request would race that boundary and turn every
+  // signed-out visit into a needless private 401.
+  if (!accessReady()) {
+    stop();
+    return;
+  }
   cancelReconnect();
   const count = await refresh(true);
   if (count !== null) {
@@ -99,7 +110,8 @@ function stop() {
 }
 
 render(0);
-void start();
+if (accessReady()) void start();
+addEventListener("homle:landlord-session-ready", () => { void start(); });
 addEventListener("pageshow", (event) => { if (event.persisted) void start(); });
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") void start();
