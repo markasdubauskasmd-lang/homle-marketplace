@@ -183,6 +183,10 @@ let paymentsReady = false;
 const readinessRequestTimeoutMs = 5_000;
 const optionalDashboardRequestTimeoutMs = 8_000;
 const readinessRecoveryDelaysMs = Object.freeze([2_000, 6_000]);
+// Render's free web service can briefly answer 503 while the instance wakes.
+// A read is safe to repeat once; a mutation is deliberately never replayed
+// because the first attempt may already have changed private marketplace data.
+const safeReadWakeRetryDelayMs = 1_000;
 let readinessRecoveryTimer = null;
 let requestRecoveryChecked = false;
 let requestRecoveryTimer = null;
@@ -1296,23 +1300,32 @@ async function requestJson(path, options = {}) {
   if (browserOffline()) throw Object.assign(new Error(mutation
     ? "You are offline. This change was not sent; your entries are still here. Reconnect, then try again."
     : "You are offline. Reconnect to open your private workspace."), { code: "browser-offline" });
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers }, signal: controller.signal });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw Object.assign(new Error(result.error || result.message || "The account action could not be completed."), { statusCode: response.status, code: result.code });
-    return result;
-  } catch (error) {
-    if (browserOffline()) throw Object.assign(new Error(mutation
-      ? "You went offline. This change may have reached Homle. Your entries are still here; reconnect and refresh to verify before trying again."
-      : "You are offline. Reconnect to open your private workspace."), { code: "browser-offline" });
-    if (error?.name === "AbortError") throw Object.assign(new Error(mutation
-      ? "The connection took too long. This action may have completed. Your entries are still here; refresh the dashboard to check before trying again."
-      : "The connection took too long. Check the connection and try again."), { code: "request-timeout" });
-    throw error;
-  } finally {
-    window.clearTimeout(timer);
+  const maximumAttempts = mutation ? 1 : 2;
+  for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(path, { credentials: "same-origin", cache: "no-store", ...rest, headers: { Accept: "application/json", ...headers }, signal: controller.signal });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 503 && attempt + 1 < maximumAttempts) {
+          await new Promise((resolve) => window.setTimeout(resolve, safeReadWakeRetryDelayMs));
+          continue;
+        }
+        throw Object.assign(new Error(result.error || result.message || "The account action could not be completed."), { statusCode: response.status, code: result.code });
+      }
+      return result;
+    } catch (error) {
+      if (browserOffline()) throw Object.assign(new Error(mutation
+        ? "You went offline. This change may have reached Homle. Your entries are still here; reconnect and refresh to verify before trying again."
+        : "You are offline. Reconnect to open your private workspace."), { code: "browser-offline" });
+      if (error?.name === "AbortError") throw Object.assign(new Error(mutation
+        ? "The connection took too long. This action may have completed. Your entries are still here; refresh the dashboard to check before trying again."
+        : "The connection took too long. Check the connection and try again."), { code: "request-timeout" });
+      throw error;
+    } finally {
+      window.clearTimeout(timer);
+    }
   }
 }
 
@@ -3998,7 +4011,8 @@ async function loadWorkspace() {
     if (error.code === "browser-offline") showState("You are offline.", "Your unfinished room walkthrough stays in this tab. Reconnect and Homle will safely reopen the private workspace; no change will be retried automatically.", { kind: "offline", allowRetry: true });
     else if (error.statusCode === 401) showState("Sign in as a Landlord to open this workspace.", "Your properties and request drafts are private to your verified account.", { kind: "authentication", allowSignIn: true });
     else if (error.statusCode === 403) showState("This account cannot open the Landlord workspace.", "Use a Landlord/Property Manager account selected during onboarding.", { kind: "authentication", allowSignIn: true });
-    else if (error.statusCode === 404 || error.statusCode === 503) showState("Landlord accounts are not connected yet.", "The workspace is ready but remains closed until Homle's secure marketplace database and account runtime are activated.", { kind: "unavailable", allowRetry: true });
+    else if (error.statusCode === 404) showState("Landlord accounts are not available on this release.", "This deployed release does not include the secure Landlord account runtime. No property or request was changed.", { kind: "unavailable", allowRetry: true });
+    else if (error.statusCode === 503) showState("Homle is still waking up.", "Your account and data are safe. Wait a moment, then try again; no property or request was changed.", { kind: "unavailable", allowRetry: true });
     else showState("The Landlord workspace is temporarily unavailable.", "No property or request was changed. Check the connection and try again.", { kind: "error", allowRetry: true });
   } finally {
     workspace.removeAttribute("aria-busy");
