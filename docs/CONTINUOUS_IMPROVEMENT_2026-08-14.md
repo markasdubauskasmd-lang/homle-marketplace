@@ -1,5 +1,20 @@
 # Homle continuous improvement record — 14 August 2026
 
+## The visible password-recovery link now uses the conventional route — 21 August 2026
+
+Homle already served `/forgot-password` through the same capability-gated
+account shell as the older reset URL, but the sign-in form still linked the
+customer to `/reset-password`. The visible “Forgot your password?” action now
+uses the conventional route that customers, password managers and support
+instructions expect. `/reset-password#token=…` remains reserved for the private
+one-time link sent by the email provider.
+
+The smoke regression now requires the conventional link and rejects a return
+to the ambiguous reset link. Transactional email remains an external launch
+dependency, so the capability gate still explains when recovery delivery is
+unavailable rather than pretending a message was sent. No Cleaner Dashboard
+file, route, style, form, feature or backend behaviour changed.
+
 ## Scanner observability now identifies mobile failure modes — 20 August 2026
 
 - Confirmed scanner telemetry is connected end to end: the browser reporter
