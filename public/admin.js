@@ -61,11 +61,17 @@ function showContent() {
 function populateConfig(config = {}) {
   state.config = config;
   const form = document.querySelector("#business-config-form");
+  const reportField = form.elements.namedItem("participantRehearsalReport");
+  if (reportField) reportField.value = "";
   Object.entries(config).forEach(([name, value]) => {
     const field = form.elements.namedItem(name);
     if (field?.type === "checkbox") field.checked = value === true;
     else if (field && value !== undefined && value !== null) field.value = value;
   });
+  const rehearsalStatus = form.querySelector("[data-rehearsal-import-status]");
+  if (rehearsalStatus) rehearsalStatus.textContent = config.participantRehearsalEvidenceSource === "hosted-verifier" && /^[0-9a-f]{12}$/.test(config.participantRehearsalBookingFingerprint || "")
+    ? `Verified report recorded · booking fingerprint ${config.participantRehearsalBookingFingerprint}. Paste a newly generated report only when replacing this evidence.`
+    : "No verifier report loaded. The manual checklist cannot mark this launch gate complete.";
 }
 
 function proposalField(labelText, name, type = "number", value = "") {
@@ -2616,7 +2622,7 @@ document.querySelector("#business-config-form").addEventListener("submit", async
     const response = await fetch("/api/admin/config", { method: "PUT", headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }), body: JSON.stringify(body) });
     const result = await response.json();
     if (!response.ok || !result.ok) throw new Error(result.errors?.join(" ") || result.error || "Launch details could not be saved.");
-    state.config = result.config;
+    populateConfig(result.config);
     syncQuoteDefaults(result.config);
     renderReadiness(result.readiness);
     updateQuoteCalculator();
@@ -2804,4 +2810,42 @@ function attachParticipantRehearsalGuide() {
 }
 
 attachParticipantRehearsalGuide();
+
+function attachParticipantRehearsalImport() {
+  const form = document.querySelector("#business-config-form");
+  const button = form?.querySelector("[data-rehearsal-import]");
+  const report = form?.elements.namedItem("participantRehearsalReport");
+  const status = form?.querySelector("[data-rehearsal-import-status]");
+  if (!form || !button || !report || !status) return;
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    status.className = "";
+    status.textContent = "Validating the privacy-safe verifier result…";
+    try {
+      const response = await fetch("/api/admin/config/preview", {
+        method: "POST",
+        headers: adminHeaders({ "Content-Type": "application/json", "Accept": "application/json" }),
+        body: JSON.stringify({ participantRehearsalReport: report.value })
+      });
+      const result = await response.json();
+      const evidence = result.participantRehearsalEvidence;
+      if (!response.ok || !result.ok || !evidence) throw new Error(result.errors?.join(" ") || result.error || "The verifier report could not be validated.");
+      form.elements.namedItem("participantRehearsalEvidenceSource").value = evidence.source;
+      form.elements.namedItem("participantRehearsalBookingFingerprint").value = evidence.bookingFingerprint;
+      form.elements.namedItem("participantRehearsalEvidenceNote").value = evidence.evidenceNote;
+      form.elements.namedItem("participantRehearsalVerifiedDate").value = evidence.verifiedDate;
+      form.elements.namedItem("participantRehearsalPassed").checked = true;
+      status.className = "rehearsal-report-valid";
+      status.textContent = `Validated without saving · booking fingerprint ${evidence.bookingFingerprint}. Save launch details to record this privacy-safe evidence.`;
+    } catch (error) {
+      form.elements.namedItem("participantRehearsalPassed").checked = false;
+      status.className = "rehearsal-report-invalid";
+      status.textContent = error.message || "The verifier report could not be validated.";
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
+attachParticipantRehearsalImport();
 Promise.all([loadRecords(), loadConfig(), loadMediaRetention(), loadDataIntegrity()]);
