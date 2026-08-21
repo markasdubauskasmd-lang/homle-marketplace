@@ -17,6 +17,17 @@ export function accountIntentFromSearch(search = "") {
   return values.length === 1 ? normalizeAccountIntent(values[0]) : "";
 }
 
+export function accountEntryIntent(explicitIntent = "", form = "", storedIntent = "") {
+  const explicit = normalizeAccountIntent(explicitIntent);
+  if (explicit) return explicit;
+  // A bare /login or /signup is a fresh, role-neutral entry. Reusing a recent
+  // booking or work intent here can silently route a returning dual-role user
+  // into the wrong workspace. Continuation screens still recover the short-
+  // lived intent because OAuth, email verification and onboarding span pages.
+  if (form === "login" || form === "signup") return "";
+  return normalizeAccountIntent(storedIntent);
+}
+
 export function normalizeSelectedCleaner(value) {
   const selected = String(value || "").trim().toLowerCase();
   return resourceIdPattern.test(selected) ? selected : "";

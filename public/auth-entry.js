@@ -1,4 +1,4 @@
-import { accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent, saveSelectedCleaner, selectedCleanerFromSearch } from "./account-intent.js";
+import { accountEntryIntent, accountIntentFromSearch, clearAccountIntent, normalizeAccountIntent, readAccountIntent, saveAccountIntent, saveSelectedCleaner, selectedCleanerFromSearch } from "./account-intent.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { accountReadyPresentation, availableAccountMethodLabel, unavailableEmailActionPresentation } from "./account-ready-model.js?v=20260805-1";
 import { storedCsrf } from "./session-csrf.js";
@@ -47,12 +47,16 @@ const socialResult = fragment.get("social") || "";
 const socialFailureReason = fragment.get("reason") || "";
 const socialCsrfToken = fragment.get("csrfToken") || "";
 const fragmentIntent = normalizeAccountIntent(fragment.get("intent"));
-let accountIntent = accountIntentFromSearch(location.search) || fragmentIntent;
+const explicitAccountIntent = accountIntentFromSearch(location.search) || fragmentIntent;
+let accountIntent = explicitAccountIntent;
 try {
   const selectedCleaner = accountIntent === "book" ? selectedCleanerFromSearch(location.search) : "";
   if (selectedCleaner) saveSelectedCleaner(localStorage, selectedCleaner);
   if (accountIntent) saveAccountIntent(sessionStorage, accountIntent);
-  else accountIntent = readAccountIntent(sessionStorage);
+  else {
+    accountIntent = accountEntryIntent("", selectedMode.form, readAccountIntent(sessionStorage));
+    if (!accountIntent && (selectedMode.form === "login" || selectedMode.form === "signup")) clearAccountIntent(sessionStorage);
+  }
 } catch { accountIntent = ""; }
 const bookingIntent = accountIntent === "book";
 const cleanerIntent = accountIntent === "work";

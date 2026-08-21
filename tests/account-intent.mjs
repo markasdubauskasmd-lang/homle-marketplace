@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  accountEntryIntent,
   accountEntryPath,
   accountIntentFromSearch,
   accountIntentLifetimeMs,
@@ -17,6 +18,13 @@ import {
   saveSelectedProperty,
   selectedCleanerFromSearch
 } from "../public/account-intent.js";
+
+assert.equal(accountEntryIntent("book", "login", "work"), "book", "An explicit booking intent was replaced by stale browser state.");
+assert.equal(accountEntryIntent("work", "signup", "book"), "work", "An explicit Cleaner intent was replaced by stale browser state.");
+assert.equal(accountEntryIntent("", "login", "book"), "", "A bare login inherited a previous booking intent instead of remaining role-neutral.");
+assert.equal(accountEntryIntent("", "signup", "work"), "", "A bare signup inherited a previous Cleaner intent instead of remaining role-neutral.");
+assert.equal(accountEntryIntent("", "onboarding", "book"), "book", "Onboarding lost the short-lived intent required to finish a multi-page account flow.");
+assert.equal(accountEntryIntent("", "verify", "work"), "work", "Email verification lost the short-lived Cleaner intent required after verification.");
 
 function memoryStorage() {
   const values = new Map();
