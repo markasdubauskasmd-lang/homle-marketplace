@@ -201,6 +201,33 @@
   background: #eef9f5;
 }
 
+.rehearsal-report-import {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d6e4df;
+  border-radius: 12px;
+  background: #f7fbf9;
+}
+
+.rehearsal-report-import textarea {
+  min-height: 132px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .78rem;
+}
+
+.rehearsal-report-import .button { justify-self: start; }
+
+.rehearsal-report-import p {
+  margin: 0;
+  color: #526762;
+  font-size: .82rem;
+}
+
+.rehearsal-report-import .rehearsal-report-valid { color: #08734d; }
+.rehearsal-report-import .rehearsal-report-invalid { color: #9b1c1c; }
+
 @media (max-width: 640px) {
   .cleaner-supply-stages { grid-template-columns: 1fr; }
 
@@ -219,4 +246,6 @@
   }
 
   .participant-rehearsal-guide summary small { text-align: left; }
+
+  .rehearsal-report-import .button { width: 100%; }
 }

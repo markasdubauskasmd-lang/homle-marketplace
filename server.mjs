@@ -2132,6 +2132,7 @@ function launchReadiness(config) {
     ],
     participantRehearsal: [
       { label: "two-account mobile booking and payment rehearsal", complete: config.participantRehearsalPassed === true },
+      { label: "privacy-safe hosted verifier result", complete: config.participantRehearsalEvidenceSource === "hosted-verifier" && /^[0-9a-f]{12}$/.test(text(config.participantRehearsalBookingFingerprint, 20)) },
       { label: "participant rehearsal evidence summary", complete: text(config.participantRehearsalEvidenceNote, 1200).length >= 40 },
       { label: "participant rehearsal verification date", complete: isIsoCalendarDate(config.participantRehearsalVerifiedDate) && config.participantRehearsalVerifiedDate <= today }
     ],
@@ -4980,7 +4981,40 @@ async function purgeAdminMedia(request, response) {
   return json(response, 200, { ok: true, event });
 }
 
-function evaluateAdminConfigInput(input) {
+function evaluateAdminConfigInput(input, existingConfig = {}) {
+  const rehearsalReportText = text(input.participantRehearsalReport, 12000);
+  let rehearsalReport = null;
+  if (rehearsalReportText) {
+    try {
+      rehearsalReport = JSON.parse(rehearsalReportText);
+    } catch {
+      rehearsalReport = false;
+    }
+  }
+  const verifiedRehearsalReport = rehearsalReport && typeof rehearsalReport === "object"
+    && rehearsalReport.status === "verified"
+    && /^[0-9a-f]{12}$/.test(text(rehearsalReport.bookingFingerprint, 20))
+    && rehearsalReport.accounts?.landlord === "approved-and-verified"
+    && rehearsalReport.accounts?.cleaner === "approved-and-verified"
+    && rehearsalReport.bookingLifecycle === "completed"
+    && Number.isSafeInteger(Number(rehearsalReport.checklist?.tasks))
+    && Number(rehearsalReport.checklist.tasks) > 0
+    && rehearsalReport.checklist?.resolved === true
+    && rehearsalReport.privateMedia?.beforeAndAfter === true
+    && rehearsalReport.privateMedia?.currentLocationRemoved === true
+    && rehearsalReport.messaging === "two-way"
+    && rehearsalReport.review === "exactly-one"
+    && rehearsalReport.stripeTestCycle === "authorized-captured-transferred-reversed-and-refunded"
+    && rehearsalReport.outsiderAccess === "denied"
+    && rehearsalReport.writesPerformed === false
+    && /_(?:homle|tideway)_staging$/i.test(text(rehearsalReport.database, 180));
+  const importedRehearsal = verifiedRehearsalReport ? {
+    passed: true,
+    source: "hosted-verifier",
+    fingerprint: text(rehearsalReport.bookingFingerprint, 20),
+    note: `Hosted verifier passed a completed two-account booking with ${Number(rehearsalReport.checklist.tasks)} resolved Cleaner task${Number(rehearsalReport.checklist.tasks) === 1 ? "" : "s"}, before/after media, two-way messages, outsider denial and a fully reversed/refunded Stripe test cycle. Booking fingerprint: ${text(rehearsalReport.bookingFingerprint, 20)}.`,
+    verifiedDate: localDateToday()
+  } : null;
   const config = {
     legalOwnerName: text(input.legalOwnerName, 160),
     businessStructure: text(input.businessStructure, 80),
@@ -5001,9 +5035,11 @@ function evaluateAdminConfigInput(input) {
     paymentProviderStatus: text(input.paymentProviderStatus, 40),
     paymentProviderEvidenceNote: text(input.paymentProviderEvidenceNote, 800),
     paymentProviderVerifiedDate: text(input.paymentProviderVerifiedDate, 20),
-    participantRehearsalPassed: input.participantRehearsalPassed === true || ["true", "on"].includes(text(input.participantRehearsalPassed, 10).toLowerCase()),
-    participantRehearsalEvidenceNote: text(input.participantRehearsalEvidenceNote, 1200),
-    participantRehearsalVerifiedDate: text(input.participantRehearsalVerifiedDate, 20),
+    participantRehearsalPassed: importedRehearsal?.passed ?? (input.participantRehearsalPassed === true || ["true", "on"].includes(text(input.participantRehearsalPassed, 10).toLowerCase())),
+    participantRehearsalEvidenceSource: importedRehearsal?.source ?? text(input.participantRehearsalEvidenceSource, 40),
+    participantRehearsalBookingFingerprint: importedRehearsal?.fingerprint ?? text(input.participantRehearsalBookingFingerprint, 20).toLowerCase(),
+    participantRehearsalEvidenceNote: importedRehearsal?.note ?? text(input.participantRehearsalEvidenceNote, 1200),
+    participantRehearsalVerifiedDate: importedRehearsal?.verifiedDate ?? text(input.participantRehearsalVerifiedDate, 20),
     refundProcess: text(input.refundProcess, 800),
     customerHourlyRate: Math.max(0, Number(input.customerHourlyRate) || 0),
     cleanerHourlyPay: Math.max(0, Number(input.cleanerHourlyPay) || 0),
@@ -5029,6 +5065,18 @@ function evaluateAdminConfigInput(input) {
     updatedAt: new Date().toISOString()
   };
   const errors = [];
+  const preservedVerifiedRehearsal = !rehearsalReportText
+    && input.participantRehearsalPassed === undefined
+    && existingConfig.participantRehearsalPassed === true
+    && existingConfig.participantRehearsalEvidenceSource === "hosted-verifier"
+    && /^[0-9a-f]{12}$/.test(text(existingConfig.participantRehearsalBookingFingerprint, 20))
+    && config.participantRehearsalEvidenceSource === existingConfig.participantRehearsalEvidenceSource
+    && config.participantRehearsalBookingFingerprint === existingConfig.participantRehearsalBookingFingerprint;
+  // The evidence checkbox is deliberately disabled in the Admin UI, so browsers do not
+  // submit it on later unrelated edits. Preserve only the exact verifier-backed evidence
+  // already on disk; an explicit false still provides an intentional reset path.
+  if (preservedVerifiedRehearsal) config.participantRehearsalPassed = true;
+  if (rehearsalReportText && !verifiedRehearsalReport) errors.push("The hosted participant-rehearsal report is incomplete or invalid. Run pnpm run verify:hosted-rehearsal again and paste its complete JSON output.");
   const numericConfigValues = [config.customerHourlyRate, config.cleanerHourlyPay, config.labourOnCostPercent, config.minimumHours, config.minimumContributionMarginPercent, config.minimumContributionPounds, config.paymentFeePercent, config.paymentFeeFixed, config.travelCostPerJob, config.travelCostPerKm, config.travelDistanceMultiplier, config.pricingTravelDistanceKm, config.suppliesCostPerJob, config.riskContingencyPercent, config.customerQuoteValidityHours, config.cleanerOpportunityValidityHours, config.inactiveMediaRetentionDays, config.completedMediaRetentionDays];
   if (numericConfigValues.some((value) => !Number.isFinite(value))) errors.push("Pricing, cost, response-window and retention values must be finite numbers.");
   if (config.supportEmail && !isEmail(config.supportEmail)) errors.push("Enter a valid support email.");
@@ -5042,6 +5090,7 @@ function evaluateAdminConfigInput(input) {
   if (config.participantRehearsalVerifiedDate && (!isIsoCalendarDate(config.participantRehearsalVerifiedDate) || config.participantRehearsalVerifiedDate > localDateToday())) errors.push("Participant-rehearsal verification date must be a valid date no later than today.");
   if (config.participantRehearsalPassed && text(config.participantRehearsalEvidenceNote, 1200).length < 40) errors.push("Record at least 40 characters of privacy-safe participant rehearsal evidence before marking it passed.");
   if (config.participantRehearsalPassed && !config.participantRehearsalVerifiedDate) errors.push("Record when the participant rehearsal evidence was verified before marking it passed.");
+  if (config.participantRehearsalPassed && (!importedRehearsal && !preservedVerifiedRehearsal)) errors.push("A passed participant rehearsal requires a newly validated report from pnpm run verify:hosted-rehearsal or unchanged previously verified evidence.");
   const pilotCoverage = pilotPostcodeCoverage("", config.pilotPostcodes);
   if (pilotCoverage.invalidCodes.length) errors.push(`Use comma-separated outward postcode codes only, for example SW2, SW4. Invalid: ${pilotCoverage.invalidCodes.join(", ")}.`);
   if (config.customerHourlyRate > maxProposalHourlyRate || config.cleanerHourlyPay > maxProposalHourlyRate) errors.push(`Customer and cleaner hourly rates must not exceed £${maxProposalHourlyRate.toLocaleString("en-GB")}.`);
@@ -5070,15 +5119,21 @@ function evaluateAdminConfigInput(input) {
 async function previewAdminConfig(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   ensureSameOrigin(request);
-  const evaluation = evaluateAdminConfigInput(await readJson(request));
+  const evaluation = evaluateAdminConfigInput(await readJson(request), await readJsonFile("business-config.json", {}));
   if (evaluation.errors.length) return json(response, 422, { ok: false, persisted: false, errors: evaluation.errors, readiness: evaluation.readiness, economics: evaluation.economics });
-  return json(response, 200, { ok: true, persisted: false, readiness: evaluation.readiness, economics: evaluation.economics });
+  const participantRehearsalEvidence = evaluation.config.participantRehearsalEvidenceSource === "hosted-verifier" ? {
+    source: evaluation.config.participantRehearsalEvidenceSource,
+    bookingFingerprint: evaluation.config.participantRehearsalBookingFingerprint,
+    evidenceNote: evaluation.config.participantRehearsalEvidenceNote,
+    verifiedDate: evaluation.config.participantRehearsalVerifiedDate
+  } : null;
+  return json(response, 200, { ok: true, persisted: false, readiness: evaluation.readiness, economics: evaluation.economics, participantRehearsalEvidence });
 }
 
 async function updateAdminConfig(request, response) {
   if (!isAdminAuthorised(request)) return json(response, 401, { ok: false, error: "Admin access is not authorised." });
   ensureSameOrigin(request);
-  const { config, errors, readiness, economics } = evaluateAdminConfigInput(await readJson(request));
+  const { config, errors, readiness, economics } = evaluateAdminConfigInput(await readJson(request), await readJsonFile("business-config.json", {}));
   if (errors.length) return json(response, 422, { ok: false, errors });
   await saveJsonFile("business-config.json", config);
   return json(response, 200, { ok: true, config, readiness, economics });
