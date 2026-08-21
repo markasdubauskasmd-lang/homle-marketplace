@@ -3964,6 +3964,11 @@ async function loadWorkspace() {
     state.hidden = true;
     for (const item of privateNavigation) item.hidden = false;
     notificationLink.hidden = false;
+    // The unread badge owns a private read and EventSource. Do not let either
+    // start until this server-authorised bootstrap has proved the browser has
+    // an active Landlord session; otherwise an expired session generates an
+    // avoidable 401 and can begin reconnect work before the sign-in gate shows.
+    window.dispatchEvent(new Event("homle:landlord-session-ready"));
     workspace.hidden = false;
     workspace.setAttribute("aria-busy", "true");
     loadStatus.hidden = true;

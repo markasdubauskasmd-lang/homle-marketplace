@@ -514,6 +514,52 @@ try {
     }
   }
 
+  /* A signed-out visit must stop at the secure Landlord bootstrap. The unread
+     badge is private too, but it used to race that boundary on module load and
+     create an avoidable 401 (plus potential EventSource reconnect work) before
+     the sign-in gate appeared. */
+  let signedOutNotificationReads = 0;
+  const signedOutServer = await serveStatic({
+    extraFiles: {
+      "/landlord/home": dashboardHtml,
+      "/api/marketplace/landlord/bootstrap": () => ({ status: 401, body: { ok: false, error: "Authentication required." } }),
+      "/api/marketplace/notifications": () => {
+        signedOutNotificationReads += 1;
+        return { status: 401, body: { ok: false, error: "Authentication required." } };
+      },
+      "/api/health": JSON.stringify(health)
+    }
+  });
+  try {
+    await browser.setViewport({ width: 390, height: 844, mobile: true });
+    await browser.goto(`${signedOutServer.origin}/landlord/home`);
+    const signedOutState = await browser.evaluate(`
+      const deadline = Date.now() + 3000;
+      for (;;) {
+        const state = document.querySelector("[data-landlord-state]");
+        const title = document.querySelector("[data-landlord-state-title]");
+        if (state && !state.hidden && /Sign in as a Landlord/i.test(title?.textContent || "")) {
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          return {
+            title: title.textContent.trim(),
+            notificationHidden: document.querySelector("[data-notification-link]")?.hidden === true
+          };
+        }
+        if (Date.now() > deadline) return { title: "timeout", notificationHidden: false };
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    `);
+    assert(/Sign in as a Landlord/i.test(signedOutState.title),
+      `signed-out notification gate: the secure sign-in state did not render — got "${signedOutState.title}".`);
+    assert(signedOutState.notificationHidden,
+      "signed-out notification gate: the private notification shortcut became visible without an authorised Landlord session.");
+    assert(signedOutNotificationReads === 0,
+      `signed-out notification gate: the page made ${signedOutNotificationReads} private notification read(s) before Landlord access was authorised.`);
+    checked.push("signed-out session · zero private notification reads");
+  } finally {
+    await signedOutServer.close();
+  }
+
   /* Saved Cleaners is an optional account enhancement, not a prerequisite for
      opening the Landlord workspace. Prove that a slow response there cannot
      keep every dashboard control aria-busy after the primary records render. */
