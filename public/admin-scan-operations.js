@@ -91,7 +91,7 @@ function renderTelemetry(payload) {
   const timing = scanTimingSummary(payload?.snapshot);
   latency.textContent = timing.total
     ? `${timing.total} assisted room ${timing.total === 1 ? "read" : "reads"} measured · ${timing.slowCount} took 8 seconds or longer (${percent(timing.slowRate)}).`
-    : "No assisted room-reading time has been measured in this app instance yet.";
+    : `No assisted room-reading time has been measured${payload?.durable ? " in the last 30 days" : " in this app instance"} yet.`;
   const measuredBuckets = timing.buckets.filter((entry) => entry.count > 0);
   latencyBuckets.replaceChildren(...(measuredBuckets.length
     ? measuredBuckets.map((entry) => listItem(`${entry.bucket} — ${entry.count}`))
@@ -100,7 +100,7 @@ function renderTelemetry(payload) {
   const attention = scanOperationalWarnings(payload?.snapshot);
   warnings.replaceChildren(...(attention.length
     ? attention.map((entry) => listItem(`${entry.title} — ${entry.count}. ${entry.guidance}`))
-    : [listItem("No scanner reliability warning has been measured in this app instance.")]));
+    : [listItem(`No scanner reliability warning has been measured${payload?.durable ? " in the last 30 days" : " in this app instance"}.`)]));
 }
 
 /* ── Ground truth: the scanner's accuracy, measured on real scans ────────── */

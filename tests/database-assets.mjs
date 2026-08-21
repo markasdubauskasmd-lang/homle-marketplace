@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 100);
-  assert.equal(repositoryResult.migrations.at(-1), "100_open_request_reschedule.sql");
+  assert.equal(repositoryResult.migrations.length, 101);
+  assert.equal(repositoryResult.migrations.at(-1), "101_durable_scan_telemetry.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");
@@ -46,6 +46,7 @@ try {
   const insurancePolicyDocumentTypesMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "096_insurance_policy_document_types.sql"), "utf8");
   const optionalRequestPhotosMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "097_optional_request_photos.sql"), "utf8");
   const requestRescheduleMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "100_open_request_reschedule.sql"), "utf8");
+  const durableScanTelemetryMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "101_durable_scan_telemetry.sql"), "utf8");
   const integrationRunner = await readFile(path.join(projectRoot, "tools", "postgres-integration-runner.mjs"), "utf8");
   const publicCleanerProfileBehaviour = await readFile(path.join(sourceDatabaseDirectory, "integration", "public-cleaner-profile-behaviour.sql"), "utf8");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 48\)'/, "Pre-upgrade verification must inspect the optional migration ledger dynamically.");
@@ -72,6 +73,18 @@ try {
   // clean while its Administrator queue returned one unpaginated page and nothing after.
   assert(deploymentVerifier.includes("The Administrator Cleaner verification queue does not paginate, or lost its Administrator-only boundary") && deploymentVerifier.includes("list_cleaner_verification_queue(text,integer,integer)"), "Migration-69 verification must prove the Cleaner verification queue slices before aggregating and stays Administrator-only.");
   assert.match(deploymentVerifier, /EXECUTE 'SELECT EXISTS \(SELECT 1 FROM tideway_private\.schema_migrations WHERE migration_order = 70\)'/, "Deployment verification must detect the bookings(cleaning_request_id) index dynamically.");
+  assert.match(deploymentVerifier, /migration_order = 101/, "Deployment verification must detect durable scanner telemetry dynamically.");
+  assert.match(durableScanTelemetryMigration, /scan_telemetry_hourly ENABLE ROW LEVEL SECURITY/, "Durable scanner telemetry must retain a private RLS boundary.");
+  assert.match(durableScanTelemetryMigration, /jsonb_object_keys\(entry\).*NOT IN \('metric','dimensions','bucket','count'\)/s, "The telemetry write function must reject every field outside its fixed anonymous shape.");
+  assert.match(durableScanTelemetryMigration, /now\(\)-interval '90 days'/, "Detailed scanner aggregates must expire after 90 days.");
+  const durableScanTelemetryTable = durableScanTelemetryMigration.slice(
+    durableScanTelemetryMigration.indexOf("CREATE TABLE"),
+    durableScanTelemetryMigration.indexOf("ALTER TABLE")
+  );
+  assert.doesNotMatch(durableScanTelemetryTable, /account_id|property_id|request_id|session_id|room_name|object_label|transcript|media_key/i, "Durable scanner telemetry introduced an identity or home-content field.");
+  assert(deploymentVerifier.includes("Scanner telemetry aggregate is missing or directly reachable by the app role")
+    && deploymentVerifier.includes("Scanner telemetry aggregate lost its Administrator-only read boundary"),
+  "Deployment verification must prove private storage and Administrator-only aggregate reads.");
   // The pre-existing partial unique index on this column also filters on status, so the
   // dispatch lookups that must count cancelled attempts cannot use it. A replacement that
   // reintroduced a status predicate would look present and still scan the table.

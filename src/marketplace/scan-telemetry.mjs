@@ -131,9 +131,9 @@ export function scanEvent(metric, { count = 1, durationMs, dimensions } = {}) {
 /**
  * Collects events and reports them as counts.
  *
- * In-memory and additive by design: the scanner emits, this aggregates, and a
- * monitoring adapter reads. Nothing here writes to a database or contacts a
- * network, so telemetry cannot slow down or fail a scan.
+ * In-memory and additive by design: the scanner emits and this aggregates.
+ * The durable adapter below may copy only this normalized shape to storage,
+ * asynchronously, so telemetry can never slow down or fail a scan.
  */
 export function createScanTelemetry({ maximumSeries = 500 } = {}) {
   const counters = new Map();
@@ -166,6 +166,105 @@ export function createScanTelemetry({ maximumSeries = 500 } = {}) {
     reset() {
       counters.clear();
       timings.clear();
+    }
+  });
+}
+
+function eventKey(event) {
+  const labels = Object.entries(event.dimensions).sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, value]) => `${name}=${value}`).join(",");
+  return `${event.metric}|${labels}|${event.bucket || ""}`;
+}
+
+/**
+ * Adds durable, privacy-minimal aggregation without putting storage on the
+ * scanner's critical path. record() remains synchronous and best-effort. A
+ * failed database write is retried from a bounded queue; a failed read falls
+ * back to the current process snapshot and says explicitly that it did so.
+ */
+export function createDurableScanTelemetry(repository, {
+  maximumSeries = 500,
+  flushDelayMs = 1000,
+  scheduler = globalThis,
+  windowDays = 30
+} = {}) {
+  if (!repository || typeof repository.recordBatch !== "function" || typeof repository.snapshot !== "function") {
+    throw new TypeError("A complete scan telemetry repository is required.");
+  }
+  const local = createScanTelemetry({ maximumSeries });
+  const pending = new Map();
+  let timer = null;
+  let flushing = null;
+
+  const schedule = () => {
+    if (timer || !pending.size || typeof scheduler?.setTimeout !== "function") return;
+    timer = scheduler.setTimeout(() => {
+      timer = null;
+      void flush();
+    }, flushDelayMs);
+    timer?.unref?.();
+  };
+
+  const restore = (events) => {
+    for (const event of events) {
+      const key = eventKey(event);
+      if (!pending.has(key) && pending.size >= maximumSeries) continue;
+      const previous = pending.get(key);
+      pending.set(key, Object.freeze({ ...event, count: Math.min(10000, (previous?.count || 0) + event.count) }));
+    }
+  };
+
+  async function flush() {
+    if (flushing) return flushing;
+    if (!pending.size) return true;
+    const events = [...pending.values()];
+    pending.clear();
+    flushing = (async () => {
+      try {
+        await repository.recordBatch(events);
+        return true;
+      } catch {
+        restore(events);
+        schedule();
+        return false;
+      } finally {
+        flushing = null;
+        // Events may arrive while the previous batch is in flight. If its
+        // timer fired during that flush it correctly joined the in-flight
+        // promise, but the new batch still needs its own later attempt.
+        if (pending.size) schedule();
+      }
+    })();
+    return flushing;
+  }
+
+  return Object.freeze({
+    record(metric, options) {
+      const event = scanEvent(metric, options);
+      if (!event || !local.record(metric, options)) return false;
+      const durableEvent = Object.freeze({ ...event, count: event.count ?? 1 });
+      const key = eventKey(durableEvent);
+      if (!pending.has(key) && pending.size >= maximumSeries) return true;
+      const previous = pending.get(key);
+      pending.set(key, Object.freeze({ ...durableEvent, count: Math.min(10000, (previous?.count || 0) + durableEvent.count) }));
+      schedule();
+      return true;
+    },
+    snapshot: () => local.snapshot(),
+    async durableSnapshot(actor, requestedWindowDays = windowDays) {
+      await flush();
+      try {
+        return Object.freeze({ snapshot: await repository.snapshot(actor, requestedWindowDays), durable: true, windowDays: requestedWindowDays });
+      } catch {
+        return Object.freeze({ snapshot: local.snapshot(), durable: false, windowDays: null });
+      }
+    },
+    flush,
+    reset() {
+      local.reset();
+      pending.clear();
+      if (timer && typeof scheduler?.clearTimeout === "function") scheduler.clearTimeout(timer);
+      timer = null;
     }
   });
 }

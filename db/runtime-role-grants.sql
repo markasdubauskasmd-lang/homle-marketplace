@@ -151,6 +151,8 @@ GRANT EXECUTE ON FUNCTION tideway_private.get_my_cleaner_payout_onboarding() TO 
 GRANT EXECUTE ON FUNCTION tideway_private.begin_my_cleaner_payout_onboarding(uuid) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.attach_my_cleaner_payout_account(uuid,text) TO tideway_app;
 GRANT EXECUTE ON FUNCTION tideway_private.sync_my_cleaner_payout_account(text,boolean,boolean,boolean) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_scan_telemetry_batch(jsonb) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_administrator_scan_telemetry(integer) TO tideway_app;
 REVOKE ALL ON FUNCTION tideway_private.provision_bootstrap_administrator(citext,uuid,text,text) FROM tideway_app;
 
 -- Roles and account state are only writable through the onboarding and administrator
@@ -216,5 +218,9 @@ REVOKE INSERT, UPDATE, DELETE ON scan_pricing_addons, scan_retention_policy FROM
 -- they describe. The report function returns counts, never rows.
 REVOKE SELECT, INSERT, UPDATE, DELETE ON room_scan_ground_truth FROM tideway_app;
 REVOKE INSERT, UPDATE, DELETE ON room_scan_model_versions FROM tideway_app;
+-- Anonymous scanner counters are function-only. The runtime can add a bounded
+-- batch and an Administrator can read aggregates, but it can never inspect or
+-- mutate individual hourly rows directly.
+REVOKE ALL ON TABLE tideway_private.scan_telemetry_hourly FROM tideway_app;
 
 COMMIT;

@@ -501,12 +501,17 @@
       "order": 100,
       "file": "100_open_request_reschedule.sql",
       "sha256": "29ebee6ce869445c289bb4153adebf12fa7aba1cf4526356d8cf1e097bd130af"
+    },
+    {
+      "order": 101,
+      "file": "101_durable_scan_telemetry.sql",
+      "sha256": "c101b149c006c910d018755edaae9569d31ab815d58c99d2f261ee496e03b79d"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "48bd638371762ca8f567ba30be8d6b2cf0ae723203a2aa53961d4e7676de4826"
+      "sha256": "af8dd733fa00af8fa9a9224f0a3614cfafd5cc4d2ace5973711700d2f4408273"
     },
     {
       "file": "worker-role-grants.sql",

@@ -1,6 +1,7 @@
 import {
-  allowedDimensions, createScanTelemetry, durationBucket, scanEvent, scanMetrics, scanRates, scanTimings
+  allowedDimensions, createDurableScanTelemetry, createScanTelemetry, durationBucket, scanEvent, scanMetrics, scanRates, scanTimings
 } from "../src/marketplace/scan-telemetry.mjs";
+import { createScanTelemetryRepository } from "../src/marketplace/scan-telemetry-repository.mjs";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -133,5 +134,79 @@ assert(scanEvent("scan.crash", { count: 1.5 }) === null, "A fractional count was
 
 assert(scanMetrics.length > 0 && scanTimings.length > 0, "The metric allowlist is empty.");
 assert(scanMetrics.every((name) => /^scan\.[a-z_.]+$/.test(name)), "A metric name does not follow the scan namespace.");
+
+// Durable aggregation is asynchronous and preserves only the normalized event.
+{
+  const batches = [];
+  let scheduled;
+  const repository = {
+    async recordBatch(events) { batches.push(events); return events.length; },
+    async snapshot(_actor, days) {
+      assert(days === 30, "The durable snapshot did not use the requested reporting window.");
+      return { counters: { "scan.session.started|deviceClass=guided-web": 7 }, timings: {} };
+    }
+  };
+  const telemetry = createDurableScanTelemetry(repository, {
+    scheduler: {
+      setTimeout(callback) { scheduled = callback; return { unref() {} }; },
+      clearTimeout() {}
+    }
+  });
+  assert(telemetry.record("scan.session.started", {
+    dimensions: { deviceClass: "guided-web", room: "Kitchen" },
+    image: "data:image/jpeg;base64,private", note: "private"
+  }), "A valid event was not accepted by the durable collector.");
+  assert(typeof scheduled === "function", "A durable flush was not scheduled without blocking the caller.");
+  await telemetry.flush();
+  assert(JSON.stringify(batches) === JSON.stringify([[{
+    metric: "scan.session.started", dimensions: { deviceClass: "guided-web" }, count: 1
+  }]]), "A private or unbounded field escaped into durable telemetry.");
+  const result = await telemetry.durableSnapshot({ userId: "00000000-0000-4000-8000-000000000001", roles: ["administrator"] });
+  assert(result.durable === true && result.windowDays === 30 && result.snapshot.counters["scan.session.started|deviceClass=guided-web"] === 7,
+    "The Administrator did not receive the durable aggregate.");
+}
+
+// Storage failure is honest and cannot break scanning or the operations view.
+{
+  const telemetry = createDurableScanTelemetry({
+    async recordBatch() { throw new Error("database unavailable"); },
+    async snapshot() { throw new Error("database unavailable"); }
+  }, { scheduler: { setTimeout() { return { unref() {} }; }, clearTimeout() {} } });
+  telemetry.record("scan.session.started");
+  const result = await telemetry.durableSnapshot({ userId: "00000000-0000-4000-8000-000000000001", roles: ["administrator"] });
+  assert(result.durable === false && result.windowDays === null && result.snapshot.counters["scan.session.started"] === 1,
+    "A storage failure did not fall back honestly to the process snapshot.");
+}
+
+// Repository writes have no actor or identity, while reads keep the protected
+// Administrator transaction context.
+{
+  const calls = [];
+  const actor = { userId: "00000000-0000-4000-8000-000000000001", roles: ["administrator"] };
+  const repository = createScanTelemetryRepository({
+    withAuthenticationTransaction(operation) {
+      calls.push({ boundary: "authentication" });
+      return operation({ query: async (sql) => {
+        calls.push({ sql });
+        return { rows: [{ recorded: 2 }] };
+      } });
+    },
+    withUserTransaction(receivedActor, operation) {
+      calls.push({ boundary: "user", actor: receivedActor });
+      return operation({ query: async (sql) => {
+        calls.push({ sql });
+        return { rows: [{ snapshot: { counters: { "scan.session.started": 2 }, timings: {} } }] };
+      } });
+    }
+  });
+  assert(await repository.recordBatch([{ metric: "scan.session.started", dimensions: {}, count: 2 }]) === 2,
+    "The repository did not return the recorded aggregate count.");
+  assert(calls[0].boundary === "authentication" && calls[1].sql.includes("record_scan_telemetry_batch"),
+    "Writes did not use the identity-free authentication transaction boundary.");
+  const snapshot = await repository.snapshot(actor, 30);
+  assert(snapshot.counters["scan.session.started"] === 2 && calls[2].actor === actor
+    && calls[3].sql.includes("get_administrator_scan_telemetry"),
+  "Reads did not retain the Administrator actor boundary.");
+}
 
 console.log("Scan telemetry checks passed.");
