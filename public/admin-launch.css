@@ -5,6 +5,32 @@
   background: #fffaf0;
 }
 
+.launch-supply-action {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e1b979;
+}
+
+.launch-supply-action span { color: #8c4a00; }
+
+.launch-supply-action strong {
+  margin: 0;
+  color: var(--homle-ink-2, #211d1e);
+}
+
+.launch-supply-action p {
+  max-width: 760px;
+  color: var(--homle-ink-2, #211d1e);
+}
+
+.launch-supply-action .button {
+  display: inline-flex;
+  margin-top: 7px;
+}
+
 .transactional-email-setup[hidden] { display: none; }
 
 .transactional-email-setup summary {

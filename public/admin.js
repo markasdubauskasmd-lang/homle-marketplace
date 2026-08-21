@@ -629,6 +629,21 @@ function renderLaunchFunnel() {
     addText(parallel, "p", `${funnel.parallelAction.detail} Use the founder-action queue below; this does not bypass the launch gate.`);
     bottleneck.append(parallel);
   }
+  if (!funnel.goal?.achieved && funnel.dispatchReadyCleaners === 0) {
+    const supplyAction = document.createElement("div");
+    supplyAction.className = "launch-supply-action";
+    addText(supplyAction, "span", "Cleaner supply required");
+    addText(supplyAction, "strong", "Open the real Cleaner application");
+    addText(supplyAction, "p", "Share the existing public application with a genuine Cleaner. An application is not dispatch-ready until Homle completes screening, approval and future availability checks.");
+    const link = document.createElement("a");
+    link.className = "button button-small";
+    link.href = "/cleaner/onboarding";
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "Open Cleaner application";
+    supplyAction.append(link);
+    bottleneck.append(supplyAction);
+  }
   if (funnel.goal?.achieved) addText(bottleneck, "small", `${funnel.goal.profitableBookings} profitable target-met booking${funnel.goal.profitableBookings === 1 ? "" : "s"} · ${money.format(funnel.goal.customerReceipts)} recorded receipts · ${money.format(funnel.goal.contribution)} contribution`);
 }
 
