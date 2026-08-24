@@ -386,3 +386,103 @@ key, round numbers read as honest and £X9.99 reads as a tactic.
 - [Checkatrade — End of tenancy cleaning prices](https://www.checkatrade.com/blog/cost-guides/end-of-tenancy-cleaning-prices/)
 - [St Anne's Housekeeping — London cleaning price index 2026](https://stanneshousekeeping.com/blog/london-cleaning-price-index-2026)
 - [Fantastic Services — Regular cleaning cost guide](https://www.fantasticservices.com/cost-guides/cleaning/regular-cleaning/)
+
+---
+
+# Implementation report
+
+What was built, what changed, and what is deliberately still open.
+
+## 1. Files changed
+
+**The engine and its configuration**
+
+| File | Change |
+|---|---|
+| `public/pricing-config.js` | Rewritten. Base rate £28 → £24 national; room bases derived from minutes; condition levels, location bands, urgency bands, schedule surcharges, bank holidays, cancellation bands, property shapes, promotions, per-m² rate, rounding increment and multiplier ceiling added. `publicPricingConfig()`, `locationBandFor()`, `postcodeArea()`, `roomsFromPropertyShape()`, `resolvePromotion()` added. |
+| `public/pricing-engine.js` | Condition, location, size, urgency, schedule, promotion, rounding line and multiplier ceiling added to `quoteRooms`. Accepts a property shape in place of a room list. `quoteInputFromScan` carries the scan's condition grade and measurements. |
+| `src/marketplace/pricing-economics.mjs` | `quoteEconomics` takes a payout basis so a promotion cannot reduce cleaner pay. Platform revenue is left signed. Cancellation cleaner share added. |
+| `src/marketplace/pricing-request-boundary.mjs` | **New.** Replaces the browser's clock, promotion, claimed postcode and claimed start time before anything is priced. |
+| `public/cancellation-policy.js` | **New.** Tiered cancellation fees, the published policy table, and the cleaner/platform split. |
+
+**Retiring the duplicates**
+
+| File | Change |
+|---|---|
+| `src/marketplace/scan-pricing.mjs` | No longer a pricing system. Delegates every figure to `quoteRooms`; keeps only the range that expresses scan uncertainty. Rate fields retained but dead so stored rulesets keep loading. |
+| `src/marketplace/scan-service.mjs` | Reads the operator's live price list; resolves add-ons against it instead of the scan-only catalogue; passes service, area and requested time into the estimate. |
+| `src/marketplace/booking-workflow.mjs` | Cost-up path marked legacy with the query that says when it can be deleted. It is no longer a hard requirement — a platform-priced request books without the twelve `BOOKING_*` variables. |
+
+**Surfaces**
+
+| File | Change |
+|---|---|
+| `public/landlord-journey.js` / `.html` | Manual path now prices. Live total on the checklist step, total and breakdown at checkout, refusal no longer shows a stale panel. |
+| `public/landlord-dashboard.js` | Guide prices derived from the engine instead of three hand-typed strings. |
+| `public/admin-pricing.js` / `.html` | Condition, location, urgency, unsocial hours, cancellation, per-m², rounding and ceiling fields. Saving no longer resets the configuration to shipped defaults. |
+| `src/marketplace/marketplace-http.mjs` | Quote endpoint applies the trust boundary; config endpoint strips promotions; new promotion-redemption endpoint. |
+| `src/marketplace/cleaning-request-service.mjs`, `runtime.mjs` | The freeze prices against the property's real postcode and the request's real start time. |
+| `public/landlord-journey-v2.css` | Styling for the new totals. Scoped here, not in `styles.css`, which is frozen by `tests/cleaner-dashboard-freeze.mjs`. |
+
+## 2. Database changes
+
+**None.** No migration was needed:
+
+- `pricing_configurations.config` is JSONB, so every new field stores without a schema change. The denormalised CHECK columns (`customer_hourly_rate_pence`, `additional_item_pence`, `included_items_per_room`, `minimum_booking_minutes`, `cleaner_share_basis_points`) all still hold.
+- `cleaning_requests.quoted_total_pence` / `quoted_minutes` / `pricing_config_version` (migration 095) already carried the frozen quote.
+- `bookings.customer_price_pence` / `cleaner_pay_pence` and the payment ledger were already correct.
+
+Two tables are now **dead but not dropped**: the rate columns inside `scan_pricing_rulesets`, and `scan_pricing_addons`. Dropping them is a separate, reversible migration and is listed under remaining work.
+
+## 3. Payment changes
+
+None to the payment path itself, because it was already right: `tideway_private.begin_booking_payment` takes its amount from `bookings.customer_price_pence` inside PostgreSQL, so no client-supplied figure has ever reached Stripe. `tests/pricing-lifecycle.mjs` now asserts that structurally, so a future change that starts accepting a caller amount fails CI.
+
+What changed is *upstream* of it: the number written to `bookings.customer_price_pence` is now computed from data the server owns rather than from four fields the browser could choose.
+
+## 4. Tests
+
+| File | Covers |
+|---|---|
+| `tests/pricing-dynamics.mjs` | **New**, ~400 lines. Condition ordering and the unpriceable level 5; location bands and the cheap-side default; size charged only above expectation; urgency bands; Saturday, Sunday, bank holiday and out-of-hours in London time; promotions including caps, minimum spend, expiry, first-booking, four forgeries and one Homle cannot afford; 50p rounding; the multiplier ceiling; the property-shape adaptor; cancellation tiers and the split; and the brief's edge cases — £0, empty, negative, duplicate add-ons, unknown add-ons, going backwards, changing service mid-flow, very small and 30-room properties. |
+| `tests/pricing-request-boundary.mjs` | **New.** Every field a browser could profit from claiming, asserted replaced. |
+| `tests/pricing-lifecycle.mjs` | **New.** One booking from form to both dashboards; the summary adds up; the server re-derives the same figure; the split accounts for the whole; Stripe's amount comes from SQL. |
+| `tests/pricing-engine.mjs`, `pricing-reconciliation.mjs` | Baselines now **derived** from the price list, so a rate change no longer fails a test that was never wrong. |
+| `tests/landlord-guide-prices.mjs` | Rewritten: asserts the cards declare a basket rather than a price, and that a guide price can never sit below the real one. |
+| `tests/scan-pricing.mjs` | Asserts editing a retired scan rate changes nothing, and that the estimate equals the engine for the same rooms. |
+| `tests/scan-service.mjs` | Add-ons priced from the price list; the live config is consulted; an unreadable config still quotes. |
+| `tests/booking-workflow.mjs` | A platform-priced request books without the cost-up policy. |
+
+`test:pricing` existed and CI never ran it. It runs inside `pnpm test` now.
+
+**Result: 158 suites, 154 pass.** The four failures — `browser-landing-motion`, `browser-mobile-entry`, `data-relocation`, `landlord-computed-styles` — fail identically on an unmodified tree in this container and are environmental (a browser version against a committed style baseline, and a missing database). `landlord-computed-styles` was deliberately **not** regenerated: `--update` would bake this container's rendering into a baseline that guards everyone else.
+
+## 5. Old pricing logic removed
+
+- **The scan rate table** — hourly rate, per-room charge, condition multipliers, square-metre rate and minimum charge — no longer prices anything.
+- **The scan add-on catalogue** no longer prices anything.
+- **The cost-up policy** is no longer required to book and is marked for deletion.
+- **Three hand-typed guide prices** are gone.
+- **`landlord-journey.js`'s `guideRange()`** is now only a fallback for a checklist with no priceable rooms; the real number comes from the engine.
+
+## 6. Remaining risks
+
+1. **The regional price cut is a commercial decision, not a technical one.** Outside London and the South East, prices fall about 14%. That is the recommendation and the reasoning is in §2, but it is revenue. To revert: set all three `locationBands` multipliers to `10000` and `customerHourlyRatePence` back to `2800`, in the admin screen, no deployment.
+2. **Existing published configurations keep their old room prices.** `normalizedPricingConfig` treats a stored `basePence` as a deliberate override, so a deployment that has already published a price list will keep £18.50 kitchens until an operator re-publishes. Intended — silently re-pricing a live product on deploy would be worse — but it means the new rates do not take effect on such a deployment until someone opens `/admin/pricing` and saves.
+3. **The cancellation policy is engine-complete but not wired.** `cancellationFee()` and `cancellationSettlement()` are implemented and tested; nothing calls them. Charging a cancellation touches the payment ledger and refund flow, which is a sensitive area that deserves its own change rather than being bolted on here.
+4. **The property-shape quote has no UI.** The engine accepts `propertyShape`, so a three-tap quote is one screen away, but that screen does not exist yet.
+5. **Promotions have no admin editor.** The engine, the endpoint, the boundary and the payout rule are done; codes must currently be added through the API rather than a form.
+6. **Bank holidays run out at the end of 2027.** They are a config list; after that, Sundays are still surcharged but Boxing Day is not. Add the next year's dates when they are published.
+7. **The location bands are a judgement.** Twenty-nine postcode areas are in the high-cost band on general knowledge of UK regional pricing, not on Homle's own conversion data. Revisit once there is any.
+8. **`pnpm test` grew.** It runs the pricing suite now, which is the point, but CI is a little slower.
+
+## 7. Further improvements worth making
+
+1. **Price against real conversion data.** Everything above is calibrated to market rates. Within a few hundred bookings the platform will know its own price elasticity per band, which beats any external guide.
+2. **Wire the cancellation policy**, including the cleaner's share, and show the policy on the confirm step. A customer who can see the terms before booking cancels less angrily.
+3. **Build the three-tap quote.** Postcode → property shape → price is the shortest path to a number, and the biggest conversion lever left.
+4. **Drop the dead tables** (`scan_pricing_addons`, and the rate columns in `scan_pricing_rulesets`) once the retirement has been live long enough to be sure.
+5. **Delete the cost-up path** once no unpriced requests remain — the query is in `booking-workflow.mjs`.
+6. **Show the cleaner what they earn and why**, using the same breakdown the customer sees. Supply trusts a platform whose maths it can read.
+7. **A/B the multi-room and recurring discounts.** Both are set from market convention. They are the two cheapest levers to test.
+8. **Watch the effective cleaner hourly rate per band.** The floor refuses a bad booking one at a time; a report would show a band drifting toward it before jobs start going unaccepted.
