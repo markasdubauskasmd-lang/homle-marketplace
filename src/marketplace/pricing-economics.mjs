@@ -68,7 +68,15 @@ export const defaultPricingEconomics = Object.freeze({
   // not hold supply. This is the guard that catches a room base edited down
   // without its minutes — a change that looks harmless and quietly turns a
   // £45 visit into ninety minutes of work.
-  cleanerHourlyFloorPence: 1500
+  cleanerHourlyFloorPence: 1500,
+  // What a cleaner receives out of a late-cancellation fee.
+  //
+  // The number that decides whether the cancellation policy is a real policy or
+  // just a platform revenue line. A fee only Homle collects does not compensate
+  // the person who turned down other work to hold the slot, and supply notices
+  // within a month. Matching the completed-booking share means a cancelled slot
+  // is worth a predictable fraction of the one it replaced.
+  cancellationCleanerShareBasisPoints: 7000
 });
 
 export function normalizedPricingEconomics(input = {}) {
@@ -79,7 +87,8 @@ export function normalizedPricingEconomics(input = {}) {
     paymentFeeFixedPence: pence(source.paymentFeeFixedPence ?? defaultPricingEconomics.paymentFeeFixedPence, 0, 10000, "Fixed payment fee"),
     targetGrossMarginBasisPoints: count(source.targetGrossMarginBasisPoints ?? defaultPricingEconomics.targetGrossMarginBasisPoints, 0, 8000, "Target gross margin"),
     minimumContributionPence: pence(source.minimumContributionPence ?? defaultPricingEconomics.minimumContributionPence, 0, 100000, "Minimum contribution"),
-    cleanerHourlyFloorPence: pence(source.cleanerHourlyFloorPence ?? defaultPricingEconomics.cleanerHourlyFloorPence, 0, 20000, "Cleaner hourly floor")
+    cleanerHourlyFloorPence: pence(source.cleanerHourlyFloorPence ?? defaultPricingEconomics.cleanerHourlyFloorPence, 0, 20000, "Cleaner hourly floor"),
+    cancellationCleanerShareBasisPoints: count(source.cancellationCleanerShareBasisPoints ?? defaultPricingEconomics.cancellationCleanerShareBasisPoints, 0, 10000, "Cancellation cleaner share")
   });
   // The one cross-field rule worth refusing on: if the cleaner's share plus the
   // processor's cut leaves less than the target margin, every booking priced
@@ -98,12 +107,30 @@ export function normalizedPricingEconomics(input = {}) {
  * margin that is only visible in a monthly report is a margin nobody defends at
  * the moment it is given away.
  */
-export function quoteEconomics(totalPence, estimatedMinutes, economicsInput = defaultPricingEconomics) {
+export function quoteEconomics(totalPence, estimatedMinutes, economicsInput = defaultPricingEconomics, options = {}) {
   const economics = normalizedPricingEconomics(economicsInput);
 
   const customerPaysPence = Math.max(0, Math.round(Number(totalPence) || 0));
-  const cleanerPayoutPence = Math.round(customerPaysPence * economics.cleanerShareBasisPoints / basisPointDivisor);
+  // WHAT THE CLEANER'S SHARE IS TAKEN OF, AND WHY IT IS NOT ALWAYS THE TOTAL
+  //
+  // A promotional discount is a growth decision Homle made. Taking the share of
+  // the discounted total would push part of the cost of that decision onto the
+  // cleaner, who had no part in it and whose work has not got smaller. So the
+  // payout basis is the price the booking WOULD have been — supplied by the
+  // quote as `payoutBasisPence` — and the promotion comes out of Homle's margin.
+  //
+  // Never below the total: a basis under what the customer paid would be a
+  // rounding artefact or a caller mistake, and either way it must not quietly
+  // reduce someone's pay.
+  const suppliedBasis = Math.round(Number(options.payoutBasisPence) || 0);
+  const payoutBasisPence = Math.max(customerPaysPence, suppliedBasis);
+  const cleanerPayoutPence = Math.round(payoutBasisPence * economics.cleanerShareBasisPoints / basisPointDivisor);
   const paymentFeePence = economics.paymentFeeFixedPence + Math.ceil(customerPaysPence * economics.paymentFeeBasisPoints / basisPointDivisor);
+  // Can go NEGATIVE when a promotion is deep enough that the cleaner's share of
+  // the undiscounted price exceeds what the customer actually paid. That is not
+  // a bug and must not be clamped: it is the true cost of that promotion, and
+  // leaving it signed is what lets the floors below refuse a discount Homle
+  // cannot afford instead of discovering it one settlement at a time.
   const platformRevenuePence = customerPaysPence - cleanerPayoutPence;
   const grossMarginPence = platformRevenuePence - paymentFeePence;
   const grossMarginBasisPoints = customerPaysPence > 0
@@ -127,6 +154,7 @@ export function quoteEconomics(totalPence, estimatedMinutes, economicsInput = de
 
   return Object.freeze({
     customerPaysPence,
+    payoutBasisPence,
     cleanerPayoutPence,
     paymentFeePence,
     platformRevenuePence,
@@ -150,7 +178,11 @@ export function quoteEconomics(totalPence, estimatedMinutes, economicsInput = de
  */
 export function reviewedQuote(quote, economicsInput = defaultPricingEconomics) {
   if (!quote?.priceable) return { quote, economics: null };
-  const economics = quoteEconomics(quote.totalPence, quote.estimatedMinutes, economicsInput);
+  const economics = quoteEconomics(quote.totalPence, quote.estimatedMinutes, economicsInput, {
+    // Present on every quote from the engine; absent on a hand-built one, where
+    // the payout basis falls back to the total.
+    payoutBasisPence: quote.payoutBasisPence
+  });
   if (economics.healthy) return { quote, economics };
   return {
     quote: Object.freeze({

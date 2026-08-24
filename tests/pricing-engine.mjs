@@ -28,9 +28,9 @@ function reconciles(quote) {
 const scenario1 = quoteRooms({ rooms: [{ roomType: "bedroom", items: ordinary("Bed", "Bedside table", "Wardrobe") }] }, config);
 assert(scenario1.priceable, "A single bedroom with three tasks could not be priced.");
 assert(scenario1.rooms[0].additionalCount === 0, "Three tasks consumed an additional-item charge.");
-// £11.50 base is under the £45 floor, so the floor is what is charged — and the
-// breakdown has to say so rather than silently inflating the base.
-assert(scenario1.totalPence === 5600, `A small booking did not reach the two-hour minimum: ${scenario1.totalPence}`);
+// A £10.00 base is under the two-hour floor, so the floor is what is charged —
+// and the breakdown has to say so rather than silently inflating the base.
+assert(scenario1.totalPence === 4800, `A small booking did not reach the two-hour minimum: ${scenario1.totalPence}`);
 assert(scenario1.lines.some((line) => line.code === "minimum"), "The minimum charge was applied without appearing in the breakdown.");
 assert(reconciles(scenario1), "Scenario 1 breakdown does not sum to its total.");
 
@@ -123,7 +123,7 @@ for (let round = 0; round < 25; round += 1) {
 /* ── Scenario 7: a very small booking still covers the visit ──────────────── */
 
 const tiny = quoteRooms({ rooms: [{ roomType: "hallway", items: ordinary("Floor") }] }, config);
-assert(tiny.priceable && tiny.totalPence === 5600, "A one-task hallway did not reach the two-hour minimum visit.");
+assert(tiny.priceable && tiny.totalPence === 4800, "A one-task hallway did not reach the two-hour minimum visit.");
 assert(reviewedQuote(tiny).economics.grossMarginPence > 0, "The smallest possible booking loses money.");
 
 /* ── Scenario 8: a large booking stays profitable and pays properly ───────── */
@@ -163,7 +163,7 @@ assert(standard.totalPence < deep.totalPence && deep.totalPence < endOfTenancy.t
   "Standard, deep and end-of-tenancy are not priced in ascending order.");
 // Against the market: a 2-bed standard clean sits near £80, a deep clean
 // £120–£180, end of tenancy £140–£350.
-assert(standard.totalPence >= 5600 && standard.totalPence <= 12000, `A standard 4-room clean is outside the UK market band: ${standard.totalPence}p.`);
+assert(standard.totalPence >= 4800 && standard.totalPence <= 12000, `A standard 4-room clean is outside the UK market band: ${standard.totalPence}p.`);
 assert(deep.totalPence >= 10000 && deep.totalPence <= 26000, `A deep 4-room clean is outside the UK market band: ${deep.totalPence}p.`);
 assert(endOfTenancy.totalPence >= 15000 && endOfTenancy.totalPence <= 40000, `An end-of-tenancy 4-room clean is outside the UK market band: ${endOfTenancy.totalPence}p.`);
 

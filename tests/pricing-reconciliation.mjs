@@ -34,6 +34,13 @@ assert(quoteRoute.includes("const { quote } =") && !quoteRoute.includes("economi
 
 /* ── The breakdown reconciles, across a wide sweep ───────────────────────── */
 
+// The cheapest visit the price list can produce: two hours at the standard
+// rate, rounded onto the display increment like every real total.
+const minimumStandardVisitPence = Math.ceil(
+  Math.round((config.minimumBookingMinutes / 60) * config.customerHourlyRatePence)
+  / config.roundingIncrementPence
+) * config.roundingIncrementPence;
+
 const roomTypes = Object.keys(config.rooms);
 const premiumCodes = Object.keys(config.premiumItems);
 const serviceCodes = Object.keys(config.serviceTypes);
@@ -66,7 +73,10 @@ for (const service of serviceCodes) {
           const roomSummed = room.lines.reduce((total, line) => total + line.pence, 0);
           assert(roomSummed === room.totalPence, `Room ${room.label} lines do not sum to its total.`);
         }
-        assert(quote.totalPence >= 5600, "A quote came in under the two-hour minimum visit.");
+        // Derived from the price list rather than typed, so a rate change moves
+        // this floor with it instead of failing a test that was never wrong.
+        assert(quote.totalPence >= minimumStandardVisitPence,
+          `A quote came in under the two-hour minimum visit: ${quote.totalPence}p against ${minimumStandardVisitPence}p.`);
       }
     }
   }
@@ -135,7 +145,12 @@ const scanned = quoteRooms(quoteInputFromScan(scan), config);
 const atCheckout = quoteRooms(quoteInputFromScan(structuredClone(scan)), config);
 assert(scanned.totalPence === atCheckout.totalPence,
   "The scanner's price and the checkout's price for the same selection differ.");
-assert(scanned.totalPence === 1850 + 300 + 5500, `A scanned kitchen priced unexpectedly: ${scanned.totalPence}p.`);
+// Derived from the price list: the kitchen base, one task past the included
+// allowance, and the oven at its own premium rate. Written as its parts rather
+// than as a number, so a rate change moves it instead of failing here.
+const expectedKitchenPence = config.rooms.kitchen.basePence + config.additionalItemPence + config.premiumItems.oven.pence;
+assert(scanned.totalPence === expectedKitchenPence,
+  `A scanned kitchen priced unexpectedly: ${scanned.totalPence}p against ${expectedKitchenPence}p.`);
 
 /* ── Removing the last task cannot leave a stale higher price ────────────── */
 
@@ -143,7 +158,7 @@ const withExtra = quoteRooms({ rooms: [{ roomType: "bedroom", items: task("A", "
 const withoutExtra = quoteRooms({ rooms: [{ roomType: "bedroom", items: task("A", "B", "C") }] }, config);
 assert(withoutExtra.totalPence <= withExtra.totalPence, "Removing a task raised the price.");
 const emptyRoom = quoteRooms({ rooms: [{ roomType: "bedroom", items: [] }] }, config);
-assert(emptyRoom.priceable && emptyRoom.totalPence === 5600,
-  "A room with nothing selected did not fall back to the minimum booking.");
+assert(emptyRoom.priceable && emptyRoom.totalPence === minimumStandardVisitPence,
+  `A room with nothing selected did not fall back to the minimum booking: ${emptyRoom.totalPence}p.`);
 
 console.log("Pricing reconciliation tests passed: one implementation shared by browser and server, breakdowns that reconcile across 500+ combinations, whole-pence determinism, payout split that accounts for the whole customer price, refused quotes that carry no chargeable number, and a scan that prices identically at checkout.");

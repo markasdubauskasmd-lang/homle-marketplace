@@ -11,6 +11,10 @@ import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordSta
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260723-3";
 import { activeBookingChangeRequestFor, supportRequestPage, supportStatusLabels } from "./landlord-help-model.js?v=20260804-1";
 import { storedCsrf } from "./session-csrf.js";
+// The same price list and the same engine the server prices with, so a guide
+// price on the dashboard cannot drift away from a real quote.
+import { defaultPricingConfig, normalizedPricingConfig } from "./pricing-config.js?v=20260824-1";
+import { quoteRooms } from "./pricing-engine.js?v=20260824-1";
 
 const state = document.querySelector("[data-landlord-state]");
 const stateTitle = document.querySelector("[data-landlord-state-title]");
@@ -3040,11 +3044,34 @@ function updateLandlordWaitingDeadlines() {
 // journey so choosing "Deep clean" here does not mean answering "which service?"
 // again two steps later. The codes are the ones landlord-journey-model.js
 // already prices; the journey ignores anything it does not recognise.
+//
+// The "from" figures are DERIVED, not typed. They used to be three hand-written
+// strings, and by the time anyone checked they had drifted from the price list
+// in both directions — Standard advertised £68 against a real £56, and Deep
+// advertised £112 against a real £120, which is the dangerous direction. Each
+// card now names the basket its own subtitle describes and asks the engine what
+// that costs, so a rate change moves the headline with it.
 const LD_INDICATIVE_PLANS = Object.freeze([
-  Object.freeze({ name: "Standard clean", desc: "Living room, kitchen, bathroom", from: "£68", tone: "standard", code: "regular-domestic" }),
-  Object.freeze({ name: "Deep clean", desc: "Detailed kitchen and bathroom refresh", from: "£112", tone: "deep", code: "deep-cleans" }),
-  Object.freeze({ name: "End of tenancy", desc: "Full property clean", from: "£185", tone: "tenancy", code: "end-of-tenancy" })
+  Object.freeze({ name: "Standard clean", desc: "Living room, kitchen, bathroom", basket: Object.freeze(["Living room", "Kitchen", "Bathroom"]), tone: "standard", code: "regular-domestic" }),
+  Object.freeze({ name: "Deep clean", desc: "Detailed kitchen and bathroom refresh", basket: Object.freeze(["Kitchen", "Bathroom"]), tone: "deep", code: "deep-cleans" }),
+  Object.freeze({ name: "End of tenancy", desc: "Full property clean", basket: Object.freeze(["Living room", "Kitchen", "Bathroom", "Bedroom", "Hallway"]), tone: "tenancy", code: "end-of-tenancy" })
 ]);
+
+/**
+ * What the price list actually charges for the basket a card describes.
+ *
+ * A card whose basket cannot be priced shows no figure at all rather than a
+ * stale one — an absent guide price is a smaller problem than a wrong one.
+ */
+function indicativePlanPrice(plan, config) {
+  try {
+    const tasks = plan.basket.map((roomName) => ({ roomName, description: `clean the ${roomName.toLowerCase()}`, sortOrder: 0 }));
+    const quote = quoteRooms(pricingRequestFromManualTasks(tasks, { cleaningType: plan.code, frequency: "one-time" }), config);
+    return quote.priceable ? `£${Math.round(quote.totalPence / 100)}` : "";
+  } catch {
+    return "";
+  }
+}
 
 /* Cloned from the <template>s in the markup — see the note beside them. */
 function planArtwork(tone) {
@@ -3054,10 +3081,31 @@ function planArtwork(tone) {
 
 let indicativePlansRendered = false;
 
-function renderIndicativePlans() {
+/**
+ * The operator's live price list, or the shipped one.
+ *
+ * The shipped defaults are a complete price list, so a failed fetch shows a real
+ * guide price rather than a dash. The server still prices every real booking.
+ */
+async function landlordPricingConfig() {
+  if (landlordPricingConfigCache) return landlordPricingConfigCache;
+  try {
+    const result = await requestJson("/api/marketplace/pricing/config");
+    landlordPricingConfigCache = normalizedPricingConfig(result.config);
+  } catch {
+    landlordPricingConfigCache = normalizedPricingConfig(defaultPricingConfig);
+  }
+  return landlordPricingConfigCache;
+}
+let landlordPricingConfigCache = null;
+
+async function renderIndicativePlans() {
   const list = document.querySelector("[data-ld-plans]");
   if (!list || indicativePlansRendered) return;
+  const config = await landlordPricingConfig();
+  if (indicativePlansRendered) return;
   list.replaceChildren(...LD_INDICATIVE_PLANS.map((plan) => {
+    const from = indicativePlanPrice(plan, config);
     const row = element("a", `ld-plan ld-plan-${plan.tone}`);
     row.href = `/landlord/book?service=${encodeURIComponent(plan.code)}`;
     const icon = element("span", "ld-plan-icon");
@@ -3066,12 +3114,14 @@ function renderIndicativePlans() {
     const copy = element("span", "ld-plan-copy");
     copy.append(element("strong", "", plan.name), element("small", "", plan.desc));
     const price = element("span", "ld-plan-price");
-    price.append(element("small", "", "From"), element("strong", "", plan.from));
+    price.append(element("small", "", "From"), element("strong", "", from || "—"));
     const chev = element("span", "ld-plan-chev", "›");
     chev.setAttribute("aria-hidden", "true");
     row.append(icon, copy, price, chev);
     // Screen readers get the caveat the badge makes visual, and the destination.
-    row.setAttribute("aria-label", `${plan.name}. Guide price from ${plan.from}, not a quote. Scan your property for an exact price.`);
+    row.setAttribute("aria-label", from
+      ? `${plan.name}. Guide price from ${from}, not a quote. Scan your property for an exact price.`
+      : `${plan.name}. Scan your property for a price.`);
     return row;
   }));
   indicativePlansRendered = true;
@@ -3327,7 +3377,7 @@ document.querySelector("[data-ld-care-share]")?.addEventListener("click", async 
 });
 
 function renderHomeView() {
-  renderIndicativePlans();
+  void renderIndicativePlans();
   renderCareRecord();
 }
 
