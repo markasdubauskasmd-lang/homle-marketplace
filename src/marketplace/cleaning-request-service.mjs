@@ -220,7 +220,28 @@ export function createCleaningRequestService(repository, options = {}) {
       let platformQuote = null;
       if (input?.pricingRequest != null) {
         if (typeof options.quotePlatformRequest !== "function") throw Object.assign(new Error("Platform pricing is temporarily unavailable."), { statusCode: 503, code: "pricing-not-configured" });
-        platformQuote = await options.quotePlatformRequest(actor, input.pricingRequest);
+        // THE FREEZE. This is the number that reaches the card, so the two
+        // fields the browser could profit from claiming are taken from the
+        // record instead:
+        //
+        //   * the postcode from the PROPERTY being cleaned, not from whatever
+        //     area the pricing preview said. Claiming a cheap band for a
+        //     London flat would otherwise be a 15% discount for typing.
+        //   * the start time from the REQUEST, so the unsocial-hours charge
+        //     matches the slot actually being booked.
+        //
+        // Both are optional: a deployment with no postcode resolver behaves
+        // exactly as it did before, and the boundary still replaces the clock
+        // and re-resolves the promotion.
+        let postcode = "";
+        if (typeof options.propertyPostcode === "function" && input.propertyId) {
+          try { postcode = String((await options.propertyPostcode(actor, input.propertyId)) || ""); }
+          catch { postcode = ""; }
+        }
+        platformQuote = await options.quotePlatformRequest(actor, input.pricingRequest, {
+          postcode,
+          startAt: typeof input.requestedStartAt === "string" ? input.requestedStartAt : ""
+        });
       }
       return projection(await repository.createOwnRequest(actor, normalizedCleaningRequest({ ...input, submit: false }, { ...options, platformQuote })));
     },

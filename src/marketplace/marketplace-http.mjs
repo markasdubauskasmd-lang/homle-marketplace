@@ -7,9 +7,10 @@ import { cleanerOnboardingDocumentMimeTypes, maximumCleanerOnboardingDocumentByt
 // The customer price comes from the same module the browser runs, so the
 // scanner's number and the authorised number cannot drift. The economics that
 // decide whether Homle will sell at that number stay server-side.
-import { defaultPricingConfig, normalizedPricingConfig } from "../../public/pricing-config.js";
+import { defaultPricingConfig, normalizedPricingConfig, publicPricingConfig, resolvePromotion } from "../../public/pricing-config.js";
 import { quoteRooms } from "../../public/pricing-engine.js";
 import { defaultPricingEconomics, normalizedPricingEconomics, reviewedQuote } from "./pricing-economics.mjs";
+import { trustedPricingRequest } from "./pricing-request-boundary.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
@@ -1259,8 +1260,35 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           await limitPublicRead(request, "marketplace-landlord:scan-preview");
           const body = await readJsonObject(request, maximumRoomScanBodyBytes);
           const config = normalizedPricingConfig(await pricingConfiguration(quoteContext.actor));
-          const { quote } = reviewedQuote(quoteRooms(body, config), await pricingEconomicsConfiguration(quoteContext.actor));
+          // The browser's clock and the browser's idea of which promotion it
+          // holds are both replaced here before anything is priced. See
+          // pricing-request-boundary.mjs for why they are replaced rather than
+          // refused.
+          const trusted = trustedPricingRequest(body, { config });
+          const { quote } = reviewedQuote(quoteRooms(trusted, config), await pricingEconomicsConfiguration(quoteContext.actor));
           sendJson(response, 200, { ok: true, quote });
+          return true;
+        }
+        // Redeems one promotion code.
+        //
+        // The code LIST never reaches a browser — see publicPricingConfig — so
+        // this is how a customer's typed code becomes something the local
+        // engine can total with. One code in, one resolved grant out.
+        //
+        // A code that does not apply and a code that does not exist return the
+        // same answer, deliberately. Distinguishing them would turn this into
+        // an oracle for enumerating codes, and there is no version of "we have
+        // that code but not for you" a customer needs to be told.
+        if (pathname === "/api/marketplace/pricing/promotion") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const promotionContext = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          await limitPublicRead(request, "marketplace-landlord:scan-preview");
+          const body = await readJsonObject(request);
+          const config = normalizedPricingConfig(await pricingConfiguration(promotionContext.actor));
+          const promotion = resolvePromotion(config, body?.code, { now: new Date() });
+          sendJson(response, 200, promotion
+            ? { ok: true, promotion }
+            : { ok: true, promotion: null, reason: "That code is not available for this booking." });
           return true;
         }
         // The price list the scanner needs to show a running total without a
@@ -1270,7 +1298,10 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const configContext = await security.protect(request, { roles: ["landlord"] });
           await limitPublicRead(request, "marketplace-landlord:scan-preview");
-          sendJson(response, 200, { ok: true, config: normalizedPricingConfig(await pricingConfiguration(configContext.actor)) });
+          // publicPricingConfig, not normalizedPricingConfig: the promotion code
+          // list is the one part of the price list whose value depends on not
+          // being readable, and this response is served to a customer.
+          sendJson(response, 200, { ok: true, config: publicPricingConfig(await pricingConfiguration(configContext.actor)) });
           return true;
         }
         // Turns two tapped pixel spans into a measurement with its band. Compute

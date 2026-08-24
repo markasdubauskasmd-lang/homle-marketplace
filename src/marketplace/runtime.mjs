@@ -27,6 +27,7 @@ import { createPricingConfigurationRepository } from "./pricing-configuration-re
 import { defaultPricingConfig, normalizedPricingConfig } from "../../public/pricing-config.js";
 import { quoteRooms } from "../../public/pricing-engine.js";
 import { defaultPricingEconomics, normalizedPricingEconomics, reviewedQuote } from "./pricing-economics.mjs";
+import { trustedPricingRequest } from "./pricing-request-boundary.mjs";
 import { createScanGroundTruthRepository, createScanGroundTruthService } from "./scan-ground-truth.mjs";
 import { createDurableScanTelemetry } from "./scan-telemetry.mjs";
 import { createScanTelemetryRepository } from "./scan-telemetry-repository.mjs";
@@ -177,10 +178,24 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const pricingConfigurationRepository = createPricingConfigurationRepository(database);
   const cleaningRequestRepository = createCleaningRequestRepository(database);
   const cleaningRequestService = createCleaningRequestService(cleaningRequestRepository, {
-    async quotePlatformRequest(actor, input) {
+    async quotePlatformRequest(actor, input, trusted = {}) {
       const config = normalizedPricingConfig((await pricingConfigurationRepository.activeConfig(actor)) || defaultPricingConfig);
       const economics = normalizedPricingEconomics((await pricingConfigurationRepository.economicsForRuntime(actor)) || defaultPricingEconomics);
-      return reviewedQuote(quoteRooms(input, config), economics).quote;
+      // The browser's clock, promotion and claimed area are replaced before
+      // anything is priced. See pricing-request-boundary.mjs.
+      const request = trustedPricingRequest(input, { config, ...trusted });
+      return reviewedQuote(quoteRooms(request, config), economics).quote;
+    },
+    // The area the property is actually in, for the location band.
+    //
+    // Read through the owner-scoped listing, so a Landlord can only ever price
+    // against a property that is theirs. Only the postcode is taken and only
+    // its leading letters ever reach a band; the rest of the address is not
+    // involved in pricing and does not travel with the quote.
+    async propertyPostcode(actor, propertyId) {
+      const properties = await propertyService.listOwnProperties(actor);
+      const property = properties.find((candidate) => candidate.propertyId === propertyId);
+      return property?.exactAddress?.postcode || "";
     }
   });
   // The vision reader is passed in so a stored scan can name the model that

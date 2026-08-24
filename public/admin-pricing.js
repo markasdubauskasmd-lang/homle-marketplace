@@ -119,6 +119,66 @@ function buildFields() {
   field(core, { path: "additionalItemPence", label: "Each additional task", value: working.additionalItemPence, suffix: "£", min: 0, max: 100, step: 0.5 });
   field(core, { path: "additionalItemMinutes", label: "Minutes per additional task", value: working.additionalItemMinutes, suffix: "min", min: 0, max: 120 });
   field(core, { path: "minimumBookingMinutes", label: "Minimum visit", value: working.minimumBookingMinutes, suffix: "min", min: 0, max: 1440, step: 15 });
+  field(core, { path: "perSquareMetrePence", label: "Per square metre above a room's expected size", value: working.perSquareMetrePence, suffix: "£", min: 0, max: 20, step: 0.1 });
+  field(core, { path: "roundingIncrementPence", label: "Round totals to", value: working.roundingIncrementPence, suffix: "£", min: 0.01, max: 5, step: 0.01 });
+  field(core, { path: "maximumCombinedMultiplierBasisPoints", label: "Multiplier ceiling before a quote goes to review", value: working.maximumCombinedMultiplierBasisPoints, suffix: "bp", min: 10000, max: 100000, step: 500 });
+
+  // Condition. Level 5 is absent and must stay absent: it means a person needs
+  // to look at the property first, and an operator who could set a multiplier
+  // on it could put a number on that.
+  const conditions = document.querySelector("[data-fields-condition]");
+  if (conditions) {
+    conditions.replaceChildren();
+    for (const [level, band] of Object.entries(working.conditionLevels)) {
+      if (level === "5") continue;
+      field(conditions, { path: `conditionLevels.${level}.multiplierBasisPoints`, label: band.label, value: band.multiplierBasisPoints, suffix: "bp", min: 5000, max: 30000, step: 100 });
+    }
+  }
+
+  // Location. The area LIST is not editable here on purpose — moving a postcode
+  // between bands is a decision about coverage, not a rate change, and it wants
+  // more thought than a number field on a page of numbers. The multipliers are
+  // the lever an operator reaches for.
+  const locations = document.querySelector("[data-fields-location]");
+  if (locations) {
+    locations.replaceChildren();
+    for (const [code, band] of Object.entries(working.locationBands)) {
+      field(locations, {
+        path: `locationBands.${code}.multiplierBasisPoints`,
+        label: `${band.label}${band.areas.length ? ` (${band.areas.length} postcode areas)` : " — everywhere else"}`,
+        value: band.multiplierBasisPoints, suffix: "bp", min: 5000, max: 30000, step: 100
+      });
+    }
+  }
+
+  // When. Both surcharges reach the cleaner through the ordinary share, which
+  // is what makes an awkward slot worth accepting rather than only dearer.
+  const timing = document.querySelector("[data-fields-timing]");
+  if (timing) {
+    timing.replaceChildren();
+    working.urgencyBands.forEach((band, index) => {
+      field(timing, { path: `urgencyBands.${index}.surchargeBasisPoints`, label: band.label, value: band.surchargeBasisPoints, suffix: "bp", min: 0, max: 10000, step: 100 });
+    });
+    for (const [code, band] of Object.entries(working.scheduleSurcharges)) {
+      field(timing, { path: `scheduleSurcharges.${code}.surchargeBasisPoints`, label: band.label, value: band.surchargeBasisPoints, suffix: "bp", min: 0, max: 10000, step: 100 });
+    }
+  }
+
+  // Cancellation. The share a cleaner receives is economics, not a price list
+  // entry, so it sits with the rest of the commercial figures below.
+  const cancellation = document.querySelector("[data-fields-cancellation]");
+  if (cancellation) {
+    cancellation.replaceChildren();
+    working.cancellationBands.forEach((band, index) => {
+      const card = element("div", "admin-pricing-row");
+      card.append(element("strong", "admin-pricing-row-name", band.label));
+      const grid = element("div", "admin-pricing-row-fields");
+      field(grid, { path: `cancellationBands.${index}.basisPoints`, label: "Share of booking", value: band.basisPoints, suffix: "bp", min: 0, max: 10000, step: 100 });
+      field(grid, { path: `cancellationBands.${index}.maximumPence`, label: "Capped at", value: band.maximumPence, suffix: "£", min: 0, max: 1000, step: 1 });
+      card.append(grid);
+      cancellation.append(card);
+    });
+  }
 
   const rooms = document.querySelector("[data-fields-rooms]");
   rooms.replaceChildren();
@@ -169,12 +229,19 @@ function buildFields() {
     field(economicsHost, { path: "economics.targetGrossMarginBasisPoints", label: "Margin floor", value: economics.targetGrossMarginBasisPoints, suffix: "bp", min: 0, max: 8000, step: 50 });
     field(economicsHost, { path: "economics.minimumContributionPence", label: "Minimum contribution", value: economics.minimumContributionPence, suffix: "£", min: 0, max: 1000, step: 0.5 });
     field(economicsHost, { path: "economics.cleanerHourlyFloorPence", label: "Cleaner hourly floor", value: economics.cleanerHourlyFloorPence, suffix: "£", min: 0, max: 200, step: 0.5 });
+    field(economicsHost, { path: "economics.cancellationCleanerShareBasisPoints", label: "Cleaner share of a cancellation fee", value: economics.cancellationCleanerShareBasisPoints, suffix: "bp", min: 0, max: 10000, step: 100 });
   }
 }
 
 /** Reads every field back into a configuration object. */
 function collect() {
-  const next = structuredClone(defaultPricingConfig);
+  // Started from the LOADED configuration, not from the shipped defaults.
+  //
+  // Only numbers are editable on this page; everything else — the postcode
+  // areas in each band, custom room labels, the promotion list — is carried
+  // through untouched. Rebuilding from the defaults would silently reset all of
+  // it every time an operator changed the hourly rate.
+  const next = structuredClone(working);
   next.economics = economics ? { ...economics } : undefined;
   for (const input of form.querySelectorAll("input[data-path]")) {
     const raw = Number(input.value);
