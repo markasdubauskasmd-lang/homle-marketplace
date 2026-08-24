@@ -246,3 +246,19 @@ body.journey-page .journey-total-note{
   margin:14px 0 0;font-size:12.5px;line-height:1.55;opacity:.75;
 }
 body.journey-page .journey-total-note:empty{display:none}
+
+/* ── The estimate on the checklist step ───────────────────────────────────
+   The results hero gained a fourth cell — the price — so the three-column
+   grid becomes two columns with the estimate spanning the top row.
+
+   Overridden here rather than edited in styles.css on purpose: styles.css is
+   a shared browser dependency pinned byte-for-byte by
+   tests/cleaner-dashboard-freeze.mjs under the Cleaner Dashboard no-change
+   objective. This stylesheet loads after it and is scoped to the journey
+   page, so the Cleaner Dashboard is untouched. */
+body.journey-page .res-grid{grid-template-columns:repeat(2,1fr)}
+body.journey-page .res-grid .res-cell:first-child{
+  grid-column:1 / -1;
+  background:rgba(255,255,255,.2);
+}
+body.journey-page .res-grid .res-cell:first-child b{font-size:32px}
