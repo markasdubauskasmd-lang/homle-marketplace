@@ -609,6 +609,84 @@ export function normalizedPricingConfig(input = {}) {
 }
 
 /**
+ * Brings a stored price list forward to the current model.
+ *
+ * VERSION 1 → 2, AND WHY IT IS NOT A PRICE RISE
+ *
+ * A version-1 configuration stores an explicit `basePence` on every room. It was
+ * never an override — version 1 had no such concept, and those numbers were just
+ * how the rate was serialised. Loading them under the current rules would treat
+ * them as deliberate, and the room prices would stop tracking the hourly rate
+ * for good. So they are dropped and re-derived.
+ *
+ * The hourly rate is different: whatever an operator published there IS
+ * deliberate, and must not be discarded. But version 1 had no location bands, so
+ * that rate was charged everywhere — it was, in effect, the DEAREST price the
+ * operator was willing to ask. Carrying it across unchanged while the new bands
+ * multiply on top would raise every London price by 15%.
+ *
+ * So it is re-expressed rather than kept: the national base is set so that the
+ * dearest band lands back on the old flat rate. The most expensive area pays
+ * what it paid before, every other area comes down, and nobody's price goes up.
+ * That holds whatever rate the operator had chosen, which blind rescaling to a
+ * fixed number would not.
+ *
+ * Returns the input untouched when it is already current, so this is safe to
+ * call on every read.
+ */
+export function upgradeStoredPricingConfig(stored) {
+  if (!stored || typeof stored !== "object") return stored;
+  const version = Number(stored.version);
+  if (!Number.isInteger(version) || version >= pricingConfigVersion) return stored;
+
+  const bands = stored.locationBands ?? defaultLocationBands;
+  const dearestBasisPoints = Math.max(
+    10000,
+    ...Object.values(bands).map((band) => Number(band?.multiplierBasisPoints) || 10000)
+  );
+  const publishedRate = Number(stored.customerHourlyRatePence) || defaultPricingConfig.customerHourlyRatePence;
+  const nationalRatePence = Math.round(publishedRate * 10000 / dearestBasisPoints);
+
+  const rooms = {};
+  for (const [code, room] of Object.entries(stored.rooms ?? {})) {
+    // basePence deliberately absent: it re-derives from the minutes below.
+    const { basePence, ...rest } = room ?? {};
+    rooms[code] = rest;
+  }
+
+  return {
+    ...stored,
+    version: pricingConfigVersion,
+    customerHourlyRatePence: nationalRatePence,
+    rooms
+  };
+}
+
+/**
+ * A configuration as it should be STORED.
+ *
+ * normalizedPricingConfig always emits a `basePence` for every room, because
+ * every room needs one to be priced with. Writing that back would turn a derived
+ * price into a permanent override the first time an operator saved anything at
+ * all — the hourly rate would move and the rooms would not follow it.
+ *
+ * So a base price that matches what its own minutes imply is dropped before
+ * storing. An operator who genuinely wants a room priced away from its minutes
+ * still gets an override; an operator who only changed the rate keeps a price
+ * list that tracks it.
+ */
+export function publishablePricingConfig(config) {
+  const rules = normalizedPricingConfig(config);
+  const rooms = {};
+  for (const [code, room] of Object.entries(rules.rooms)) {
+    const derived = Math.round((room.baseMinutes / 60) * rules.customerHourlyRatePence);
+    const { basePence, ...rest } = room;
+    rooms[code] = basePence === derived ? rest : room;
+  }
+  return Object.freeze({ ...rules, rooms: Object.freeze(rooms) });
+}
+
+/**
  * The configuration as it is allowed to reach a customer's browser.
  *
  * Identical to the full one except that the promotion list is removed. The

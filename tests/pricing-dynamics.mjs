@@ -11,8 +11,10 @@ import {
   normalizedPricingConfig,
   postcodeArea,
   publicPricingConfig,
+  publishablePricingConfig,
   resolvePromotion,
-  roomsFromPropertyShape
+  roomsFromPropertyShape,
+  upgradeStoredPricingConfig
 } from "../public/pricing-config.js";
 import { quoteInputFromScan, quoteRooms } from "../public/pricing-engine.js";
 import { cancellationFee, cancellationPolicySummary, cancellationSettlement } from "../public/cancellation-policy.js";
@@ -309,6 +311,70 @@ assert(throughEngine.priceable && throughEngine.totalPence === shapeQuote.totalP
 // An explicit room list always wins over a shape.
 assert(quoteRooms({ rooms: [{ roomType: "hallway", items: [] }], propertyShape: { propertyType: "house", bedrooms: 6 } }, config).rooms.length === 1,
   "A property shape overrode an explicit room list.");
+
+/* ── Bringing an old price list forward ──────────────────────────────────── */
+
+// A version-1 configuration is not wrong, it is expressed in terms that no
+// longer mean what they meant. Loading one unchanged would do two damaging
+// things: freeze every room price as a permanent override, and multiply a rate
+// that was already the dearest one by the new London band.
+{
+  const v1 = {
+    configId: "default", version: 1, customerHourlyRatePence: 2800,
+    includedItemsPerRoom: 3, additionalItemPence: 300, minimumBookingMinutes: 120,
+    rooms: {
+      kitchen: { label: "Kitchen", basePence: 1850, baseMinutes: 40, includedItems: 3 },
+      bathroom: { label: "Bathroom", basePence: 1650, baseMinutes: 35, includedItems: 3 },
+      bedroom: { label: "Bedroom", basePence: 1150, baseMinutes: 25, includedItems: 3 }
+    },
+    premiumItems: { oven: { label: "Oven deep clean", pence: 6000, minutes: 45 } }
+  };
+  const upgraded = normalizedPricingConfig(upgradeStoredPricingConfig(v1));
+
+  // NOBODY'S PRICE GOES UP. The dearest band lands back on the old flat rate.
+  const dearest = Math.max(...Object.values(upgraded.locationBands).map((band) => band.multiplierBasisPoints));
+  const dearestHourly = Math.round(upgraded.customerHourlyRatePence * dearest / 10000);
+  assert(Math.abs(dearestHourly - 2800) <= 1,
+    `Upgrading a v1 price list moved the dearest hourly rate from £28.00 to ${(dearestHourly / 100).toFixed(2)}.`);
+  assert(upgraded.customerHourlyRatePence < 2800, "The upgrade did not bring the regional rate below the old flat rate.");
+
+  // Room prices track the rate again instead of being frozen at v1's numbers.
+  assert(upgraded.rooms.kitchen.basePence === Math.round((40 / 60) * upgraded.customerHourlyRatePence),
+    `A v1 room price was kept as an override instead of re-deriving: ${upgraded.rooms.kitchen.basePence}p.`);
+  assert(upgraded.rooms.kitchen.basePence !== 1850, "The v1 kitchen price survived the upgrade.");
+
+  // Deliberate operator choices SURVIVE. The oven was £60, not the shipped £55.
+  assert(upgraded.premiumItems.oven.pence === 6000, "The upgrade discarded an operator's premium-item price.");
+  // And a London booking costs what it did before the upgrade.
+  const roomsPriced = [{ roomType: "kitchen", items: ordinary("A", "B", "C") }, { roomType: "bathroom", items: ordinary("D", "E", "F") }];
+  const oldWorld = quoteRooms({ rooms: roomsPriced }, normalizedPricingConfig({ ...v1, version: 2, locationBands: { london: { label: "London", multiplierBasisPoints: 10000, areas: ["SW"] }, "high-cost": { label: "High", multiplierBasisPoints: 10000, areas: [] }, standard: { label: "Standard", multiplierBasisPoints: 10000, areas: [] } } }));
+  const newWorldLondon = quoteRooms({ rooms: roomsPriced, postcode: "SW1A 1AA" }, upgraded);
+  assert(newWorldLondon.totalPence <= oldWorld.totalPence + 100,
+    `A London booking got dearer across the upgrade: ${oldWorld.totalPence}p → ${newWorldLondon.totalPence}p.`);
+
+  // Idempotent, because it runs on every read.
+  assert(upgradeStoredPricingConfig(upgradeStoredPricingConfig(v1)).customerHourlyRatePence
+    === upgradeStoredPricingConfig(v1).customerHourlyRatePence, "The upgrade is not idempotent.");
+  // A current configuration is returned untouched.
+  const current = { ...defaultPricingConfig, version: 2 };
+  assert(upgradeStoredPricingConfig(current) === current, "A current configuration was rewritten by the upgrade.");
+}
+
+// Storing a normalized configuration would freeze every room price as an
+// override the first time an operator saved anything at all.
+{
+  const stored = publishablePricingConfig(normalizedPricingConfig(defaultPricingConfig));
+  for (const [code, room] of Object.entries(stored.rooms)) {
+    assert(!Object.hasOwn(room, "basePence"),
+      `Room ${code} would be stored with a base price that just matches its own minutes, freezing it against the hourly rate.`);
+  }
+  // A deliberate override is still a deliberate override.
+  const overridden = publishablePricingConfig(normalizedPricingConfig({ ...defaultPricingConfig, rooms: { kitchen: { basePence: 9999 } } }));
+  assert(overridden.rooms.kitchen.basePence === 9999, "A deliberate room-price override was discarded on the way to storage.");
+  // Round-tripping through storage does not change any price.
+  assert(quoteRooms({ rooms: house }, normalizedPricingConfig(stored)).totalPence === baseline.totalPence,
+    "A configuration changed price by being stored and read back.");
+}
 
 /* ── Cancellation ─────────────────────────────────────────────────────────── */
 

@@ -19,6 +19,8 @@
 // list — a deployment that has never opened the pricing page quotes the same
 // numbers as one that has.
 
+import { upgradeStoredPricingConfig } from "../../public/pricing-config.js";
+
 const errorCodes = new Map([
   ["authentication-required", [401, "authentication-required", "Sign in to read pricing."]],
   ["administrator-required", [403, "administrator-required", "Only an administrator can change pricing."]],
@@ -47,10 +49,21 @@ export function createPricingConfigurationRepository(database) {
   }
 
   return Object.freeze({
-    /** The customer-facing price list, or null when nothing is configured. */
+    /**
+     * The customer-facing price list, or null when nothing is configured.
+     *
+     * Brought forward to the current model on the way out. A configuration
+     * published under an older one is not wrong, it is just expressed in terms
+     * that no longer mean what they meant — see upgradeStoredPricingConfig for
+     * what version 1 → 2 does and why it cannot raise anybody's price.
+     *
+     * Upgraded on READ rather than by a migration: the stored row stays exactly
+     * as the operator published it, which is the whole point of an append-only
+     * pricing table. The upgrade is what the current code makes of it.
+     */
     async activeConfig(actor, configId = "default") {
       const row = await callAsActor(actor, "SELECT tideway_private.get_active_pricing_config($1::text) AS value", [configId]);
-      return row?.config ?? null;
+      return row?.config ? upgradeStoredPricingConfig(row.config) : null;
     },
 
     /** The floors the server prices against. Never returned to a browser. */
@@ -60,7 +73,11 @@ export function createPricingConfigurationRepository(database) {
 
     /** Both halves, for the pricing page. Administrator only. */
     async activeWithEconomics(actor, configId = "default") {
-      return callAsActor(actor, "SELECT tideway_private.get_active_pricing_economics($1::text) AS value", [configId]);
+      const row = await callAsActor(actor, "SELECT tideway_private.get_active_pricing_economics($1::text) AS value", [configId]);
+      // Upgraded here too, so the numbers an operator EDITS are the numbers the
+      // product is charging. A pricing page showing the stored version while
+      // customers are quoted the upgraded one would be worse than either.
+      return row?.config ? { ...row, config: upgradeStoredPricingConfig(row.config) } : row;
     },
 
     /**

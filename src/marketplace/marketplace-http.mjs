@@ -7,7 +7,7 @@ import { cleanerOnboardingDocumentMimeTypes, maximumCleanerOnboardingDocumentByt
 // The customer price comes from the same module the browser runs, so the
 // scanner's number and the authorised number cannot drift. The economics that
 // decide whether Homle will sell at that number stay server-side.
-import { defaultPricingConfig, normalizedPricingConfig, publicPricingConfig, resolvePromotion } from "../../public/pricing-config.js";
+import { defaultPricingConfig, normalizedPricingConfig, publicPricingConfig, publishablePricingConfig, resolvePromotion } from "../../public/pricing-config.js";
 import { quoteRooms } from "../../public/pricing-engine.js";
 import { defaultPricingEconomics, normalizedPricingEconomics, reviewedQuote } from "./pricing-economics.mjs";
 import { trustedPricingRequest } from "./pricing-request-boundary.mjs";
@@ -1183,7 +1183,11 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             const body = await readJsonObject(request);
             // Both halves are validated before either is stored, so a rejected
             // economics edit cannot leave a saved price list it no longer suits.
-            const config = normalizedPricingConfig(body?.config);
+            // publishable, not normalized: a room base that simply matches its
+            // own minutes is stored WITHOUT an override, so the price list keeps
+            // tracking the hourly rate. Storing the normalized form would freeze
+            // every room the first time an operator saved anything at all.
+            const config = publishablePricingConfig(body?.config);
             const economics = normalizedPricingEconomics(body?.economics);
             if (!pricingAdministration) {
               // Better a plain refusal than a form that appears to save. An
