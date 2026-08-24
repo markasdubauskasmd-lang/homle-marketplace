@@ -58,6 +58,19 @@ export function createBookingRepository(database) {
         const result = await client.query(
           `SELECT request.id, request.requested_start_at, request.requested_end_at, request.required_services,
                   request.budget_pence, coverage.distance_km,
+                  -- THE FROZEN QUOTE. Absent from this query until now, which
+                  -- meant platformPricedTerms() saw null on every real
+                  -- invitation and silently fell through to the cost-up path:
+                  -- the customer was shown one number by the pricing engine and
+                  -- the booking was written at another, derived from whichever
+                  -- cleaner happened to be invited.
+                  request.quoted_total_pence, request.quoted_minutes, request.pricing_config_version,
+                  -- For re-quoting a request saved before quotes were frozen.
+                  -- Only the postcode; nothing else about the address is
+                  -- involved in pricing.
+                  property.postcode AS property_postcode, request.cleaning_type, request.recurrence_rule,
+                  COALESCE(jsonb_agg(DISTINCT jsonb_build_object('roomName', task.room_name, 'description', task.description))
+                    FILTER (WHERE task.id IS NOT NULL), '[]'::jsonb) AS tasks,
                   CASE WHEN $4::boolean THEN tideway_private.cleaner_payout_ready_for_paid_booking($2::uuid) ELSE TRUE END AS payout_ready,
                   COALESCE(jsonb_agg(jsonb_build_object('serviceCode', service.service_code, 'pricingModel', service.pricing_model, 'pricePence', service.price_pence) ORDER BY service.service_code) FILTER (WHERE service.id IS NOT NULL), '[]'::jsonb) AS services
              FROM cleaning_requests request
@@ -76,8 +89,9 @@ export function createBookingRepository(database) {
                  FROM cleaner_service_areas area WHERE area.cleaner_user_id=profile.user_id
              ) coverage
              LEFT JOIN cleaner_services service ON service.cleaner_user_id=profile.user_id AND service.is_active
+             LEFT JOIN cleaning_request_tasks task ON task.cleaning_request_id=request.id
             WHERE request.id=$1::uuid AND request.landlord_user_id=$3::uuid AND profile.user_id<>request.landlord_user_id AND request.status='searching-for-cleaner'
-            GROUP BY request.id, coverage.distance_km`,
+            GROUP BY request.id, coverage.distance_km, property.postcode`,
           [requestId, cleanerId, actor.userId, requirePayoutReady === true]
         );
         return result.rows[0] || null;

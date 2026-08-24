@@ -511,6 +511,11 @@
       "order": 102,
       "file": "102_scan_telemetry_release_comparison.sql",
       "sha256": "22751f39d1e2ad27bbe504cb87fde20a3f2f11f6630680912b44814ddfee8a25"
+    },
+    {
+      "order": 103,
+      "file": "103_retire_scan_pricing_rates.sql",
+      "sha256": "099d40da8302d01c53eb3132f92db06ddb7a1ee30282493759c9bea586d1e221"
     }
   ],
   "grantFiles": [

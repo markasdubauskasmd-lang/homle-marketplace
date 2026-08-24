@@ -7,14 +7,6 @@
 // copy is the one that decides. A browser check alone would be a suggestion.
 
 export const pricingFields = Object.freeze([
-  { key: "hourlyRatePence", label: "Cleaning rate per hour", minimum: 500, maximum: 30000, money: true,
-    help: "What the customer pays for an hour of cleaning time." },
-  { key: "minimumChargePence", label: "Minimum visit charge", minimum: 500, maximum: 100000, money: true,
-    help: "No visit is estimated below this, however small the scan." },
-  { key: "roomBasePence", label: "Per-room charge", minimum: 0, maximum: 20000, money: true,
-    help: "Charged once per room, for setting up and moving between rooms." },
-  { key: "perSquareMetrePence", label: "Rate per square metre", minimum: 0, maximum: 2000, money: true,
-    help: "Applied only to rooms with a usable floor-area measurement. Unmeasured rooms are priced on their contents alone." },
   { key: "baseRangeBasisPoints", label: "Base price range", minimum: 0, maximum: 5000, money: false,
     help: "How wide the quoted range is before the scan's own uncertainty widens it. 1500 is ±15%." },
   { key: "unresolvedRangeBasisPointsEach", label: "Extra range per open question", minimum: 0, maximum: 2000, money: false,
@@ -23,15 +15,16 @@ export const pricingFields = Object.freeze([
     help: "Past this a range stops being a price at all." }
 ]);
 
-// Level 5 is absent on purpose and must stay absent. It means a person needs to
-// look at the property before a cleaner is sent, and an operator who could set
-// a multiplier on it could put a number on that.
-export const levelFields = Object.freeze([
-  { level: 1, label: "Light maintenance clean" },
-  { level: 2, label: "Standard clean" },
-  { level: 3, label: "Heavy clean" },
-  { level: 4, label: "Deep-clean conditions" }
-]);
+// THE RATES THAT USED TO BE HERE ARE AT /admin/pricing.
+//
+// An hourly rate, a minimum charge, a per-room charge, a square-metre rate and
+// the condition multipliers were all editable on this screen while the price
+// list that actually charged a customer was editable on another. Both shipped
+// £28.00/hour, nothing compared them, and changing one moved half the product.
+//
+// This screen now owns exactly one thing: how UNCERTAIN an estimate says it is
+// while the customer is still checking what the scanner found. The money comes
+// from the one price list. Migration 103 dropped the columns.
 
 export function poundsToPence(value) {
   const text = String(value ?? "").trim().replace(/^£/, "");
@@ -76,27 +69,7 @@ export function pricingRulesFromForm(values = {}) {
   if (rules.baseRangeBasisPoints > rules.maximumRangeBasisPoints) {
     throw new TypeError("The base price range cannot be wider than the widest allowed range.");
   }
-  const levelMultiplierBasisPoints = {};
-  for (const field of levelFields) {
-    const parsed = Number(String(values[`level${field.level}`] ?? "").trim());
-    if (!Number.isInteger(parsed) || parsed < 5000 || parsed > 30000) {
-      throw new TypeError(`${field.label} must be between 50% and 300% of the standard rate.`);
-    }
-    levelMultiplierBasisPoints[field.level] = parsed;
-  }
-  // A heavier home costing less than a lighter one is almost always a
-  // transposed pair of fields rather than an intended discount, and it would
-  // quietly under-price every deep clean until somebody noticed.
-  for (let index = 1; index < levelFields.length; index += 1) {
-    const lower = levelMultiplierBasisPoints[levelFields[index - 1].level];
-    const higher = levelMultiplierBasisPoints[levelFields[index].level];
-    if (higher < lower) {
-      throw new TypeError(`${levelFields[index].label} is priced below ${levelFields[index - 1].label}. Check these two figures.`);
-    }
-  }
-  // Level 5 is never sent. The server forces it to zero regardless, and sending
-  // a value would imply this form could set one.
-  return { ...rules, levelMultiplierBasisPoints };
+  return rules;
 }
 
 export function changeReasonError(value) {
@@ -123,13 +96,6 @@ export function pricingChangeSummary(current, proposed) {
     changes.push(field.money
       ? `${field.label} £${penceToPounds(before)} → £${penceToPounds(after)}`
       : `${field.label} ${before} → ${after}`);
-  }
-  const currentLevels = current.levelMultiplierBasisPoints || {};
-  for (const field of levelFields) {
-    const before = Number(currentLevels[field.level] ?? currentLevels[String(field.level)]);
-    const after = Number(proposed.levelMultiplierBasisPoints[field.level]);
-    if (!Number.isInteger(before) || before === after) continue;
-    changes.push(`${field.label} ${Math.round(before / 100)}% → ${Math.round(after / 100)}%`);
   }
   return changes.length ? changes : ["Nothing has changed. Publishing would create a new version with identical rates."];
 }

@@ -161,6 +161,41 @@ assert(written.customerPricePence === onScreen.totalPence,
   `The booking was written at ${money(written.customerPricePence)}, not the ${money(onScreen.totalPence)} the customer saw.`);
 assert(booking.customerPricePence === onScreen.totalPence, "The booking projection reports a different total.");
 
+/* ── 5b. The repository actually hands the frozen quote over ─────────────── */
+
+// THE BUG THIS EXISTS TO STOP COMING BACK.
+//
+// booking-repository's invitation query did not select quoted_total_pence, so
+// platformPricedTerms() saw null on every real invitation and fell straight
+// through to the cost-up path. The customer was shown one number by the pricing
+// engine and the booking was written at another, derived from whichever cleaner
+// happened to be invited — and every test above passed the whole time, because
+// they build their own candidate rows.
+//
+// Asserted against the SQL, because that is where it was missing.
+const workflowSource = await readFile(new URL("../src/marketplace/booking-workflow.mjs", import.meta.url), "utf8");
+const repositorySource = await readFile(new URL("../src/marketplace/booking-repository.mjs", import.meta.url), "utf8");
+const candidateQuery = repositorySource.slice(
+  repositorySource.indexOf("getInvitationCandidate"),
+  repositorySource.indexOf("inviteCleaner(actor, invitation)")
+);
+for (const column of ["quoted_total_pence", "quoted_minutes", "pricing_config_version"]) {
+  assert(candidateQuery.includes(column),
+    `The invitation candidate no longer selects ${column}, so the frozen quote cannot reach the booking and every invitation silently falls back to cost-up pricing.`);
+}
+// And the fields a request saved before the freeze is re-quoted from.
+for (const column of ["property.postcode", "request.cleaning_type", "cleaning_request_tasks"]) {
+  assert(candidateQuery.includes(column),
+    `The invitation candidate no longer carries ${column}, so an unpriced request cannot be re-quoted.`);
+}
+
+// The workflow prefers the frozen quote, then a re-quote, and only then the
+// legacy cost-up policy — which no configured deployment now reaches.
+const workflowOrder = workflowSource.slice(workflowSource.indexOf("let terms = platformPricedTerms"), workflowSource.indexOf("return Object.freeze({ requestId, cleanerId, terms });"));
+assert(workflowOrder.indexOf("platformPricedTerms") < workflowOrder.indexOf("reQuotedTerms")
+  && workflowOrder.indexOf("reQuotedTerms") < workflowOrder.indexOf("pricingPolicy.quote"),
+  "The invitation no longer prefers the frozen quote, then a re-quote, then the legacy policy.");
+
 /* ── 6. The split. Customer, cleaner and platform account for each other. ── */
 
 const settled = quoteEconomics(written.customerPricePence, request.quotedMinutes, economics, {
@@ -187,7 +222,6 @@ assert(!/proposed_amount|requested_amount_pence/.test(insertStatement),
 
 /* ── 8. Both dashboards read the stored figures, from their own side. ────── */
 
-const workflowSource = await readFile(new URL("../src/marketplace/booking-workflow.mjs", import.meta.url), "utf8");
 const projection = workflowSource.slice(workflowSource.indexOf("function bookingProjection"), workflowSource.indexOf("const bookingStatuses"));
 assert(projection.includes("customer_price_pence") && projection.includes("cleaner_pay_pence"),
   "The dashboards no longer read the stored booking figures.");

@@ -91,22 +91,10 @@
         <div class="booking-dashboard-actions"><button class="button" type="submit">Save retention</button></div>
       </form>
 
-      <form class="booking-dashboard-card" data-admin-scan-addon-form novalidate>
-        <h2>Extras a customer can add</h2>
-        <p class="hint">An estimate resolves every extra against this list. A price sent by a browser is ignored, so nothing can be charged that is not here.</p>
-        <ul data-admin-scan-addons></ul>
-        <label for="admin-scan-addon-code">Short code</label>
-        <input id="admin-scan-addon-code" name="code" type="text" placeholder="oven-deep-clean" data-admin-scan-addon-code>
-        <label for="admin-scan-addon-label">Name the customer sees</label>
-        <input id="admin-scan-addon-label" name="label" type="text" placeholder="Oven deep clean" data-admin-scan-addon-label>
-        <label for="admin-scan-addon-price">Price (£)</label>
-        <input id="admin-scan-addon-price" name="pence" type="text" inputmode="decimal" placeholder="45.00" data-admin-scan-addon-price>
-        <label for="admin-scan-addon-minutes">Extra minutes it adds</label>
-        <input id="admin-scan-addon-minutes" name="addedMinutes" type="text" inputmode="numeric" placeholder="45" data-admin-scan-addon-minutes>
-        <p class="form-error" role="alert" data-admin-scan-addon-error hidden></p>
-        <p role="status" data-admin-scan-addon-status></p>
-        <div class="booking-dashboard-actions"><button class="button" type="submit">Save extra</button></div>
-      </form>
+      <!-- The scan-only extras catalogue lived here. Add-ons are part of the
+           one price list now (public/pricing-config.js, edited at
+           /admin/pricing), so a second catalogue would be a second place a
+           price could be set. Migration 103 dropped the table. -->
     </div>
   </main>
 </body>

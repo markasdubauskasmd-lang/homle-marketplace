@@ -32,8 +32,8 @@ try {
   const repositoryResult = await verifyDatabaseAssets();
   assert.equal(repositoryResult.ok, true, repositoryResult.errors.join("\n"));
   assert.equal(repositoryResult.postgresqlMajor, 16);
-  assert.equal(repositoryResult.migrations.length, 102);
-  assert.equal(repositoryResult.migrations.at(-1), "102_scan_telemetry_release_comparison.sql");
+  assert.equal(repositoryResult.migrations.length, 103);
+  assert.equal(repositoryResult.migrations.at(-1), "103_retire_scan_pricing_rates.sql");
   assert.deepEqual(repositoryResult.grantFiles.sort(), ["runtime-role-grants.sql", "worker-role-grants.sql"]);
   const deploymentVerifier = await readFile(path.join(sourceDatabaseDirectory, "integration", "deployment-verification.sql"), "utf8");
   const structuredScanMigration = await readFile(path.join(sourceDatabaseDirectory, "migrations", "073_structured_room_scans.sql"), "utf8");

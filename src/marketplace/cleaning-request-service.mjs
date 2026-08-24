@@ -61,6 +61,22 @@ function recurrence(value) {
   return { frequency: selected, recurrenceRule: recurrenceRules[selected] };
 }
 
+/**
+ * The booking frequency a stored recurrence rule came from.
+ *
+ * The inverse of the table above, and the reason it is exported: re-quoting an
+ * old request needs its frequency to apply the recurring discount, and the row
+ * stores the RRULE rather than the word. Deriving it here keeps one owner for
+ * the mapping instead of a second copy that could disagree about what
+ * "fortnightly" means.
+ */
+export function frequencyFromRecurrenceRule(rule) {
+  const wanted = String(rule || "").trim();
+  if (!wanted) return "one-time";
+  const match = Object.entries(recurrenceRules).find(([, value]) => value === wanted);
+  return match ? match[0] : "one-time";
+}
+
 export function cleaningRequestScopeFingerprint(value) {
   const snapshot = {
     propertyId: value.propertyId,

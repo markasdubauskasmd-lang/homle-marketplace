@@ -19,7 +19,7 @@ import { createCleanerPayoutService } from "./cleaner-payout-service.mjs";
 import { createMatchingRepository } from "./matching-repository.mjs";
 import { createMatchingService } from "./matching-service.mjs";
 import { createCleaningRequestRepository } from "./cleaning-request-repository.mjs";
-import { createCleaningRequestService } from "./cleaning-request-service.mjs";
+import { frequencyFromRecurrenceRule, createCleaningRequestService } from "./cleaning-request-service.mjs";
 import { createScanRepository } from "./scan-repository.mjs";
 import { createScanService } from "./scan-service.mjs";
 import { createScanPricingRepository, createScanPricingService } from "./scan-pricing-repository.mjs";
@@ -28,6 +28,7 @@ import { defaultPricingConfig, normalizedPricingConfig } from "../../public/pric
 import { quoteRooms } from "../../public/pricing-engine.js";
 import { defaultPricingEconomics, normalizedPricingEconomics, reviewedQuote } from "./pricing-economics.mjs";
 import { trustedPricingRequest } from "./pricing-request-boundary.mjs";
+import { pricingRequestFromManualTasks } from "../../public/landlord-dashboard-model.js";
 import { createScanGroundTruthRepository, createScanGroundTruthService } from "./scan-ground-truth.mjs";
 import { createDurableScanTelemetry } from "./scan-telemetry.mjs";
 import { createScanTelemetryRepository } from "./scan-telemetry-repository.mjs";
@@ -239,6 +240,29 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const cleanerPayoutService = options.paymentProvider ? createCleanerPayoutService(cleanerPayoutRepository, options.paymentProvider, { appOrigin: environment.appOrigin }) : null;
   const bookingWorkflowService = createBookingWorkflowService(bookingRepository, {
     pricingPolicy: bookingPricingPolicy,
+    // A request saved before quotes were frozen up front is priced from its own
+    // stored tasks, at today's rates, through the one engine — rather than
+    // cost-up from whichever cleaner is being invited.
+    async requoteRequest(actor, request) {
+      const config = normalizedPricingConfig((await pricingConfigurationRepository.activeConfig(actor)) || defaultPricingConfig);
+      const economics = normalizedPricingEconomics((await pricingConfigurationRepository.economicsForRuntime(actor)) || defaultPricingEconomics);
+      let scope;
+      try {
+        scope = pricingRequestFromManualTasks(request.tasks, {
+          cleaningType: request.cleaningType,
+          frequency: frequencyFromRecurrenceRule(request.recurrenceRule)
+        });
+      } catch {
+        // A request with no priceable tasks is one a person should look at.
+        return { priceable: false, code: "request-not-priceable", reason: "This request has no tasks that can be priced automatically." };
+      }
+      const trusted = trustedPricingRequest(scope, {
+        config,
+        postcode: request.postcode,
+        startAt: request.startAt
+      });
+      return reviewedQuote(quoteRooms(trusted, config), economics).quote;
+    },
     getPlatformEconomics: async (actor) => (await pricingConfigurationRepository.economicsForRuntime(actor)) || defaultPricingEconomics,
     requirePayoutReady: paymentService !== null,
     getPayoutReadiness: cleanerPayoutService ? (actor) => cleanerPayoutService.getStatus(actor) : undefined

@@ -55,8 +55,13 @@ const standardScan = scanOf([
 
 // An operator must not be able to put a price on level 5 by editing a rate.
 {
-  const rules = normalizedPricingRuleset({ levelMultiplierBasisPoints: { 1: 9000, 2: 10000, 3: 12500, 4: 15000, 5: 20000 } });
-  assert(rules.levelMultiplierBasisPoints[5] === 0, "An operator was able to make specialist review priceable.");
+  // Condition multipliers live in the price list now. Level 5 stays unpriceable
+  // there, and a ruleset carrying the retired keys is simply ignored.
+  const rules = normalizedPricingRuleset({ levelMultiplierBasisPoints: { 1: 9000, 5: 20000 }, hourlyRatePence: 9000 });
+  assert(!Object.hasOwn(rules, "levelMultiplierBasisPoints") && !Object.hasOwn(rules, "hourlyRatePence"),
+    "The scan ruleset still carries the retired rates, so there are two places a price can be set.");
+  const config = normalizedPricingConfig({ ...defaultPricingConfig, conditionLevels: { 5: { multiplierBasisPoints: 20000 } } });
+  assert(config.conditionLevels[5].multiplierBasisPoints === 0, "An operator was able to make specialist review priceable.");
 }
 
 /* ── Every result is an estimate, and there is no way to clear that ────── */
@@ -105,7 +110,7 @@ const standardScan = scanOf([
     ...defaultPricingRuleset, hourlyRatePence: 9000, minimumChargePence: 99000, roomBasePence: 15000, perSquareMetrePence: 1500
   });
   assert(rewritten.totalPence === estimate.totalPence,
-    "Editing the retired scan rates changed a price, so the second pricing system is still live.");
+    "A retired scan rate sent by an older client changed a price, so the second pricing system is still live.");
 }
 
 // Condition is stated as an adjustment against the standard rate, so a customer
@@ -296,14 +301,16 @@ const standardScan = scanOf([
 // A typo in this object changes what every customer is charged. Anything
 // outside a reviewed range is refused rather than clamped, because a clamped
 // rate would quietly price at a number nobody chose.
-assert(throwsWith(() => normalizedPricingRuleset({ hourlyRatePence: 0 }), "Hourly rate must be between"), "A zero hourly rate was accepted.");
-assert(throwsWith(() => normalizedPricingRuleset({ hourlyRatePence: 999999 }), "Hourly rate must be between"), "An absurd hourly rate was accepted.");
-assert(throwsWith(() => normalizedPricingRuleset({ minimumChargePence: 1 }), "Minimum charge must be between"), "A trivial minimum charge was accepted.");
-assert(throwsWith(() => normalizedPricingRuleset({ hourlyRatePence: 2800.5 }), "Hourly rate must be between"), "A fractional rate was accepted.");
-assert(throwsWith(() => normalizedPricingRuleset({ levelMultiplierBasisPoints: { 3: 100000 } }), "Level 3 multiplier"), "An absurd condition multiplier was accepted.");
+assert(throwsWith(() => normalizedPricingRuleset({ baseRangeBasisPoints: 9999 }), "Base range must be between"), "An absurd base range was accepted.");
+assert(throwsWith(() => normalizedPricingRuleset({ maximumRangeBasisPoints: 1 }), "Maximum range must be between"), "A meaningless maximum range was accepted.");
+assert(throwsWith(() => normalizedPricingRuleset({ baseRangeBasisPoints: 1500.5 }), "Base range must be between"), "A fractional range was accepted.");
+// The retired rates are ignored rather than refused, so an older admin client
+// that still sends them publishes successfully and simply moves no price.
+assert(normalizedPricingRuleset({ hourlyRatePence: 999999, minimumChargePence: 1 }).baseRangeBasisPoints === defaultPricingRuleset.baseRangeBasisPoints,
+  "A retired rate sent alongside the range fields was refused instead of ignored.");
 {
   const rules = normalizedPricingRuleset({});
-  assert(rules.hourlyRatePence === defaultPricingRuleset.hourlyRatePence, "An empty ruleset did not fall back to the shipped defaults.");
+  assert(rules.baseRangeBasisPoints === defaultPricingRuleset.baseRangeBasisPoints, "An empty ruleset did not fall back to the shipped defaults.");
 }
 
 // An operator changing a rate changes the price, which is the entire point of

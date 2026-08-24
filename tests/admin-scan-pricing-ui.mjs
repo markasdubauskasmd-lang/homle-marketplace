@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import {
-  basisPointsToPercent, changeReasonError, levelFields, penceToPounds, percentToBasisPoints,
+  basisPointsToPercent, changeReasonError, penceToPounds, percentToBasisPoints,
   poundsToPence, pricingChangeSummary, pricingFields, pricingRulesFromForm
 } from "../public/admin-scan-pricing-model.js";
 import { scanOperationalWarnings, scanTimingSummary } from "../public/admin-scan-operations-model.js";
@@ -12,11 +12,12 @@ function throwsWith(run, fragment) {
   return false;
 }
 
+// Three fields, all about UNCERTAINTY. The rates that used to be on this form
+// are at /admin/pricing, and migration 103 dropped their columns.
 const validForm = {
-  hourlyRatePence: "28.00", minimumChargePence: "45.00", roomBasePence: "4.00",
-  perSquareMetrePence: "0.90", baseRangeBasisPoints: "1500",
-  unresolvedRangeBasisPointsEach: "200", maximumRangeBasisPoints: "6000",
-  level1: "9000", level2: "10000", level3: "12500", level4: "15000"
+  baseRangeBasisPoints: "1500",
+  unresolvedRangeBasisPointsEach: "200",
+  maximumRangeBasisPoints: "6000"
 };
 
 /* ── Anonymous scanner operations evidence ─────────────────────────────── */
@@ -63,31 +64,35 @@ assert(percentToBasisPoints("125") === 12500 && basisPointsToPercent(12500) === 
 
 {
   const rules = pricingRulesFromForm(validForm);
-  assert(rules.hourlyRatePence === 2800 && rules.minimumChargePence === 4500, "The form did not convert its money fields.");
-  assert(rules.levelMultiplierBasisPoints[4] === 15000, "The form lost a condition multiplier.");
+  assert(rules.baseRangeBasisPoints === 1500 && rules.maximumRangeBasisPoints === 6000, "The form did not read its range fields.");
+  // The whole point of the retirement: this screen can no longer set a price.
+  for (const retired of ["hourlyRatePence", "minimumChargePence", "roomBasePence", "perSquareMetrePence", "levelMultiplierBasisPoints"]) {
+    assert(!Object.hasOwn(rules, retired), `This form still produces ${retired}, so there are two places a price can be set again.`);
+  }
+  assert(!pricingFields.some((field) => field.money), "A money field reappeared on the scan-pricing form.");
   // The real test of a browser-side form: the server must accept its output
   // unchanged. A form that can produce a payload the server rejects is a form
   // that will reject an operator's work after they have done it.
   const accepted = normalizedPricingRuleset(rules);
-  assert(accepted.hourlyRatePence === 2800 && accepted.levelMultiplierBasisPoints[3] === 12500,
+  assert(accepted.baseRangeBasisPoints === 1500,
     "The server rejected or altered a payload this form produced.");
-  // Level 5 is never sent, and the server forces it to zero regardless.
-  assert(!Object.hasOwn(rules.levelMultiplierBasisPoints, "5") && !Object.hasOwn(rules.levelMultiplierBasisPoints, 5),
-    "The form offered a price for specialist review.");
-  assert(accepted.levelMultiplierBasisPoints[5] === 0, "Specialist review became priceable.");
-  assert(!levelFields.some((field) => field.level === 5), "The form lists a level-5 field.");
+  // The server accepts exactly what this form produces and nothing else, so a
+  // retired key sent by an older client cannot resurrect a second rate table.
+  assert(Object.keys(accepted).length === Object.keys(rules).length + 2,
+    "The server's ruleset carries fields this form does not produce.");
+  assert(normalizedPricingRuleset({ ...rules, hourlyRatePence: 9000, minimumChargePence: 99000 }).baseRangeBasisPoints === 1500,
+    "A retired rate sent alongside the range fields was not ignored.");
+  for (const retired of ["hourlyRatePence", "minimumChargePence", "roomBasePence", "perSquareMetrePence", "levelMultiplierBasisPoints"]) {
+    assert(!Object.hasOwn(accepted, retired), `The server ruleset still carries ${retired}.`);
+  }
 }
 
 /* ── Bounds name the field that is wrong ───────────────────────────────── */
 
-assert(throwsWith(() => pricingRulesFromForm({ ...validForm, hourlyRatePence: "0.50" }), "Cleaning rate per hour"),
-  "An under-range hourly rate was accepted, or reported without naming the field.");
-assert(throwsWith(() => pricingRulesFromForm({ ...validForm, hourlyRatePence: "9999.00" }), "Cleaning rate per hour"),
-  "An absurd hourly rate was accepted.");
-assert(throwsWith(() => pricingRulesFromForm({ ...validForm, minimumChargePence: "1.00" }), "Minimum visit charge"),
-  "A trivial minimum charge was accepted.");
-assert(throwsWith(() => pricingRulesFromForm({ ...validForm, level3: "40000" }), "Heavy clean"),
-  "An absurd condition multiplier was accepted.");
+assert(throwsWith(() => pricingRulesFromForm({ ...validForm, unresolvedRangeBasisPointsEach: "5000" }), "Extra range per open question"),
+  "An out-of-range per-question widening was accepted, or reported without naming the field.");
+assert(throwsWith(() => pricingRulesFromForm({ ...validForm, maximumRangeBasisPoints: "100" }), "Widest allowed range"),
+  "A maximum range below the supported floor was accepted.");
 // Both values are individually in range; it is the pair that is wrong, and a
 // base range wider than the cap would quote every job at its own maximum.
 assert(throwsWith(() => pricingRulesFromForm({ ...validForm, baseRangeBasisPoints: "5000", maximumRangeBasisPoints: "3000" }), "wider than the widest allowed"),
@@ -95,15 +100,6 @@ assert(throwsWith(() => pricingRulesFromForm({ ...validForm, baseRangeBasisPoint
 assert(throwsWith(() => pricingRulesFromForm({ ...validForm, baseRangeBasisPoints: "7000" }), "Base price range"),
   "An out-of-range base range was accepted, or reported without naming the field.");
 
-// A heavier home costing less than a lighter one is almost always a transposed
-// pair of fields, and it would quietly under-price every deep clean.
-assert(throwsWith(() => pricingRulesFromForm({ ...validForm, level3: "15000", level4: "12500" }), "priced below"),
-  "A deep clean priced below a heavy clean was accepted.");
-// Equal is allowed: an operator may legitimately decide two levels cost the same.
-{
-  const rules = pricingRulesFromForm({ ...validForm, level3: "12500", level4: "12500" });
-  assert(rules.levelMultiplierBasisPoints[4] === 12500, "Two levels priced identically were rejected.");
-}
 
 /* ── A rate change must be explainable ─────────────────────────────────── */
 
@@ -113,17 +109,14 @@ assert(changeReasonError("x".repeat(501)) !== "", "An unbounded reason was allow
 
 /* ── The operator sees what they are about to change ───────────────────── */
 
-// A rate change applies to every estimate from the moment it lands, so
-// "£28.00 → £30.00" is the sentence that catches a mistyped figure.
+// A widened range applies to every estimate from the moment it lands, so
+// "1500 → 2000" is the sentence that catches a mistyped figure.
 {
-  const current = { hourlyRatePence: 2800, minimumChargePence: 4500, roomBasePence: 400, perSquareMetrePence: 90,
-    baseRangeBasisPoints: 1500, unresolvedRangeBasisPointsEach: 200, maximumRangeBasisPoints: 6000,
-    levelMultiplierBasisPoints: { 1: 9000, 2: 10000, 3: 12500, 4: 15000 } };
-  const proposed = pricingRulesFromForm({ ...validForm, hourlyRatePence: "30.00", level4: "16000" });
+  const current = { baseRangeBasisPoints: 1500, unresolvedRangeBasisPointsEach: 200, maximumRangeBasisPoints: 6000 };
+  const proposed = pricingRulesFromForm({ ...validForm, baseRangeBasisPoints: "2000" });
   const summary = pricingChangeSummary(current, proposed);
-  assert(summary.some((line) => line.includes("£28.00 → £30.00")), `The summary did not show the rate change: ${summary.join(" | ")}`);
-  assert(summary.some((line) => line.includes("150% → 160%")), `The summary did not show the multiplier change: ${summary.join(" | ")}`);
-  assert(summary.length === 2, `The summary invented changes: ${summary.join(" | ")}`);
+  assert(summary.some((line) => line.includes("1500 → 2000")), `The summary did not show the change: ${summary.join(" | ")}`);
+  assert(summary.length === 1, `The summary invented changes: ${summary.join(" | ")}`);
 
   const unchanged = pricingChangeSummary(current, pricingRulesFromForm(validForm));
   assert(unchanged[0].includes("Nothing has changed"), "An unchanged form did not say so.");
@@ -143,8 +136,14 @@ assert(page.includes('data-admin-pricing-gate'), "The pricing page has no protec
 // Publishing changes what every customer is charged, so it must state that
 // before the button, not after.
 assert(/every new estimate/i.test(page), "The pricing page does not warn that publishing affects live estimates.");
-assert(page.includes("Specialist review") && /cannot be priced|not priceable|never priced/i.test(page),
-  "The pricing page does not explain that level 5 has no price.");
+// The rates left this page for /admin/pricing, and an operator who came here
+// looking for them has to be told where they went rather than concluding they
+// are gone. Level 5's unpriceability is stated at the price list now, beside
+// the condition multipliers it belongs to.
+assert(/\/admin\/pricing/.test(page),
+  "The scan-pricing page does not point at the price list, so an operator looking for the rates finds nothing.");
+assert(!/hourly rate|minimum charge|per-room charge/i.test(page.replace(/Rates, minimums[^<]*/i, "")),
+  "A retired rate field reappeared on the scan-pricing page.");
 assert(script.includes("X-CSRF-Token"), "The pricing page publishes without a CSRF token.");
 assert(script.includes("/api/marketplace/admin/pricing/scan-ruleset"), "The pricing page does not use the Administrator endpoint.");
 assert(script.includes("pricingChangeSummary"), "The pricing page publishes without showing what is changing.");

@@ -17,9 +17,10 @@
 // UNCERTAIN the reading is, as a range around that number, and refusing to
 // estimate at all when the scan does not support one.
 //
-// The rate fields below are still accepted so that rulesets stored before this
-// change continue to load, and they are still bounded. They no longer affect
-// any price. See docs/PRICING_MODEL.md.
+// The rates this module used to own are gone entirely — from the shipped
+// defaults, from the validator, and from the table itself in migration 103. A
+// ruleset published before the change loses them on read and nothing misses
+// them. See docs/PRICING_MODEL.md.
 //
 // TWO CONSTRAINTS THAT DID NOT CHANGE
 //
@@ -40,32 +41,16 @@ import { levelDescriptor } from "./cleaning-complexity.mjs";
 
 export const pricingRulesetVersion = 1;
 
-// The shipped defaults. Only the three range fields are live; the rest are
-// retained so stored rulesets keep loading and are marked below.
+// The shipped defaults: how wide the estimate's range is, and nothing else.
 export const defaultPricingRuleset = Object.freeze({
   rulesetId: "default",
   version: pricingRulesetVersion,
-
-  /* ── Live: how wide the estimate's range is ────────────────────────────── */
-
   // How wide the quoted range is, before the scan's own uncertainty widens it.
   baseRangeBasisPoints: 1500,
   // Added to the range for every unresolved reading, so a scan full of
   // questions produces a visibly vaguer price rather than a falsely precise one.
   unresolvedRangeBasisPointsEach: 200,
-  maximumRangeBasisPoints: 6000,
-
-  /* ── Retained, no longer used ──────────────────────────────────────────── */
-  //
-  // Every one of these now lives in public/pricing-config.js, where it is the
-  // single owner of that number for the whole product. They are kept here so a
-  // ruleset published before the change still validates and still loads; they
-  // are not read by estimateScanPrice() and changing them changes nothing.
-  minimumChargePence: 4500,
-  hourlyRatePence: 2800,
-  roomBasePence: 400,
-  levelMultiplierBasisPoints: Object.freeze({ 1: 9000, 2: 10000, 3: 12500, 4: 15000, 5: 0 }),
-  perSquareMetrePence: 90
+  maximumRangeBasisPoints: 6000
 });
 
 const basisPointDivisor = 10000;
@@ -86,29 +71,15 @@ function positiveInteger(value, minimum, maximum, label) {
 /**
  * Validates a stored or operator-supplied ruleset.
  *
- * Still deliberately strict on the retained rate fields even though nothing
- * reads them. A stored ruleset is data an operator can still edit through the
- * administrator interface, and accepting nonsense into a table because it
- * happens to be unused today is how it becomes a live surprise tomorrow.
+ * Three fields, all about UNCERTAINTY rather than money. A ruleset published
+ * before the unification carries an hourly rate and a minimum charge as well;
+ * those keys are ignored here and dropped by migration 103, because an
+ * operator-editable rate that changes nothing is worse than no rate at all.
  */
 export function normalizedPricingRuleset(input = {}) {
-  const multipliers = input.levelMultiplierBasisPoints || {};
-  const normalizedMultipliers = {};
-  for (const level of [1, 2, 3, 4, 5]) {
-    const supplied = multipliers[level] ?? multipliers[String(level)] ?? defaultPricingRuleset.levelMultiplierBasisPoints[level];
-    // Level 5 must stay unpriceable. An operator who could set a multiplier on
-    // it could put a price on "a person needs to look at this first".
-    if (level === 5) { normalizedMultipliers[5] = 0; continue; }
-    normalizedMultipliers[level] = positiveInteger(supplied, 5000, 30000, `Level ${level} multiplier`);
-  }
   return Object.freeze({
     rulesetId: String(input.rulesetId || "default").slice(0, 40),
     version: positiveInteger(input.version ?? pricingRulesetVersion, 1, 1000, "Ruleset version"),
-    minimumChargePence: positiveInteger(input.minimumChargePence ?? defaultPricingRuleset.minimumChargePence, 500, 100000, "Minimum charge"),
-    hourlyRatePence: positiveInteger(input.hourlyRatePence ?? defaultPricingRuleset.hourlyRatePence, 500, 30000, "Hourly rate"),
-    roomBasePence: positiveInteger(input.roomBasePence ?? defaultPricingRuleset.roomBasePence, 0, 20000, "Room base charge"),
-    levelMultiplierBasisPoints: Object.freeze(normalizedMultipliers),
-    perSquareMetrePence: positiveInteger(input.perSquareMetrePence ?? defaultPricingRuleset.perSquareMetrePence, 0, 2000, "Square-metre rate"),
     baseRangeBasisPoints: positiveInteger(input.baseRangeBasisPoints ?? defaultPricingRuleset.baseRangeBasisPoints, 0, 5000, "Base range"),
     unresolvedRangeBasisPointsEach: positiveInteger(input.unresolvedRangeBasisPointsEach ?? defaultPricingRuleset.unresolvedRangeBasisPointsEach, 0, 2000, "Per-question range"),
     maximumRangeBasisPoints: positiveInteger(input.maximumRangeBasisPoints ?? defaultPricingRuleset.maximumRangeBasisPoints, 500, 9000, "Maximum range")

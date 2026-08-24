@@ -234,27 +234,17 @@ async function loadTruth() {
   }
 }
 
-function renderAddons(addons) {
-  const host = element("[data-admin-scan-addons]");
-  const list = Array.isArray(addons) ? addons : [];
-  host.replaceChildren(...(list.length
-    ? list.map((addon) => listItem(`${addon.label} (${addon.code}) — £${penceToPounds(addon.pence)}${addon.addedMinutes ? `, +${addon.addedMinutes} min` : ""}`))
-    : [listItem("No extras are defined, so no extra can be charged for.")]));
-}
-
 async function load() {
   try {
-    const [shadow, telemetry, addons, ruleset] = await Promise.all([
+    const [shadow, telemetry, ruleset] = await Promise.all([
       requestJson("/api/marketplace/admin/pricing/scan-shadow-report"),
       requestJson("/api/marketplace/admin/scan-telemetry").catch(() => ({ snapshot: { counters: {} }, rates: {} })),
-      requestJson("/api/marketplace/pricing/scan-addons"),
       requestJson("/api/marketplace/admin/pricing/scan-ruleset")
     ]);
     gate.hidden = true;
     workspace.hidden = false;
     renderShadow(shadow.report);
     renderTelemetry(telemetry);
-    renderAddons(addons.addons);
     // After the gate has opened: a 503 here means the review service is off,
     // which the section reports without blocking the rest of the page.
     void loadTruth();
@@ -287,32 +277,6 @@ element("[data-admin-scan-retention-form]")?.addEventListener("submit", async (e
       body: JSON.stringify({ abandonedDays, completedDays })
     });
     status.textContent = `Saved. Unbooked scans are deleted after ${result.policy.abandonedDays} days, booked scans after ${result.policy.completedDays}.`;
-  } catch (error) {
-    status.textContent = "";
-    errorHost.textContent = error.message;
-    errorHost.hidden = false;
-  }
-});
-
-element("[data-admin-scan-addon-form]")?.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const errorHost = element("[data-admin-scan-addon-error]");
-  const status = element("[data-admin-scan-addon-status]");
-  errorHost.hidden = true;
-  try {
-    const result = await requestJson("/api/marketplace/admin/pricing/scan-addons", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRF-Token": await recoverCsrf() },
-      body: JSON.stringify({
-        code: element("[data-admin-scan-addon-code]").value.trim(),
-        label: element("[data-admin-scan-addon-label]").value.trim(),
-        pence: poundsToPence(element("[data-admin-scan-addon-price]").value),
-        addedMinutes: Number(element("[data-admin-scan-addon-minutes]").value.trim() || "0"),
-        active: true
-      })
-    });
-    renderAddons(result.addons);
-    status.textContent = "Saved. Every new estimate resolves extras against this list.";
   } catch (error) {
     status.textContent = "";
     errorHost.textContent = error.message;

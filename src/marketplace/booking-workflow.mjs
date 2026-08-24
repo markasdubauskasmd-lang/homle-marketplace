@@ -51,6 +51,14 @@ function priceableTravelCost(candidate, config) {
   return totalTravelCostPence;
 }
 
+// Postgres hands jsonb back as an array; a driver configured differently hands
+// back a string. Both are the same rows.
+function taskRows(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+}
+
 function bookingProjection(record, actor) {
   const base = {
     bookingId: record.id,
@@ -221,6 +229,10 @@ export function bookingPricingPolicyFromEnvironment(env = process.env) {
 export function createBookingWorkflowService(repository, options = {}) {
   if (!repository || typeof repository.listParticipantBookings !== "function" || typeof repository.getInvitationCandidate !== "function" || typeof repository.inviteCleaner !== "function" || typeof repository.respondToInvitation !== "function") throw new TypeError("A complete booking workflow repository is required.");
   const pricingPolicy = options.pricingPolicy || null;
+  // Prices a request that carries no frozen quote, from its own stored rooms
+  // and tasks, through the same engine every other quote uses. Configured means
+  // the cost-up path below is never reached at this seam.
+  const requote = typeof options.requoteRequest === "function" ? options.requoteRequest : null;
   // The share and floors a platform-priced booking settles against. Absent
   // means the cost-up path is the only one available, which is the behaviour
   // every existing deployment already has.
@@ -282,6 +294,58 @@ export function createBookingWorkflowService(repository, options = {}) {
     };
   }
 
+  /**
+   * Terms for a request saved before Homle priced up front.
+   *
+   * Prices the rooms and tasks the request actually carries, at today's
+   * published rates, through the same engine every other quote uses.
+   *
+   * This is what the cost-up path used to do, and it is strictly better at this
+   * seam: cost-up derived the customer price from whichever cleaner was being
+   * invited, so two cleaners produced two prices for identical work. Here the
+   * price belongs to the job. The caller still approves the figure before
+   * anything is written, because the customer has not seen this one yet.
+   */
+  async function reQuotedTerms(actor, candidate, now, economics) {
+    if (!economics) throw Object.assign(new Error("Platform pricing is temporarily unavailable."), { statusCode: 503, code: "pricing-not-configured" });
+
+    const quote = await requote(actor, {
+      tasks: taskRows(candidate.tasks),
+      cleaningType: candidate.cleaning_type ?? candidate.cleaningType ?? "",
+      postcode: candidate.property_postcode ?? candidate.propertyPostcode ?? "",
+      startAt: candidate.requested_start_at,
+      recurrenceRule: candidate.recurrence_rule ?? candidate.recurrenceRule ?? null
+    });
+    if (!quote?.priceable) {
+      throw Object.assign(new Error(quote?.reason || "This request cannot be priced automatically."), { statusCode: 409, code: quote?.code || "request-not-priceable" });
+    }
+
+    const settled = quoteEconomics(quote.totalPence, quote.estimatedMinutes, economics, { payoutBasisPence: quote.payoutBasisPence });
+    if (!settled.healthy) {
+      throw Object.assign(new Error("This request cannot be booked at the price it works out to."), { statusCode: 409, code: "request-not-priceable" });
+    }
+
+    const start = new Date(candidate.requested_start_at);
+    const responseDeadline = new Date(Math.min(start.getTime(), now.getTime() + platformInvitationTtlMinutes * 60000));
+    if (responseDeadline.getTime() <= now.getTime()) throw Object.assign(new Error("The requested start time is too close to invite a cleaner."), { statusCode: 409, code: "request-too-soon" });
+
+    return {
+      customerPricePence: quote.totalPence,
+      cleanerPayPence: settled.cleanerPayoutPence,
+      labourOnCostPence: 0,
+      paymentFeePence: settled.paymentFeePence,
+      riskContingencyPence: 0,
+      travelCostPence: 0,
+      suppliesCostPence: 0,
+      otherCostPence: 0,
+      quotedMinutes: quote.estimatedMinutes,
+      pricingConfigVersion: quote.configVersion ?? null,
+      targetMarginBasisPoints: settled.grossMarginBasisPoints,
+      targetContributionPence: settled.grossMarginPence,
+      responseDeadline: responseDeadline.toISOString()
+    };
+  }
+
   async function invitationQuote(actor, input = {}) {
     if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.some((role) => role === "landlord" || role === "administrator")) throw new TypeError("A Landlord account is required to price a Cleaner invitation.");
     // NOT a guard on the whole function any more.
@@ -303,7 +367,7 @@ export function createBookingWorkflowService(repository, options = {}) {
     // that price: the customer figure is already decided, and the cleaner is
     // paid a share of it.
     //
-    // THE COST-UP PATH BELOW IS LEGACY, AND IS KEPT ONLY FOR OLD ROWS.
+    // THE COST-UP PATH BELOW IS LEGACY AND IS NO LONGER REACHED HERE.
     //
     // It was the third of the three pricing systems the August 2026 audit found
     // (docs/PRICING_MODEL.md). Every client path now sends a pricing request, so
@@ -312,19 +376,22 @@ export function createBookingWorkflowService(repository, options = {}) {
     // change, whose quoted_total_pence is null and which would otherwise become
     // unbookable.
     //
-    // It can be deleted, along with the twelve BOOKING_* variables, once:
-    //
-    //   SELECT count(*) FROM cleaning_requests
-    //   WHERE quoted_total_pence IS NULL
-    //     AND status NOT IN ('cancelled', 'matched');
-    //
-    // returns zero. That is a data decision rather than a code one, which is why
-    // it has not been made here.
+    // Deleting it outright still waits on matching-service.mjs and
+    // automatic-dispatch-worker.mjs, which rank cleaners by the cost-up price
+    // each one produces. Under platform pricing that number is identical for
+    // every candidate, so the ranking term is dead weight — but removing it
+    // means new migrations to recommend_cleaners_for_request_v3 and
+    // get_automatic_dispatch_candidates so those rows carry the frozen quote.
+    // That is its own change, against a worker that invites cleaners to real
+    // jobs with no human in the loop.
     const resolvedPlatformEconomics = getPlatformEconomics
       ? normalizedPricingEconomics(await getPlatformEconomics(actor))
       : platformEconomics;
     let terms = platformPricedTerms(candidate, clock(), resolvedPlatformEconomics);
+    if (!terms && requote) terms = await reQuotedTerms(actor, candidate, clock(), resolvedPlatformEconomics);
     if (!terms) {
+      // Only reachable on a deployment with neither a re-quote boundary nor a
+      // cost-up policy configured. It fails closed and says what is wrong.
       if (!pricingPolicy || typeof pricingPolicy.quote !== "function") {
         throw Object.assign(new Error("This request was saved before Homle priced requests up front, and cannot be booked until it is re-quoted."), { statusCode: 409, code: "request-not-priced" });
       }

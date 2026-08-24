@@ -1131,18 +1131,6 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, accepted });
           return true;
         }
-        if (pathname === "/api/marketplace/pricing/scan-addons") {
-          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
-          const context = await security.protect(request);
-          sendJson(response, 200, { ok: true, addons: await scanPricing.listAddons(context.actor) });
-          return true;
-        }
-        if (pathname === "/api/marketplace/admin/pricing/scan-addons") {
-          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
-          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
-          sendJson(response, 200, { ok: true, addons: await scanPricing.upsertAddon(context.actor, await readJsonObject(request)) });
-          return true;
-        }
         if (pathname === "/api/marketplace/admin/scan-retention") {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
           const context = await security.protect(request, { mutation: true, roles: ["administrator"] });

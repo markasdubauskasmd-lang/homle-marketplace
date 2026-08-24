@@ -1,6 +1,6 @@
 import { storedCsrf } from "./session-csrf.js";
 import {
-  basisPointsToPercent, changeReasonError, levelFields, penceToPounds,
+  changeReasonError, penceToPounds,
   pricingChangeSummary, pricingFields, pricingRulesFromForm
 } from "./admin-scan-pricing-model.js";
 
@@ -23,7 +23,6 @@ const gateCopy = element("[data-admin-pricing-gate-copy]");
 const signIn = element("[data-admin-pricing-sign-in]");
 const retry = element("[data-admin-pricing-retry]");
 const fieldHost = element("[data-admin-pricing-fields]");
-const levelHost = element("[data-admin-pricing-levels]");
 const currentHost = element("[data-admin-pricing-current]");
 const historyHost = element("[data-admin-pricing-history]");
 const summaryHost = element("[data-admin-pricing-summary]");
@@ -94,25 +93,16 @@ function labelledInput(id, labelText, helpText, value) {
 
 function renderForm(ruleset) {
   fieldHost.replaceChildren();
-  levelHost.replaceChildren();
   for (const field of pricingFields) {
     const stored = ruleset ? ruleset[field.key] : null;
     const value = field.money ? penceToPounds(stored) : (Number.isInteger(Number(stored)) ? String(stored) : "");
     fieldHost.append(labelledInput(field.key, field.money ? `${field.label} (£)` : field.label, field.help, value));
-  }
-  const multipliers = ruleset?.levelMultiplierBasisPoints || {};
-  for (const field of levelFields) {
-    const stored = multipliers[field.level] ?? multipliers[String(field.level)];
-    levelHost.append(labelledInput(`level${field.level}`, `${field.label} (basis points)`,
-      `${basisPointsToPercent(stored) || "100"}% of the standard rate. 10000 is exactly standard.`,
-      Number.isInteger(Number(stored)) ? String(stored) : ""));
   }
 }
 
 function formValues() {
   const values = {};
   for (const field of pricingFields) values[field.key] = element(`#${field.key}`)?.value ?? "";
-  for (const field of levelFields) values[`level${field.level}`] = element(`#level${field.level}`)?.value ?? "";
   return values;
 }
 
@@ -143,14 +133,14 @@ function renderCurrent(ruleset) {
     currentHost.textContent = "No rates have been published. Estimates currently use the shipped defaults, and publishing here replaces them.";
     return;
   }
-  currentHost.textContent = `Version ${ruleset.version} · £${penceToPounds(ruleset.hourlyRatePence)} per hour · £${penceToPounds(ruleset.minimumChargePence)} minimum visit · published ${new Date(ruleset.createdAt).toLocaleString("en-GB")} · ${ruleset.changeReason}`;
+  currentHost.textContent = `Version ${ruleset.version} · ±${Math.round(ruleset.baseRangeBasisPoints / 100)}% base range · published ${new Date(ruleset.createdAt).toLocaleString("en-GB")} · ${ruleset.changeReason}`;
 }
 
 function renderHistory(history) {
   historyHost.replaceChildren();
   for (const version of history?.versions || []) {
     const item = document.createElement("li");
-    item.textContent = `Version ${version.version}${version.active ? " (live)" : ""} · £${penceToPounds(version.hourlyRatePence)}/hour · ${new Date(version.createdAt).toLocaleDateString("en-GB")} · ${version.changeReason}`;
+    item.textContent = `Version ${version.version}${version.active ? " (live)" : ""} · ±${Math.round(version.baseRangeBasisPoints / 100)}% base range · ${new Date(version.createdAt).toLocaleDateString("en-GB")} · ${version.changeReason}`;
     historyHost.append(item);
   }
   if (!historyHost.childElementCount) {
