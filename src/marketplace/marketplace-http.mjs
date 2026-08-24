@@ -11,10 +11,12 @@ import { defaultPricingConfig, normalizedPricingConfig, publicPricingConfig, pub
 import { quoteRooms } from "../../public/pricing-engine.js";
 import { defaultPricingEconomics, normalizedPricingEconomics, reviewedQuote } from "./pricing-economics.mjs";
 import { trustedPricingRequest } from "./pricing-request-boundary.mjs";
+import { cancellationFee, cancellationPolicySummary, cancellationSettlement } from "../../public/cancellation-policy.js";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
 const bookingResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/response$`);
+const bookingCancellationQuotePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cancellation-quote$`);
 const requestInvitationPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitations$`);
 const requestInvitationQuotePath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitation-quote$`);
 const requestMatchesPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/matches$`);
@@ -444,6 +446,44 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
           const supportRequest = await supportRequests.review(context.actor, selectedAdminSupportRequest[1], await readJsonObject(request));
           sendJson(response, 200, { ok: true, supportRequest });
+          return true;
+        }
+        // What cancelling this booking would cost, right now.
+        //
+        // A cancellation is an operator-reviewed support request, not something
+        // a customer can execute — but they are entitled to know the
+        // consequence BEFORE they ask, and the fee changes by the hour as the
+        // visit approaches. Computed from the published policy so the number on
+        // the form and the number an administrator sees are the same number.
+        //
+        // Compute only. Nothing is charged, cancelled or recorded here.
+        const cancellationQuoteMatch = pathname.match(bookingCancellationQuotePath);
+        if (cancellationQuoteMatch) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["landlord", "administrator"] });
+          const config = normalizedPricingConfig(await pricingConfiguration(context.actor));
+          const summaries = await bookings.listParticipantBookings(context.actor, { limit: 100 });
+          const booking = summaries.find((candidate) => candidate.bookingId === cancellationQuoteMatch[1]);
+          if (!booking) {
+            sendJson(response, 404, { ok: false, error: "That booking was not found in this account." });
+            return true;
+          }
+          const fee = cancellationFee({
+            totalPence: booking.pricePence,
+            scheduledStartAt: booking.scheduledStartAt,
+            serviceType: booking.cleaningType
+          }, config, { now: new Date() });
+          sendJson(response, 200, {
+            ok: true,
+            cancellation: fee,
+            policy: cancellationPolicySummary(config),
+            // What the cleaner receives out of it is a commercial position, so
+            // it travels only to an administrator — the same rule the rest of
+            // the economics follow.
+            ...(context.actor.roles.includes("administrator")
+              ? { settlement: cancellationSettlement(fee.feePence, normalizedPricingEconomics(await pricingEconomicsConfiguration(context.actor))) }
+              : {})
+          });
           return true;
         }
         if (pathname === "/api/marketplace/bookings") {

@@ -296,6 +296,14 @@
         </div>
         <ul class="journey-total-lines" data-checkout-breakdown></ul>
         <p class="journey-total-note" data-checkout-total-note></p>
+        <!-- Before they book, not after they try to cancel. The terms are
+             rendered from the same configuration that charges, so the words
+             here and the arithmetic later cannot disagree. -->
+        <details class="journey-total-policy" data-checkout-policy>
+          <summary>If you need to cancel</summary>
+          <ul data-checkout-policy-lines></ul>
+          <p>A charge compensates the Cleaner who kept the slot free for you.</p>
+        </details>
       </div>
 
       <dl class="summary" data-summary></dl>

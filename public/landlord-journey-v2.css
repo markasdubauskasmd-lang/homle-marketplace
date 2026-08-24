@@ -262,3 +262,22 @@ body.journey-page .res-grid .res-cell:first-child{
   background:rgba(255,255,255,.2);
 }
 body.journey-page .res-grid .res-cell:first-child b{font-size:32px}
+
+/* The cancellation terms at checkout. Collapsed by default: a customer who is
+   about to book wants the price, and a customer who is hesitating wants the
+   terms. Both are one tap from what they came for. */
+body.journey-page .journey-total-policy{
+  margin-top:14px;padding-top:14px;border-top:1px solid var(--j-line);
+}
+body.journey-page .journey-total-policy summary{
+  cursor:pointer;font-size:13px;font-weight:600;opacity:.8;
+}
+body.journey-page .journey-total-policy ul{
+  list-style:none;margin:12px 0 0;padding:0;display:grid;gap:7px;
+}
+body.journey-page .journey-total-policy-line{
+  display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+  font-size:13px;line-height:1.5;
+}
+body.journey-page .journey-total-policy-line b{font-weight:600;text-align:right}
+body.journey-page .journey-total-policy p{margin:12px 0 0;font-size:12.5px;opacity:.7}

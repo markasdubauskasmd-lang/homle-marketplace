@@ -57,12 +57,50 @@ function requestCard(record) {
     const details = document.createElement("div"); details.className = "support-response";
     const reference = document.createElement("strong"); reference.className = "support-booking-reference"; reference.textContent = `Booking ${record.bookingId.slice(0, 8).toUpperCase()}`;
     const requested = document.createElement("p"); requested.textContent = record.bookingChangeKind === "reschedule" ? `Requested reschedule: ${formatDate(record.proposedStartAt)}` : "Cancellation requested. The confirmed booking is still unchanged.";
-    details.append(reference, requested); card.append(details);
+    details.append(reference, requested);
+    if (record.bookingChangeKind === "cancel") {
+      // The fee, and the split, at the moment the decision is made. An operator
+      // deciding a cancellation without knowing what the policy says would be
+      // applying it from memory, which is how a published policy stops meaning
+      // anything.
+      const cost = document.createElement("p"); cost.className = "support-cancellation-cost"; cost.textContent = "Checking the cancellation policy…";
+      details.append(cost);
+      void applicableCancellationCost(record.bookingId, cost);
+    }
+    card.append(details);
   }
   if (record.resolutionSummary) { const answer = document.createElement("div"); answer.className = "support-response"; const strong = document.createElement("strong"); strong.textContent = "Recorded response"; const copy = document.createElement("p"); copy.textContent = record.resolutionSummary; answer.append(strong, copy); card.append(answer); }
   if (record.status === "open") card.append(button("Start review", "button button-outline", (event) => update(record.supportRequestId, { status: "reviewing" }, event.currentTarget)));
   if (record.status !== "resolved") card.append(button("Record final response", "button", () => openResolution(record)));
   return card;
+}
+
+/**
+ * What the published policy says about cancelling this booking now.
+ *
+ * Best effort and out of band: the queue must render whether or not a fee can
+ * be computed, and a booking whose cancellation has already been actioned may
+ * no longer be readable at all.
+ */
+async function applicableCancellationCost(bookingId, host) {
+  try {
+    const result = await requestJson(`/api/marketplace/bookings/${encodeURIComponent(bookingId)}/cancellation-quote`);
+    const fee = result.cancellation;
+    if (!fee?.chargeable) {
+      host.textContent = `Policy: no cancellation charge${fee?.noticeHours == null ? "" : ` (${Math.round(fee.noticeHours)} hours' notice)`}.`;
+      return;
+    }
+    const split = result.settlement;
+    host.textContent = split
+      ? `Policy: ${money(fee.feePence)} — ${fee.label.toLowerCase()}, ${Math.round(fee.noticeHours)} hours' notice. Cleaner ${money(split.cleanerPence)}, Homle ${money(split.platformPence)}.`
+      : `Policy: ${money(fee.feePence)} — ${fee.label.toLowerCase()}.`;
+  } catch {
+    host.textContent = "The cancellation policy could not be checked for this booking.";
+  }
+}
+
+function money(pence) {
+  return pence % 100 === 0 ? `£${pence / 100}` : `£${(pence / 100).toFixed(2)}`;
 }
 
 async function loadQueue() {

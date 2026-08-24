@@ -123,6 +123,61 @@ function syncSupportKind() {
   const reschedule = bookingChange && form.elements.bookingChangeKind.value === "reschedule";
   document.querySelector("[data-support-proposed-time]").hidden = !reschedule;
   form.elements.proposedStartLocal.required = reschedule;
+  void syncCancellationCost(bookingChange && form.elements.bookingChangeKind.value === "cancel");
+}
+
+/**
+ * What cancelling the chosen booking would cost.
+ *
+ * Shown BEFORE the request is sent, because a fee a customer discovers
+ * afterwards is the kind that produces a chargeback rather than an
+ * understanding. Fetched per booking rather than stated once: the charge rises
+ * as the visit approaches, and "25% if you cancel inside two days" is not an
+ * answer to "what will this cost me now".
+ *
+ * Silent on failure. This is disclosure, not a gate — a customer who genuinely
+ * needs to cancel must never be blocked because a quote endpoint was slow.
+ */
+let cancellationToken = 0;
+async function syncCancellationCost(applies) {
+  const host = document.querySelector("[data-support-cancellation]");
+  if (!host) return;
+  const bookingId = form.elements.bookingId.value;
+  const generation = (cancellationToken += 1);
+  if (!applies || !bookingId) { host.hidden = true; return; }
+
+  host.hidden = false;
+  document.querySelector("[data-support-cancellation-fee]").textContent = "Checking…";
+  document.querySelector("[data-support-cancellation-band]").textContent = "";
+  document.querySelector("[data-support-cancellation-detail]").textContent = "";
+
+  try {
+    const result = await requestJson(`/api/marketplace/bookings/${encodeURIComponent(bookingId)}/cancellation-quote`);
+    if (generation !== cancellationToken) return;
+    const fee = result.cancellation;
+    document.querySelector("[data-support-cancellation-fee]").textContent = fee.chargeable
+      ? formatMoney(fee.feePence)
+      : "No charge";
+    document.querySelector("[data-support-cancellation-band]").textContent = fee.chargeable ? `— ${fee.label.toLowerCase()}` : "";
+    document.querySelector("[data-support-cancellation-detail]").textContent = fee.chargeable
+      ? "Cancelling this close to the visit means the Cleaner has already turned down other work for it."
+      : fee.explanation;
+    const policy = document.querySelector("[data-support-cancellation-policy]");
+    policy.replaceChildren(...(result.policy || []).map((row) => {
+      const item = document.createElement("li");
+      item.textContent = `${row.when}: ${row.charge}`;
+      return item;
+    }));
+  } catch {
+    if (generation !== cancellationToken) return;
+    // Never a blocker. The request can still be sent; Homle confirms the
+    // outcome in the account either way.
+    host.hidden = true;
+  }
+}
+
+function formatMoney(pence) {
+  return pence % 100 === 0 ? `£${pence / 100}` : `£${(pence / 100).toFixed(2)}`;
 }
 
 async function load() {
@@ -169,4 +224,6 @@ document.querySelector("[data-support-retry]").addEventListener("click", load);
 document.querySelector("[data-support-refresh]").addEventListener("click", async () => { try { await loadRequests(); } catch (error) { showFeedback(error.message); } });
 form.elements.category.addEventListener("change", syncSupportKind);
 form.elements.bookingChangeKind.addEventListener("change", syncSupportKind);
+// The fee depends on WHICH booking, so changing the booking re-asks.
+form.elements.bookingId.addEventListener("change", syncSupportKind);
 load();

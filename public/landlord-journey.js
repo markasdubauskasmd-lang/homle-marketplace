@@ -3,6 +3,7 @@
 import { defaultPricingConfig, normalizedPricingConfig } from "./pricing-config.js?v=20260808-1";
 import { quoteInputFromScan, quoteRooms } from "./pricing-engine.js?v=20260808-1";
 import { createPriceAnimator, formatPence, showPriceDelta } from "./price-animator.js?v=20260808-1";
+import { cancellationPolicySummary } from "./cancellation-policy.js?v=20260824-1";
 
 import {
   journeySteps,
@@ -72,6 +73,8 @@ const el = {
   checkoutTotal: $("[data-checkout-total]"),
   checkoutBreakdown: $("[data-checkout-breakdown]"),
   checkoutTotalNote: $("[data-checkout-total-note]"),
+  checkoutPolicy: $("[data-checkout-policy]"),
+  checkoutPolicyLines: $("[data-checkout-policy-lines]"),
   tasks: $("[data-tasks]"),
   days: $("[data-days]"),
   times: $("[data-times]"),
@@ -776,6 +779,32 @@ function renderCheckoutTotal() {
       return row;
     }));
   el.checkoutTotalNote.textContent = "This is Homle's price for the work listed. We confirm it before any payment is taken.";
+  renderCancellationPolicy();
+}
+
+/**
+ * The cancellation terms, rendered from the price list rather than written into
+ * the page.
+ *
+ * A terms paragraph typed into markup drifts away from the arithmetic that
+ * charges the moment an operator changes a band — which is the same failure the
+ * hand-typed guide prices had. This reads the same configuration the fee is
+ * computed from.
+ */
+function renderCancellationPolicy() {
+  if (!el.checkoutPolicy || !pricingConfig) return;
+  try {
+    const rows = cancellationPolicySummary(pricingConfig);
+    el.checkoutPolicyLines.replaceChildren(...rows.map((row) => {
+      const item = textNode("li", "journey-total-policy-line");
+      item.append(textNode("span", "", row.when), textNode("b", "", row.charge));
+      return item;
+    }));
+    el.checkoutPolicy.hidden = rows.length === 0;
+  } catch {
+    // Never the reason a customer cannot book.
+    el.checkoutPolicy.hidden = true;
+  }
 }
 
 /* ── Capabilities ───────────────────────────────────── */

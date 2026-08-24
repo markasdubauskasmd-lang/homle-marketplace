@@ -43,6 +43,18 @@
               <label>Confirmed booking<select name="bookingId" data-support-booking><option value="">Choose a booking</option></select></label>
               <label>What would you like to request?<select name="bookingChangeKind" data-support-change-kind><option value="">Choose one</option><option value="reschedule">Move it to another time</option><option value="cancel">Cancel this booking</option></select></label>
               <div data-support-proposed-time hidden><label>Preferred new date and time<input name="proposedStartLocal" type="datetime-local"></label></div>
+              <!-- What cancelling would cost, before they ask rather than after.
+                   The fee rises as the visit approaches, so it is fetched for
+                   the chosen booking rather than stated once. -->
+              <div class="support-cancellation" data-support-cancellation hidden>
+                <p class="support-cancellation-head"><strong data-support-cancellation-fee>—</strong> <span data-support-cancellation-band></span></p>
+                <p class="support-cancellation-detail" data-support-cancellation-detail></p>
+                <details class="support-cancellation-policy">
+                  <summary>How cancellation charges work</summary>
+                  <ul data-support-cancellation-policy></ul>
+                  <p>A charge compensates the Cleaner who kept the slot free. Homle confirms the outcome in this account before anything is taken.</p>
+                </details>
+              </div>
               <p class="support-boundary">Your current booking, Cleaner commitment and payment stay unchanged until Homle confirms the outcome in this account.</p>
             </div>
             <label>What happened?<textarea name="description" rows="7" minlength="20" maxlength="2000" required placeholder="Tell us what you were doing and what you expected to happen."></textarea><small>Do not include door or alarm codes, passwords, card numbers, API keys or secret keys.</small></label>
