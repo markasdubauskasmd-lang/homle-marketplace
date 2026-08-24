@@ -281,31 +281,41 @@ export function createScanService(repository, options = {}) {
   // behaviour: this observes the scan, it is not part of it.
   const telemetry = options.telemetry || null;
   const observe = (metric, extra) => { try { telemetry?.record(metric, extra); } catch { /* never the reason a scan fails */ } };
-  async function estimateFor(actor, scan, chosenAddOnCodes = []) {
+  // The operator's live price list. Reading it is a database call, so a failure
+  // falls back to the shipped defaults: an unconfigured deployment must price
+  // identically to a configured one, and a failed read must never become a
+  // differently-priced estimate.
+  const pricingConfiguration = typeof options.pricingConfiguration === "function" ? options.pricingConfiguration : null;
+
+  async function estimateFor(actor, scan, chosenAddOnCodes = [], context = {}) {
     if (!scan?.complexity?.assessed) return null;
     let ruleset = defaultPricingRuleset;
     try {
-      // An unconfigured deployment prices identically to a configured one. A
-      // failure to read the rates must never turn into a differently-priced
-      // estimate, so it falls back to the shipped defaults rather than to
-      // nothing or to a partial ruleset.
       const published = pricing ? await pricing.getActiveRuleset(actor, "default") : null;
       if (published) ruleset = normalizedPricingRuleset(published);
     } catch { ruleset = defaultPricingRuleset; }
 
-    // Add-ons are resolved against the catalogue, never taken from the request.
-    // A client that could name its own price for an extra could name any price,
-    // and the whole point of the ruleset is that every component has a reviewed
-    // amount behind it.
-    let addOns = [];
-    const requested = Array.isArray(chosenAddOnCodes) ? chosenAddOnCodes.slice(0, 10).map((code) => String(code || "")) : [];
-    if (requested.length && pricing?.listAddons) {
-      try {
-        const catalogue = await pricing.listAddons(actor);
-        addOns = (Array.isArray(catalogue) ? catalogue : []).filter((entry) => requested.includes(String(entry?.code || "")));
-      } catch { addOns = []; }
-    }
-    return estimateScanPrice(scan, ruleset, addOns);
+    let config;
+    try {
+      config = pricingConfiguration ? await pricingConfiguration(actor) : null;
+    } catch { config = null; }
+
+    // Add-ons travel as CODES and are priced from the published price list.
+    // A client that could name its own price for an extra could name any price.
+    const requested = Array.isArray(chosenAddOnCodes)
+      ? chosenAddOnCodes.slice(0, 10).map((code) => ({ code: String(code || "") })).filter((addOn) => addOn.code)
+      : [];
+
+    return estimateScanPrice(scan, ruleset, requested, {
+      config,
+      serviceType: context.serviceType,
+      frequency: context.frequency,
+      postcode: context.postcode,
+      startAt: context.startAt,
+      // The server's clock, never the browser's. Urgency decided by a supplied
+      // timestamp would be urgency the customer could choose not to have.
+      now: new Date().toISOString()
+    });
   }
 
   if (!repository || typeof repository.recordScan !== "function" || typeof repository.getScan !== "function"
@@ -354,7 +364,15 @@ export function createScanService(repository, options = {}) {
           objects: room.objects.map((object) => ({ ...object, objectId: object.inventoryKey }))
         }))
       });
-      return Object.freeze({ ...scan, estimate: await estimateFor(actor, scan, input.addOns) });
+      // The service, area and requested time travel with the preview so the
+      // estimate reflects the booking the customer is actually assembling
+      // rather than a generic standard weekday clean.
+      return Object.freeze({ ...scan, estimate: await estimateFor(actor, scan, input.addOns, {
+        serviceType: input.serviceType,
+        frequency: input.frequency,
+        postcode: input.postcode,
+        startAt: input.startAt
+      }) });
     },
     async getScan(actor, cleaningRequestId) {
       if (!actor?.userId || !actor.roles?.some((role) => role === "landlord" || role === "administrator")) {

@@ -2,6 +2,7 @@ import {
   createScanService, maximumRoomObjects, maximumScanObjects, maximumScanRooms,
   normalizedRoomScan, scanProjection
 } from "../src/marketplace/scan-service.mjs";
+import { defaultPricingConfig } from "../public/pricing-config.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 async function rejects(run, fragment) {
@@ -400,39 +401,64 @@ assert(throwsWith(() => createScanService(null), "complete room-scan repository"
     "A Cleaner saved spoken instructions.");
 }
 
-/* ── An add-on's price comes from the catalogue, never the request ───────── */
+/* ── An add-on's price comes from the price list, never the request ──────── */
 
-// A client that could name its own price for an extra could name any price, and
-// the point of the ruleset is that every price component has a reviewed amount
-// behind it.
-{
-  const capture = {};
-  const pricing = {
-    async getActiveRuleset() { return null; },
-    async listAddons() { capture.addonsRead = true; return [{ code: "oven-deep-clean", label: "Oven deep clean", pence: 4500, addedMinutes: 45 }]; },
-    async recordObservation() { return true; }
-  };
-  const service = createScanService(repositoryStub(capture), { pricing });
-  const previewed = await service.previewScan(landlord, {
-    ...scan(),
-    // A real code, an unknown one, and an attempt to set the price directly.
-    addOns: ["oven-deep-clean", "not-in-the-catalogue", { code: "oven-deep-clean", pence: 999999 }]
-  });
-  assert(capture.addonsRead === true, "The add-on catalogue was not consulted.");
-  const addOnLines = previewed.estimate.lines.filter((line) => line.code.startsWith("add-on:"));
-  assert(addOnLines.length === 1, `${addOnLines.length} add-on lines were priced rather than one.`);
-  assert(addOnLines[0].pence === 4500, `The add-on was priced at ${addOnLines[0].pence} rather than the catalogue amount.`);
-}
-
-// No add-ons requested means the catalogue is not even read: an estimate should
-// not cost a lookup nobody asked for.
+// A client that could name its own price for an extra could name any price, so
+// the request carries CODES and the published price list supplies the money.
+//
+// The catalogue this used to read was a separate scan-only add-on table with
+// its own rates — a fourth place prices lived. Add-ons now resolve against
+// pricing-config.js like every other component of a quote.
 {
   const capture = {};
   const service = createScanService(repositoryStub(capture), {
-    pricing: { async getActiveRuleset() { return null; }, async listAddons() { capture.addonsRead = true; return []; }, async recordObservation() { return true; } }
+    pricing: { async getActiveRuleset() { return null; }, async recordObservation() { return true; } },
+    pricingConfiguration: async () => defaultPricingConfig
   });
-  await service.previewScan(landlord, scan());
-  assert(capture.addonsRead !== true, "The add-on catalogue was read for an estimate with no add-ons.");
+  const previewed = await service.previewScan(landlord, {
+    ...scan(),
+    // A real code, an unknown one, and an attempt to set the price directly.
+    addOns: ["ironing", "not-in-the-price-list", { code: "ironing", pence: 999999 }]
+  });
+  const addOnLines = previewed.estimate.lines.filter((line) => line.code.startsWith("add-on:"));
+  assert(addOnLines.length === 1, `${addOnLines.length} add-on lines were priced rather than one.`);
+  assert(addOnLines[0].pence === defaultPricingConfig.addOns.ironing.pence,
+    `The add-on was priced at ${addOnLines[0].pence} rather than the published amount.`);
+}
+
+/* ── The estimate uses the operator's live price list ─────────────────────── */
+
+// Before this the scan estimate ran on its own rate table and could disagree
+// with the number the customer was charged twenty seconds later.
+{
+  const capture = {};
+  let read = false;
+  const service = createScanService(repositoryStub(capture), {
+    pricing: { async getActiveRuleset() { return null; }, async recordObservation() { return true; } },
+    pricingConfiguration: async () => { read = true; return { ...defaultPricingConfig, customerHourlyRatePence: 2900 }; }
+  });
+  const dear = await service.previewScan(landlord, scan());
+  assert(read, "The estimate did not consult the operator's price list.");
+
+  const cheapService = createScanService(repositoryStub({}), {
+    pricing: { async getActiveRuleset() { return null; }, async recordObservation() { return true; } },
+    pricingConfiguration: async () => ({ ...defaultPricingConfig, customerHourlyRatePence: 1200 })
+  });
+  const cheap = await cheapService.previewScan(landlord, scan());
+  assert(dear.estimate.totalPence > cheap.estimate.totalPence,
+    "Changing the published hourly rate did not move the scan estimate.");
+}
+
+// A price list that cannot be read must not change what a customer is quoted
+// into something else — it falls back to the shipped list, which is complete.
+{
+  const service = createScanService(repositoryStub({}), {
+    pricing: { async getActiveRuleset() { return null; }, async recordObservation() { return true; } },
+    pricingConfiguration: async () => { throw new Error("database unavailable"); }
+  });
+  const previewed = await service.previewScan(landlord, scan());
+  assert(previewed.estimate?.priceable === true,
+    "An unreadable price list left the customer with no estimate at all.");
 }
 
 console.log("Structured room-scan service checks passed.");

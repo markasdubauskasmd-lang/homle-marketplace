@@ -32,7 +32,7 @@ import {
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
-import { requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
+import { pricingRequestFromManualTasks, requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260824-1";
 import { isUkPostcode } from "./contact-validation.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -66,6 +66,12 @@ const el = {
   resultsTime: $("[data-results-time]"),
   resultsRooms: $("[data-results-rooms]"),
   resultsTasks: $("[data-results-tasks]"),
+  resultsPrice: $("[data-results-price]"),
+  resultsPriceNote: $("[data-results-price-note]"),
+  checkoutPrice: $("[data-checkout-price]"),
+  checkoutTotal: $("[data-checkout-total]"),
+  checkoutBreakdown: $("[data-checkout-breakdown]"),
+  checkoutTotalNote: $("[data-checkout-total-note]"),
   tasks: $("[data-tasks]"),
   days: $("[data-days]"),
   times: $("[data-times]"),
@@ -288,6 +294,15 @@ function show(stepId) {
   if (el.exit) el.exit.hidden = hasPreviousStep || stepId === "done";
   window.scrollTo({ top: 0, behavior: "instant" });
   saveDraft();
+  // The price list is fetched once and cached. Loading it here rather than only
+  // inside the scan review is what lets the manual path show a running total —
+  // that path never opens the scanner, so it never reached the old load point.
+  if (stepId === "results" || stepId === "checkout") {
+    void loadPricingConfig().then(() => {
+      if (state.step === "results") updateLivePrice();
+      if (state.step === "checkout") renderCheckoutTotal();
+    });
+  }
   if (stepId === "results") renderResults();
   if (stepId === "postcode") renderScanPropertyChoice();
   if (stepId === "when") renderWhen();
@@ -471,7 +486,45 @@ function updateResultTotals() {
   el.resultsTasks.textContent = String(tasks.length);
   el.resultsRooms.textContent = String(rooms.size || state.draft.rooms.length || 0);
   el.resultsTime.textContent = state.draft.guideTime || (tasks.length ? guideRange(tasks.length) : "—");
+  // The checklist is the source of truth for the price on this step, and it is
+  // being edited right now — so read it back into the draft before pricing.
+  state.draft.tasks = tasks;
+  updateLivePrice();
 }
+
+/**
+ * The running total, wherever it is on screen.
+ *
+ * Priced in the browser from the same module the server prices with, so it
+ * moves the instant a task is typed or an option is tapped rather than after a
+ * round trip. The server still recomputes and freezes the authoritative number
+ * when the request is saved; this is the number the customer WATCHES, and the
+ * two come from identical arithmetic.
+ */
+function updateLivePrice() {
+  const targets = [el.resultsPrice, el.checkoutPrice].filter(Boolean);
+  if (!targets.length) return;
+  const request = pricingConfig ? currentPricingRequest() : null;
+  const quote = request ? quoteRooms(request, pricingConfig) : null;
+
+  if (!quote?.priceable) {
+    for (const target of targets) target.textContent = "—";
+    if (el.resultsPriceNote) {
+      el.resultsPriceNote.textContent = quote?.reason
+        || "Add the rooms and tasks below and your estimate appears here.";
+    }
+    return;
+  }
+  for (const target of targets) {
+    if (!livePriceAnimators.has(target)) livePriceAnimators.set(target, createPriceAnimator(target));
+    livePriceAnimators.get(target).set(quote.totalPence);
+  }
+  if (el.resultsPriceNote) {
+    el.resultsPriceNote.textContent = `${quote.serviceLabel} · about ${Math.round(quote.estimatedMinutes / 6) / 10} hours. Confirmed before you pay — no payment is taken on this screen.`;
+  }
+}
+
+const livePriceAnimators = new Map();
 
 // Same honesty as the scan: a range from the work listed, never a single
 // confident figure a checklist cannot support.
@@ -688,8 +741,41 @@ function renderCheckout() {
     detail.textContent = value;
     el.summary.append(term, detail);
   }
+  renderCheckoutTotal();
   renderPropertyChoice();
   renderMediaState();
+}
+
+/**
+ * The breakdown at checkout.
+ *
+ * Deliberately the SUMMARY lines, not the per-room detail: a customer at the
+ * confirm step wants to know why the number is what it is, not to re-read every
+ * task they already checked two steps ago. The room-by-room detail lives on the
+ * review step where they were choosing.
+ */
+function renderCheckoutTotal() {
+  if (!el.checkoutTotal) return;
+  const request = pricingConfig ? currentPricingRequest() : null;
+  const quote = request ? quoteRooms(request, pricingConfig) : null;
+
+  if (!quote?.priceable) {
+    el.checkoutTotal.hidden = true;
+    return;
+  }
+  el.checkoutTotal.hidden = false;
+  updateLivePrice();
+
+  el.checkoutBreakdown.replaceChildren(...quote.lines
+    // Zero-value lines are noise on a summary; the review step names every
+    // included task individually and that is where they belong.
+    .filter((line) => line.pence !== 0)
+    .map((line) => {
+      const row = textNode("li", `journey-total-line${line.pence < 0 ? " is-saving" : ""}`);
+      row.append(textNode("span", "", line.label), textNode("b", "", formatPence(line.pence)));
+      return row;
+    }));
+  el.checkoutTotalNote.textContent = "This is Homle's price for the work listed. We confirm it before any payment is taken.";
 }
 
 /* ── Capabilities ───────────────────────────────────── */
@@ -765,7 +851,10 @@ async function createOrRecoverRequest(csrf, propertyId) {
     tasks,
     // The browser sends scope, never money. The server recomputes this selection
     // from its active price list and freezes that authoritative quote.
-    pricingRequest: state.scanRooms.length ? currentPricingRequest() : null,
+    //
+    // Sent on EVERY path now, scanned or typed. A request saved without one is
+    // a request nobody has priced.
+    pricingRequest: currentPricingRequest(),
     submit: false
   };
   try {
@@ -846,13 +935,49 @@ const pricingServiceTypeByCode = Object.freeze({
   "deep-cleans": "deep"
 });
 
+/**
+ * What the customer has selected, in the shape the engine prices.
+ *
+ * ONE FUNCTION FOR BOTH PATHS, AND WHY THAT MATTERS
+ *
+ * This used to handle the scanner only. The manual path — "Skip scan", then
+ * type a checklist — sent `pricingRequest: null`, which meant a customer who
+ * did not use the camera reached checkout with NO PRICE ON SCREEN, saved a
+ * request with no quote frozen to it, and was priced afterwards from whichever
+ * cleaner happened to be invited. Two customers with identical jobs paid
+ * different amounts depending on whether they had used the camera.
+ *
+ * Both paths now produce the same PricingRequest and go through the same
+ * engine. The scanner's advantage is accuracy — it knows the condition and the
+ * measured sizes — not whether a price exists at all.
+ */
 function currentPricingRequest() {
-  return quoteInputFromScan({
-    rooms: correctedScanRooms().map((room) => ({ roomName: room.name, objects: room.objects }))
-  }, {
+  const shared = {
     serviceType: pricingServiceTypeByCode[state.draft.serviceCode] || "standard",
-    frequency: state.draft.frequency || "one-time"
-  });
+    frequency: state.draft.frequency || "one-time",
+    postcode: state.draft.postcode || state.draft.outward || "",
+    startAt: requestedWindow(state.draft.date, state.draft.time, state.draft.durationMinutes)?.requestedStartAt || ""
+  };
+
+  const scanned = correctedScanRooms();
+  if (scanned.length) {
+    return quoteInputFromScan({
+      rooms: scanned.map((room) => ({ roomName: room.name, objects: room.objects })),
+      // The scan's own grade, so the price reflects the condition the customer
+      // has just been shown rather than assuming an average home.
+      complexity: state.scanReview?.assessed ? { level: state.scanReview.level } : null
+    }, shared);
+  }
+
+  // No scan: price the typed checklist. Returns null only when there is not yet
+  // a checklist to price, which is a step the journey will not let them leave.
+  const tasks = requestTasksFromLines(state.draft.tasks.join("\n"));
+  if (!tasks.length) return null;
+  try {
+    return { ...pricingRequestFromManualTasks(tasks, { cleaningType: state.draft.serviceCode, frequency: shared.frequency }), ...shared };
+  } catch {
+    return null;
+  }
 }
 
 async function loadPricingConfig() {
@@ -873,15 +998,22 @@ function renderReviewPrice(review) {
   const refusal = reviewElement("[data-review-refusal]");
 
   const config = pricingConfig;
-  const quote = config ? quoteRooms(currentPricingRequest(), config) : null;
+  const request = currentPricingRequest();
+  const quote = config && request ? quoteRooms(request, config) : null;
 
   if (!quote?.priceable) {
-    // Falls back to whatever the assessment could say. A scan that cannot be
-    // priced is not a broken scan — it is one that needs a person, and the
-    // refusal panel already says so.
-    host.hidden = !review.price;
-    refusal.hidden = !review.refusal;
-    reviewElement("[data-review-refusal-reason]").textContent = review.refusal || quote?.reason || "";
+    // A scan that cannot be priced is not a broken scan — it is one that needs
+    // a person, and the refusal panel says so.
+    //
+    // The estimate panel is HIDDEN here, always. It used to be unhidden
+    // whenever the server-side estimate existed, without ever being filled in,
+    // which left whatever number the previous render had put there sitting
+    // above a refusal message. A stale price beside "we cannot price this" is
+    // the worst of both.
+    host.hidden = true;
+    refusal.hidden = false;
+    reviewElement("[data-review-refusal-reason]").textContent =
+      quote?.reason || review.refusal || "We need to check this one over before we can price it.";
     return;
   }
 

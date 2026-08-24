@@ -2,6 +2,8 @@ import { assessCleaningComplexity } from "../src/marketplace/cleaning-complexity
 import {
   defaultPricingRuleset, estimateScanPrice, normalizedPricingRuleset, shadowComparison
 } from "../src/marketplace/scan-pricing.mjs";
+import { defaultPricingConfig, normalizedPricingConfig } from "../public/pricing-config.js";
+import { quoteInputFromScan, quoteRooms } from "../public/pricing-engine.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function throwsWith(run, fragment) {
@@ -73,9 +75,10 @@ const standardScan = scanOf([
 
 {
   const estimate = estimateScanPrice(standardScan);
-  assert(lineFor(estimate, "labour"), "The breakdown had no labour line.");
+  // The estimate now shows the ENGINE's breakdown, so the words a customer
+  // reads on the scan result are the words they read at checkout.
   assert(lineFor(estimate, "rooms"), "The breakdown had no per-room line.");
-  assert(lineFor(estimate, "labour").label.includes("hours"), "The labour line did not say how long it was priced for.");
+  assert(estimate.estimatedMinutes > 0, "The estimate did not say how long the visit was priced for.");
   assert(estimate.explanation.length > 0, "A priced estimate carried no explanation of the condition it assumed.");
   // The lines account for the total exactly. A breakdown that does not add up
   // is worse than no breakdown, because it looks checkable and is not.
@@ -83,18 +86,57 @@ const standardScan = scanOf([
   assert(summed === estimate.totalPence, `The breakdown lines summed to ${summed} but the total was ${estimate.totalPence}.`);
 }
 
+/* ── One engine, not two ───────────────────────────────────────────────── */
+
+// The point of the unification: the estimate's number IS the engine's number
+// for the same confirmed selection. If these ever diverge there are two pricing
+// systems again, which is the failure the whole change exists to end.
+{
+  const estimate = estimateScanPrice(standardScan);
+  const direct = quoteRooms(quoteInputFromScan(standardScan, { conditionLevel: standardScan.complexity.level }), normalizedPricingConfig(defaultPricingConfig));
+  assert(direct.priceable, "The engine could not price the scan the estimate priced.");
+  assert(estimate.totalPence === direct.totalPence,
+    `The scan estimate (${estimate.totalPence}p) and the pricing engine (${direct.totalPence}p) disagree about the same rooms.`);
+  assert(estimate.lines === direct.lines || JSON.stringify(estimate.lines) === JSON.stringify(direct.lines),
+    "The scan estimate rewrote the engine's breakdown instead of showing it.");
+  // The retained rate fields must be genuinely dead. Editing one and getting a
+  // different price would mean the second rate table is still live.
+  const rewritten = estimateScanPrice(standardScan, {
+    ...defaultPricingRuleset, hourlyRatePence: 9000, minimumChargePence: 99000, roomBasePence: 15000, perSquareMetrePence: 1500
+  });
+  assert(rewritten.totalPence === estimate.totalPence,
+    "Editing the retired scan rates changed a price, so the second pricing system is still live.");
+}
+
 // Condition is stated as an adjustment against the standard rate, so a customer
 // can see what their home's condition actually cost them.
 {
-  const heavy = scanOf([{ roomName: "Kitchen", measurements: [], objects: [
-    object({ objectId: "a", label: "Hob", condition: "heavy", soiling: ["grease"] }),
-    object({ objectId: "b", label: "Extractor hood", condition: "heavy", soiling: ["grease"] }),
-    object({ objectId: "c", label: "Worktop", condition: "medium", soiling: ["grease"] }),
-    object({ objectId: "d", label: "Bin", condition: "heavy" })
-  ] }]);
+  /* Both baskets are a whole property rather than one room, because a
+     single-room scan sits under the two-hour minimum and the floor — not the
+     condition — would be what decided the price. The comparison would pass or
+     fail for the wrong reason. */
+  const rooms = (condition, soiling) => [
+    { roomName: "Kitchen", measurements: [], objects: [
+      object({ objectId: "a", label: "Hob", condition, soiling }),
+      object({ objectId: "b", label: "Extractor hood", condition, soiling }),
+      object({ objectId: "c", label: "Worktop", condition, soiling }),
+      object({ objectId: "d", label: "Bin", condition })
+    ] },
+    { roomName: "Bathroom", measurements: [], objects: [
+      object({ objectId: "e", label: "Shower", condition, soiling }),
+      object({ objectId: "f", label: "Sink", condition })
+    ] },
+    { roomName: "Living room", measurements: [], objects: [
+      object({ objectId: "g", label: "Sofa", condition }),
+      object({ objectId: "h", label: "Floor", condition })
+    ] }
+  ];
+  const heavy = scanOf(rooms("heavy", ["grease"]));
+  const light = scanOf(rooms("light", []));
   const heavyEstimate = estimateScanPrice(heavy);
-  const lightEstimate = estimateScanPrice(standardScan);
-  assert(heavyEstimate.totalPence > lightEstimate.totalPence, "A heavily soiled home was not priced above a lightly soiled one.");
+  const lightEstimate = estimateScanPrice(light);
+  assert(heavyEstimate.totalPence > lightEstimate.totalPence,
+    `A heavily soiled home was not priced above a lightly soiled one: ${heavyEstimate.totalPence}p vs ${lightEstimate.totalPence}p.`);
   const condition = lineFor(heavyEstimate, "condition");
   assert(condition && condition.pence > 0, "A deep-clean condition produced no visible condition adjustment.");
   assert(condition.label.includes("Deep-clean conditions") && condition.label.includes("%"),
@@ -115,7 +157,7 @@ const standardScan = scanOf([
 // observed — the failure this whole feature exists to avoid.
 {
   const estimate = estimateScanPrice(standardScan);
-  assert(!lineFor(estimate, "size"), "An unmeasured scan was charged for floor area.");
+  assert(estimate.sizePence === 0, "An unmeasured scan was charged for floor area.");
   assert(estimate.measuredRooms === 0 && estimate.measuredSquareMetres === 0, "An unmeasured scan reported an area.");
 }
 {
@@ -123,10 +165,13 @@ const standardScan = scanOf([
     { subject: "floor-area", method: "derived", valueMm: 18_000_000, toleranceMm: 4_000_000, confidence: "low" }
   ] }]);
   const estimate = estimateScanPrice(measured);
-  const size = lineFor(estimate, "size");
-  assert(size && size.pence > 0, "A measured room was not charged for its floor area.");
+  // Charged on the excess only: a kitchen's base price already assumes 12m²,
+  // so an 18m² kitchen is charged for 6m², not for 18.
+  assert(estimate.sizePence > 0, "A measured room was not charged for its floor area.");
   assert(estimate.measuredSquareMetres === 18, `The measured area was wrong: ${estimate.measuredSquareMetres}`);
-  assert(size.label.includes("18m²") && size.label.includes("measured"), `The size line did not say it was measured: ${size.label}`);
+  const config = normalizedPricingConfig(defaultPricingConfig);
+  assert(estimate.sizePence === (18 - config.rooms.kitchen.expectedSquareMetres) * config.perSquareMetrePence,
+    `A measured kitchen was not charged for its excess area alone: ${estimate.sizePence}p.`);
 }
 
 // A measurement the module itself called unusable must not reach the price.
@@ -135,7 +180,7 @@ const standardScan = scanOf([
     { subject: "floor-area", method: "derived", valueMm: 18_000_000, toleranceMm: 12_000_000, confidence: "unusable" }
   ] }]);
   const estimate = estimateScanPrice(unusable);
-  assert(!lineFor(estimate, "size"), "An unusable measurement was charged for.");
+  assert(estimate.sizePence === 0, "An unusable measurement was charged for.");
   assert(estimate.measuredRooms === 0, "An unusable measurement was counted as a measured room.");
 }
 
@@ -173,8 +218,16 @@ const standardScan = scanOf([
 /* ── The minimum charge is visible, not folded in silently ─────────────── */
 
 {
-  const tiny = estimateScanPrice(scanOf([{ roomName: "Cupboard", measurements: [], objects: [object({ objectId: "a", condition: "clean" })] }]),
-    normalizedPricingRuleset({ minimumChargePence: 9000 }));
+  // The minimum belongs to the price list now, not to this ruleset, which is
+  // the whole point of the unification: one owner for one number.
+  const dearMinimum = normalizedPricingConfig({
+    ...defaultPricingConfig,
+    serviceTypes: { ...defaultPricingConfig.serviceTypes, standard: { label: "Standard clean", multiplierBasisPoints: 10000, minimumPence: 9000 } }
+  });
+  const tiny = estimateScanPrice(
+    scanOf([{ roomName: "Cupboard", measurements: [], objects: [object({ objectId: "a", condition: "clean" })] }]),
+    defaultPricingRuleset, [], { config: dearMinimum }
+  );
   assert(tiny.totalPence === 9000, `The minimum charge was not applied: ${tiny.totalPence}`);
   const minimum = lineFor(tiny, "minimum");
   assert(minimum && minimum.pence > 0, "The minimum charge was folded in without a line explaining it.");
@@ -185,6 +238,8 @@ const standardScan = scanOf([
 
 // Above the minimum charge an add-on is exactly additive.
 {
+  /* Big enough that the two-hour floor is not what decides the total, or the
+     "exactly additive" claim below would be measuring the floor instead. */
   const bigScan = scanOf([
     { roomName: "Kitchen", measurements: [], objects: [
       object({ objectId: "a", label: "Hob", condition: "heavy", soiling: ["grease"] }),
@@ -192,18 +247,32 @@ const standardScan = scanOf([
     ] },
     { roomName: "Bathroom", measurements: [], objects: [
       object({ objectId: "c", label: "Shower screen", condition: "heavy", soiling: ["limescale"] })
+    ] },
+    { roomName: "Living room", measurements: [], objects: [
+      object({ objectId: "d", label: "Sofa", condition: "medium" }),
+      object({ objectId: "e", label: "Floor", condition: "medium" })
+    ] },
+    { roomName: "Bedroom", measurements: [], objects: [
+      object({ objectId: "f", label: "Bed", condition: "medium" }),
+      object({ objectId: "g", label: "Wardrobe", condition: "medium" })
     ] }
   ]);
+  const config = normalizedPricingConfig(defaultPricingConfig);
   const base = estimateScanPrice(bigScan);
+  /* A client naming its own price for an extra is the attack this resolution
+     exists to stop, so the request carries CODES and the price list supplies
+     the money. The two forgeries below are ignored entirely. */
   const withAddOn = estimateScanPrice(bigScan, defaultPricingRuleset, [
-    { code: "oven-deep-clean", label: "Oven deep clean", pence: 4500 },
-    { code: "bad", label: "Free thing", pence: 0 },
+    { code: "ironing", label: "Ignored", pence: 1 },
+    { code: "not-a-real-add-on", label: "Free thing", pence: 0 },
     { code: "absurd", label: "Absurd", pence: 500000 }
   ]);
-  assert(base.totalPence > defaultPricingRuleset.minimumChargePence, "The add-on fixture did not clear the minimum charge.");
-  assert(withAddOn.totalPence === base.totalPence + 4500, `A chosen add-on did not reach the total exactly once: ${withAddOn.totalPence} vs ${base.totalPence}`);
+  assert(!base.lines.some((line) => line.code === "minimum"),
+    `The add-on fixture is still held up by the minimum visit (${base.totalPence}p), so "exactly additive" would prove nothing.`);
+  assert(withAddOn.totalPence === base.totalPence + config.addOns.ironing.pence,
+    `A chosen add-on did not reach the total exactly once at its published price: ${withAddOn.totalPence} vs ${base.totalPence}`);
   assert(withAddOn.lines.filter((line) => line.code.startsWith("add-on:")).length === 1,
-    "A zero-priced or out-of-range add-on was charged for.");
+    "An add-on the price list does not publish was charged for.");
 }
 
 // Below it, the add-on fills toward the floor rather than stacking on top of
@@ -211,11 +280,13 @@ const standardScan = scanOf([
 // it on top of chargeable work would bill the customer twice for the same
 // journey.
 {
+  const config = normalizedPricingConfig(defaultPricingConfig);
   const smallScan = scanOf([{ roomName: "Cupboard", measurements: [], objects: [object({ objectId: "a", condition: "clean" })] }]);
   const base = estimateScanPrice(smallScan);
-  const withAddOn = estimateScanPrice(smallScan, defaultPricingRuleset, [{ code: "bins", label: "Bins", pence: 900 }]);
-  assert(base.totalPence === defaultPricingRuleset.minimumChargePence, "The small fixture did not land on the minimum charge.");
-  assert(withAddOn.totalPence <= base.totalPence + 900, "An add-on was stacked on top of the minimum charge rather than filling toward it.");
+  const withAddOn = estimateScanPrice(smallScan, defaultPricingRuleset, [{ code: "bed-linen" }]);
+  assert(base.lines.some((line) => line.code === "minimum"), "The small fixture did not land on the minimum charge.");
+  assert(withAddOn.totalPence <= base.totalPence + config.addOns["bed-linen"].pence,
+    "An add-on was stacked on top of the minimum charge rather than filling toward it.");
   const summed = withAddOn.lines.reduce((total, line) => total + line.pence, 0);
   assert(summed === withAddOn.totalPence, "The breakdown stopped adding up once the minimum charge and an add-on interacted.");
 }
@@ -236,10 +307,13 @@ assert(throwsWith(() => normalizedPricingRuleset({ levelMultiplierBasisPoints: {
 }
 
 // An operator changing a rate changes the price, which is the entire point of
-// making it configurable without a deployment.
+// making it configurable without a deployment. The rate now lives in the PRICE
+// LIST, so that is where the change has to be made and where this asserts it.
 {
-  const cheap = estimateScanPrice(standardScan, normalizedPricingRuleset({ hourlyRatePence: 1000 }));
-  const dear = estimateScanPrice(standardScan, normalizedPricingRuleset({ hourlyRatePence: 5000 }));
+  const cheapConfig = normalizedPricingConfig({ ...defaultPricingConfig, customerHourlyRatePence: 1000 });
+  const dearConfig = normalizedPricingConfig({ ...defaultPricingConfig, customerHourlyRatePence: 2900 });
+  const cheap = estimateScanPrice(standardScan, defaultPricingRuleset, [], { config: cheapConfig });
+  const dear = estimateScanPrice(standardScan, defaultPricingRuleset, [], { config: dearConfig });
   assert(dear.totalPence > cheap.totalPence, "Changing the configured hourly rate did not change the estimate.");
 }
 

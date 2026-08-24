@@ -1,53 +1,71 @@
-// Turns a scan into an explained price estimate, using business rules only.
+// Turns a scan into an explained price estimate.
 //
-// Phase 6 of docs/ROOM_SCAN_ARCHITECTURE_AUDIT.md. Two hard constraints shape
-// everything below, and both come from the brief rather than from taste:
+// WHAT CHANGED, AND WHY IT MATTERS MORE THAN IT LOOKS
+//
+// This module used to hold a SECOND complete pricing system: its own hourly
+// rate, its own per-room charge, its own condition multipliers, its own
+// square-metre rate and its own minimum charge — all operator-editable through
+// the scan-pricing admin screen, while the price list that actually charged was
+// operator-editable through a different admin screen backed by a different
+// table. Both shipped £28.00/hour and a £45.00 minimum. Nothing compared them,
+// so raising the rate on one screen moved half the product and silently left
+// the other half behind.
+//
+// The money is now computed by public/pricing-engine.js — the same function the
+// browser runs, the same function the server authorises a booking with. This
+// module's remaining job is the part that is genuinely its own: expressing how
+// UNCERTAIN the reading is, as a range around that number, and refusing to
+// estimate at all when the scan does not support one.
+//
+// The rate fields below are still accepted so that rulesets stored before this
+// change continue to load, and they are still bounded. They no longer affect
+// any price. See docs/PRICING_MODEL.md.
+//
+// TWO CONSTRAINTS THAT DID NOT CHANGE
 //
 //   * **No generative model is the pricing authority.** The vision reader
 //     produces observations — what is in the room and what state it is in.
-//     Money is produced here, by arithmetic over a stored ruleset, and every
+//     Money is produced by arithmetic over a reviewed price list, and every
 //     line of it can be recomputed and argued with afterwards.
 //
-//   * **This does not replace the existing quote.** booking-workflow.mjs
-//     `quote()` remains the only thing that prices a real booking: it is
-//     margin-safe, binary-searched against the cleaner's own rates, and it
-//     refuses to price rather than guessing. What this adds is a customer-facing
-//     *estimate* from the scan, and a labour-minutes figure that can be compared
-//     against reviewed quotes before anything is allowed to depend on it.
-//
-// The estimate is always an estimate. `isEstimate` is true on every result this
-// module can produce, and there is no argument that clears it.
+//   * **The estimate is always an estimate.** `isEstimate` is true on every
+//     result this module can produce and there is no argument that clears it.
+//     The range exists to express uncertainty about what is IN the room; once
+//     the customer has confirmed the list, quoteRooms() is asked directly and
+//     returns the single number there is no uncertainty left to widen.
 
+import { defaultPricingConfig, normalizedPricingConfig } from "../../public/pricing-config.js";
+import { quoteInputFromScan, quoteRooms } from "../../public/pricing-engine.js";
 import { levelDescriptor } from "./cleaning-complexity.mjs";
 
 export const pricingRulesetVersion = 1;
 
-// The shipped defaults. Every one of these is meant to be changed by an
-// operator through the administrator interface without a deployment, which is
-// why they live in a stored ruleset rather than in this file — these are the
-// values used when nothing has been configured yet.
+// The shipped defaults. Only the three range fields are live; the rest are
+// retained so stored rulesets keep loading and are marked below.
 export const defaultPricingRuleset = Object.freeze({
   rulesetId: "default",
   version: pricingRulesetVersion,
-  // Below this a visit does not cover getting there.
-  minimumChargePence: 4500,
-  // What the customer pays per hour of cleaning labour.
-  hourlyRatePence: 2800,
-  // Charged once per room, for the fixed cost of setting up and moving between
-  // rooms that hourly time alone under-counts.
-  roomBasePence: 400,
-  // Applied to the labour subtotal. Level 5 is zero because it is not
-  // priceable: it means a person must look first.
-  levelMultiplierBasisPoints: Object.freeze({ 1: 9000, 2: 10000, 3: 12500, 4: 15000, 5: 0 }),
-  // Only ever applied when a room has a usable floor-area measurement. With no
-  // measurement this contributes nothing at all rather than assuming a size.
-  perSquareMetrePence: 90,
+
+  /* ── Live: how wide the estimate's range is ────────────────────────────── */
+
   // How wide the quoted range is, before the scan's own uncertainty widens it.
   baseRangeBasisPoints: 1500,
   // Added to the range for every unresolved reading, so a scan full of
   // questions produces a visibly vaguer price rather than a falsely precise one.
   unresolvedRangeBasisPointsEach: 200,
-  maximumRangeBasisPoints: 6000
+  maximumRangeBasisPoints: 6000,
+
+  /* ── Retained, no longer used ──────────────────────────────────────────── */
+  //
+  // Every one of these now lives in public/pricing-config.js, where it is the
+  // single owner of that number for the whole product. They are kept here so a
+  // ruleset published before the change still validates and still loads; they
+  // are not read by estimateScanPrice() and changing them changes nothing.
+  minimumChargePence: 4500,
+  hourlyRatePence: 2800,
+  roomBasePence: 400,
+  levelMultiplierBasisPoints: Object.freeze({ 1: 9000, 2: 10000, 3: 12500, 4: 15000, 5: 0 }),
+  perSquareMetrePence: 90
 });
 
 const basisPointDivisor = 10000;
@@ -68,10 +86,10 @@ function positiveInteger(value, minimum, maximum, label) {
 /**
  * Validates a stored or operator-supplied ruleset.
  *
- * Deliberately strict. This is the object an administrator edits through a web
- * form, and a typo in it changes what every customer is charged. Anything
- * outside a reviewed range is refused rather than clamped, because a clamped
- * rate would quietly price at a number nobody chose.
+ * Still deliberately strict on the retained rate fields even though nothing
+ * reads them. A stored ruleset is data an operator can still edit through the
+ * administrator interface, and accepting nonsense into a table because it
+ * happens to be unused today is how it becomes a live surprise tomorrow.
  */
 export function normalizedPricingRuleset(input = {}) {
   const multipliers = input.levelMultiplierBasisPoints || {};
@@ -97,14 +115,14 @@ export function normalizedPricingRuleset(input = {}) {
   });
 }
 
-// Floor area only where a measurement genuinely supports it.
-//
-// A room with no usable measurement contributes no size adjustment at all. The
-// alternative — assuming an average room size — would put a number in the price
-// that nothing observed, which is the failure this whole feature exists to
-// avoid. A room that was not measured is priced on its contents alone, and the
-// breakdown says so.
-function measuredSquareMetres(rooms) {
+function money(pence) {
+  return Math.max(0, Math.round(pence));
+}
+
+// Reported rather than charged: the engine prices each room's excess area
+// against that room type's expected size. This is the headline figure the
+// estimate shows so a customer can see how much of their home was measured.
+function measuredSummary(rooms) {
   let squareMetres = 0;
   let measuredRooms = 0;
   for (const room of rooms) {
@@ -119,98 +137,68 @@ function measuredSquareMetres(rooms) {
   return { squareMetres: Math.round(squareMetres * 10) / 10, measuredRooms };
 }
 
-function money(pence) {
-  return Math.max(0, Math.round(pence));
-}
-
 /**
  * The estimate.
  *
- * @param scan        the projected scan, including its complexity assessment
- * @param ruleset     a normalised pricing ruleset
- * @param addOns      [{ code, label, pence }] chosen by the customer
+ * @param scan     the projected scan, including its complexity assessment
+ * @param ruleset  a normalised pricing ruleset (range parameters only)
+ * @param addOns   [{ code }] chosen by the customer, resolved by the engine
+ *                 against the published price list — never priced from the
+ *                 request, because a client that could name its own price for
+ *                 an extra could name any price
+ * @param options  { config, serviceType, frequency, postcode, startAt, now }
  */
-export function estimateScanPrice(scan = {}, ruleset = defaultPricingRuleset, addOns = []) {
+export function estimateScanPrice(scan = {}, ruleset = defaultPricingRuleset, addOns = [], options = {}) {
   const rules = normalizedPricingRuleset(ruleset);
+  const config = normalizedPricingConfig(options.config ?? defaultPricingConfig);
   const complexity = scan?.complexity;
   const rooms = Array.isArray(scan?.rooms) ? scan.rooms : [];
 
   const refusal = (code, reason) => Object.freeze({
     priceable: false, code, reason, isEstimate: true,
     rulesetId: rules.rulesetId, rulesetVersion: rules.version,
+    configId: config.configId, configVersion: config.version,
     totalPence: 0, lowPence: 0, highPence: 0, labourMinutes: 0,
     lines: Object.freeze([]), requiresConfirmation: Object.freeze([])
   });
 
-  // Refusing to price is a real answer, and the existing quote engine already
-  // takes it seriously. An estimate produced from nothing would be the most
-  // damaging output this module could make.
+  // Refusing to price is a real answer, and the booking path already takes it
+  // seriously. An estimate produced from nothing would be the most damaging
+  // output this module could make.
   if (!complexity?.assessed) return refusal("scan-not-assessed", "This scan has not been assessed yet, so it cannot be estimated.");
   if (complexity.level === 5) {
     return refusal("specialist-review-required",
       `${complexity.explanation} A person needs to look at this before a price can be given.`);
   }
 
+  // THE UNIFICATION. Same adaptor the browser uses, same engine the server
+  // authorises with. The condition grade travels with it rather than being
+  // applied by a second set of multipliers that could disagree with the first.
+  const quote = quoteRooms(quoteInputFromScan(scan, {
+    serviceType: options.serviceType || "standard",
+    frequency: options.frequency || "one-time",
+    postcode: options.postcode || "",
+    startAt: options.startAt || "",
+    now: options.now || null,
+    conditionLevel: complexity.level,
+    addOns: (Array.isArray(addOns) ? addOns.slice(0, 10) : [])
+      .map((addOn) => ({ code: String(addOn?.code || "").trim(), quantity: 1 }))
+      .filter((addOn) => addOn.code)
+  }), config);
+
+  if (!quote.priceable) {
+    return refusal(quote.code || "not-priceable", quote.reason || "This scan cannot be estimated.");
+  }
+
+  // The labour figure stays the complexity model's, not the engine's, because
+  // it is what the accuracy work in scan-benchmark.mjs is calibrated against.
+  // The engine's own duration is what a cleaner is booked for.
   const labourMinutes = integer(complexity.estimatedMinutes, 0);
-  if (labourMinutes <= 0) return refusal("no-labour-estimate", "This scan does not support a cleaning-time estimate.");
-
-  const lines = [];
-
-  // 1. Labour, from the complexity model's duration.
-  const labourPence = money((labourMinutes / 60) * rules.hourlyRatePence);
-  lines.push({
-    code: "labour", label: `Cleaning time — ${Math.round(labourMinutes / 6) / 10} hours at £${(rules.hourlyRatePence / 100).toFixed(2)}/hour`,
-    pence: labourPence
-  });
-
-  // 2. Per-room setup.
-  const roomBasePence = money(rooms.length * rules.roomBasePence);
-  if (roomBasePence) {
-    lines.push({ code: "rooms", label: `${rooms.length} ${rooms.length === 1 ? "room" : "rooms"} at £${(rules.roomBasePence / 100).toFixed(2)} each`, pence: roomBasePence });
-  }
-
-  // 3. Condition. Stated as an adjustment against the standard rate so the
-  //    customer can see what their home's condition actually cost them.
-  const multiplier = rules.levelMultiplierBasisPoints[complexity.level] ?? basisPointDivisor;
-  const subtotalBeforeCondition = labourPence + roomBasePence;
-  const conditionPence = Math.round((subtotalBeforeCondition * multiplier) / basisPointDivisor) - subtotalBeforeCondition;
-  if (conditionPence !== 0) {
-    lines.push({
-      code: "condition",
-      label: `${levelDescriptor(complexity.level).label} — ${conditionPence > 0 ? "adds" : "reduces by"} ${Math.abs(Math.round((multiplier - basisPointDivisor) / 100))}%`,
-      pence: conditionPence
-    });
-  }
-
-  // 4. Size, only where something was measured.
-  const { squareMetres, measuredRooms } = measuredSquareMetres(rooms);
-  const sizePence = money(squareMetres * rules.perSquareMetrePence);
-  if (measuredRooms && sizePence) {
-    lines.push({
-      code: "size",
-      label: `${squareMetres}m² measured across ${measuredRooms} ${measuredRooms === 1 ? "room" : "rooms"} at £${(rules.perSquareMetrePence / 100).toFixed(2)}/m²`,
-      pence: sizePence
-    });
-  }
-
-  // 5. Chosen add-ons.
-  let addOnPence = 0;
-  for (const addOn of Array.isArray(addOns) ? addOns.slice(0, 10) : []) {
-    const pence = integer(addOn?.pence, 0);
-    if (pence <= 0 || pence > 100000) continue;
-    addOnPence += pence;
-    lines.push({ code: `add-on:${String(addOn?.code || "").slice(0, 40)}`, label: String(addOn?.label || "Extra").slice(0, 80), pence });
-  }
-
-  const beforeMinimum = labourPence + roomBasePence + conditionPence + sizePence + addOnPence;
-  const totalPence = Math.max(rules.minimumChargePence, beforeMinimum);
-  if (totalPence > beforeMinimum) {
-    lines.push({ code: "minimum", label: `Minimum visit charge of £${(rules.minimumChargePence / 100).toFixed(2)}`, pence: totalPence - beforeMinimum });
-  }
+  const { squareMetres, measuredRooms } = measuredSummary(rooms);
 
   // The range widens with the number of unanswered questions, so a scan the
   // customer has not finished checking produces a visibly vaguer price rather
-  // than a falsely precise one.
+  // than a falsely precise one. This is the ONLY thing the ruleset still does.
   const questionCount = Array.isArray(complexity.questions) ? complexity.questions.length : 0;
   const rangeBasisPoints = Math.min(
     rules.maximumRangeBasisPoints,
@@ -221,28 +209,41 @@ export function estimateScanPrice(scan = {}, ruleset = defaultPricingRuleset, ad
     priceable: true,
     code: "",
     reason: "",
-    // No argument clears this. A scan-derived figure is an estimate until a
-    // cleaner has accepted the exact scope, which is what booking-workflow's
-    // quote() exists to price.
+    // No argument clears this. A scan-derived figure is an estimate until the
+    // customer has confirmed the list of rooms and tasks it was read from.
     isEstimate: true,
     rulesetId: rules.rulesetId,
     rulesetVersion: rules.version,
+    // Which price list produced the money, so an estimate can be explained
+    // later by the rates that were actually live when it was given.
+    configId: quote.configId,
+    configVersion: quote.configVersion,
     complexityLevel: complexity.level,
     complexityModelVersion: complexity.modelVersion,
+    conditionLabel: quote.conditionLabel,
     labourMinutes,
     // Carried through so nothing downstream mistakes an uncalibrated duration
     // for a measured one.
     labourCalibrated: complexity.durationCalibrated === true,
-    totalPence,
-    lowPence: money(totalPence * (1 - rangeBasisPoints / basisPointDivisor)),
-    highPence: money(totalPence * (1 + rangeBasisPoints / basisPointDivisor)),
+    estimatedMinutes: quote.estimatedMinutes,
+    totalPence: quote.totalPence,
+    lowPence: money(quote.totalPence * (1 - rangeBasisPoints / basisPointDivisor)),
+    highPence: money(quote.totalPence * (1 + rangeBasisPoints / basisPointDivisor)),
     rangeBasisPoints,
     measuredSquareMetres: squareMetres,
     measuredRooms,
-    lines: Object.freeze(lines.map((line) => Object.freeze(line))),
+    // What the measured area actually added, summed across the rooms. The
+    // engine charges it per room against that room type's expected size, so
+    // there is no single top-level line to point at — but a customer who
+    // measured their home is owed the figure.
+    sizePence: quote.sizePence,
+    conditionAdjustmentPence: quote.conditionAdjustmentPence,
+    // The engine's own breakdown, unaltered. One set of lines, so the estimate
+    // and the confirmed quote explain themselves in exactly the same words.
+    lines: quote.lines,
     // The explanation the customer is owed: what was assumed, and what would
     // move the number.
-    explanation: complexity.explanation,
+    explanation: `${complexity.explanation} ${levelDescriptor(complexity.level).label} rates apply.`.trim(),
     requiresConfirmation: Object.freeze((Array.isArray(complexity.questions) ? complexity.questions : []).map((question) => Object.freeze({
       code: question.code, roomName: question.roomName, question: question.question
     })))
@@ -252,11 +253,13 @@ export function estimateScanPrice(scan = {}, ruleset = defaultPricingRuleset, ad
 /**
  * Shadow comparison against a reviewed figure.
  *
- * The scan-derived estimate is not allowed to influence anything until the
- * error against human-reviewed quotes has been measured. This produces that
- * measurement in a form that can be aggregated, and deliberately returns no
- * verdict: whether 18% error is acceptable is a business decision, not one this
- * module should encode.
+ * Kept from the era when the scan estimate ran on its own rates and had to be
+ * measured against human-reviewed quotes before anything depended on it. It is
+ * still the honest way to watch the COMPLEXITY model, whose room readings still
+ * decide the condition multiplier and are still a generative reading of a photo.
+ *
+ * Deliberately returns no verdict: whether 18% error is acceptable is a business
+ * decision, not one this module should encode.
  */
 export function shadowComparison(estimate, reviewedTotalPence) {
   const reviewed = integer(reviewedTotalPence, 0);

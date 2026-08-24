@@ -121,11 +121,12 @@
           <span data-results-source>Your checklist</span>
         </div>
         <div class="res-grid">
+          <div class="res-cell"><b data-results-price>—</b><span>Estimated</span></div>
           <div class="res-cell"><b data-results-time>—</b><span>Guide time</span></div>
           <div class="res-cell"><b data-results-rooms>0</b><span>Rooms</span></div>
           <div class="res-cell"><b data-results-tasks>0</b><span>Tasks</span></div>
         </div>
-        <p class="res-hero-note">Guide time comes from the work listed, not from measuring your home. Your cleaner confirms the final time.</p>
+        <p class="res-hero-note" data-results-price-note>Guide time comes from the work listed, not from measuring your home. Your cleaner confirms the final time.</p>
       </div>
 
       <!-- Everything below appears only once the scan has been assessed. It is
@@ -284,6 +285,18 @@
       <p class="eyebrow">Confirm</p>
       <h2 class="pg">One last<br>look.</h2>
       <p class="pgs" data-checkout-lede></p>
+
+      <!-- The total, and where it came from. The checkout step used to show a
+           duration, an area and a cleaner's name but no price at all on the
+           manual path, so the first number a customer saw was on their card. -->
+      <div class="journey-total" data-checkout-total>
+        <div class="journey-total-head">
+          <span>Estimated total</span>
+          <b data-checkout-price>—</b>
+        </div>
+        <ul class="journey-total-lines" data-checkout-breakdown></ul>
+        <p class="journey-total-note" data-checkout-total-note></p>
+      </div>
 
       <dl class="summary" data-summary></dl>
 

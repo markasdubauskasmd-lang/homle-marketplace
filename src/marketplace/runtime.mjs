@@ -203,7 +203,15 @@ export function createMarketplaceRuntime(pool, options = {}) {
   // rules an operator actually published. With nothing published the estimate
   // falls back to the shipped defaults, so an unconfigured deployment prices
   // identically to a configured one rather than not pricing at all.
-  const scanService = createScanService(createScanRepository(database), { vision: roomVision, pricing: scanPricingService, telemetry: scanTelemetry });
+  const scanService = createScanService(createScanRepository(database), {
+    vision: roomVision,
+    pricing: scanPricingService,
+    telemetry: scanTelemetry,
+    // The same price list the quote endpoint and the booking use. Before this
+    // the scan estimate ran on its own rate table and could disagree with the
+    // number the customer was charged twenty seconds later.
+    pricingConfiguration: (actor) => pricingConfigurationRepository.activeConfig(actor)
+  });
   // Reviewer verdicts about stored scans, and the aggregate accuracy report
   // built from them — the collection point that turns real traffic into the
   // measured false-clean rate every phase has honestly reported as unknown.

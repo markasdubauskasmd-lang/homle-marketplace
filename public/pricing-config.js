@@ -182,12 +182,16 @@ export const defaultServiceTypes = Object.freeze({
 //
 // Level 2 is the neutral case and the assumption for any booking with no
 // assessment, so an unscanned booking is priced exactly as it is today.
+// The labels are cleaning-complexity.mjs's `complexityLevels`, word for word.
+// Two vocabularies for the same five states is how a customer ends up reading
+// "Heavy clean" on the scan result and "Needs extra work" on the price beside
+// it and wondering which one they are being charged for.
 export const defaultConditionLevels = Object.freeze({
-  1: Object.freeze({ label: "Well kept", multiplierBasisPoints: 9500 }),
-  2: Object.freeze({ label: "Normal condition", multiplierBasisPoints: 10000 }),
-  3: Object.freeze({ label: "Needs extra work", multiplierBasisPoints: 11500 }),
-  4: Object.freeze({ label: "Heavy cleaning", multiplierBasisPoints: 13000 }),
-  5: Object.freeze({ label: "Specialist review", multiplierBasisPoints: 0 })
+  1: Object.freeze({ label: "Light maintenance clean", multiplierBasisPoints: 9500 }),
+  2: Object.freeze({ label: "Standard clean", multiplierBasisPoints: 10000 }),
+  3: Object.freeze({ label: "Heavy clean", multiplierBasisPoints: 11500 }),
+  4: Object.freeze({ label: "Deep-clean conditions", multiplierBasisPoints: 13000 }),
+  5: Object.freeze({ label: "Specialist review required", multiplierBasisPoints: 0 })
 });
 
 /* ── Location ────────────────────────────────────────────────────────────── */
