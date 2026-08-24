@@ -101,3 +101,26 @@
   .admin-pricing-row-fields { grid-template-columns: repeat(2, 1fr); }
   .admin-pricing-actions .button { width: 100%; }
 }
+
+/* ── Promotion codes ──────────────────────────────────────────────────────
+   A list rather than a grid of numbers: an operator adds and removes these,
+   and each one is a whole offer with its own terms rather than a single rate. */
+.admin-pricing-promotions{display:grid;gap:14px;margin-bottom:16px}
+.admin-pricing-promotion .admin-pricing-row-fields{
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+}
+.admin-pricing-promotion input[type="text"],
+.admin-pricing-promotion input[type="date"],
+.admin-pricing-promotion select{
+  width:100%;
+  border:1px solid var(--admin-line,#d9d9e0);
+  border-radius:10px;
+  padding:9px 11px;
+  font:inherit;font-size:14px;
+  background:transparent;color:inherit;
+}
+.admin-pricing-checkbox{
+  flex-direction:row;align-items:center;gap:9px;
+}
+.admin-pricing-checkbox input{width:auto;margin:0}
+.admin-pricing-remove{margin-top:10px;color:#B4212F}

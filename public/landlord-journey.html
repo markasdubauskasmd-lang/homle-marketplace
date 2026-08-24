@@ -318,6 +318,19 @@
           <b data-checkout-price>—</b>
         </div>
         <ul class="journey-total-lines" data-checkout-breakdown></ul>
+        <!-- One code, checked by the server. The code LIST never reaches this
+             page — see publicPricingConfig — so a customer cannot read off
+             every promotion Homle is running. -->
+        <form class="journey-promo" data-promo-form>
+          <label class="journey-promo-label" for="promo-code">Promotion code</label>
+          <div class="journey-promo-row">
+            <input id="promo-code" name="promoCode" data-promo-input type="text" inputmode="latin"
+                   autocomplete="off" autocapitalize="characters" spellcheck="false"
+                   maxlength="24" placeholder="Enter a code">
+            <button class="journey-promo-apply" type="submit" data-promo-apply>Apply</button>
+          </div>
+          <p class="journey-promo-state" data-promo-state role="status"></p>
+        </form>
         <p class="journey-total-note" data-checkout-total-note></p>
         <!-- Before they book, not after they try to cancel. The terms are
              rendered from the same configuration that charges, so the words

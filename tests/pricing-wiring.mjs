@@ -1,13 +1,14 @@
-// The cancellation policy is reachable, not just implemented.
+// The pricing policies are REACHABLE, not merely implemented.
 //
 // The arithmetic is covered in tests/pricing-dynamics.mjs. What this file
-// guards is the thing that was actually wrong for a whole release: the policy
-// existed, was correct, and nothing called it. A fee nobody can see is not a
-// policy, it is a function.
+// guards is the thing that was actually wrong for a whole release: the
+// cancellation policy and the promotion machinery both existed, were both
+// correct, and nothing called either of them. A fee nobody can see is not a
+// policy, and a code no operator can create is not an offer.
 //
-// Structural rather than behavioural on purpose. These are four separate
-// surfaces — an HTTP route, two browser screens and an operator queue — and a
-// unit test that mounted all four would be asserting its own scaffolding. What
+// Structural rather than behavioural on purpose. These are five separate
+// surfaces — an HTTP route, three browser screens and an operator queue — and a
+// unit test that mounted all five would be asserting its own scaffolding. What
 // matters is that each one reaches the shared module rather than restating the
 // rule in its own words, which is how the guide prices drifted.
 
@@ -96,4 +97,38 @@ assert(cancellationSettlement(charged.feePence, defaultPricingEconomics).cleaner
   "The default cancellation split is not the configured 70%.");
 void config;
 
+
+/* ── 6. Promotions are reachable, and the code list still is not ─────────── */
+
+// The engine, the endpoint and the payout rule were all done; codes could only
+// be added through the API. An offer an operator cannot create is an offer
+// nobody runs.
+const adminPricing = await source("../public/admin-pricing.js");
+const adminMarkup = await source("../public/admin-pricing.html");
+assert(adminMarkup.includes("data-fields-promotions") && adminMarkup.includes("data-add-promotion"),
+  "There is no way for an operator to create a promotion code.");
+assert(adminPricing.includes("promotionsFromDrafts") && adminPricing.includes("next.promotions"),
+  "The promotion editor does not reach the configuration that is saved.");
+// Every term the engine honours has to be editable, or it is decided by a
+// default nobody chose.
+for (const term of ["maximumDiscountPence", "minimumSpendPence", "firstBookingOnly", "expiresAt"]) {
+  assert(adminPricing.includes(term), `A promotion's ${term} cannot be set by an operator.`);
+}
+
+const journeySource = await source("../public/landlord-journey.js");
+const journeyPage = await source("../public/landlord-journey.html");
+assert(journeyPage.includes("data-promo-form"), "A customer has nowhere to enter a promotion code.");
+assert(journeySource.includes("/api/marketplace/pricing/promotion"),
+  "The journey does not ask the server to check a typed code.");
+// The whole reason the endpoint exists: the list must not ship to the browser.
+assert(http.includes("publicPricingConfig(await pricingConfiguration"),
+  "The public price-list endpoint no longer strips the promotion codes.");
+// The grant is deliberately not persisted — a stale tab must not resurrect a
+// discount the server may no longer honour.
+assert(/saveDraft\(\) serialises `state\.draft`|Held in memory\s*\n\s*\/\/ only/.test(journeySource),
+  "The resolved promotion grant is no longer documented as memory-only.");
+assert(!/state\.draft\.promotion\b\s*=/.test(journeySource),
+  "The resolved promotion grant is written into the saved draft, where a stale one could reappear.");
+
+console.log("Promotion wiring tests passed: an operator can create a code with every term the engine honours, a customer can redeem one, the code list still never reaches a browser, and the resolved grant is never persisted.");
 console.log("Cancellation wiring tests passed: the server computes the fee and gates the cleaner's share to operators, the customer sees it before asking and is never blocked by it, the terms are rendered from the price list rather than typed, and the operator sees the fee and the split at the decision.");

@@ -111,6 +111,142 @@ function setAtPath(target, path, value) {
   node[parts.at(-1)] = value;
 }
 
+/* ── Promotion codes ──────────────────────────────────────────────────────
+   Held apart from `working` because a normalised configuration is frozen, and
+   these are the one part of the page that is a LIST an operator adds to and
+   removes from rather than a set of numbers they nudge. */
+
+let promotionDrafts = [];
+
+function promotionDraftsFrom(config) {
+  return Object.values(config?.promotions ?? {}).map((promotion) => ({ ...promotion }));
+}
+
+/** The drafts, back in the shape normalizedPricingConfig validates. */
+function promotionsFromDrafts() {
+  const promotions = {};
+  for (const draft of promotionDrafts) {
+    const code = String(draft.code || "").trim().toUpperCase();
+    // A half-typed code is not an error an operator should be shouted at for
+    // mid-keystroke; it simply is not a promotion yet. The server validates
+    // whatever does get sent.
+    if (!/^[A-Z0-9]{3,24}$/.test(code)) continue;
+    promotions[code] = {
+      code,
+      label: String(draft.label || `${code} discount`).slice(0, 60),
+      kind: draft.kind === "fixed" ? "fixed" : "percentage",
+      value: Math.round(Number(draft.value) || 0),
+      maximumDiscountPence: Math.round(Number(draft.maximumDiscountPence) || 0),
+      minimumSpendPence: Math.round(Number(draft.minimumSpendPence) || 0),
+      firstBookingOnly: draft.firstBookingOnly === true,
+      expiresAt: String(draft.expiresAt || "")
+    };
+  }
+  return promotions;
+}
+
+function renderPromotions() {
+  const host = document.querySelector("[data-fields-promotions]");
+  if (!host) return;
+  host.replaceChildren(...promotionDrafts.map((draft, index) => {
+    const card = element("div", "admin-pricing-row admin-pricing-promotion");
+    const grid = element("div", "admin-pricing-row-fields");
+
+    const text = (label, key, { maximumLength = 60, placeholder = "" } = {}) => {
+      const wrap = element("label", "admin-pricing-field");
+      wrap.append(element("span", "admin-pricing-field-label", label));
+      const input = document.createElement("input");
+      input.type = "text";
+      input.maxLength = maximumLength;
+      input.placeholder = placeholder;
+      input.value = String(draft[key] ?? "");
+      input.addEventListener("input", () => {
+        draft[key] = key === "code" ? input.value.toUpperCase() : input.value;
+        if (key === "code") input.value = draft[key];
+        schedulePreview();
+      });
+      wrap.append(input);
+      grid.append(wrap);
+    };
+
+    const number = (label, key, { pounds = false, min = 0, max = 100000 } = {}) => {
+      const wrap = element("label", "admin-pricing-field");
+      wrap.append(element("span", "admin-pricing-field-label", label));
+      const row = element("span", "admin-pricing-field-row");
+      if (pounds) row.append(element("span", "admin-pricing-affix", "£"));
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = String(pounds ? min / 100 : min);
+      input.max = String(pounds ? max / 100 : max);
+      input.step = pounds ? "0.01" : "1";
+      input.value = pounds ? ((Number(draft[key]) || 0) / 100).toFixed(2) : String(Number(draft[key]) || 0);
+      input.addEventListener("input", () => {
+        const raw = Number(input.value);
+        if (Number.isFinite(raw)) { draft[key] = pounds ? Math.round(raw * 100) : Math.round(raw); schedulePreview(); }
+      });
+      row.append(input);
+      if (!pounds) row.append(element("span", "admin-pricing-affix", "bp"));
+      wrap.append(row);
+      grid.append(wrap);
+    };
+
+    text("Code", "code", { maximumLength: 24, placeholder: "WELCOME20" });
+    text("What the customer sees", "label", { placeholder: "Welcome offer" });
+
+    const kindWrap = element("label", "admin-pricing-field");
+    kindWrap.append(element("span", "admin-pricing-field-label", "Kind"));
+    const kind = document.createElement("select");
+    for (const [value, copy] of [["percentage", "Percentage off"], ["fixed", "Fixed amount off"]]) {
+      const option = document.createElement("option");
+      option.value = value; option.textContent = copy; option.selected = draft.kind === value;
+      kind.append(option);
+    }
+    kind.addEventListener("change", () => { draft.kind = kind.value; renderPromotions(); schedulePreview(); });
+    kindWrap.append(kind);
+    grid.append(kindWrap);
+
+    // One field read two ways, so a percentage can never be mistaken for pence.
+    if (draft.kind === "fixed") number("Amount off", "value", { pounds: true, min: 1, max: 100000 });
+    else number("Percentage off", "value", { min: 1, max: 5000 });
+
+    number("Never more than", "maximumDiscountPence", { pounds: true, min: 1, max: 100000 });
+    number("Only above", "minimumSpendPence", { pounds: true, min: 0, max: 1000000 });
+
+    const expiryWrap = element("label", "admin-pricing-field");
+    expiryWrap.append(element("span", "admin-pricing-field-label", "Expires"));
+    const expiry = document.createElement("input");
+    expiry.type = "date";
+    expiry.value = String(draft.expiresAt || "").slice(0, 10);
+    expiry.addEventListener("change", () => {
+      // End of the chosen day, not the start of it: an operator setting "expires
+      // 31 March" means the code works on the 31st.
+      draft.expiresAt = expiry.value ? `${expiry.value}T23:59:59.999Z` : "";
+      schedulePreview();
+    });
+    expiryWrap.append(expiry);
+    grid.append(expiryWrap);
+
+    const firstOnly = element("label", "admin-pricing-field admin-pricing-checkbox");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = draft.firstBookingOnly === true;
+    box.addEventListener("change", () => { draft.firstBookingOnly = box.checked; schedulePreview(); });
+    firstOnly.append(box, element("span", "", "First booking only"));
+    grid.append(firstOnly);
+
+    card.append(grid);
+    const remove = element("button", "text-button admin-pricing-remove", "Remove this code");
+    remove.type = "button";
+    remove.addEventListener("click", () => {
+      promotionDrafts.splice(index, 1);
+      renderPromotions();
+      schedulePreview();
+    });
+    card.append(remove);
+    return card;
+  }));
+}
+
 function buildFields() {
   const core = document.querySelector("[data-fields-core]");
   core.replaceChildren();
@@ -220,6 +356,8 @@ function buildFields() {
     field(services, { path: `discounts.recurringBasisPoints.${frequency}`, label: `${frequency.replace(/-/g, " ")} saving`, value, suffix: "bp", min: 0, max: 5000, step: 50 });
   }
 
+  renderPromotions();
+
   const economicsHost = document.querySelector("[data-fields-economics]");
   economicsHost.replaceChildren();
   if (economics) {
@@ -242,6 +380,8 @@ function collect() {
   // through untouched. Rebuilding from the defaults would silently reset all of
   // it every time an operator changed the hourly rate.
   const next = structuredClone(working);
+  // The one part of the page that is a list rather than a number.
+  next.promotions = promotionsFromDrafts();
   next.economics = economics ? { ...economics } : undefined;
   for (const input of form.querySelectorAll("input[data-path]")) {
     const raw = Number(input.value);
@@ -343,6 +483,7 @@ async function load() {
   try {
     const result = await request("/api/marketplace/admin/pricing");
     working = normalizedPricingConfig(result.config || defaultPricingConfig);
+    promotionDrafts = promotionDraftsFrom(working);
     economics = result.economics || null;
     gate.hidden = true;
     workspace.hidden = false;
@@ -379,6 +520,7 @@ form?.addEventListener("submit", async (event) => {
       body: JSON.stringify({ config: candidate, economics: candidate.economics, changeReason })
     });
     working = normalizedPricingConfig(result.config);
+    promotionDrafts = promotionDraftsFrom(working);
     economics = result.economics || economics;
     showFeedback("Pricing saved. The next quote uses it.", "success");
   } catch (error) {
@@ -386,9 +528,22 @@ form?.addEventListener("submit", async (event) => {
   }
 });
 
+document.querySelector("[data-add-promotion]")?.addEventListener("click", () => {
+  // Deliberately blank rather than pre-filled with a plausible offer. A code an
+  // operator did not type is a code nobody decided to run.
+  promotionDrafts.push({
+    code: "", label: "", kind: "percentage",
+    value: 1000, maximumDiscountPence: 2000, minimumSpendPence: 0,
+    firstBookingOnly: false, expiresAt: ""
+  });
+  renderPromotions();
+  document.querySelector("[data-fields-promotions] .admin-pricing-promotion:last-child input")?.focus();
+});
+
 document.querySelector("[data-pricing-reset]")?.addEventListener("click", () => {
   if (!window.confirm("Reset every price back to the shipped defaults? This does not save until you press Save.")) return;
   working = structuredClone(defaultPricingConfig);
+  promotionDrafts = promotionDraftsFrom(working);
   buildFields();
   void runPreview();
   showFeedback("Fields reset to the shipped defaults. Nothing is saved until you press Save.");

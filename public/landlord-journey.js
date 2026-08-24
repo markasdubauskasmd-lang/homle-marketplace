@@ -82,6 +82,10 @@ const el = {
   checkoutTotal: $("[data-checkout-total]"),
   checkoutBreakdown: $("[data-checkout-breakdown]"),
   checkoutTotalNote: $("[data-checkout-total-note]"),
+  promoForm: $("[data-promo-form]"),
+  promoInput: $("[data-promo-input]"),
+  promoApply: $("[data-promo-apply]"),
+  promoState: $("[data-promo-state]"),
   checkoutPolicy: $("[data-checkout-policy]"),
   checkoutPolicyLines: $("[data-checkout-policy-lines]"),
   tasks: $("[data-tasks]"),
@@ -137,6 +141,11 @@ const state = {
   // rather than being overwritten by the truth the customer asserted.
   scanCorrections: [],
   scanReview: null,
+  // The grant the server returned for a typed promotion code. Held in memory
+  // only — saveDraft() serialises `state.draft`, and the CODE is what belongs
+  // there. A grant restored from a stale tab would show a discount the server
+  // may no longer honour.
+  promotion: null,
   scanInstructions: [],
   // Measurements taken from the room photos at review time. Held in memory like
   // the photos they were measured from, and stored against the saved scan at
@@ -151,6 +160,7 @@ const state = {
     // in the draft so the three answers survive a step back, a refresh and a
     // reopened tab like every other answer does.
     propertyShape: null,
+    promotionCode: "",
     transcript: "",
     rooms: [],
     guideTime: "",
@@ -568,6 +578,7 @@ function choosePropertyShape(change) {
 }
 
 let lastSeededChecklist = "";
+let promotionRecheckInFlight = false;
 
 function updateResultTotals() {
   const tasks = el.tasks.value.split("\n").map((line) => line.trim()).filter(Boolean);
@@ -845,6 +856,14 @@ function renderCheckout() {
  */
 function renderCheckoutTotal() {
   if (!el.checkoutTotal) return;
+  // A code restored from a saved draft has no grant beside it — the grant is
+  // deliberately not serialised. Ask again once, so a returning customer sees
+  // the discount they had rather than silently losing it.
+  if (state.draft.promotionCode && !state.promotion && !promotionRecheckInFlight) {
+    promotionRecheckInFlight = true;
+    el.promoInput.value = state.draft.promotionCode;
+    void applyPromotionCode().finally(() => { promotionRecheckInFlight = false; });
+  }
   const request = pricingConfig ? currentPricingRequest() : null;
   const quote = request ? quoteRooms(request, pricingConfig) : null;
 
@@ -877,6 +896,63 @@ function renderCheckoutTotal() {
  * hand-typed guide prices had. This reads the same configuration the fee is
  * computed from.
  */
+/**
+ * Redeems a typed promotion code.
+ *
+ * The code list is never served to a browser, so the server is asked. What comes
+ * back is one resolved grant this page can total with — and the authoritative
+ * quote re-resolves the code itself and ignores the grant entirely, so a
+ * tampered client can only ever mislead its own screen.
+ *
+ * A code that does not exist and a code that does not apply get the same
+ * answer, on purpose: telling them apart would turn this into a way of
+ * enumerating codes.
+ */
+async function applyPromotionCode(event) {
+  event?.preventDefault();
+  const code = String(el.promoInput.value || "").trim().toUpperCase();
+  if (!code) {
+    state.draft.promotionCode = "";
+    state.promotion = null;
+    el.promoState.textContent = "";
+    saveDraft();
+    renderCheckoutTotal();
+    return;
+  }
+  el.promoApply.disabled = true;
+  el.promoState.textContent = "Checking…";
+  try {
+    const result = await requestJson("/api/marketplace/pricing/promotion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": await recoverCsrf() },
+      body: JSON.stringify({ code })
+    });
+    if (result.promotion) {
+      state.draft.promotionCode = result.promotion.code;
+      state.promotion = result.promotion;
+      el.promoInput.value = result.promotion.code;
+      el.promoState.textContent = `${result.promotion.label} applied.`;
+      el.promoState.dataset.kind = "applied";
+    } else {
+      state.draft.promotionCode = "";
+      state.promotion = null;
+      el.promoState.textContent = result.reason || "That code is not available for this booking.";
+      el.promoState.dataset.kind = "refused";
+    }
+  } catch (error) {
+    state.draft.promotionCode = "";
+    state.promotion = null;
+    el.promoState.textContent = `${error.message} Your booking is unaffected.`;
+    el.promoState.dataset.kind = "refused";
+  } finally {
+    el.promoApply.disabled = false;
+    saveDraft();
+    renderCheckoutTotal();
+  }
+}
+
+if (el.promoForm) el.promoForm.addEventListener("submit", applyPromotionCode);
+
 function renderCancellationPolicy() {
   if (!el.checkoutPolicy || !pricingConfig) return;
   try {
@@ -1071,7 +1147,12 @@ function currentPricingRequest() {
     serviceType: pricingServiceTypeByCode[state.draft.serviceCode] || "standard",
     frequency: state.draft.frequency || "one-time",
     postcode: state.draft.postcode || state.draft.outward || "",
-    startAt: requestedWindow(state.draft.date, state.draft.time, state.draft.durationMinutes)?.requestedStartAt || ""
+    startAt: requestedWindow(state.draft.date, state.draft.time, state.draft.durationMinutes)?.requestedStartAt || "",
+    // The code, and the grant the server handed back for it. The code is what
+    // the server re-resolves against; the grant is only so this page can show
+    // the discount without another round trip per keystroke elsewhere.
+    ...(state.draft.promotionCode ? { promotionCode: state.draft.promotionCode } : {}),
+    ...(state.promotion ? { promotion: state.promotion } : {})
   };
 
   const scanned = correctedScanRooms();
