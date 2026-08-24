@@ -284,7 +284,13 @@ export function createBookingWorkflowService(repository, options = {}) {
 
   async function invitationQuote(actor, input = {}) {
     if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.some((role) => role === "landlord" || role === "administrator")) throw new TypeError("A Landlord account is required to price a Cleaner invitation.");
-    if (!pricingPolicy || typeof pricingPolicy.quote !== "function") throw Object.assign(new Error("Booking invitations are unavailable until the private pricing policy is configured."), { statusCode: 503, code: "pricing-not-configured" });
+    // NOT a guard on the whole function any more.
+    //
+    // It used to be, which made the legacy cost-up policy — and the twelve
+    // BOOKING_* variables behind it — a hard requirement for inviting a cleaner
+    // to a booking that never touches it. A deployment carrying only the
+    // platform price list could not book at all. The requirement is now checked
+    // where it is actually needed: below, on the cost-up branch.
     const requestId = uuid(input.cleaningRequestId, "cleaning request id");
     const cleanerId = uuid(input.cleanerId, "cleaner id");
     if (cleanerId === actor.userId.toLowerCase()) throw Object.assign(new Error("Your Cleaner workspace cannot be invited to your own cleaning request."), { statusCode: 409, code: "self-booking-not-allowed" });
@@ -295,15 +301,35 @@ export function createBookingWorkflowService(repository, options = {}) {
     }
     // A request that carries the price the customer was shown is priced FROM
     // that price: the customer figure is already decided, and the cleaner is
-    // paid a share of it. A request without one is priced exactly as before,
-    // cost-up from this cleaner's own rates. Both paths stay live because both
-    // are real — a bespoke job quoted against a cleaner's rate card has no
-    // platform price to freeze.
+    // paid a share of it.
+    //
+    // THE COST-UP PATH BELOW IS LEGACY, AND IS KEPT ONLY FOR OLD ROWS.
+    //
+    // It was the third of the three pricing systems the August 2026 audit found
+    // (docs/PRICING_MODEL.md). Every client path now sends a pricing request, so
+    // every request created from here on carries a frozen platform quote and
+    // never reaches it. What still can are cleaning_requests written BEFORE that
+    // change, whose quoted_total_pence is null and which would otherwise become
+    // unbookable.
+    //
+    // It can be deleted, along with the twelve BOOKING_* variables, once:
+    //
+    //   SELECT count(*) FROM cleaning_requests
+    //   WHERE quoted_total_pence IS NULL
+    //     AND status NOT IN ('cancelled', 'matched');
+    //
+    // returns zero. That is a data decision rather than a code one, which is why
+    // it has not been made here.
     const resolvedPlatformEconomics = getPlatformEconomics
       ? normalizedPricingEconomics(await getPlatformEconomics(actor))
       : platformEconomics;
-    const terms = platformPricedTerms(candidate, clock(), resolvedPlatformEconomics)
-      || pricingPolicy.quote(candidate, clock());
+    let terms = platformPricedTerms(candidate, clock(), resolvedPlatformEconomics);
+    if (!terms) {
+      if (!pricingPolicy || typeof pricingPolicy.quote !== "function") {
+        throw Object.assign(new Error("This request was saved before Homle priced requests up front, and cannot be booked until it is re-quoted."), { statusCode: 409, code: "request-not-priced" });
+      }
+      terms = pricingPolicy.quote(candidate, clock());
+    }
     return Object.freeze({ requestId, cleanerId, terms });
   }
   return Object.freeze({

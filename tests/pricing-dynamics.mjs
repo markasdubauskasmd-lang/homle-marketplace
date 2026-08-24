@@ -295,7 +295,20 @@ for (const bedrooms of [1, 2, 3, 4, 5]) {
 // Nonsense shapes are bounded rather than fatal.
 assert(roomsFromPropertyShape(config, { propertyType: "flat", bedrooms: 999, bathrooms: -4 }).length <= 40,
   "An absurd property shape was not bounded.");
-assert(roomsFromPropertyShape(config, {}).length > 0, "An empty property shape produced no rooms at all.");
+// An empty shape expands to nothing, deliberately. Returning a shape's standing
+// rooms for `{}` would price a kitchen and a hallway for a caller who simply
+// sent no shape, which the engine would then happily charge the minimum for.
+assert(roomsFromPropertyShape(config, {}).length === 0, "An empty property shape invented rooms.");
+assert(!quoteRooms({ propertyShape: {} }, config).priceable, "A quote with no rooms and an empty shape produced a price.");
+
+// The engine accepts a shape in place of a room list, so the three-tap quote
+// needs no separate path to reach a price.
+const throughEngine = quoteRooms({ propertyShape: { propertyType: "flat", bedrooms: 2, bathrooms: 1 }, serviceType: "end-of-tenancy", postcode: "M1 1AA" }, config);
+assert(throughEngine.priceable && throughEngine.totalPence === shapeQuote.totalPence,
+  "Passing a property shape to the engine did not produce the same price as expanding it first.");
+// An explicit room list always wins over a shape.
+assert(quoteRooms({ rooms: [{ roomType: "hallway", items: [] }], propertyShape: { propertyType: "house", bedrooms: 6 } }, config).rooms.length === 1,
+  "A property shape overrode an explicit room list.");
 
 /* ── Cancellation ─────────────────────────────────────────────────────────── */
 

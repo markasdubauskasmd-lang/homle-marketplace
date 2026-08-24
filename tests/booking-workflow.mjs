@@ -165,8 +165,32 @@ assert(await rejects(() => workflow.inviteCleaner(cleaner, { cleaningRequestId: 
 const dualRoleActor = { userId: landlord.userId, roles: ["cleaner", "landlord"] };
 assert(await rejects(() => workflow.previewInvitation(dualRoleActor, { cleaningRequestId: requestId, cleanerId: landlord.userId }), "cannot be invited to your own"), "A dual-workspace account could preview an invitation to its own Cleaner profile.");
 assert(await rejects(() => workflow.respondToInvitation(landlord, bookingId, { decision: "accept" }), "Cleaner"), "A Landlord could answer a Cleaner invitation.");
+// An UNPRICED request with no cost-up policy configured still fails closed —
+// it just says what is actually wrong now ("saved before Homle priced requests
+// up front") instead of naming an internal policy the customer cannot see.
 const disabled = createBookingWorkflowService(fakeRepository);
-assert(await rejects(() => disabled.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId }), "pricing policy"), "Invitations did not fail closed without private pricing configuration.");
+assert(await rejects(() => disabled.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId }), "cannot be booked until it is re-quoted"),
+  "Invitations did not fail closed for an unpriced request with no cost-up policy.");
+
+// And the case this guard used to block: a request that carries a platform
+// quote books WITHOUT the legacy cost-up policy or its twelve BOOKING_*
+// variables. Requiring them for a path that never touches them meant a
+// deployment carrying only the price list could not book at all.
+{
+  const quotedRepository = {
+    ...fakeRepository,
+    async getInvitationCandidate() {
+      return { ...candidate, quoted_total_pence: 9000, quoted_minutes: 180, pricing_config_version: 1 };
+    }
+  };
+  const withoutCostUp = createBookingWorkflowService(quotedRepository, {
+    platformEconomics: { cleanerShareBasisPoints: 7000, paymentFeeBasisPoints: 150, paymentFeeFixedPence: 20, targetGrossMarginBasisPoints: 2000, minimumContributionPence: 600, cleanerHourlyFloorPence: 1500 },
+    clock: () => new Date(now)
+  });
+  const preview = await withoutCostUp.previewInvitation(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId });
+  assert(preview.customerPricePence === 9000,
+    `A platform-priced request did not book without the cost-up policy: ${preview.customerPricePence}`);
+}
 
 const sqlCalls = [];
 let failure = null;

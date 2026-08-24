@@ -657,6 +657,10 @@ export function locationBandFor(config, postcode) {
  */
 export function roomsFromPropertyShape(config, shape = {}) {
   const rules = config?.propertyShapes ? config : normalizedPricingConfig(config);
+  // Nothing described means nothing to expand. Returning the shape's standing
+  // rooms for an empty object would price a kitchen and a hallway for a caller
+  // who simply sent no shape at all.
+  if (!shape || typeof shape !== "object" || !Object.keys(shape).length) return [];
   const chosen = rules.propertyShapes[String(shape?.propertyType || "").trim().toLowerCase()]
     ?? rules.propertyShapes.flat;
   const bedrooms = Math.min(Math.max(Number(shape?.bedrooms) || 0, 0), 12);

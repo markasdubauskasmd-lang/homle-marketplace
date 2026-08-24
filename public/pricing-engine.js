@@ -43,7 +43,7 @@
 // increment through an explicit `rounding` line, never by quietly adjusting
 // another one.
 
-import { locationBandFor, normalizedPricingConfig, roomDefinition } from "./pricing-config.js";
+import { locationBandFor, normalizedPricingConfig, roomDefinition, roomsFromPropertyShape } from "./pricing-config.js";
 
 const basisPointDivisor = 10000;
 
@@ -198,7 +198,13 @@ function priceRoom(room, config, index) {
 export function quoteRooms(request = {}, config = {}) {
   const rules = normalizedPricingConfig(config);
 
-  const rooms = Array.isArray(request?.rooms) ? request.rooms.slice(0, 40) : [];
+  // Three input shapes, one list of rooms. A caller that describes a property
+  // — "two bed, one bath, flat" — gets it expanded here rather than in a
+  // separate quoting path, so the three-tap quote and the scanner and the typed
+  // checklist are all the same arithmetic over the same structure. An explicit
+  // room list always wins; the shape is what you send when you do not have one.
+  const supplied = Array.isArray(request?.rooms) ? request.rooms : [];
+  const rooms = (supplied.length ? supplied : roomsFromPropertyShape(rules, request?.propertyShape ?? {})).slice(0, 40);
   if (!rooms.length) return unpriceable("no-rooms", "Add at least one room before a price can be worked out.", rules);
 
   const serviceCode = String(request?.serviceType || "standard");
