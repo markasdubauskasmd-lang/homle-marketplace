@@ -254,8 +254,16 @@ export const defaultScheduleSurcharges = Object.freeze({
 // announced.
 export const defaultBankHolidays = Object.freeze([
   "2026-01-01", "2026-04-03", "2026-04-06", "2026-05-04", "2026-05-25", "2026-08-31", "2026-12-25", "2026-12-28",
-  "2027-01-01", "2027-03-26", "2027-03-29", "2027-05-03", "2027-05-31", "2027-08-30", "2027-12-27", "2027-12-28"
+  "2027-01-01", "2027-03-26", "2027-03-29", "2027-05-03", "2027-05-31", "2027-08-30", "2027-12-27", "2027-12-28",
+  "2028-01-03", "2028-04-14", "2028-04-17", "2028-05-01", "2028-05-29", "2028-08-28", "2028-12-25", "2028-12-26",
+  "2029-01-01", "2029-03-30", "2029-04-02", "2029-05-07", "2029-05-28", "2029-08-27", "2029-12-25", "2029-12-26"
 ]);
+
+// A list that runs out does not fail loudly — Sundays keep their surcharge and
+// Boxing Day quietly stops having one, which is the kind of thing nobody
+// notices until a cleaner is asked to work it at the ordinary rate. This is the
+// last date covered, so an operator can be told before it matters.
+export const bankHolidayCoverageEndsAt = "2029-12-26";
 
 /* ── Discounts ───────────────────────────────────────────────────────────── */
 

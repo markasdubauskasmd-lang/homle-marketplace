@@ -467,22 +467,62 @@ What changed is *upstream* of it: the number written to `bookings.customer_price
 
 ## 6. Remaining risks
 
-1. **The regional price cut is a commercial decision, not a technical one.** Outside London and the South East, prices fall about 14%. That is the recommendation and the reasoning is in §2, but it is revenue. To revert: set all three `locationBands` multipliers to `10000` and `customerHourlyRatePence` back to `2800`, in the admin screen, no deployment.
-2. **Existing published configurations keep their old room prices.** `normalizedPricingConfig` treats a stored `basePence` as a deliberate override, so a deployment that has already published a price list will keep £18.50 kitchens until an operator re-publishes. Intended — silently re-pricing a live product on deploy would be worse — but it means the new rates do not take effect on such a deployment until someone opens `/admin/pricing` and saves.
-3. **The cancellation policy is engine-complete but not wired.** `cancellationFee()` and `cancellationSettlement()` are implemented and tested; nothing calls them. Charging a cancellation touches the payment ledger and refund flow, which is a sensitive area that deserves its own change rather than being bolted on here.
-4. **The property-shape quote has no UI.** The engine accepts `propertyShape`, so a three-tap quote is one screen away, but that screen does not exist yet.
-5. **Promotions have no admin editor.** The engine, the endpoint, the boundary and the payout rule are done; codes must currently be added through the API rather than a form.
-6. **Bank holidays run out at the end of 2027.** They are a config list; after that, Sundays are still surcharged but Boxing Day is not. Add the next year's dates when they are published.
-7. **The location bands are a judgement.** Twenty-nine postcode areas are in the high-cost band on general knowledge of UK regional pricing, not on Homle's own conversion data. Revisit once there is any.
-8. **`pnpm test` grew.** It runs the pricing suite now, which is the point, but CI is a little slower.
+Everything below the line in the first draft of this report has since been
+closed except where noted. What remains:
 
-## 7. Further improvements worth making
+1. **The regional price cut is a commercial decision, not a technical one.**
+   Outside London and the South East, prices fall about 14%. That is the
+   recommendation and the reasoning is in §2, but it is revenue. To revert: set
+   all three `locationBands` multipliers to `10000` and
+   `customerHourlyRatePence` back to `2800`, in the admin screen, no
+   deployment.
+2. **The cleaner never sees why they are paid what they are paid.** Every
+   surface that shows a cleaner money — `cleaner-dashboard`, `cleaner-job`,
+   `cleaner-schedule`, `cleaner-payouts`, `cleaner-jobs-map` and `active-job` —
+   is inside the byte-for-byte freeze in `tests/cleaner-dashboard-freeze.mjs`,
+   which says in terms: *do not refresh this digest unless the user explicitly
+   replaces the no-change objective.* Building the breakdown means lifting that
+   objective first, which is not a decision this work can make.
+3. **Cancellation fees are computed and disclosed but not collected.** A
+   booking's payment is only authorised within five days of the visit, so most
+   cancellations happen when there is no hold on a card to capture against.
+   Charging those needs a payment-method-on-file decision this product has not
+   taken.
+4. **The location bands are a judgement.** Twenty-nine postcode areas are in the
+   high-cost band on general knowledge of UK regional pricing, not on Homle's
+   own conversion data. Revisit once there is any.
+5. **Two tables are dead but not dropped** — the rate columns in
+   `scan_pricing_rulesets`, and `scan_pricing_addons`. Dropping them is
+   destructive and the retirement has not been live for a day yet.
+6. **The cost-up path still exists** for `cleaning_requests` written before the
+   quote was frozen up front. The query that says when it can go is in
+   `booking-workflow.mjs`.
+7. **Bank holidays now run to 26 December 2029**, and the admin screen warns a
+   year before that runs out. It still has to be extended by a person.
 
-1. **Price against real conversion data.** Everything above is calibrated to market rates. Within a few hundred bookings the platform will know its own price elasticity per band, which beats any external guide.
-2. **Wire the cancellation policy**, including the cleaner's share, and show the policy on the confirm step. A customer who can see the terms before booking cancels less angrily.
-3. **Build the three-tap quote.** Postcode → property shape → price is the shortest path to a number, and the biggest conversion lever left.
-4. **Drop the dead tables** (`scan_pricing_addons`, and the rate columns in `scan_pricing_rulesets`) once the retirement has been live long enough to be sure.
-5. **Delete the cost-up path** once no unpriced requests remain — the query is in `booking-workflow.mjs`.
-6. **Show the cleaner what they earn and why**, using the same breakdown the customer sees. Supply trusts a platform whose maths it can read.
-7. **A/B the multi-room and recurring discounts.** Both are set from market convention. They are the two cheapest levers to test.
-8. **Watch the effective cleaner hourly rate per band.** The floor refuses a bad booking one at a time; a report would show a band drifting toward it before jobs start going unaccepted.
+## 7. What was closed after the first report
+
+| Gap | How |
+|---|---|
+| A published price list would have kept its old room prices and gained a 15% London rise | `upgradeStoredPricingConfig()` brings version 1 forward on read: room bases re-derive, and the hourly rate is re-expressed so the dearest band lands back on the old flat rate. Nobody's price goes up. |
+| Saving through the admin form would have frozen every derived room price | `publishablePricingConfig()` drops a base price that matches its own minutes, keeps one that does not. |
+| Cancellation policy called by nothing | A compute-only quote endpoint; the fee shown to the customer before they ask; the terms rendered on the confirm step; the fee and the cleaner's share shown to the operator reviewing it. |
+| No three-tap quote | Property type, bedrooms and bathrooms on the checklist step, expanding to the same room list the engine already prices. Seeded checklist lines are asserted to survive the server's own quality gate. |
+| Promotions could only be added through the API | An admin editor covering every term the engine honours, and a code box at checkout. The code list still never reaches a browser. |
+| Bank holidays ran out end of 2027 | Extended to 2029, with a warning in the admin screen a year before it lapses. |
+
+## 8. Further improvements worth making
+
+1. **Price against real conversion data.** Everything here is calibrated to
+   market rates. Within a few hundred bookings the platform will know its own
+   price elasticity per band, which beats any external guide.
+2. **Show the cleaner what they earn and why** — blocked on the freeze above.
+   Supply trusts a platform whose maths it can read.
+3. **Collect cancellation fees**, once there is a payment method on file.
+4. **Drop the dead tables** and **delete the cost-up path** once each has been
+   quiet long enough to be sure.
+5. **A/B the multi-room and recurring discounts.** Both are set from market
+   convention and are the two cheapest levers to test.
+6. **Watch the effective cleaner hourly rate per band.** The floor refuses a bad
+   booking one at a time; a report would show a band drifting toward it before
+   jobs start going unaccepted.

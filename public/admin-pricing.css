@@ -124,3 +124,15 @@
 }
 .admin-pricing-checkbox input{width:auto;margin:0}
 .admin-pricing-remove{margin-top:10px;color:#B4212F}
+
+/* A warning that arrives early enough to act on, styled as guidance rather
+   than an error — nothing is broken yet, which is the point of saying it now. */
+.admin-pricing-notice{
+  grid-column:1 / -1;
+  margin:0 0 4px;
+  padding:11px 14px;
+  border-radius:10px;
+  border:1px solid #E5C07B;
+  background:rgba(229,192,123,.12);
+  font-size:13px;line-height:1.55;
+}

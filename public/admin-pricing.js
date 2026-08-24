@@ -15,7 +15,7 @@
 // it is served to customers; this page asks an administrator-only endpoint for
 // them instead.
 
-import { defaultPricingConfig, normalizedPricingConfig } from "./pricing-config.js?v=20260808-1";
+import { bankHolidayCoverageEndsAt, defaultPricingConfig, normalizedPricingConfig } from "./pricing-config.js?v=20260824-1";
 import { formatPence } from "./price-animator.js?v=20260808-1";
 import { storedCsrf } from "./session-csrf.js";
 
@@ -292,6 +292,16 @@ function buildFields() {
   const timing = document.querySelector("[data-fields-timing]");
   if (timing) {
     timing.replaceChildren();
+    // A bank-holiday list that runs out does not fail loudly: Sundays keep
+    // their surcharge and Boxing Day quietly stops having one. Nobody notices
+    // until a cleaner is asked to work it at the ordinary rate, so the warning
+    // arrives a year early rather than on the day.
+    const lastCovered = Date.parse(`${bankHolidayCoverageEndsAt}T23:59:59Z`);
+    if (Number.isFinite(lastCovered) && lastCovered - Date.now() < 365 * 24 * 3600 * 1000) {
+      const notice = element("p", "admin-pricing-notice",
+        `Bank holidays are listed to ${bankHolidayCoverageEndsAt}. After that a bank holiday is priced as an ordinary weekday — add the published dates before then.`);
+      timing.append(notice);
+    }
     working.urgencyBands.forEach((band, index) => {
       field(timing, { path: `urgencyBands.${index}.surchargeBasisPoints`, label: band.label, value: band.surchargeBasisPoints, suffix: "bp", min: 0, max: 10000, step: 100 });
     });
