@@ -64,18 +64,6 @@ const marketplaceRuntimeEnvironment = Object.freeze({
   GEOCODING_PROVIDER: "google-maps",
   ADDRESS_LOOKUP_PROVIDER: "google-maps",
   ETA_PROVIDER: "google-maps",
-  BOOKING_TARGET_MARGIN_BPS: "2000",
-  BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1800",
-  BOOKING_LABOUR_ON_COST_BPS: "1000",
-  BOOKING_PAYMENT_FEE_BPS: "300",
-  BOOKING_PAYMENT_FEE_FIXED_PENCE: "20",
-  BOOKING_RISK_CONTINGENCY_BPS: "500",
-  BOOKING_TRAVEL_COST_PENCE: "500",
-  BOOKING_TRAVEL_COST_PER_KM_PENCE: "35",
-  BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS: "20000",
-  BOOKING_SUPPLIES_COST_PENCE: "250",
-  BOOKING_OTHER_COST_PENCE: "0",
-  BOOKING_INVITATION_TTL_MINUTES: "180"
 });
 
 const account = renderEnvironmentActivationReport(entriesFrom(safeAccountEnvironment));
@@ -86,7 +74,7 @@ assert.equal(account.activation.marketplaceDependencies, false);
 assert.deepEqual(account.missing.transactionalEmail, ["RESEND_API_KEY or SMTP_URL", "EMAIL_FROM"]);
 assert.deepEqual(account.missing.privateMedia, ["OBJECT_STORAGE_ENDPOINT", "OBJECT_STORAGE_BUCKET", "OBJECT_STORAGE_REGION", "OBJECT_STORAGE_ACCESS_KEY_ID", "OBJECT_STORAGE_SECRET_ACCESS_KEY"]);
 assert.equal(account.checks.marketplaceRuntimeConfigured, false);
-assert(account.missing.marketplaceRuntime.includes("DATABASE_URL") && account.missing.marketplaceRuntime.includes("REALTIME_DATABASE_URL") && account.missing.marketplaceRuntime.includes("BOOKING_MINIMUM_CONTRIBUTION_PENCE"));
+assert(account.missing.marketplaceRuntime.includes("DATABASE_URL") && account.missing.marketplaceRuntime.includes("REALTIME_DATABASE_URL"));
 assert.equal(account.next.key, "transactional-email");
 for (const secret of Object.values(privateValues)) assert(!JSON.stringify(account).includes(secret), "Render environment readiness exposed a private value.");
 
@@ -193,30 +181,32 @@ assert.equal(missingVisionProvider.mode, allDependencies.mode);
 assert.equal(missingVisionProvider.activation.marketplaceDependencies, true);
 assert.equal(missingVisionProvider.activation.testPaymentDependencies, true);
 
-const partialPricing = renderEnvironmentActivationReport(entriesFrom({
-  ...safeAccountEnvironment,
-  ...marketplaceRuntimeEnvironment,
-  BOOKING_MINIMUM_CONTRIBUTION_PENCE: ""
-}));
-assert.equal(partialPricing.checks.marketplaceRuntimeConfigured, false);
-assert(partialPricing.missing.marketplaceRuntime.includes("BOOKING_MINIMUM_CONTRIBUTION_PENCE"));
+// Booking economics used to be twelve BOOKING_* environment variables, and a
+// partial or out-of-range set held activation back. They are operator
+// configuration now — edited at /admin/pricing, stored in
+// pricing_configurations — so a deployment carrying none of them is complete,
+// and one that still carries them is not wrong, just ignored.
+{
+  const withoutBookingPricing = renderEnvironmentActivationReport(entriesFrom({
+    ...safeAccountEnvironment,
+    ...marketplaceRuntimeEnvironment
+  }));
+  assert.equal(withoutBookingPricing.checks.marketplaceRuntimeConfigured, true,
+    "A deployment with no BOOKING_* variables was reported incomplete, so the retired pricing path is still gating activation.");
+  assert.equal(withoutBookingPricing.missing.marketplaceRuntime.filter((key) => key.includes("BOOKING_")).length, 0,
+    "Render readiness still asks for retired BOOKING_* variables.");
 
-const invalidPricing = renderEnvironmentActivationReport(entriesFrom({
-  ...safeAccountEnvironment,
-  ...marketplaceRuntimeEnvironment,
-  BOOKING_TARGET_MARGIN_BPS: "9001",
-  BOOKING_MINIMUM_CONTRIBUTION_PENCE: "0",
-  BOOKING_RISK_CONTINGENCY_BPS: "5001",
-  BOOKING_OTHER_COST_PENCE: "1.5"
-}));
-assert.equal(invalidPricing.checks.marketplaceRuntimeConfigured, false);
-assert.deepEqual(invalidPricing.missing.marketplaceRuntime.filter((key) => key.startsWith("valid BOOKING_")), [
-  "valid BOOKING_TARGET_MARGIN_BPS",
-  "valid BOOKING_MINIMUM_CONTRIBUTION_PENCE",
-  "valid BOOKING_RISK_CONTINGENCY_BPS",
-  "valid BOOKING_OTHER_COST_PENCE"
-]);
-assert(!JSON.stringify(invalidPricing).includes("9001") && !JSON.stringify(invalidPricing).includes("1.5"), "Render readiness exposed private pricing values.");
+  const stillSettingThem = renderEnvironmentActivationReport(entriesFrom({
+    ...safeAccountEnvironment,
+    ...marketplaceRuntimeEnvironment,
+    BOOKING_TARGET_MARGIN_BPS: "9001",
+    BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1.5"
+  }));
+  assert.equal(stillSettingThem.checks.marketplaceRuntimeConfigured, true,
+    "A leftover BOOKING_* value blocked activation, so an old environment cannot be deployed unchanged.");
+  assert(!JSON.stringify(stillSettingThem).includes("9001") && !JSON.stringify(stillSettingThem).includes("1.5"),
+    "Render readiness exposed private pricing values.");
+}
 
 const invalidRuntimeDatabase = renderEnvironmentActivationReport(entriesFrom({
   ...safeAccountEnvironment,

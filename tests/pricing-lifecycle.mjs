@@ -189,12 +189,16 @@ for (const column of ["property.postcode", "request.cleaning_type", "cleaning_re
     `The invitation candidate no longer carries ${column}, so an unpriced request cannot be re-quoted.`);
 }
 
-// The workflow prefers the frozen quote, then a re-quote, and only then the
-// legacy cost-up policy — which no configured deployment now reaches.
-const workflowOrder = workflowSource.slice(workflowSource.indexOf("let terms = platformPricedTerms"), workflowSource.indexOf("return Object.freeze({ requestId, cleanerId, terms });"));
-assert(workflowOrder.indexOf("platformPricedTerms") < workflowOrder.indexOf("reQuotedTerms")
-  && workflowOrder.indexOf("reQuotedTerms") < workflowOrder.indexOf("pricingPolicy.quote"),
-  "The invitation no longer prefers the frozen quote, then a re-quote, then the legacy policy.");
+// The frozen quote first, a re-quote for an older request second, and NOTHING
+// third. There is no cost-up path left to fall through to — a booking is made
+// at a price the customer has been shown, or it is not made.
+const workflowOrder = workflowSource.slice(workflowSource.indexOf("const terms = platformPricedTerms"), workflowSource.indexOf("return Object.freeze({ requestId, cleanerId, terms });"));
+assert(workflowOrder.indexOf("platformPricedTerms") < workflowOrder.indexOf("reQuotedTerms"),
+  "The invitation no longer prefers the frozen quote over a re-quote.");
+assert(!/pricingPolicy|createBookingPricingPolicy/.test(workflowSource),
+  "The cost-up pricing policy is back in the booking workflow.");
+assert(/request-not-priced/.test(workflowOrder),
+  "An unpriceable request no longer fails closed at the invitation.");
 
 /* ── 6. The split. Customer, cleaner and platform account for each other. ── */
 

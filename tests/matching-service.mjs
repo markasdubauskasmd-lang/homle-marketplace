@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { createBookingPricingPolicy } from "../src/marketplace/booking-workflow.mjs";
 import { createMatchingRepository } from "../src/marketplace/matching-repository.mjs";
 import { createMatchingService } from "../src/marketplace/matching-service.mjs";
 
@@ -37,20 +36,54 @@ const candidates = [
 ];
 const calls = [];
 const repository = { async recommendForRequest(actor, suppliedRequestId, limit, requirePayoutReady) { calls.push({ actor, suppliedRequestId, limit, requirePayoutReady }); return candidates; } };
-const pricingPolicy = createBookingPricingPolicy({ targetMarginBasisPoints: 2000, minimumContributionPence: 1800, labourOnCostBasisPoints: 1000, paymentFeeBasisPoints: 300, paymentFeeFixedPence: 20, travelCostPence: 500, travelCostPerKmPence: 35, travelDistanceMultiplierBasisPoints: 20000, suppliesCostPence: 250, otherCostPence: 0, invitationTtlMinutes: 180 });
-const service = createMatchingService(repository, { pricingPolicy, clock: () => new Date(now) });
+// ONE quote, for the request. Homle sets the price, so it is the same whoever
+// cleans — which is exactly why ranking by it was removed.
+const quoteRequest = async () => ({ customerPricePence: 9000, quotedMinutes: 180 });
+const service = createMatchingService(repository, { quoteRequest, clock: () => new Date(now) });
 const result = await service.recommendForRequest(landlord, requestId);
 assert(calls[0].actor.userId === landlord.userId && calls[0].suppliedRequestId === requestId && calls[0].limit === 25 && calls[0].requirePayoutReady === false, "Matching did not bind the authenticated Landlord, bounded request query and no-payment rehearsal mode.");
-assert(result.generatedAt === now.toISOString() && result.candidates.length === 3 && result.candidates[0].cleanerId === cleaner.userId && result.candidates[0].rank === 1 && result.candidates[0].estimatedCustomerPricePence < result.candidates.find((candidate) => candidate.publicSlug === "far-same-rate").estimatedCustomerPricePence, "Matching did not exclude unpriceable/out-of-budget Cleaners or charge and rank the same Cleaner rate using frozen travel distance.");
+// A Cleaner whose own pricing model is "quote", and one whose rate sat above
+// the Landlord's budget, are BOTH matchable now. Their rate cards decided
+// nothing the moment Homle started setting the price, so excluding them was
+// excluding good cleaners for a reason that had stopped existing.
+assert(result.generatedAt === now.toISOString() && result.candidates.length === candidates.length - 1,
+  `Matching excluded Cleaners for their own rate card: ${result.candidates.length} of ${candidates.length - 1}.`);
+assert(result.candidates[0].publicSlug === "manual-quote" && result.candidates[0].rank === 1,
+  `Matching did not rank the best-matched Cleaner first: ${result.candidates[0].publicSlug}`);
+// Every candidate is quoted the same, because the customer pays the same
+// whoever cleans. A price that varied by cleaner would mean the cost-up path
+// had come back.
+assert(new Set(result.candidates.map((candidate) => candidate.estimatedCustomerPricePence)).size === 1,
+  "Candidates were quoted different prices for the same job.");
+assert(result.candidates[0].estimatedCustomerPricePence === 9000, "The request's own price did not reach the candidates.");
+// Ordering is the match score the database computed, then distance — not a
+// price that no longer varies.
+const scores = result.candidates.map((candidate) => Number(candidates.find((row) => row.cleaner_id === candidate.cleanerId).base_match_score));
+assert(scores.every((score, index) => index === 0 || scores[index - 1] >= score), `Candidates are not ranked by match score: ${scores.join(", ")}`);
 assert(result.candidates.every((candidate) => candidate.cleanerId !== landlord.userId), "A dual-workspace Landlord was shown their own Cleaner profile as a match.");
-assert(result.candidates[0].matchReasons.some((reason) => reason.includes("previous")) && result.candidates[0].matchReasons.some((reason) => reason.includes("postcode")), "Safe match explanations omitted prior relationship or declared coverage.");
+// Read from the returning Cleaner rather than whoever happens to rank first:
+// prior relationship and declared coverage are properties of that Cleaner, and
+// the ranking no longer puts them at the top.
+{
+  const returning = result.candidates.find((entry) => entry.publicSlug === "returning-cleaner");
+  assert(returning.matchReasons.some((reason) => reason.includes("previous")) && returning.matchReasons.some((reason) => reason.includes("postcode")),
+    "Safe match explanations omitted prior relationship or declared coverage.");
+}
 const publicJson = JSON.stringify(result);
 assert(!publicJson.includes("acceptance_rate") && !publicJson.includes("base_match_score") && !publicJson.includes("cleanerPayPence") && !publicJson.includes("labourOnCost") && !publicJson.includes("latitude") && !publicJson.includes("longitude"), "Matching projection exposed internal ranking, Cleaner pay, costs or private coordinates.");
 assert(await rejects(() => service.recommendForRequest(cleaner, requestId), "Landlord"), "A Cleaner could run Landlord request matching.");
 assert(await rejects(() => service.recommendForRequest(landlord, "not-a-request"), "valid cleaning request"), "Matching accepted an invalid request identifier.");
 const disabled = createMatchingService(repository);
-assert(await rejects(() => disabled.recommendForRequest(landlord, requestId), "pricing policy"), "Matching did not fail closed without private profitability inputs.");
-const paidService = createMatchingService(repository, { pricingPolicy, clock: () => new Date(now), requirePayoutReady: true });
+assert(await rejects(() => disabled.recommendForRequest(landlord, requestId), "platform pricing is configured"), "Matching did not fail closed without a way to price the request.");
+// An unpriced request cannot be matched. There is no second pricing path to
+// fall back to any more, and inventing one is the failure being prevented.
+const unpricedService = createMatchingService(repository, { quoteRequest: async () => ({ customerPricePence: 0 }), clock: () => new Date(now) });
+assert(await rejects(() => unpricedService.recommendForRequest(landlord, requestId), "no price yet"), "An unpriced request was matched anyway.");
+// Over the approved maximum means nobody, not the cheapest of a fixed price.
+const overBudgetService = createMatchingService(repository, { quoteRequest: async () => ({ customerPricePence: 999999 }), clock: () => new Date(now) });
+assert((await overBudgetService.recommendForRequest(landlord, requestId)).candidates.length === 0,
+  "A request priced above the Landlord's stated budget still recommended Cleaners.");
+const paidService = createMatchingService(repository, { quoteRequest, clock: () => new Date(now), requirePayoutReady: true });
 await paidService.recommendForRequest(landlord, requestId);
 assert(calls.at(-1).requirePayoutReady === true, "Paid matching did not require a payout-ready Cleaner pool.");
 

@@ -31,8 +31,8 @@ export function createMarketplaceWorkerRuntime(pool, options = {}) {
     jobs.push(Object.freeze({ name: "email-notifications", intervalMs: integer(options.emailIntervalMs, 1000, 3_600_000, 15_000, "Email worker interval"), runOnce: () => worker.runOnce() }));
   }
 
-  if (options.dispatchPricingPolicy) {
-    const worker = createAutomaticDispatchWorker((options.createDispatchRepository || createAutomaticDispatchRepository)(pool), options.dispatchPricingPolicy, {
+  if (options.dispatchEnabled) {
+    const worker = createAutomaticDispatchWorker((options.createDispatchRepository || createAutomaticDispatchRepository)(pool), {
       batchLimit: integer(options.dispatchBatchLimit, 1, 50, 10, "Automatic-dispatch batch limit"),
       leaseSeconds: integer(options.dispatchLeaseSeconds, 30, 600, 120, "Automatic-dispatch lease duration"),
       retryMinutes: integer(options.dispatchRetryMinutes, 1, 1440, 15, "Automatic-dispatch retry delay"),

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { createBookingRepository } from "../src/marketplace/booking-repository.mjs";
-import { bookingPricingPolicyFromEnvironment, createBookingPricingPolicy, createBookingWorkflowService } from "../src/marketplace/booking-workflow.mjs";
+import { createBookingWorkflowService } from "../src/marketplace/booking-workflow.mjs";
+import { defaultPricingEconomics, quoteEconomics } from "../src/marketplace/pricing-economics.mjs";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 async function rejects(operation, fragment) { try { await operation(); } catch (error) { return String(error.message).includes(fragment); } return false; }
@@ -21,50 +22,57 @@ const candidate = {
   distance_km: "12.40",
   services: [{ serviceCode: "regular-domestic", pricingModel: "hourly", pricePence: 2500 }]
 };
-const policy = createBookingPricingPolicy({
-  targetMarginBasisPoints: 2000,
-  minimumContributionPence: 1800,
-  labourOnCostBasisPoints: 1000,
-  paymentFeeBasisPoints: 300,
+/* ── The price belongs to the job, not to the cleaner ─────────────────────
+   Everything that used to be here exercised createBookingPricingPolicy: a
+   cost-up quote built from the invited cleaner's own rate card, plus travel,
+   supplies, a risk contingency and a binary search for a margin. It is gone.
+   Two cleaners quoting two prices for identical work is what platform pricing
+   exists to end, and a customer shown one number by the engine must never be
+   booked at another.
+
+   A booking is made at the total already frozen onto the request, split by the
+   same function that splits every other booking. */
+
+const platformEconomics = {
+  cleanerShareBasisPoints: 7000,
+  paymentFeeBasisPoints: 150,
   paymentFeeFixedPence: 20,
-  riskContingencyBasisPoints: 500,
-  travelCostPence: 500,
-  suppliesCostPence: 250,
-  invitationTtlMinutes: 180
-});
-const quote = policy.quote(candidate, now);
-const costs = quote.cleanerPayPence + quote.labourOnCostPence + quote.paymentFeePence + quote.travelCostPence + quote.suppliesCostPence + quote.otherCostPence;
-assert(quote.cleanerPayPence === 7500 && quote.riskContingencyPence > 0 && quote.otherCostPence === quote.riskContingencyPence && quote.customerPricePence > costs && quote.customerPricePence - costs >= 1800 && (quote.customerPricePence - costs) * 10000 >= quote.customerPricePence * 2000 && quote.targetContributionPence === 1800 && quote.responseDeadline === "2026-07-15T13:00:00.000Z", "Private pricing did not cover cleaner pay, the frozen risk allowance, costs, both profit floors and a bounded response window.");
-assert(await rejects(() => Promise.resolve(createBookingPricingPolicy({ targetMarginBasisPoints: 0 })), "Target margin"), "A zero-margin policy was accepted.");
-assert(await rejects(() => Promise.resolve(createBookingPricingPolicy({ targetMarginBasisPoints: 2000 })), "Minimum booking contribution"), "A missing pounds-per-booking floor was accepted.");
-assert(await rejects(() => Promise.resolve(createBookingPricingPolicy({ targetMarginBasisPoints: 7000, minimumContributionPence: 1, paymentFeeBasisPoints: 1000, riskContingencyBasisPoints: 2000 })), "must leave room"), "An impossible combined margin, fee and contingency policy was accepted.");
-assert(await rejects(() => Promise.resolve(policy.quote({ ...candidate, services: [{ serviceCode: "regular-domestic", pricingModel: "quote", pricePence: null }] }, now)), "manual quote"), "A manual-quote service was silently priced.");
-const distancePolicy = createBookingPricingPolicy({
-  targetMarginBasisPoints: 2000,
-  minimumContributionPence: 1800,
-  labourOnCostBasisPoints: 1000,
-  paymentFeeBasisPoints: 300,
-  paymentFeeFixedPence: 20,
-  riskContingencyBasisPoints: 500,
-  travelCostPence: 500,
-  travelCostPerKmPence: 35,
-  travelDistanceMultiplierBasisPoints: 20000,
-  suppliesCostPence: 250,
-  invitationTtlMinutes: 180
-});
-const distanceQuote = distancePolicy.quote(candidate, now);
-const nearbyQuote = distancePolicy.quote({ ...candidate, distance_km: "1.00" }, now);
-assert(distanceQuote.travelCostPence === 1368 && nearbyQuote.travelCostPence === 570 && distanceQuote.customerPricePence > nearbyQuote.customerPricePence, "Distance-aware pricing did not freeze the approved base plus multiplied per-kilometre travel cost into the customer total.");
-for (const suppliedDistance of [null, "", "not-a-distance", "-1", "500.01"]) {
-  assert(await rejectsCode(() => Promise.resolve(distancePolicy.quote({ ...candidate, distance_km: suppliedDistance }, now)), "travel-distance-unavailable"), `Unsafe travel distance ${String(suppliedDistance)} was priced instead of failing closed.`);
-}
-const excessiveTravelPolicy = createBookingPricingPolicy({ targetMarginBasisPoints: 2000, minimumContributionPence: 1, travelCostPence: 999999, travelCostPerKmPence: 100000, travelDistanceMultiplierBasisPoints: 50000 });
-assert(await rejectsCode(() => Promise.resolve(excessiveTravelPolicy.quote({ ...candidate, distance_km: "500" }, now)), "request-not-priceable"), "An excessive distance cost escaped the supported frozen travel-cost ceiling.");
-assert(bookingPricingPolicyFromEnvironment({}) === null && await rejects(() => Promise.resolve(bookingPricingPolicyFromEnvironment({ BOOKING_TARGET_MARGIN_BPS: "2000" })), "complete private"), "Missing or partial booking economics did not fail closed.");
-const previousEnvironmentPolicy = { BOOKING_TARGET_MARGIN_BPS: "2000", BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1800", BOOKING_LABOUR_ON_COST_BPS: "1000", BOOKING_PAYMENT_FEE_BPS: "300", BOOKING_PAYMENT_FEE_FIXED_PENCE: "20", BOOKING_RISK_CONTINGENCY_BPS: "500", BOOKING_TRAVEL_COST_PENCE: "500", BOOKING_SUPPLIES_COST_PENCE: "250", BOOKING_OTHER_COST_PENCE: "0", BOOKING_INVITATION_TTL_MINUTES: "180" };
-assert(await rejects(() => Promise.resolve(bookingPricingPolicyFromEnvironment(previousEnvironmentPolicy)), "complete private"), "The previous fixed-only environment silently activated without an explicit distance rate and distance multiplier.");
-const configuredPolicy = bookingPricingPolicyFromEnvironment({ ...previousEnvironmentPolicy, BOOKING_TRAVEL_COST_PER_KM_PENCE: "35", BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS: "20000" });
-assert(configuredPolicy.quote(candidate, now).customerPricePence === distanceQuote.customerPricePence, "Complete private distance-aware environment pricing did not compose deterministically.");
+  targetGrossMarginBasisPoints: 2000,
+  minimumContributionPence: 600,
+  cleanerHourlyFloorPence: 1500,
+  cancellationCleanerShareBasisPoints: 7000
+};
+const frozenTotalPence = 9000;
+const frozenMinutes = 180;
+const settled = quoteEconomics(frozenTotalPence, frozenMinutes, platformEconomics);
+assert(settled.cleanerPayoutPence + settled.platformRevenuePence === frozenTotalPence,
+  "The split does not account for the whole frozen total.");
+assert(settled.healthy, `A frozen total the engine produced was refused at booking time: ${settled.reason}`);
+
+// The terms the workflow will produce from that frozen total. Named as the rest
+// of this file names them, because they are the same three numbers a booking
+// has always carried.
+const quote = {
+  customerPricePence: frozenTotalPence,
+  cleanerPayPence: settled.cleanerPayoutPence,
+  // Zero, and each one deliberately so. Platform pricing has no labour on-cost,
+  // no travel line and no supplies line: the customer price is the published
+  // price of the job, and everything that used to be added on top of a
+  // cleaner's rate is already inside it.
+  labourOnCostPence: 0,
+  paymentFeePence: settled.paymentFeePence,
+  travelCostPence: 0,
+  suppliesCostPence: 0,
+  otherCostPence: 0,
+  targetMarginBasisPoints: settled.grossMarginBasisPoints,
+  targetContributionPence: settled.grossMarginPence,
+  responseDeadline: "2026-07-15T13:00:00.000Z"
+};
+// The cleaner's own rate card stays on the candidate and must not move the
+// price. Every invitation below is priced from quoted_total_pence instead.
+candidate.quoted_total_pence = frozenTotalPence;
+candidate.quoted_minutes = frozenMinutes;
+candidate.pricing_config_version = 1;
 
 const calls = [];
 const fakeRepository = {
@@ -93,21 +101,21 @@ const fakeRepository = {
     return { id: bookingId, cleaning_request_id: requestId, landlord_user_id: landlord.userId, cleaner_user_id: cleaner.userId, status: response.decision === "accept" ? "confirmed" : "cancelled", scheduled_start_at: candidate.requested_start_at, scheduled_end_at: candidate.requested_end_at, cleaner_response_deadline: quote.responseDeadline, customer_price_pence: quote.customerPricePence, cleaner_pay_pence: quote.cleanerPayPence, scope_fingerprint: "a".repeat(64), terms_fingerprint: "b".repeat(64), scope_snapshot: { tasks: [] }, responded_at: now.toISOString(), confirmed_at: response.decision === "accept" ? now.toISOString() : null, expired_at: null };
   }
 };
-const workflow = createBookingWorkflowService(fakeRepository, { pricingPolicy: policy, clock: () => new Date(now) });
+const workflow = createBookingWorkflowService(fakeRepository, { platformEconomics, clock: () => new Date(now) });
 const [landlordBookings, cleanerBookings] = await Promise.all([workflow.listParticipantBookings(landlord), workflow.listParticipantBookings(cleaner, { limit: "25" })]);
 assert(landlordBookings[0].pricePence === quote.customerPricePence && landlordBookings[0].pricePerspective === "customer-total" && landlordBookings[0].paymentStepAvailable === true, "The Landlord booking list lost the customer total or payment action.");
 assert(cleanerBookings[0].pricePence === quote.cleanerPayPence && cleanerBookings[0].pricePerspective === "cleaner-pay" && !Object.hasOwn(cleanerBookings[0], "paymentStepAvailable") && !Object.hasOwn(cleanerBookings[0], "paymentAuthorizationReady") && !Object.hasOwn(cleanerBookings[0], "paymentStepOpensAt") && JSON.stringify(cleanerBookings).includes(String(quote.customerPricePence)) === false, "The Cleaner booking list exposed the customer total, Landlord payment state or lost the offered pay.");
-const repeatWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], status: "completed", propertyId, cleanerId: cleaner.userId, paymentStepAvailable: false }]; } }, { pricingPolicy: policy });
+const repeatWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], status: "completed", propertyId, cleanerId: cleaner.userId, paymentStepAvailable: false }]; } }, { platformEconomics });
 const [repeatBooking] = await repeatWorkflow.listParticipantBookings(landlord);
 assert(repeatBooking.propertyId === propertyId && repeatBooking.cleanerId === cleaner.userId, "A completed Landlord booking lost its owner-authorized repeat-booking identifiers.");
-const cleanerPrivacyWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...cleanerBookings[0], status: "completed", propertyId, cleanerId: cleaner.userId }]; } }, { pricingPolicy: policy });
+const cleanerPrivacyWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...cleanerBookings[0], status: "completed", propertyId, cleanerId: cleaner.userId }]; } }, { platformEconomics });
 const [cleanerPrivacyBooking] = await cleanerPrivacyWorkflow.listParticipantBookings(cleaner);
 assert(!Object.hasOwn(cleanerPrivacyBooking, "propertyId") && !Object.hasOwn(cleanerPrivacyBooking, "cleanerId"), "The Cleaner summary received Landlord-only repeat-booking identifiers.");
 const paymentOpensAt = "2026-07-25T09:00:00.000Z";
-const earlyPaymentWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], paymentStepAvailable: false, paymentAuthorizationReady: false, paymentStepOpensAt: paymentOpensAt }]; } }, { pricingPolicy: policy });
+const earlyPaymentWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], paymentStepAvailable: false, paymentAuthorizationReady: false, paymentStepOpensAt: paymentOpensAt }]; } }, { platformEconomics });
 const [earlyPaymentBooking] = await earlyPaymentWorkflow.listParticipantBookings(landlord);
 assert(earlyPaymentBooking.paymentStepAvailable === false && earlyPaymentBooking.paymentAuthorizationReady === false && earlyPaymentBooking.paymentStepOpensAt === paymentOpensAt, "The participant projection lost the server-owned payment opening time.");
-const inconsistentPaymentWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], paymentAuthorizationReady: true, paymentStepAvailable: true }]; } }, { pricingPolicy: policy });
+const inconsistentPaymentWorkflow = createBookingWorkflowService({ ...fakeRepository, async listParticipantBookings() { return [{ ...landlordBookings[0], paymentAuthorizationReady: true, paymentStepAvailable: true }]; } }, { platformEconomics });
 assert(await rejects(() => inconsistentPaymentWorkflow.listParticipantBookings(landlord), "timing is inconsistent"), "Contradictory payment readiness escaped into the dashboard.");
 const invitationPreview = await workflow.previewInvitation(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId, customerPricePence: 1, cleanerPayPence: 1 });
 assert(invitationPreview.customerPricePence === quote.customerPricePence && invitationPreview.cleaningRequestId === requestId && invitationPreview.cleanerId === cleaner.userId && !Object.hasOwn(invitationPreview, "cleanerPayPence") && !Object.hasOwn(invitationPreview, "payoutReady") && calls.find((call) => call.kind === "candidate")?.requirePayoutReady === false && calls.filter((call) => call.kind === "invite").length === 0, "The read-only Landlord preview changed booking state, trusted browser economics, requested a payout gate in no-payment mode or exposed private Cleaner payout data.");
@@ -129,7 +137,7 @@ const payoutUnreadyInvitationRepository = {
     return fakeRepository.inviteCleaner(...arguments_);
   }
 };
-const payoutUnreadyInvitationWorkflow = createBookingWorkflowService(payoutUnreadyInvitationRepository, { pricingPolicy: policy, clock: () => new Date(now), requirePayoutReady: true, getPayoutReadiness: async () => ({ ready: false }) });
+const payoutUnreadyInvitationWorkflow = createBookingWorkflowService(payoutUnreadyInvitationRepository, { platformEconomics, clock: () => new Date(now), requirePayoutReady: true, getPayoutReadiness: async () => ({ ready: false }) });
 assert(await rejectsCode(() => payoutUnreadyInvitationWorkflow.previewInvitation(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId }), "cleaner-payout-not-ready"), "A Landlord received a paid quote for a Cleaner without a verified payout destination.");
 assert(await rejectsCode(() => payoutUnreadyInvitationWorkflow.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId, approvedCustomerPricePence: quote.customerPricePence }), "cleaner-payout-not-ready") && paidInvitationWrites === 0, "A paid direct invitation was written before the selected Cleaner had a verified payout destination.");
 const payoutReadyInvitationRepository = {
@@ -139,57 +147,62 @@ const payoutReadyInvitationRepository = {
     return { ...selected, payout_ready: true };
   }
 };
-const payoutReadyInvitationWorkflow = createBookingWorkflowService(payoutReadyInvitationRepository, { pricingPolicy: policy, clock: () => new Date(now), requirePayoutReady: true, getPayoutReadiness: async () => ({ ready: true }) });
+const payoutReadyInvitationWorkflow = createBookingWorkflowService(payoutReadyInvitationRepository, { platformEconomics, clock: () => new Date(now), requirePayoutReady: true, getPayoutReadiness: async () => ({ ready: true }) });
 const paidInvitationPreview = await payoutReadyInvitationWorkflow.previewInvitation(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId });
 assert(paidInvitationPreview.customerPricePence === quote.customerPricePence && !Object.hasOwn(paidInvitationPreview, "payout_ready") && !Object.hasOwn(paidInvitationPreview, "payoutReady") && calls.filter((call) => call.kind === "candidate").at(-1).requirePayoutReady === true, "A payout-ready direct Cleaner could not be quoted safely or private payout readiness leaked to the Landlord.");
 const paidInvitation = await payoutReadyInvitationWorkflow.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId, approvedCustomerPricePence: quote.customerPricePence });
 assert(paidInvitation.status === "pending-cleaner-acceptance" && paidInvitationWrites === 1 && !Object.hasOwn(paidInvitation, "payout_ready") && !Object.hasOwn(paidInvitation, "payoutReady"), "A payout-ready direct Cleaner could not be invited or private payout readiness leaked into the booking.");
 let paidResponseWrites = 0;
 const paidRepository = { ...fakeRepository, async respondToInvitation(...arguments_) { paidResponseWrites += 1; return fakeRepository.respondToInvitation(...arguments_); } };
-const payoutRequiredWorkflow = createBookingWorkflowService(paidRepository, { pricingPolicy: policy, requirePayoutReady: true, getPayoutReadiness: async () => ({ ready: false }) });
+const payoutRequiredWorkflow = createBookingWorkflowService(paidRepository, { platformEconomics, requirePayoutReady: true, getPayoutReadiness: async () => ({ ready: false }) });
 assert(await rejectsCode(() => payoutRequiredWorkflow.respondToInvitation(cleaner, bookingId, { decision: "accept" }), "payout-setup-required") && paidResponseWrites === 0, "A paid booking was confirmed before the Cleaner had a verified payout destination.");
 const declinedWithoutPayout = await payoutRequiredWorkflow.respondToInvitation(cleaner, bookingId, { decision: "decline" });
 assert(declinedWithoutPayout.status === "cancelled" && paidResponseWrites === 1, "The paid-booking payout gate incorrectly blocked a Cleaner from declining.");
-const payoutReadyWorkflow = createBookingWorkflowService(paidRepository, { pricingPolicy: policy, requirePayoutReady: true, getPayoutReadiness: async () => ({ ready: true }) });
+const payoutReadyWorkflow = createBookingWorkflowService(paidRepository, { platformEconomics, requirePayoutReady: true, getPayoutReadiness: async () => ({ ready: true }) });
 const paidAccepted = await payoutReadyWorkflow.respondToInvitation(cleaner, bookingId, { decision: "accept" });
 assert(paidAccepted.status === "confirmed" && paidResponseWrites === 2, "A Cleaner with a verified payout destination could not accept a paid booking.");
-const payoutUnavailableWorkflow = createBookingWorkflowService(paidRepository, { pricingPolicy: policy, requirePayoutReady: true, getPayoutReadiness: async () => { throw new Error("database unavailable"); } });
+const payoutUnavailableWorkflow = createBookingWorkflowService(paidRepository, { platformEconomics, requirePayoutReady: true, getPayoutReadiness: async () => { throw new Error("database unavailable"); } });
 assert(await rejectsCode(() => payoutUnavailableWorkflow.respondToInvitation(cleaner, bookingId, { decision: "accept" }), "payout-readiness-unavailable") && paidResponseWrites === 2, "A payout-readiness outage did not fail closed before paid booking confirmation.");
 let missingPayoutBoundaryRejected = false;
-try { createBookingWorkflowService(fakeRepository, { pricingPolicy: policy, requirePayoutReady: true }); } catch (error) { missingPayoutBoundaryRejected = String(error.message).includes("payout-readiness boundary"); }
+try { createBookingWorkflowService(fakeRepository, { platformEconomics, requirePayoutReady: true }); } catch (error) { missingPayoutBoundaryRejected = String(error.message).includes("payout-readiness boundary"); }
 assert(missingPayoutBoundaryRejected, "Paid booking acceptance composed without a payout-readiness boundary.");
-const expiredWorkflow = createBookingWorkflowService({ ...fakeRepository, async respondToInvitation() { return { id: bookingId, cleaning_request_id: requestId, status: "cancelled", scheduled_start_at: candidate.requested_start_at, scheduled_end_at: candidate.requested_end_at, cleaner_response_deadline: quote.responseDeadline, customer_price_pence: quote.customerPricePence, cleaner_pay_pence: quote.cleanerPayPence, scope_fingerprint: "a".repeat(64), terms_fingerprint: "b".repeat(64), scope_snapshot: { tasks: [] }, responded_at: null, confirmed_at: null, expired_at: now.toISOString() }; } }, { pricingPolicy: policy, clock: () => new Date(now) });
+const expiredWorkflow = createBookingWorkflowService({ ...fakeRepository, async respondToInvitation() { return { id: bookingId, cleaning_request_id: requestId, status: "cancelled", scheduled_start_at: candidate.requested_start_at, scheduled_end_at: candidate.requested_end_at, cleaner_response_deadline: quote.responseDeadline, customer_price_pence: quote.customerPricePence, cleaner_pay_pence: quote.cleanerPayPence, scope_fingerprint: "a".repeat(64), terms_fingerprint: "b".repeat(64), scope_snapshot: { tasks: [] }, responded_at: null, confirmed_at: null, expired_at: now.toISOString() }; } }, { platformEconomics, clock: () => new Date(now) });
 const expired = await expiredWorkflow.respondToInvitation(cleaner, bookingId, { decision: "accept" });
 assert(expired.status === "cancelled" && expired.expiredAt === now.toISOString() && expired.respondedAt === null, "An expired invitation did not return its terminal timestamp without fabricating a Cleaner response.");
 assert(await rejects(() => workflow.inviteCleaner(cleaner, { cleaningRequestId: requestId, cleanerId: cleaner.userId }), "Landlord"), "A Cleaner could create an invitation.");
 const dualRoleActor = { userId: landlord.userId, roles: ["cleaner", "landlord"] };
 assert(await rejects(() => workflow.previewInvitation(dualRoleActor, { cleaningRequestId: requestId, cleanerId: landlord.userId }), "cannot be invited to your own"), "A dual-workspace account could preview an invitation to its own Cleaner profile.");
 assert(await rejects(() => workflow.respondToInvitation(landlord, bookingId, { decision: "accept" }), "Cleaner"), "A Landlord could answer a Cleaner invitation.");
-// An UNPRICED request with no cost-up policy configured still fails closed —
-// it just says what is actually wrong now ("saved before Homle priced requests
-// up front") instead of naming an internal policy the customer cannot see.
-const disabled = createBookingWorkflowService(fakeRepository);
-assert(await rejects(() => disabled.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId }), "cannot be booked until it is re-quoted"),
-  "Invitations did not fail closed for an unpriced request with no cost-up policy.");
+// An unpriced request fails closed and says what is actually wrong. There is
+// no other pricing path left to fall through to, which is the point.
+const unpricedRepository = {
+  ...fakeRepository,
+  async getInvitationCandidate() {
+    const { quoted_total_pence, quoted_minutes, pricing_config_version, ...withoutQuote } = candidate;
+    return withoutQuote;
+  }
+};
+const unpriced = createBookingWorkflowService(unpricedRepository, { platformEconomics, clock: () => new Date(now) });
+assert(await rejects(() => unpriced.inviteCleaner(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId, approvedCustomerPricePence: 1 }), "cannot be booked until it is re-quoted"),
+  "An unpriced request did not fail closed once the cost-up path was removed.");
 
-// And the case this guard used to block: a request that carries a platform
-// quote books WITHOUT the legacy cost-up policy or its twelve BOOKING_*
-// variables. Requiring them for a path that never touches them meant a
-// deployment carrying only the price list could not book at all.
+// Given a re-quote boundary, the same request books at today's price for its
+// own scope rather than at a price derived from the cleaner being invited.
 {
-  const quotedRepository = {
-    ...fakeRepository,
-    async getInvitationCandidate() {
-      return { ...candidate, quoted_total_pence: 9000, quoted_minutes: 180, pricing_config_version: 1 };
+  let sawCleanerRates = false;
+  const requoted = createBookingWorkflowService(unpricedRepository, {
+    platformEconomics,
+    clock: () => new Date(now),
+    async requoteRequest(actor, request) {
+      // The boundary is handed the request's own scope. A cleaner's rate card
+      // is not part of it, and must not become part of it.
+      sawCleanerRates = Object.hasOwn(request, "services");
+      return { priceable: true, totalPence: 7000, estimatedMinutes: 150, configVersion: 2, payoutBasisPence: 7000 };
     }
-  };
-  const withoutCostUp = createBookingWorkflowService(quotedRepository, {
-    platformEconomics: { cleanerShareBasisPoints: 7000, paymentFeeBasisPoints: 150, paymentFeeFixedPence: 20, targetGrossMarginBasisPoints: 2000, minimumContributionPence: 600, cleanerHourlyFloorPence: 1500 },
-    clock: () => new Date(now)
   });
-  const preview = await withoutCostUp.previewInvitation(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId });
-  assert(preview.customerPricePence === 9000,
-    `A platform-priced request did not book without the cost-up policy: ${preview.customerPricePence}`);
+  const preview = await requoted.previewInvitation(landlord, { cleaningRequestId: requestId, cleanerId: cleaner.userId });
+  assert(preview.customerPricePence === 7000, `A re-quoted request did not book at the re-quoted price: ${preview.customerPricePence}`);
+  assert(!sawCleanerRates, "The re-quote boundary was handed the invited cleaner's rate card.");
 }
 
 const sqlCalls = [];
@@ -201,7 +214,7 @@ await repository.listParticipantBookings(cleaner, 50);
 await repository.inviteCleaner(landlord, { bookingId, requestId, cleanerId: cleaner.userId, responseDeadline: quote.responseDeadline, customerPricePence: quote.customerPricePence, cleanerPayPence: quote.cleanerPayPence, labourOnCostPence: quote.labourOnCostPence, paymentFeePence: quote.paymentFeePence, travelCostPence: quote.travelCostPence, suppliesCostPence: quote.suppliesCostPence, otherCostPence: quote.otherCostPence, targetMarginBasisPoints: quote.targetMarginBasisPoints, targetContributionPence: quote.targetContributionPence });
 await repository.respondToInvitation(cleaner, bookingId, { decision: "accept", reason: null });
 assert(selectedCandidate.distance_km === "4.20" && sqlCalls[0].text.includes("JOIN properties property") && sqlCalls[0].text.includes("cleaner_service_areas") && sqlCalls[0].text.includes("coverage.distance_km") && sqlCalls[0].text.includes("profile.user_id<>request.landlord_user_id") && sqlCalls[0].text.includes("cleaner_payout_ready_for_paid_booking") && sqlCalls[0].text.includes("$4::boolean") && sqlCalls[0].values[1] === cleaner.userId && sqlCalls[0].values[3] === false, "Direct Cleaner invitation pricing did not bind the selected Cleaner to property distance evidence, self-exclusion and an explicit paid-mode payout gate.");
-assert(sqlCalls[1].text.includes("list_my_booking_summaries") && sqlCalls[1].values[0] === 50 && sqlCalls[2].text.includes("tideway_private.invite_cleaner") && sqlCalls[2].values.length === 13 && sqlCalls[2].values[12] === 1800 && sqlCalls[3].text.includes("respond_to_cleaner_invitation") && sqlCalls[3].actor.userId === cleaner.userId, "Booking repository bypassed participant-safe summaries, actor-bound audited transitions or both parameterized profit targets.");
+assert(sqlCalls[1].text.includes("list_my_booking_summaries") && sqlCalls[1].values[0] === 50 && sqlCalls[2].text.includes("tideway_private.invite_cleaner") && sqlCalls[2].values.length === 13 && sqlCalls[2].values[12] === settled.grossMarginPence && sqlCalls[3].text.includes("respond_to_cleaner_invitation") && sqlCalls[3].actor.userId === cleaner.userId, "Booking repository bypassed participant-safe summaries, actor-bound audited transitions or both parameterized profit targets.");
 const repeatSqlCalls = [];
 const repeatRepository = createBookingRepository({
   async withUserTransaction(actor, operation) {

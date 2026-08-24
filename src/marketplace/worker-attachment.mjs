@@ -1,4 +1,3 @@
-import { bookingPricingPolicyFromEnvironment } from "./booking-workflow.mjs";
 import { postgresPoolOptions, postgresTransportSecurity } from "./database.mjs";
 import { loadMarketplaceDeploymentAdapters } from "./attachment.mjs";
 import { createS3ObjectStorage } from "./s3-object-storage.mjs";
@@ -121,14 +120,15 @@ export async function createMarketplaceWorkerAttachment(options = {}) {
       objectStorage = await (options.createObjectStorage || createS3ObjectStorage)(env, { onUnexpectedError: adapters.onUnexpectedError });
       await objectStorage.verify();
     }
-    const dispatchPricingPolicy = dispatchEnabled ? bookingPricingPolicyFromEnvironment(env) : null;
-    if (dispatchEnabled && !dispatchPricingPolicy) throw new TypeError("Automatic dispatch requires complete approved private booking pricing.");
+    // Automatic dispatch no longer needs private pricing configuration of its
+    // own. It invites at the total already frozen onto the request and pays the
+    // published share of it, reading both from the database.
     const requirePayoutReady = marketplaceEnvironment(env).payments.requested;
     supervisor = (options.createRuntime || createMarketplaceWorkerRuntime)(pool, {
       onUnexpectedError: adapters.onUnexpectedError,
       emailDelivery,
       objectStorage,
-      dispatchPricingPolicy,
+      dispatchEnabled,
       requirePayoutReady,
       appOrigin: env.APP_ORIGIN
     });

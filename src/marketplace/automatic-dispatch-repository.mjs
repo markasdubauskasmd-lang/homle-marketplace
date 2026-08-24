@@ -44,6 +44,21 @@ export function createAutomaticDispatchRepository(pool) {
         return Object.freeze((result?.rows || []).map((row) => Object.freeze({ cleaningRequestId: row.cleaning_request_id, leaseExpiresAt: new Date(row.lease_expires_at).toISOString() })));
       } catch (error) { throw mappedError(error); }
     },
+    /**
+     * The published cleaner share and the margin floors.
+     *
+     * The worker has no signed-in user, so it cannot use the reader the request
+     * path uses. This returns the stored economics unchanged and does no
+     * arithmetic — the split stays in pricing-economics.mjs. Null when nothing
+     * is published, and the caller falls back to the shipped defaults, so an
+     * unconfigured deployment dispatches at the same share as a configured one.
+     */
+    async activeEconomics() {
+      try {
+        const result = await pool.query("SELECT tideway_private.get_worker_pricing_economics() AS economics");
+        return result?.rows?.[0]?.economics ?? null;
+      } catch (error) { throw mappedError(error); }
+    },
     async getCandidates(cleaningRequestId, leaseToken, resultLimit, requirePayoutReady = false) {
       try {
         const result = await pool.query("SELECT * FROM tideway_private.get_automatic_dispatch_candidates($1::uuid,$2::uuid,$3::integer,$4::boolean)", [cleaningRequestId, leaseToken, resultLimit, requirePayoutReady === true]);

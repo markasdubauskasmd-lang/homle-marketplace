@@ -516,6 +516,11 @@
       "order": 103,
       "file": "103_retire_scan_pricing_rates.sql",
       "sha256": "099d40da8302d01c53eb3132f92db06ddb7a1ee30282493759c9bea586d1e221"
+    },
+    {
+      "order": 104,
+      "file": "104_dispatch_reads_the_frozen_quote.sql",
+      "sha256": "6411762354a2d7932a04300a1bdc6ec4414904a16f56bce57a6b632910d7c6d2"
     }
   ],
   "grantFiles": [

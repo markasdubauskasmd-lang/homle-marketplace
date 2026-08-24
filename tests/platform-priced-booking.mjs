@@ -5,7 +5,7 @@
 // customer price must survive from the scanner, through the invitation terms,
 // to the payment amount without being recomputed by anything.
 
-import { createBookingPricingPolicy, createBookingWorkflowService } from "../src/marketplace/booking-workflow.mjs";
+import { createBookingWorkflowService } from "../src/marketplace/booking-workflow.mjs";
 import { defaultPricingConfig, normalizedPricingConfig } from "../public/pricing-config.js";
 import { quoteRooms } from "../public/pricing-engine.js";
 import { defaultPricingEconomics, quoteEconomics } from "../src/marketplace/pricing-economics.mjs";
@@ -41,14 +41,6 @@ const quotedCandidate = {
   pricing_config_version: config.version
 };
 
-const policy = createBookingPricingPolicy({
-  targetMarginBasisPoints: 2000,
-  minimumContributionPence: 600,
-  paymentFeeBasisPoints: 150,
-  paymentFeeFixedPence: 20,
-  invitationTtlMinutes: 180
-});
-
 // invitationQuote is internal, so the terms are captured where they actually
 // matter: at the repository boundary, which is what gets written onto the
 // booking and later becomes the payment amount.
@@ -59,7 +51,7 @@ function serviceWith(options, candidate = quotedCandidate) {
     getInvitationCandidate: async () => candidate,
     inviteCleaner: async (_actor, record) => { Object.assign(captured, record); return bookingRow(record); },
     respondToInvitation: async () => ({})
-  }, { pricingPolicy: policy, ...options });
+  }, { ...options });
   return { service, captured };
 }
 
@@ -124,21 +116,47 @@ const dear = await termsFor({ platformEconomics: defaultPricingEconomics },
 assert(dear.customerPricePence === quote.totalPence,
   "A more expensive cleaner changed the price the customer had already been shown.");
 
-/* ── A request with no quote still prices the old way ────────────────────── */
+/* ── A request with no quote is re-quoted, never priced from a rate card ─── */
 
-// The cost-up path must stay live: a bespoke job quoted against a cleaner's own
-// rate card has no platform price to freeze, and every request that predates
-// migration 095 is in exactly that position.
-const legacyTerms = await termsFor({ platformEconomics: defaultPricingEconomics }, {
+// Requests that predate migration 095 carry no frozen total. They used to be
+// priced cost-up from whichever cleaner was being invited, which meant two
+// cleaners produced two prices for identical work. They are re-quoted through
+// the one engine instead: the price belongs to the job.
+const unpricedCandidate = {
   requested_start_at: start.toISOString(),
   requested_end_at: end.toISOString(),
   required_services: ["regular-domestic"],
+  cleaning_type: "regular-domestic",
+  property_postcode: "M1 1AA",
+  tasks: [{ roomName: "Kitchen", description: "clean the worktops and hob" }],
+  // A rate card that must not reach the customer's price.
   services: [{ serviceCode: "regular-domestic", pricePence: 4000, pricingModel: "fixed" }]
-});
-assert(legacyTerms.customerPricePence > 4000,
-  "A request without a platform quote was not priced cost-up from the cleaner's rate.");
-assert(legacyTerms.quotedMinutes === undefined,
-  "A cost-up booking claimed a quoted duration it never had.");
+};
+let cheapSeen = null;
+const cheapTerms = await termsFor({
+  platformEconomics: defaultPricingEconomics,
+  async requoteRequest(actor, request) { cheapSeen = request; return { priceable: true, totalPence: 6000, estimatedMinutes: 120, configVersion: 2, payoutBasisPence: 6000 }; }
+}, unpricedCandidate);
+assert(cheapTerms.customerPricePence === 6000,
+  `An unpriced request was not booked at the re-quoted price: ${cheapTerms.customerPricePence}`);
+assert(cheapTerms.quotedMinutes === 120, "A re-quoted booking lost the duration it was quoted for.");
+assert(!Object.hasOwn(cheapSeen, "services"),
+  "The re-quote boundary was handed the invited cleaner's rate card.");
+
+// The same request, a cleaner charging ten times as much: identical price.
+const dearTerms = await termsFor({
+  platformEconomics: defaultPricingEconomics,
+  async requoteRequest() { return { priceable: true, totalPence: 6000, estimatedMinutes: 120, configVersion: 2, payoutBasisPence: 6000 }; }
+}, { ...unpricedCandidate, services: [{ serviceCode: "regular-domestic", pricePence: 40000, pricingModel: "fixed" }] });
+assert(dearTerms.customerPricePence === cheapTerms.customerPricePence,
+  "A dearer cleaner moved the price of an unpriced request.");
+
+// And with no way to re-quote, it fails closed rather than finding another
+// arithmetic to use.
+let unpricedRejected = false;
+try { await termsFor({ platformEconomics: defaultPricingEconomics }, unpricedCandidate); }
+catch (error) { unpricedRejected = error?.code === "request-not-priced"; }
+assert(unpricedRejected, "An unpriceable request was booked at a price from somewhere else.");
 
 /* A stored quote must never fall back to the legacy cleaner-rate calculation.
    That would let the displayed scanner price differ from the booked total. */
@@ -165,4 +183,4 @@ try {
 }
 assert(refused, "A booking that cannot clear its contribution floor was still allowed to be invited.");
 
-console.log("Platform-priced booking tests passed: the quoted total survives to the invitation terms unchanged, the cleaner is paid the configured share of it, a dearer cleaner cannot move it, requests without a quote still price cost-up, and a quote that cannot pay everyone is refused.");
+console.log("Platform-priced booking tests passed: the quoted total survives to the invitation terms unchanged, the cleaner is paid the configured share of it, a dearer cleaner cannot move it, requests without a quote are re-quoted through the same engine rather than priced from a rate card, and a quote that cannot pay everyone is refused.");

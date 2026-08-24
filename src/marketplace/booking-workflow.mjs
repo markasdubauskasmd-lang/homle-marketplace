@@ -3,21 +3,6 @@ import { uuid, uuidPattern } from "./validation.mjs";
 import { bookingStatuses as canonicalBookingStatuses } from "./domain.mjs";
 import { normalizedPricingEconomics, quoteEconomics } from "./pricing-economics.mjs";
 
-export const bookingPricingEnvironmentRules = Object.freeze([
-  Object.freeze({ property: "targetMarginBasisPoints", key: "BOOKING_TARGET_MARGIN_BPS", minimum: 1, maximum: 9000 }),
-  Object.freeze({ property: "minimumContributionPence", key: "BOOKING_MINIMUM_CONTRIBUTION_PENCE", minimum: 1, maximum: 10_000_000 }),
-  Object.freeze({ property: "labourOnCostBasisPoints", key: "BOOKING_LABOUR_ON_COST_BPS", minimum: 0, maximum: 5000 }),
-  Object.freeze({ property: "paymentFeeBasisPoints", key: "BOOKING_PAYMENT_FEE_BPS", minimum: 0, maximum: 2000 }),
-  Object.freeze({ property: "paymentFeeFixedPence", key: "BOOKING_PAYMENT_FEE_FIXED_PENCE", minimum: 0, maximum: 10_000 }),
-  Object.freeze({ property: "riskContingencyBasisPoints", key: "BOOKING_RISK_CONTINGENCY_BPS", minimum: 0, maximum: 5000 }),
-  Object.freeze({ property: "travelCostPence", key: "BOOKING_TRAVEL_COST_PENCE", minimum: 0, maximum: 1_000_000 }),
-  Object.freeze({ property: "travelCostPerKmPence", key: "BOOKING_TRAVEL_COST_PER_KM_PENCE", minimum: 0, maximum: 100_000 }),
-  Object.freeze({ property: "travelDistanceMultiplierBasisPoints", key: "BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS", minimum: 1, maximum: 50_000 }),
-  Object.freeze({ property: "suppliesCostPence", key: "BOOKING_SUPPLIES_COST_PENCE", minimum: 0, maximum: 1_000_000 }),
-  Object.freeze({ property: "otherCostPence", key: "BOOKING_OTHER_COST_PENCE", minimum: 0, maximum: 1_000_000 }),
-  Object.freeze({ property: "invitationTtlMinutes", key: "BOOKING_INVITATION_TTL_MINUTES", minimum: 15, maximum: 1440 })
-]);
-
 function boundedText(value, maximum, label) {
   const normalized = typeof value === "string" ? value.trim().replace(/[\u0000-\u001f\u007f]/g, "") : "";
   if (normalized.length > maximum) throw new TypeError(`${label} is too long.`);
@@ -28,27 +13,6 @@ function integer(value, minimum, maximum, label) {
   const normalized = Number(value);
   if (!Number.isInteger(normalized) || normalized < minimum || normalized > maximum) throw new TypeError(`${label} is outside the supported range.`);
   return normalized;
-}
-
-function serviceRows(value) {
-  if (Array.isArray(value)) return value;
-  if (typeof value !== "string") return [];
-  try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
-}
-
-function priceableTravelCost(candidate, config) {
-  if (config.travelCostPerKmPence === 0) return config.travelCostPence;
-  const suppliedDistance = candidate?.distance_km;
-  const distanceKm = suppliedDistance == null || suppliedDistance === "" ? Number.NaN : Number(suppliedDistance);
-  if (!Number.isFinite(distanceKm) || distanceKm < 0 || distanceKm > 500) {
-    throw Object.assign(new Error("The cleaner-to-property travel distance is unavailable, so this request cannot be priced safely."), { statusCode: 409, code: "travel-distance-unavailable" });
-  }
-  const distanceCostPence = Math.ceil(distanceKm * config.travelCostPerKmPence * config.travelDistanceMultiplierBasisPoints / 10000);
-  const totalTravelCostPence = config.travelCostPence + distanceCostPence;
-  if (!Number.isSafeInteger(distanceCostPence) || distanceCostPence < 0 || !Number.isSafeInteger(totalTravelCostPence) || totalTravelCostPence > 1_000_000) {
-    throw Object.assign(new Error("The selected travel distance cannot be priced inside the supported safe range."), { statusCode: 409, code: "request-not-priceable" });
-  }
-  return totalTravelCostPence;
 }
 
 // Postgres hands jsonb back as an array; a driver configured differently hands
@@ -147,88 +111,8 @@ function participantBookingProjection(record, actor) {
   });
 }
 
-export function createBookingPricingPolicy(configuration = {}) {
-  const config = {
-    targetMarginBasisPoints: integer(configuration.targetMarginBasisPoints, 1, 9000, "Target margin"),
-    minimumContributionPence: integer(configuration.minimumContributionPence, 1, 10_000_000, "Minimum booking contribution"),
-    labourOnCostBasisPoints: integer(configuration.labourOnCostBasisPoints ?? 0, 0, 5000, "Labour on-cost"),
-    paymentFeeBasisPoints: integer(configuration.paymentFeeBasisPoints ?? 0, 0, 2000, "Payment fee"),
-    paymentFeeFixedPence: integer(configuration.paymentFeeFixedPence ?? 0, 0, 10000, "Fixed payment fee"),
-    riskContingencyBasisPoints: integer(configuration.riskContingencyBasisPoints ?? 0, 0, 5000, "Risk contingency"),
-    travelCostPence: integer(configuration.travelCostPence ?? 0, 0, 1000000, "Travel cost"),
-    travelCostPerKmPence: integer(configuration.travelCostPerKmPence ?? 0, 0, 100000, "Travel cost per kilometre"),
-    travelDistanceMultiplierBasisPoints: integer(configuration.travelDistanceMultiplierBasisPoints ?? 10000, 1, 50000, "Travel distance multiplier"),
-    suppliesCostPence: integer(configuration.suppliesCostPence ?? 0, 0, 1000000, "Supplies cost"),
-    otherCostPence: integer(configuration.otherCostPence ?? 0, 0, 1000000, "Other cost"),
-    invitationTtlMinutes: integer(configuration.invitationTtlMinutes ?? 180, 15, 1440, "Invitation lifetime")
-  };
-  if (config.targetMarginBasisPoints + config.paymentFeeBasisPoints + config.riskContingencyBasisPoints >= 10000) {
-    throw new TypeError("Target margin, payment fee and risk contingency must leave room to cover the cleaning costs.");
-  }
-  return Object.freeze({
-    quote(candidate, now = new Date()) {
-      const start = new Date(candidate.requested_start_at);
-      const end = new Date(candidate.requested_end_at);
-      const durationMinutes = Math.ceil((end.getTime() - start.getTime()) / 60000);
-      if (!Number.isInteger(durationMinutes) || durationMinutes < 30) throw new TypeError("The request duration cannot be priced.");
-      const prices = new Map(serviceRows(candidate.services).map((service) => [service.serviceCode ?? service.service_code, service]));
-      let cleanerPayPence = 0;
-      const requiredServices = Array.isArray(candidate.required_services) ? candidate.required_services : [];
-      if (!requiredServices.length) throw Object.assign(new Error("The cleaning request has no priceable services."), { statusCode: 409, code: "request-not-priceable" });
-      for (const required of requiredServices) {
-        const service = prices.get(required);
-        const price = Number(service?.pricePence ?? service?.price_pence);
-        const model = service?.pricingModel ?? service?.pricing_model;
-        if (!Number.isInteger(price) || price < 1 || model === "quote") throw Object.assign(new Error("This cleaner requires a manual quote for the selected scope."), { statusCode: 409, code: "manual-quote-required" });
-        cleanerPayPence += model === "hourly" ? Math.ceil(price * durationMinutes / 60) : price;
-      }
-      const labourOnCostPence = Math.ceil(cleanerPayPence * config.labourOnCostBasisPoints / 10000);
-      const travelCostPence = priceableTravelCost(candidate, config);
-      const fixedCosts = cleanerPayPence + labourOnCostPence + travelCostPence + config.suppliesCostPence + config.otherCostPence + config.paymentFeeFixedPence;
-      let low = fixedCosts + 1;
-      let high = 10_000_000;
-      while (low < high) {
-        const proposed = Math.floor((low + high) / 2);
-        const fee = config.paymentFeeFixedPence + Math.ceil(proposed * config.paymentFeeBasisPoints / 10000);
-        const riskContingencyPence = Math.ceil(proposed * config.riskContingencyBasisPoints / 10000);
-        const contribution = proposed - cleanerPayPence - labourOnCostPence - fee - riskContingencyPence - travelCostPence - config.suppliesCostPence - config.otherCostPence;
-        if (contribution >= config.minimumContributionPence && contribution * 10000 >= proposed * config.targetMarginBasisPoints) high = proposed;
-        else low = proposed + 1;
-      }
-      const paymentFeePence = config.paymentFeeFixedPence + Math.ceil(low * config.paymentFeeBasisPoints / 10000);
-      const riskContingencyPence = Math.ceil(low * config.riskContingencyBasisPoints / 10000);
-      const frozenOtherCostPence = config.otherCostPence + riskContingencyPence;
-      const finalContribution = low - cleanerPayPence - labourOnCostPence - paymentFeePence - frozenOtherCostPence - travelCostPence - config.suppliesCostPence;
-      if (low > 10_000_000 || cleanerPayPence > 10_000_000 || finalContribution < config.minimumContributionPence || finalContribution * 10000 < low * config.targetMarginBasisPoints) throw Object.assign(new Error("The selected scope cannot be priced inside the supported safe range."), { statusCode: 409, code: "request-not-priceable" });
-      const responseDeadline = new Date(Math.min(start.getTime(), now.getTime() + config.invitationTtlMinutes * 60000));
-      if (responseDeadline.getTime() <= now.getTime()) throw Object.assign(new Error("The requested start time is too close to invite a cleaner."), { statusCode: 409, code: "request-too-soon" });
-      return {
-        customerPricePence: low,
-        cleanerPayPence,
-        labourOnCostPence,
-        paymentFeePence,
-        riskContingencyPence,
-        travelCostPence,
-        suppliesCostPence: config.suppliesCostPence,
-        otherCostPence: frozenOtherCostPence,
-        targetMarginBasisPoints: config.targetMarginBasisPoints,
-        targetContributionPence: config.minimumContributionPence,
-        responseDeadline: responseDeadline.toISOString()
-      };
-    }
-  });
-}
-
-export function bookingPricingPolicyFromEnvironment(env = process.env) {
-  const present = bookingPricingEnvironmentRules.filter(({ key }) => String(env[key] ?? "").trim() !== "");
-  if (!present.length) return null;
-  if (present.length !== bookingPricingEnvironmentRules.length) throw new TypeError("Booking pricing configuration must provide the complete private BOOKING_* variable set.");
-  return createBookingPricingPolicy(Object.fromEntries(bookingPricingEnvironmentRules.map(({ property, key }) => [property, Number(env[key])])));
-}
-
 export function createBookingWorkflowService(repository, options = {}) {
   if (!repository || typeof repository.listParticipantBookings !== "function" || typeof repository.getInvitationCandidate !== "function" || typeof repository.inviteCleaner !== "function" || typeof repository.respondToInvitation !== "function") throw new TypeError("A complete booking workflow repository is required.");
-  const pricingPolicy = options.pricingPolicy || null;
   // Prices a request that carries no frozen quote, from its own stored rooms
   // and tasks, through the same engine every other quote uses. Configured means
   // the cost-up path below is never reached at this seam.
@@ -367,35 +251,13 @@ export function createBookingWorkflowService(repository, options = {}) {
     // that price: the customer figure is already decided, and the cleaner is
     // paid a share of it.
     //
-    // THE COST-UP PATH BELOW IS LEGACY AND IS NO LONGER REACHED HERE.
-    //
-    // It was the third of the three pricing systems the August 2026 audit found
-    // (docs/PRICING_MODEL.md). Every client path now sends a pricing request, so
-    // every request created from here on carries a frozen platform quote and
-    // never reaches it. What still can are cleaning_requests written BEFORE that
-    // change, whose quoted_total_pence is null and which would otherwise become
-    // unbookable.
-    //
-    // Deleting it outright still waits on matching-service.mjs and
-    // automatic-dispatch-worker.mjs, which rank cleaners by the cost-up price
-    // each one produces. Under platform pricing that number is identical for
-    // every candidate, so the ranking term is dead weight — but removing it
-    // means new migrations to recommend_cleaners_for_request_v3 and
-    // get_automatic_dispatch_candidates so those rows carry the frozen quote.
-    // That is its own change, against a worker that invites cleaners to real
-    // jobs with no human in the loop.
     const resolvedPlatformEconomics = getPlatformEconomics
       ? normalizedPricingEconomics(await getPlatformEconomics(actor))
       : platformEconomics;
-    let terms = platformPricedTerms(candidate, clock(), resolvedPlatformEconomics);
-    if (!terms && requote) terms = await reQuotedTerms(actor, candidate, clock(), resolvedPlatformEconomics);
+    const terms = platformPricedTerms(candidate, clock(), resolvedPlatformEconomics)
+      ?? (requote ? await reQuotedTerms(actor, candidate, clock(), resolvedPlatformEconomics) : null);
     if (!terms) {
-      // Only reachable on a deployment with neither a re-quote boundary nor a
-      // cost-up policy configured. It fails closed and says what is wrong.
-      if (!pricingPolicy || typeof pricingPolicy.quote !== "function") {
-        throw Object.assign(new Error("This request was saved before Homle priced requests up front, and cannot be booked until it is re-quoted."), { statusCode: 409, code: "request-not-priced" });
-      }
-      terms = pricingPolicy.quote(candidate, clock());
+      throw Object.assign(new Error("This request was saved before Homle priced requests up front, and cannot be booked until it is re-quoted."), { statusCode: 409, code: "request-not-priced" });
     }
     return Object.freeze({ requestId, cleanerId, terms });
   }

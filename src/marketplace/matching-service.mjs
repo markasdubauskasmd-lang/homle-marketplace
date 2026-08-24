@@ -46,39 +46,55 @@ function publicCandidate(record, quote, rank) {
   };
 }
 
-export function rankRequestCandidates(records, pricingPolicy, now, options = {}) {
+/**
+ * The cleaners worth showing, best first.
+ *
+ * WHAT CHANGED, AND WHY THE PRICE STOPPED BEING PART OF IT
+ *
+ * This used to take a pricing POLICY and quote every candidate separately,
+ * awarding the cheapest a quarter of the match score. That made sense when the
+ * customer price was derived from the invited cleaner's own rate card.
+ *
+ * Under platform pricing it does not: Homle sets the price, so the customer
+ * pays the same whoever cleans. Scoring by a number that is identical for every
+ * candidate ranks nothing — it only adds noise to a decision that should be
+ * about who is best for the job. The ordering is now the match score the
+ * database computes, then distance, then a stable tiebreak.
+ *
+ * @param records  the candidate rows
+ * @param quote    ONE quote, for the request — not one per cleaner
+ */
+export function rankRequestCandidates(records, quote, now, options = {}) {
   if (!Array.isArray(records)) throw new TypeError("Matching candidates must be an array.");
-  if (!pricingPolicy || typeof pricingPolicy.quote !== "function") throw Object.assign(new Error("Cleaner matching is unavailable until the private pricing policy is configured."), { statusCode: 503, code: "pricing-not-configured" });
-  if (!(now instanceof Date) || Number.isNaN(now.getTime())) throw new TypeError("Matching clock must return a valid Date.");
-  const priced = [];
-  for (const record of records) {
-    try {
-      const quote = pricingPolicy.quote(record, now);
-      const budget = record.budget_pence == null ? null : Number(record.budget_pence);
-      if (options.requireApprovedMaximum === true && (!Number.isInteger(budget) || budget < 1 || budget > 10_000_000)) continue;
-      if (budget != null && quote.customerPricePence > budget) continue;
-      priced.push({ record, quote });
-    } catch (error) {
-      if (error?.statusCode === 409) continue;
-      throw error;
-    }
+  if (!quote || !Number.isInteger(Number(quote.customerPricePence)) || Number(quote.customerPricePence) < 1) {
+    throw Object.assign(new Error("This request has no price yet, so no Cleaner can be matched to it."), { statusCode: 409, code: "request-not-priced" });
   }
-  const lowestPrice = priced.length ? Math.min(...priced.map(({ quote }) => quote.customerPricePence)) : null;
-  return priced.map(({ record, quote }, sourceIndex) => {
-    const priceScore = Math.min(25, 25 * lowestPrice / quote.customerPricePence);
-    return { record, quote, priceScore, sourceIndex, overallScore: Number(record.base_match_score) + priceScore };
-  }).sort((left, right) =>
-    right.overallScore - left.overallScore ||
-    left.quote.customerPricePence - right.quote.customerPricePence ||
-    (left.record.distance_km == null ? Number.MAX_SAFE_INTEGER : Number(left.record.distance_km)) - (right.record.distance_km == null ? Number.MAX_SAFE_INTEGER : Number(right.record.distance_km)) ||
-    left.sourceIndex - right.sourceIndex ||
-    String(left.record.public_slug).localeCompare(String(right.record.public_slug))
-  );
+  if (!(now instanceof Date) || Number.isNaN(now.getTime())) throw new TypeError("Matching clock must return a valid Date.");
+
+  const customerPricePence = Number(quote.customerPricePence);
+  // The budget is a property of the REQUEST and the price is the same for
+  // everyone, so this either admits every candidate or none. Checked once
+  // rather than per cleaner, which is what it always meant.
+  const budget = records[0]?.budget_pence == null ? null : Number(records[0].budget_pence);
+  if (options.requireApprovedMaximum === true && (!Number.isInteger(budget) || budget < 1 || budget > 10_000_000)) return [];
+  if (budget != null && customerPricePence > budget) return [];
+
+  return records
+    .map((record, sourceIndex) => ({ record, quote, sourceIndex }))
+    .sort((left, right) =>
+      Number(right.record.base_match_score) - Number(left.record.base_match_score) ||
+      (left.record.distance_km == null ? Number.MAX_SAFE_INTEGER : Number(left.record.distance_km)) - (right.record.distance_km == null ? Number.MAX_SAFE_INTEGER : Number(right.record.distance_km)) ||
+      left.sourceIndex - right.sourceIndex ||
+      String(left.record.public_slug).localeCompare(String(right.record.public_slug))
+    );
 }
 
 export function createMatchingService(repository, options = {}) {
   if (!repository || typeof repository.recommendForRequest !== "function") throw new TypeError("A request matching repository is required.");
-  const pricingPolicy = options.pricingPolicy || null;
+  // One quote for the request, from the same engine everything else uses.
+  // Absent means matching cannot run, and says so, rather than falling back to
+  // pricing each cleaner separately.
+  const quoteRequest = typeof options.quoteRequest === "function" ? options.quoteRequest : null;
   const clock = options.clock || (() => new Date());
   const requirePayoutReady = options.requirePayoutReady === true;
   return Object.freeze({
@@ -87,7 +103,8 @@ export function createMatchingService(repository, options = {}) {
       const requestId = uuid(cleaningRequestId, "cleaning request id");
       const records = (await repository.recommendForRequest(actor, requestId, 25, requirePayoutReady)).filter((record) => String(record.cleaner_id || "").toLowerCase() !== actor.userId.toLowerCase());
       const now = clock();
-      const ranked = rankRequestCandidates(records, pricingPolicy, now);
+      if (!quoteRequest) throw Object.assign(new Error("Cleaner matching is unavailable until platform pricing is configured."), { statusCode: 503, code: "pricing-not-configured" });
+      const ranked = rankRequestCandidates(records, await quoteRequest(actor, requestId), now);
       return {
         cleaningRequestId: requestId,
         generatedAt: now.toISOString(),

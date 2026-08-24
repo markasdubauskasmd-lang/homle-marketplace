@@ -12,6 +12,24 @@ function mapMatchingError(error) {
 export function createMatchingRepository(database) {
   if (!database || typeof database.withUserTransaction !== "function") throw new TypeError("The marketplace database boundary is required.");
   return Object.freeze({
+    /**
+     * The price already frozen onto a request.
+     *
+     * Owner-scoped through the ordinary transaction, so a Landlord can only
+     * read the price of a request that is theirs. Only the three quote columns
+     * are selected: matching needs the number, not the scope.
+     */
+    requestQuote(actor, requestId) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query(
+            "SELECT quoted_total_pence, quoted_minutes, pricing_config_version FROM cleaning_requests WHERE id=$1::uuid",
+            [requestId]
+          );
+          return result.rows[0] || null;
+        } catch (error) { throw mapMatchingError(error); }
+      });
+    },
     recommendForRequest(actor, requestId, limit, requirePayoutReady = false) {
       return database.withUserTransaction(actor, async (client) => {
         try {

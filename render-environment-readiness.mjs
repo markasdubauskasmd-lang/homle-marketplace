@@ -1,4 +1,3 @@
-import { bookingPricingEnvironmentRules } from "./src/marketplace/booking-workflow.mjs";
 
 const renderApiOrigin = "https://api.render.com";
 const pageLimit = 100;
@@ -127,10 +126,10 @@ function marketplaceRuntimeMissing(values) {
       if (exact(values.get(key)) && !validPostgresUrl(values.get(key))) missing.push(`valid ${key}`);
     }
   }
-  for (const rule of bookingPricingEnvironmentRules) {
-    if (!exact(values.get(rule.key))) missing.push(rule.key);
-    else if (!boundedInteger(values.get(rule.key), rule.minimum, rule.maximum)) missing.push(`valid ${rule.key}`);
-  }
+  // The twelve BOOKING_* values used to be checked here. Booking economics are
+  // operator configuration now — edited at /admin/pricing, stored in
+  // pricing_configurations — so a deployment is no longer incomplete without
+  // them, and an environment that still sets them is not wrong, just ignored.
   for (const [key, expected] of [
     ["MAP_PROVIDER", "google-maps"],
     ["GEOCODING_PROVIDER", "google-maps"],

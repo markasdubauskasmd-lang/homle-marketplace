@@ -11,7 +11,7 @@ import { createCleanerOnboardingDocumentRepository } from "./cleaner-onboarding-
 import { createCleanerProfilePhotoService } from "./cleaner-profile-photo.mjs";
 import { createCleanerProfilePhotoRepository } from "./cleaner-profile-photo-repository.mjs";
 import { createBookingRepository } from "./booking-repository.mjs";
-import { bookingPricingPolicyFromEnvironment, createBookingWorkflowService } from "./booking-workflow.mjs";
+import { createBookingWorkflowService } from "./booking-workflow.mjs";
 import { createPaymentRepository } from "./payment-repository.mjs";
 import { createPaymentService } from "./payment-service.mjs";
 import { createCleanerPayoutRepository } from "./cleaner-payout-repository.mjs";
@@ -233,13 +233,11 @@ export function createMarketplaceRuntime(pool, options = {}) {
   // measured false-clean rate every phase has honestly reported as unknown.
   const scanGroundTruthService = createScanGroundTruthService(createScanGroundTruthRepository(database));
   const bookingRepository = createBookingRepository(database);
-  const bookingPricingPolicy = options.bookingPricingPolicy || bookingPricingPolicyFromEnvironment(env);
   const paymentRepository = createPaymentRepository(database);
   const paymentService = options.paymentProvider ? createPaymentService(paymentRepository, options.paymentProvider, { publishableKey: env.STRIPE_PUBLISHABLE_KEY }) : null;
   const cleanerPayoutRepository = createCleanerPayoutRepository(database);
   const cleanerPayoutService = options.paymentProvider ? createCleanerPayoutService(cleanerPayoutRepository, options.paymentProvider, { appOrigin: environment.appOrigin }) : null;
   const bookingWorkflowService = createBookingWorkflowService(bookingRepository, {
-    pricingPolicy: bookingPricingPolicy,
     // A request saved before quotes were frozen up front is priced from its own
     // stored tasks, at today's rates, through the one engine — rather than
     // cost-up from whichever cleaner is being invited.
@@ -268,7 +266,20 @@ export function createMarketplaceRuntime(pool, options = {}) {
     getPayoutReadiness: cleanerPayoutService ? (actor) => cleanerPayoutService.getStatus(actor) : undefined
   });
   const matchingRepository = createMatchingRepository(database);
-  const matchingService = createMatchingService(matchingRepository, { pricingPolicy: bookingPricingPolicy, requirePayoutReady: paymentService !== null });
+  // Matching prices the REQUEST once — the price is Homle's, not the cleaner's,
+  // so it is the same whoever is recommended. The frozen quote when there is
+  // one, today's price for the same scope when there is not.
+  const matchingService = createMatchingService(matchingRepository, {
+    requirePayoutReady: paymentService !== null,
+    async quoteRequest(actor, requestId) {
+      const candidate = await matchingRepository.requestQuote(actor, requestId);
+      const customerPricePence = Number(candidate?.quoted_total_pence);
+      if (Number.isInteger(customerPricePence) && customerPricePence > 0) {
+        return { customerPricePence, quotedMinutes: Number(candidate.quoted_minutes) || null };
+      }
+      throw Object.assign(new Error("This request has no price yet, so no Cleaner can be matched to it."), { statusCode: 409, code: "request-not-priced" });
+    }
+  });
   const journeyRepository = createJourneyRepository(database);
   const journeyService = createJourneyService(journeyRepository, { etaProvider: options.etaProvider === undefined ? etaProviderFromEnvironment(env, { fetch: options.etaFetch }) : options.etaProvider });
   const progressRepository = createProgressRepository(database);
@@ -375,7 +386,12 @@ export function createMarketplaceRuntime(pool, options = {}) {
     // variable looks identical to one running the intended tier, right up until
     // someone compares grading quality and has nothing to check.
     roomVisionModels: roomVision?.models || null,
-    matchingReady: bookingPricingPolicy !== null,
+    // Matching used to be ready only when the twelve BOOKING_* variables were
+    // set, because it could not price a candidate without them. It prices the
+    // REQUEST now, from a price list whose shipped defaults are complete — so a
+    // deployment that has never opened the pricing page can match, and there is
+    // no configuration left that being without would make this false.
+    matchingReady: true,
     paymentRepository,
     paymentService,
     cleanerPayoutRepository,
