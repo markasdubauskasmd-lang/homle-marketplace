@@ -240,3 +240,73 @@ export function checkoutCopy(mode) {
     note: "Your checklist is saved as a private draft. Nothing is sent to a Cleaner and no payment is taken."
   });
 }
+
+/* ── The three-tap quote ──────────────────────────────
+   "Two bed, one bath, flat" → a price.
+
+   The shortest path to a number, and the one every competitor offers. It exists
+   because a customer who will not open the camera and has not yet typed a
+   checklist previously had nothing to see: the results step showed a task count
+   of zero and no price at all, which is the moment most of them leave.
+
+   This does NOT price anything. It turns a property description into the room
+   list the pricing engine already understands, and into a starting checklist
+   the customer edits. The price comes from the same engine as every other
+   path — there is no second quoting model here and there must never be one. */
+
+export const propertyShapeTypes = Object.freeze([
+  Object.freeze({ code: "flat", label: "Flat" }),
+  Object.freeze({ code: "house", label: "House" }),
+  Object.freeze({ code: "bungalow", label: "Bungalow" }),
+  Object.freeze({ code: "studio", label: "Studio" }),
+  Object.freeze({ code: "hmo", label: "House share" })
+]);
+
+// One line per room, in the cleaner's own language, and each one has to survive
+// cleanerTaskQuality() — an action and an object, never "clean everything".
+// These are a STARTING point the customer edits, not a finished scope, which is
+// why they name the obvious surfaces rather than trying to be complete.
+const shapeChecklistByRoomType = Object.freeze({
+  kitchen: "clean the worktops, hob, sink and floor",
+  bathroom: "clean the toilet, shower, sink and tiles",
+  "living-room": "vacuum the floor and wipe the surfaces",
+  bedroom: "change the bed, dust the surfaces and vacuum the floor",
+  "dining-room": "wipe the table and chairs and vacuum the floor",
+  hallway: "vacuum the floor and wipe the skirting boards",
+  "utility-room": "wipe the surfaces and clean the floor",
+  office: "dust the desk and shelves and vacuum the floor",
+  other: "clean the surfaces and floor"
+});
+
+/**
+ * A starting checklist for a described property.
+ *
+ * @param rooms  the room list roomsFromPropertyShape() produced
+ * @returns      "Room: instruction" lines, the same shape the textarea holds
+ */
+export function checklistFromPropertyShape(rooms = []) {
+  return (Array.isArray(rooms) ? rooms : [])
+    .map((room) => {
+      const label = String(room?.label || "").trim();
+      const instruction = shapeChecklistByRoomType[String(room?.roomType || "")] ?? shapeChecklistByRoomType.other;
+      return label ? `${label}: ${instruction}` : "";
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Whether a described property is complete enough to price.
+ *
+ * A studio has no separate bedroom, so zero bedrooms is a real answer there and
+ * an unanswered question everywhere else. Without this a customer who has only
+ * chosen "House" would be shown a price for a house with no bedrooms in it.
+ */
+export function propertyShapeReady(shape = {}) {
+  const type = String(shape?.propertyType || "");
+  if (!propertyShapeTypes.some((candidate) => candidate.code === type)) return false;
+  const bathrooms = Number(shape?.bathrooms);
+  if (!Number.isInteger(bathrooms) || bathrooms < 1) return false;
+  if (type === "studio") return true;
+  const bedrooms = Number(shape?.bedrooms);
+  return Number.isInteger(bedrooms) && bedrooms >= 1;
+}

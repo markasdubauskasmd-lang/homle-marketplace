@@ -129,6 +129,29 @@
         <p class="res-hero-note" data-results-price-note>Guide time comes from the work listed, not from measuring your home. Your cleaner confirms the final time.</p>
       </div>
 
+      <!-- The three-tap quote, for the customer who skipped the scanner.
+           Without it this step showed a task count of zero and no price, which
+           is the moment most people leave. Three answers produce a real number
+           from the same engine every other path uses, and a starting checklist
+           they can then edit. Hidden entirely once a scan exists — the scan
+           already knows all three answers and more. -->
+      <div class="shape-quote" data-shape hidden>
+        <p class="shape-quote-head">Tell us about the property and we'll price it now.</p>
+        <div class="shape-field">
+          <span class="shape-label">Property</span>
+          <div class="shape-chips" role="radiogroup" aria-label="Property type" data-shape-types></div>
+        </div>
+        <div class="shape-field">
+          <span class="shape-label" id="shape-bedrooms-label">Bedrooms</span>
+          <div class="shape-chips" role="radiogroup" aria-labelledby="shape-bedrooms-label" data-shape-bedrooms></div>
+        </div>
+        <div class="shape-field">
+          <span class="shape-label" id="shape-bathrooms-label">Bathrooms</span>
+          <div class="shape-chips" role="radiogroup" aria-labelledby="shape-bathrooms-label" data-shape-bathrooms></div>
+        </div>
+        <p class="shape-quote-note" data-shape-note>Choose all three and your price appears above.</p>
+      </div>
+
       <!-- Everything below appears only once the scan has been assessed. It is
            hidden rather than empty, because a review panel with nothing in it
            teaches people to scroll past the one place they are asked to check

@@ -109,3 +109,62 @@ assert.equal(canLeaveStep("when", when), true, `A day this module generated was 
 assert.equal(canLeaveStep("when", { ...when, date: "" }), false, "The when step passed with no chosen day.");
 
 console.log(`Landlord journey date tests passed: across ${zones.length} timezones and eleven instants including both daylight-saving transitions, every offered day submits the date its own label shows; days are consecutive, never in the past, frozen and ISO-shaped.`);
+
+/* ── The three-tap quote ──────────────────────────────────────────────────── */
+
+// "Two bed, one bath, flat" has to reach a real price, because the checklist
+// step previously showed a task count of zero and no price at all to anyone who
+// skipped the scanner — which is the moment most of them leave.
+{
+  const { checklistFromPropertyShape, propertyShapeReady, propertyShapeTypes } =
+    await import("../public/landlord-journey-model.js");
+  const { defaultPricingConfig, normalizedPricingConfig, roomsFromPropertyShape } =
+    await import("../public/pricing-config.js");
+  const { quoteRooms } = await import("../public/pricing-engine.js");
+  const { cleanerTaskQuality } = await import("../public/task-quality.js");
+
+  const config = normalizedPricingConfig(defaultPricingConfig);
+
+  // Incomplete descriptions are not priced. A house with no bedrooms answered
+  // would otherwise be quoted as a house with no bedrooms in it.
+  assert(!propertyShapeReady({}), "An empty property description was treated as ready to price.");
+  assert(!propertyShapeReady({ propertyType: "house", bathrooms: 1 }), "A house with no bedroom count was priced.");
+  assert(!propertyShapeReady({ propertyType: "house", bedrooms: 2 }), "A house with no bathroom count was priced.");
+  assert(!propertyShapeReady({ propertyType: "castle", bedrooms: 2, bathrooms: 1 }), "An unknown property type was priced.");
+  // A studio genuinely has no separate bedroom, so zero is a real answer there.
+  assert(propertyShapeReady({ propertyType: "studio", bathrooms: 1 }), "A studio was refused for having no separate bedroom.");
+  assert(propertyShapeReady({ propertyType: "flat", bedrooms: 2, bathrooms: 1 }), "A complete description was not ready to price.");
+
+  // Every seeded line must survive the same quality gate a typed one does, or
+  // the customer is handed a checklist the server will reject at submit.
+  for (const type of propertyShapeTypes) {
+    const shape = { propertyType: type.code, bedrooms: 3, bathrooms: 2 };
+    const lines = checklistFromPropertyShape(roomsFromPropertyShape(config, shape));
+    assert(lines.length > 0, `A ${type.label} produced no starting checklist.`);
+    for (const line of lines) {
+      assert(/^[^:]+: .+/.test(line), `A seeded checklist line is not "Room: instruction": ${line}`);
+      const instruction = line.slice(line.indexOf(":") + 1).trim();
+      assert(cleanerTaskQuality(instruction).clear,
+        `A seeded checklist line would be rejected at submit: "${line}" (${cleanerTaskQuality(instruction).reason})`);
+    }
+  }
+
+  // The whole point: three answers produce a number, from the same engine.
+  const shape = { propertyType: "flat", bedrooms: 2, bathrooms: 1 };
+  const quote = quoteRooms({ propertyShape: shape, postcode: "M1 1AA" }, config);
+  assert(quote.priceable && quote.totalPence > 0, "A described property did not reach a price.");
+  // And it is the same number the expanded rooms give, so there is no second
+  // quoting model hiding behind the shortcut.
+  assert(quoteRooms({ rooms: roomsFromPropertyShape(config, shape), postcode: "M1 1AA" }, config).totalPence === quote.totalPence,
+    "The three-tap quote and the room-list quote disagree.");
+  // A bigger property is never cheaper.
+  assert(quoteRooms({ propertyShape: { propertyType: "house", bedrooms: 4, bathrooms: 2 } }, config).totalPence
+    > quoteRooms({ propertyShape: { propertyType: "flat", bedrooms: 1, bathrooms: 1 } }, config).totalPence,
+    "A four-bed house was not dearer than a one-bed flat.");
+  // Nonsense is bounded rather than fatal.
+  assert(checklistFromPropertyShape(null).length === 0, "A missing room list threw instead of returning nothing.");
+  assert(checklistFromPropertyShape([{ roomType: "not-a-room", label: "Wine cellar" }])[0].startsWith("Wine cellar:"),
+    "An unknown room type produced no usable checklist line.");
+}
+
+console.log("Three-tap quote tests passed: an incomplete description is not priced, every seeded checklist line survives the quality gate the server applies at submit, and the shortcut reaches the same number as the room list it expands to.");

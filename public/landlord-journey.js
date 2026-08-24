@@ -2,6 +2,7 @@
 // watches move is the number the booking is made at.
 import { defaultPricingConfig, normalizedPricingConfig } from "./pricing-config.js?v=20260808-1";
 import { quoteInputFromScan, quoteRooms } from "./pricing-engine.js?v=20260808-1";
+import { roomsFromPropertyShape } from "./pricing-config.js?v=20260824-1";
 import { createPriceAnimator, formatPence, showPriceDelta } from "./price-animator.js?v=20260808-1";
 import { cancellationPolicySummary } from "./cancellation-policy.js?v=20260824-1";
 
@@ -21,7 +22,10 @@ import {
   durationChoices,
   suggestedDurationMinutes,
   matchingProperties,
+  checklistFromPropertyShape,
   journeyAccountState,
+  propertyShapeReady,
+  propertyShapeTypes,
   rankedAvailableCleaners,
   bestAvailableCleaner,
   firstQuoteVerifiedCleaner,
@@ -69,6 +73,11 @@ const el = {
   resultsTasks: $("[data-results-tasks]"),
   resultsPrice: $("[data-results-price]"),
   resultsPriceNote: $("[data-results-price-note]"),
+  shape: $("[data-shape]"),
+  shapeTypes: $("[data-shape-types]"),
+  shapeBedrooms: $("[data-shape-bedrooms]"),
+  shapeBathrooms: $("[data-shape-bathrooms]"),
+  shapeNote: $("[data-shape-note]"),
   checkoutPrice: $("[data-checkout-price]"),
   checkoutTotal: $("[data-checkout-total]"),
   checkoutBreakdown: $("[data-checkout-breakdown]"),
@@ -138,6 +147,10 @@ const state = {
     outward: "",
     serviceCode: "",
     tasks: [],
+    // How the customer described the property when they did not scan it. Kept
+    // in the draft so the three answers survive a step back, a refresh and a
+    // reopened tab like every other answer does.
+    propertyShape: null,
     transcript: "",
     rooms: [],
     guideTime: "",
@@ -480,8 +493,81 @@ function renderResults() {
     ? `Scoped from your ${state.draft.rooms.length || "room"} scan${state.draft.transcript ? " + voice note" : ""}`
     : "Written by you";
   el.tasks.value = state.draft.tasks.join("\n");
+  renderPropertyShape();
   updateResultTotals();
 }
+
+/* ── The three-tap quote ────────────────────────────── */
+
+// Offered only when there is no scan. A scan already knows the property type,
+// the rooms and their condition, and asking again would be asking a customer to
+// repeat work they have just done.
+function renderPropertyShape() {
+  if (!el.shape) return;
+  const scanned = Boolean(state.draft.rooms.length || state.draft.transcript);
+  el.shape.hidden = scanned;
+  if (scanned) return;
+
+  const shape = state.draft.propertyShape || {};
+  const chip = (host, label, selected, onPick) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = `shape-chip${selected ? " on" : ""}`;
+    option.setAttribute("role", "radio");
+    option.setAttribute("aria-checked", String(selected));
+    option.textContent = label;
+    option.addEventListener("click", onPick);
+    host.appendChild(option);
+  };
+
+  el.shapeTypes.replaceChildren();
+  for (const type of propertyShapeTypes) {
+    chip(el.shapeTypes, type.label, shape.propertyType === type.code, () => choosePropertyShape({ propertyType: type.code }));
+  }
+
+  // A studio has no separate bedroom, so the question is not asked rather than
+  // asked and answered zero.
+  const studio = shape.propertyType === "studio";
+  el.shapeBedrooms.closest(".shape-field").hidden = studio;
+  el.shapeBedrooms.replaceChildren();
+  for (const count of [1, 2, 3, 4, 5, 6]) {
+    chip(el.shapeBedrooms, count === 6 ? "6+" : String(count), Number(shape.bedrooms) === count, () => choosePropertyShape({ bedrooms: count }));
+  }
+  el.shapeBathrooms.replaceChildren();
+  for (const count of [1, 2, 3, 4]) {
+    chip(el.shapeBathrooms, count === 4 ? "4+" : String(count), Number(shape.bathrooms) === count, () => choosePropertyShape({ bathrooms: count }));
+  }
+
+  el.shapeNote.textContent = propertyShapeReady(shape)
+    ? "Edit the checklist below if anything is different — the price follows what you change."
+    : "Choose all three and your price appears above.";
+}
+
+function choosePropertyShape(change) {
+  const shape = { ...(state.draft.propertyShape || {}), ...change };
+  // Switching to a studio drops a bedroom count that no longer means anything,
+  // rather than keeping it to reappear if they switch back to a flat.
+  if (shape.propertyType === "studio") delete shape.bedrooms;
+  state.draft.propertyShape = shape;
+
+  if (propertyShapeReady(shape) && pricingConfig) {
+    const seeded = checklistFromPropertyShape(roomsFromPropertyShape(pricingConfig, shape));
+    // Only ever writes over a checklist this function wrote. A customer who has
+    // typed anything of their own keeps it — losing someone's typing because
+    // they corrected the bathroom count would be unforgivable.
+    const current = el.tasks.value.trim();
+    if (!current || current === lastSeededChecklist) {
+      el.tasks.value = seeded.join("\n");
+      lastSeededChecklist = el.tasks.value;
+      state.draft.tasks = seeded;
+    }
+  }
+  saveDraft();
+  renderPropertyShape();
+  updateResultTotals();
+}
+
+let lastSeededChecklist = "";
 
 function updateResultTotals() {
   const tasks = el.tasks.value.split("\n").map((line) => line.trim()).filter(Boolean);
@@ -1001,7 +1087,13 @@ function currentPricingRequest() {
   // No scan: price the typed checklist. Returns null only when there is not yet
   // a checklist to price, which is a step the journey will not let them leave.
   const tasks = requestTasksFromLines(state.draft.tasks.join("\n"));
-  if (!tasks.length) return null;
+  if (!tasks.length) {
+    // Except when the property has been described. Three answers are enough for
+    // a real price, and it is the number that persuades somebody to write the
+    // checklist at all.
+    const shape = state.draft.propertyShape;
+    return propertyShapeReady(shape || {}) ? { ...shared, propertyShape: shape } : null;
+  }
   try {
     return { ...pricingRequestFromManualTasks(tasks, { cleaningType: state.draft.serviceCode, frequency: shared.frequency }), ...shared };
   } catch {
