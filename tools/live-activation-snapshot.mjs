@@ -103,6 +103,15 @@ function accountAccessProjection(payload) {
   return Object.freeze({ ...projection, roles: Object.freeze(["cleaner", "landlord"]) });
 }
 
+function publicCleanerSupplyProjection(payload) {
+  const root = object(payload, "Public Cleaner directory response");
+  if (root.ok !== true || !Array.isArray(root.cleaners)) throw new Error("The public Cleaner directory endpoint is not healthy.");
+  // The verifier deliberately requests only one public profile. It needs to
+  // prove that discoverable supply exists, not collect or repeat Cleaner data
+  // in an operator report.
+  return root.cleaners.length > 0;
+}
+
 function remainingActions(snapshot) {
   const actions = [];
   if (snapshot.dataIntegrity !== "healthy" || snapshot.writesAllowed !== true) actions.push(action("data-integrity", "Repair the managed database integrity gate before any account or booking rehearsal."));
@@ -118,6 +127,7 @@ function remainingActions(snapshot) {
   if (!snapshot.capabilities.automaticDispatchReady) actions.push(action("automatic-dispatch", "Keep automatic Cleaner matching off until the founder explicitly approves activation and the staged delivery, supply, monitoring and single-worker evidence passes; then enable exactly one monitored worker before testing it."));
   if (!snapshot.capabilities.speechSummaryReady) actions.push(action("speech-summary", "Restore the configured speech-summary provider before testing concise spoken room notes."));
   if (!snapshot.capabilities.roomVisionReady) actions.push(action("room-vision", "Restore the configured room-reading provider before testing assisted scan labels."));
+  if (!snapshot.publicCleanerSupply) actions.push(action("public-cleaner-supply", "No public Cleaner profile is currently discoverable. Complete a genuine application, screening, approval and public-profile activation before treating the marketplace as bookable."));
   if (!snapshot.capabilities.emailReady || !snapshot.accountAccess.emailPassword || !snapshot.accountAccess.emailVerification || !snapshot.accountAccess.passwordReset) actions.push(action("transactional-email", "Configure an approved transactional email provider and verified sender, enable email/password verification and reset, then test only with approved staging inboxes."));
   if (!snapshot.capabilities.paymentsReady) actions.push(action("test-payments", "Configure Stripe test credentials, keep live keys prohibited, enable the test gate and run pnpm run preflight:staging-activation before a payment rehearsal."));
   return Object.freeze(actions);
@@ -136,13 +146,15 @@ export function liveActivationSnapshot(payload, options = {}) {
   const marketplace = object(root.marketplace, "Marketplace capability projection");
   for (const name of capabilityNames) capabilities[name] = boolean(marketplace[name], `marketplace.${name}`);
   const accountAccess = accountAccessProjection(options.providers);
+  const publicCleanerSupply = publicCleanerSupplyProjection(options.cleanerDirectory);
   const snapshot = {
     origin,
     release: Object.freeze({ sourceCommit, migrationCount: Number.isInteger(release.migrationCount) ? release.migrationCount : null }),
     dataIntegrity: root.dataIntegrity,
     writesAllowed: boolean(root.writesAllowed, "writesAllowed"),
     capabilities: Object.freeze(capabilities),
-    accountAccess
+    accountAccess,
+    publicCleanerSupply
   };
   const coreReady = snapshot.writesAllowed === true && coreBookingCapabilityNames.every((name) => capabilities[name] === true);
   const emailFallbackReady = capabilities.emailReady && accountAccess.emailPassword && accountAccess.emailVerification && accountAccess.passwordReset;
@@ -161,6 +173,8 @@ export function liveActivationSnapshot(payload, options = {}) {
     readiness: Object.freeze({
       coreBookingRehearsal: coreReady,
       automaticMatchingRehearsal: coreReady && capabilities.automaticDispatchReady,
+      discoverableCleanerSupply: publicCleanerSupply,
+      directCleanerChoice: coreReady && publicCleanerSupply,
       transactionalNotifications: capabilities.emailReady,
       emailFallback: emailFallbackReady,
       requestedAccountEntry: requestedAccountEntryReady,
@@ -220,11 +234,12 @@ export async function fetchLiveActivationSnapshot(options = {}) {
       }
     };
     const query = expectedRelease ? `?release=${encodeURIComponent(expectedRelease)}` : "";
-    const [payload, providers] = await Promise.all([
+    const [payload, providers, cleanerDirectory] = await Promise.all([
       requestJson(`${origin}/api/health${query}`, "Public health endpoint"),
-      requestJson(`${origin}/api/auth/providers`, "Public account provider endpoint")
+      requestJson(`${origin}/api/auth/providers`, "Public account provider endpoint"),
+      requestJson(`${origin}/api/marketplace/cleaners?limit=1`, "Public Cleaner directory endpoint")
     ]);
-    return liveActivationSnapshot(payload, { origin, expectedRelease, providers });
+    return liveActivationSnapshot(payload, { origin, expectedRelease, providers, cleanerDirectory });
   } finally {
     clearTimeout(timer);
   }
