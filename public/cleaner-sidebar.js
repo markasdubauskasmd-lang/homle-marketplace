@@ -24,8 +24,8 @@
  */
 
 import { accountNav, onboardingIcons, onboardingNav, workspaceNav } from "./cleaner-onboarding-steps.js?v=20260830-1";
-import { rememberCleanerAccess, rememberedCleanerAccess } from "./cleaner-access-marker.js?v=20260830-1";
-import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
+import { rememberCleanerAccess, rememberedCleanerAccess } from "./cleaner-access-marker.js?v=20260830-2";
+import { cleanerShellVerdict } from "./cleaner-shell-decision.js?v=20260830-1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 
@@ -162,35 +162,47 @@ export function removeCleanerShell() {
  * an Account group and an unread count. Rendering it before the account is
  * known told a signed-in Landlord that their account was a Cleaner's, which is
  * the defect P1-2 recorded against one page; consolidating nineteen copies into
- * one renderer made it uniform rather than fixing it. So the shell now answers
- * the same question the content gate answers, from the same account read.
+ * one renderer made it uniform rather than fixing it. So the shell answers the
+ * same question the content gate answers, from the same account read.
  *
- * A tab that has already confirmed a Cleaner workspace skips the wait, so a
- * Cleaner moving between pages never sees the sidebar appear late. That marker
- * grants nothing on its own: every read is authorised server-side, and the page
- * bootstrap clears it the moment a check comes back denied.
+ * THE MARKER IS A HEAD START, NOT AN ANSWER. An earlier version returned early
+ * on it, and that put the whole defect back: `sessionStorage` is per-tab and
+ * survives sign-out, so a Cleaner could sign out, a Landlord sign in on the
+ * same tab, and the sidebar would be revealed without any check ever running.
+ * Measured in a browser: a session with roles ["landlord"] was shown the
+ * CLEANER pill and eleven Cleaner destinations on /cleaner/dashboard. Sign-out
+ * now clears the marker, and this no longer returns early — both, because
+ * either alone leaves a way back in.
+ *
+ * A transient failure is not an answer either, in either direction. Only a
+ * definite "this account has no Cleaner workspace" removes the shell; a network
+ * error or a 5xx leaves it as it was, so a Cleaner whose connection flaps for
+ * one request is not left with no navigation and no way to get it back short of
+ * a reload.
  */
 async function resolveCleanerShell() {
-  if (rememberedCleanerAccess()) return revealCleanerShell();
+  // Optimistic, and always corrected below.
+  if (rememberedCleanerAccess()) revealCleanerShell();
+  let result;
   try {
     const response = await fetch("/api/marketplace/account", {
       credentials: "same-origin",
       cache: "no-store",
       headers: { accept: "application/json" }
     });
-    if (!response.ok) return removeCleanerShell();
-    const body = await response.json();
-    if (!dashboardWorkspaceAccess(body.account, "cleaner").ready) {
-      rememberCleanerAccess(false);
-      return removeCleanerShell();
+    try {
+      result = { status: response.status, account: (await response.json())?.account };
+    } catch {
+      result = { status: response.status, malformed: true };
     }
-    rememberCleanerAccess(true);
-    revealCleanerShell();
   } catch {
-    // Offline or a refused request is not permission. The page's own gate
-    // explains what happened; the sidebar simply does not claim a workspace.
-    removeCleanerShell();
+    result = { failed: true };
   }
+  const verdict = cleanerShellVerdict(result);
+  if (verdict === "leave") return;
+  rememberCleanerAccess(verdict === "reveal");
+  if (verdict === "reveal") revealCleanerShell();
+  else removeCleanerShell();
 }
 
 /**

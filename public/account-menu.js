@@ -1,5 +1,6 @@
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { createRequestJson } from "./request-json.js";
+import { rememberCleanerAccess } from "./cleaner-access-marker.js?v=20260830-2";
 
 const buttons = [...document.querySelectorAll("[data-account-sign-out]")];
 const accountMenus = [...document.querySelectorAll("[data-account-menu]")];
@@ -109,6 +110,13 @@ async function signOut(button) {
       body: "{}"
     });
     saveCsrf("");
+    // The tab also remembers that it once confirmed a Cleaner workspace, and
+    // that marker is what lets the Cleaner sidebar appear without waiting for
+    // an account read. Leaving it behind meant the next person to sign in on
+    // this tab — a Landlord, say — was shown a CLEANER identity and Cleaner
+    // destinations. Signing out ends the session; it has to end everything the
+    // session was allowed to assert.
+    rememberCleanerAccess(false);
     location.assign(button.dataset.signOutDestination || "/login");
   } catch (error) {
     showStatus(button, error?.message || "Homle could not sign you out. Please try again.");

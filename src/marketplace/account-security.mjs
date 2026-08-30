@@ -85,7 +85,21 @@ export function createAccountSecurity(repository, options) {
       // Deliberately last. A request refused for origin, CSRF or role has not
       // proved it comes from the account whose allowance it would spend, so
       // charging it would let a third party exhaust somebody else's budget.
-      if (policy.mutation === true && onMutation) await onMutation(context);
+      //
+      // `allowance: false` opts a route out. Two kinds of route need it, and
+      // both were found by an exhausted account rather than by reasoning:
+      //
+      //   * Sign-out. An abuse allowance must never block a security control.
+      //     Somebody who believes their account is compromised has to be able
+      //     to end their sessions, and "you have written too much today" is not
+      //     an acceptable answer to that. Measured before the opt-out existed:
+      //     at the allowance, POST /auth/logout answered 429.
+      //   * Routes that carry `mutation: true` for the CSRF and origin checks
+      //     but store nothing, and already spend a read allowance of their own.
+      //     Charging them twice let a single scan review — which re-previews on
+      //     every object correction — burn a third of the write budget without
+      //     writing anything.
+      if (policy.mutation === true && policy.allowance !== false && onMutation) await onMutation(context);
       return context;
     },
     authenticate,

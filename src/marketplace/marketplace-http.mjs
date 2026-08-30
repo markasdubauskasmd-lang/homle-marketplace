@@ -1236,7 +1236,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         // able to spend either without bound.
         if (pathname === "/api/marketplace/landlord/scan-preview") {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
-          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const context = await security.protect(request, { mutation: true, allowance: false, roles: ["landlord"] });
           await limitPublicRead(request, "marketplace-landlord:scan-preview");
           const body = await readJsonObject(request, maximumRoomScanBodyBytes);
           sendJson(response, 200, { ok: true, scan: await scans.previewScan(context.actor, body) });
@@ -1255,7 +1255,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         // paid and what Homle keeps is not the customer's side of the contract.
         if (pathname === "/api/marketplace/pricing/quote") {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
-          const quoteContext = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const quoteContext = await security.protect(request, { mutation: true, allowance: false, roles: ["landlord"] });
           await limitPublicRead(request, "marketplace-landlord:scan-preview");
           const body = await readJsonObject(request, maximumRoomScanBodyBytes);
           const config = normalizedPricingConfig(await pricingConfiguration(quoteContext.actor));
@@ -1285,7 +1285,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         // these against preview's generous budget.
         if (pathname === "/api/marketplace/landlord/photo-measurement") {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
-          await security.protect(request, { mutation: true, roles: ["landlord"] });
+          await security.protect(request, { mutation: true, allowance: false, roles: ["landlord"] });
           await limitPublicRead(request, "marketplace-landlord:scan-preview");
           const body = await readJsonObject(request);
           try {

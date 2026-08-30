@@ -113,6 +113,47 @@ None outstanding. One was found and fixed during this audit: **S-1**.
 > answer `503 abuse-control-unavailable`. The database caught that on the first
 > run rather than letting the counter silently wrap.
 
+**S-4 · P0 · Security** — *An account at its mutation allowance could not sign
+out.*
+
+- **Problem.** The allowance added in **S-1** is charged in
+  `protect({ mutation: true })`, and the authentication router shares the same
+  `security` instance — so `POST /auth/logout` and `/auth/logout-all` spent it
+  too. An abuse control was blocking a security control.
+- **Evidence.** Found by an independent code reviewer, then measured: a
+  dedicated account driven to its allowance, then
+  `POST /api/marketplace/auth/logout` → **`429 rate-limited`**. Somebody who
+  believes their account is compromised could not end their sessions.
+- **Root cause.** I wrote in `account-security.mjs` that the authentication
+  router "composes unchanged" because "its own routes are already throttled by
+  scope". Both halves were wrong: this runtime passes the metered instance into
+  that router, and logout, onboarding and workspace-switch carry no scope of
+  their own.
+- **Fix.** `protect` takes `allowance: false`, and sign-out uses it. The same
+  opt-out fixes a second problem in the same finding: three marketplace routes
+  carry `mutation: true` for the CSRF and origin checks but **store nothing**
+  and already spend a read allowance — a single scan review, which re-previews
+  on every object correction, could burn a third of the write budget without
+  writing anything.
+- **Files.** `src/marketplace/account-security.mjs`,
+  `src/marketplace/authentication-http.mjs`,
+  `src/marketplace/marketplace-http.mjs`, `tests/mutation-allowance.mjs` (new).
+- **Verification.** Same flood re-run: **300 writes allowed, 20 refused `429`,
+  and `POST /auth/logout` → `200`.**
+- **Status.** `[x]`
+
+**S-5 · P1 · Test integrity** — *The S-1 fix's wiring was covered by no test.*
+
+`tests/account-security.mjs` proves the module honours an allowance it is
+handed. Nothing proved the application hands it one: **deleting the
+`onMutation:` line from `runtime.mjs` reverted the whole P0 and the entire
+196-file gate stayed green.** Found by the same reviewer.
+`tests/mutation-allowance.mjs` now asserts the wiring, the account keying, the
+scope name, both exemptions, and — separately — that the `request_count` CHECK
+ceiling covers the largest policy, which is the invariant migration 105's own
+header describes and which had been fixed by hand without a guard. Confirmed by
+reverting each and watching it fail. **Status `[x]`.**
+
 ### P1 — broken important functionality
 
 **F-1 · P1 · Design / navigation** — *The Updates page was not in the workspace.*
@@ -163,10 +204,44 @@ with no Cleaner workspace.*
   `tests/cleaner-shell-boundary.mjs` (new).
 - **Verification.** Re-probed in the browser: a Landlord now gets no pill, no
   nav, no counts, on all four routes; a Cleaner (after switching workspace) gets
-  the full sidebar on all five, both shells. `tests/cleaner-shell-boundary.mjs`
-  fails if the shell is unhidden at build, if a failure path stops removing it,
-  or if the marker is copied back into either module — confirmed by reverting the
-  fix and watching it fail.
+  the full sidebar on all five, both shells.
+- **Status.** `[x]` — but only after a second round; see **F-6**.
+
+**F-6 · P1 · Security / role boundary** — *My fix for F-2 had a bypass, and it
+was the mechanism the fix added.*
+
+- **Problem.** The per-tab marker that lets a returning Cleaner skip the wait
+  was consulted with an **early return**: `if (rememberedCleanerAccess()) return
+  revealCleanerShell();`. `sessionStorage` is per-tab and survives sign-out, and
+  nothing cleared the marker on sign-out. So a Cleaner signs out, a Landlord
+  signs in **in the same tab**, and the sidebar is revealed with no account
+  check ever running.
+- **Evidence.** Found by an independent code reviewer and reproduced exactly:
+  a session with `roles: ["landlord"]` on `/cleaner/dashboard` showed the
+  **CLEANER pill and eleven Cleaner destinations**. The five Cleaner pages that
+  do not use `createCleanerPage` — the dashboard among them — never corrected
+  it. My own browser re-probe could not have caught this: it used a fresh
+  Landlord session in a tab that had never confirmed Cleaner access.
+- **Root cause.** I treated a cache as an answer. The same reviewer found the
+  mirror-image fault: a transient network failure **removed** the sidebar, and
+  since `revealCleanerShell()` cannot restore a removed node, a real Cleaner
+  whose connection flapped for one request lost their navigation until a full
+  reload.
+- **Fix.** The marker is now a head start and nothing more: it reveals
+  optimistically and the check still runs and still corrects. Sign-out clears
+  it. And the decision has **three** answers rather than two — reveal, remove,
+  or *leave alone* — because a 5xx or a dropped connection is not a verdict in
+  either direction. The decision moved into `public/cleaner-shell-decision.js`
+  so a test can run the real one.
+- **Files.** `public/cleaner-shell-decision.js` (new),
+  `public/cleaner-sidebar.js`, `public/account-menu.js`,
+  `tests/cleaner-shell-boundary.mjs`.
+- **Verification.** The browser probe that reproduced the bypass now shows the
+  sidebar removed and the marker cleared. `tests/cleaner-shell-boundary.mjs` was
+  rewritten: it **executes** the real decision against ten outcomes rather than
+  reading the source, because the reviewer was right that its first version
+  counted string occurrences and compared character offsets as if they were
+  execution order. Confirmed by reintroducing both faults and watching it fail.
 - **Status.** `[x]`
 
 **F-3 · P1 · Error handling** — *No 404 page.*
@@ -389,6 +464,65 @@ requires the server to be *bound* to loopback, in which case only local
 processes can reach it at all. So the threat model is an untrusted process on
 the application host. Recorded, not changed. **Status `[ ]`.**
 
+**S-6 · P1 · Security** — *Every IP-keyed limit rests on an unverified assumption
+about the platform.*
+
+- **Problem.** Under the shipped `render.yaml` (`TRUST_PROXY=true`,
+  `TRUST_PROXY_PROVIDER=render`), `trusted-client-key.mjs` never consults the TCP
+  peer. It reads `True-Client-IP` and requires only that the same value appear
+  somewhere in the `X-Forwarded-For` chain. **A caller who sends both headers
+  with the same invented value satisfies that check.**
+- **Evidence.** An independent reviewer drove the real resolver with the
+  `render.yaml` environment and a fixed socket peer, and got a different
+  rate-limit key per request from headers alone.
+- **What it would mean.** Every address-keyed control resets per request:
+  `login` 10/15min, `signup` and `password-reset-request` and
+  `verification-resend` 5/hour, and the two metered provider scopes. Brute-force
+  and mail-flood protection would be decorative. The account-keyed
+  `marketplace:mutation` allowance from **S-1** is unaffected — which is a point
+  in favour of keying by account, not an excuse.
+- **Why it is not being changed here.** The code's own comment says Render
+  fronts every service with Cloudflare, which *sets* `True-Client-IP` to the
+  verified connecting address. If that holds, the header is not caller-supplied
+  and the design is sound. If it does not — and `True-Client-IP` is a Cloudflare
+  Enterprise-tier header — the whole chain is forgeable. **Nothing in this
+  repository verifies which is true, and I cannot verify it from here.**
+  Rewriting a security-critical client-identification path on a guess about a
+  platform's behaviour is more likely to break legitimate identification than to
+  fix anything.
+- **What the operator must do, before launch.** Send a request to the deployed
+  service carrying `True-Client-IP: 192.0.2.1` and a matching `X-Forwarded-For`
+  entry, from a machine whose real address is known, and confirm the rate-limit
+  key the server derives is the real address and not `192.0.2.1`. If it is
+  `192.0.2.1`, every IP-keyed limit above is bypassable and this is a launch
+  blocker. Locally with `TRUST_PROXY=false` the peer address is used and
+  spoofing fails: 14 wrong-password sign-ins carrying rotating
+  `x-forwarded-for`, `x-real-ip` and `forwarded` headers were still cut off at
+  the tenth with `429`.
+- **Status.** `[!]` **BLOCKED — needs one measurement against the real
+  deployment.**
+
+**S-7 · P2 · Security** — *Any account can grant itself the other side of the
+marketplace, with no step-up.*
+
+`POST /api/marketplace/auth/workspace {"role":"cleaner"}` on a landlord-only
+session returns `200` with `roles: ["cleaner","landlord"]` and auto-creates a
+Cleaner profile. Only `administrator` is blocked. This is by design — a person
+may genuinely be both — and every authorisation decision still uses the union of
+held roles, so it grants no access to anyone else's data. Two consequences are
+worth a decision rather than an assumption: it unlocks
+`GET /api/marketplace/maps/config`, which hands out the Google Maps browser key,
+and `cleaner/address-lookup`, a metered provider call; and a self-listed Cleaner
+can set `is_public` on their own profile, with `verified` reported as a field
+rather than enforced as a gate. Whether an unverified self-listed Cleaner can be
+dispatched a job could not be closed out here — no bookings exist in this
+database. **Status `[ ]`.**
+
+**S-8 · P3 · Security** — *A Cleaner keeps photo access indefinitely after the
+job ends.* `get_cleaning_request_photo_object` admits a Cleaner whose booking
+status is `completed`, with no time bound, so a former Cleaner can keep minting
+signed URLs for the interior of a home they once cleaned. **Status `[ ]`.**
+
 **S-3 · P3 · Security** — *A correct password on an unverified account returns
 `403 email-verification-required`, distinct from `401 invalid-credentials`.* It
 fires only after a correct password, so it is not a bare enumeration oracle, but
@@ -407,13 +541,26 @@ Recorded so the next reader does not re-derive it.
   Margin, Cleaner share and processor fees are server-only, in
   `pricing-economics.mjs`. The two sides cannot drift because there is only one
   arithmetic. The browser never sends a price.
-- **[x] The room-photo chain, end to end, against real object storage.**
+- **[~] The room-photo chain, end to end, against an S3-compatible store.**
   Intent → presigned `PUT` → `HeadObject` → sharp re-encode → completion → signed
   read. The quarantine key and the final key differ, and the stored bytes differ
   from the uploaded bytes (4031 in, 4032 out), which is the sanitiser actually
-  rewriting the image rather than trusting it. Read URLs expire in 5 minutes.
-  Submission then reached `searching-for-cleaner` — the step that was BLOCKED
-  before storage existed.
+  rewriting the image rather than trusting it. Submission then reached
+  `searching-for-cleaner` — the step that was BLOCKED before storage existed.
+
+  **Scope correction.** The store this ran against is a test double I wrote, and
+  it does not verify signatures — it accepts unsigned `GET`, `PUT` and `DELETE`
+  on any key in the bucket. An independent reviewer demonstrated exactly that.
+  So this chain is verified as far as **Homle's own** behaviour goes — the keys
+  it chooses, the checksums it demands, the sanitiser it runs, the ownership it
+  enforces, the expiry it requests — and **not** as far as the storage
+  provider's enforcement goes. Specifically **unverified**: that a presigned
+  read URL stops working after its 5 minutes, that a URL cannot be edited to
+  reach another key, and that the signed `PUT` scope holds. Reading the adapter,
+  the presign construction is correct — the `PUT` signs
+  `content-length;content-type;host;x-amz-checksum-sha256;x-amz-meta-tideway-sha256;x-amz-server-side-encryption`
+  with `X-Amz-Expires=600`, reads use 300 — but construction is not enforcement.
+  **These three must be re-run against real S3 before anyone relies on them.**
 - **[x] That chain refuses the four ways it can be abused.** A non-image
   declared `image/jpeg` → `409 unsafe-request-photo`. Bytes of a different size
   than declared → `409 request-photo-mismatch`. Bytes that do not match the
@@ -428,10 +575,30 @@ Recorded so the next reader does not re-derive it.
   Cross-tenant reads and mutations were attempted and refused.
 - **[x] `administrator` cannot be self-assigned.** `POST /auth/workspace` with
   `{"role":"administrator"}` → `422`.
-- **[x] CSRF, origin and session rotation are real.** A mutation without
-  `X-CSRF-Token` → `403 csrf-rejected`; a wrong `Origin` → `403 origin-rejected`;
-  a request with no `Origin` at all → `403`; each sign-in invalidated the
-  previous session; a password reset revokes every session.
+- **[x] CSRF and origin are real, and CSRF is bound to its session.** A mutation
+  without `X-CSRF-Token` → `403 csrf-rejected`; a wrong `Origin` →
+  `403 origin-rejected`; no `Origin` at all → `403`. An independent reviewer
+  additionally confirmed that account A's CSRF token with account B's cookie is
+  refused, and that session A's token with session C's cookie **on the same
+  account** is also refused.
+- **[!] CORRECTION — sign-in does NOT invalidate the previous session.** An
+  earlier version of this document said it did. That was wrong, and it is the
+  kind of wrong that matters: a reader would conclude a stolen cookie dies the
+  next time the victim signs in. It does not.
+
+  What actually happens: `rotate()` revokes the current session and issues a new
+  one, so a **workspace switch** or a **session recovery** revokes. A plain
+  sign-in calls `establish()` only, which revokes nothing. I mistook the one for
+  the other. Measured in the QA database after this session's testing: **83
+  unrevoked sessions on a single account.**
+
+  So: sessions last 30 days, there is no idle timeout, no per-account cap, and
+  no way for a person to see or revoke one other session — only "sign out
+  everywhere". A password reset does revoke all sessions, and logout revokes its
+  own and the revoked cookie replays as `401`; both were confirmed. Whether
+  unbounded concurrent sessions are acceptable is a product decision, but it
+  should be a decision, not an accident, and it should not be described as
+  something it is not. **Status `[ ]` — recorded, not changed.**
 - **[x] Sign-in throttling and lockout are real.** Repeated sign-ins during this
   audit were refused `429 rate-limited`, then `429 temporarily-locked` by a
   separate per-account lockout. Both had to be cleared deliberately to continue

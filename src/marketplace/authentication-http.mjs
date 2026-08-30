@@ -553,7 +553,10 @@ export function createAuthenticationHttpRouter(dependencies, options = {}) {
           return true;
         }
         if (url.pathname === `${prefix}logout` || url.pathname === `${prefix}logout-all`) {
-          const context = await security.protect(request, { mutation: true });
+          // No mutation allowance. Ending your own sessions is a security
+          // control, and an abuse control must never be the reason somebody
+          // cannot use it.
+          const context = await security.protect(request, { mutation: true, allowance: false });
           const result = url.pathname.endsWith("logout-all") ? await sessions.logoutAll(context) : await sessions.logout(context);
           sendJson(response, 200, { ok: true, ...(Object.hasOwn(result, "revokedSessions") ? { revokedSessions: result.revokedSessions } : {}) }, { "Set-Cookie": result.setCookie });
           return true;

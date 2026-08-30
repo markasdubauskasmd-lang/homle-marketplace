@@ -53,7 +53,7 @@ The evidence behind these cells, not an impression of it:
 | Route | Role | Purpose | Desktop | Tablet | Mobile | Design | Functionality | API/data | Console | Network | A11y | Security relevance | Status | Issues |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `/` | P | Marketing landing | PASS | PASS | PASS | landing | PASS | N/A | PASS | PASS¹ | PASS | Public. No account data. | PASS | — |
-| `/login` | P | Sign in | PASS | PASS | PASS | entry | PASS | auth | PASS | PASS | PASS | Credential entry; throttled, constant-time, lockout | PASS | — |
+| `/login` | P | Sign in | PASS | PASS | PASS | entry | PASS | auth | PASS | PASS | PASS | Credential entry; constant-time, lockout, and throttling **whose keying is unverified in the deployed shape — see S-6**. Sign-in does not revoke other sessions | PASS | S-6 |
 | `/signup` | P | Register | PASS | PASS | PASS | entry | PASS | auth | PASS | PASS | PASS | Account creation; staging allow-list, verification mail | PASS | — |
 | `/verify-email` | P | Confirm mail | PASS | PASS | PASS | entry | PASS | auth | PASS | PASS | PASS | Token in the URL **fragment**, never the query, so it stays out of logs and referrers | PASS | — |
 | `/verify-facebook` | P | Confirm Facebook mail | PASS | PASS | PASS | entry | PASS | auth | PASS | PASS | PASS | As above | PASS | — |
@@ -106,13 +106,13 @@ Nineteen routes, all on `homle-cleaner.css`, all now rendering one sidebar from
 
 | Route | Role | Purpose | Desktop | Tablet | Mobile | Design | Functionality | API/data | Console | Network | A11y | Security relevance | Status | Issues |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `/cleaner/dashboard` | C | Activity | PASS | PASS | PASS | hc | PASS | bootstrap | PASS | PASS | PASS | Cleaner-only; boundary confirmed before the workspace is revealed | PASS | — |
+| `/cleaner/dashboard` | C | Activity | PASS | PASS | PASS | hc | PASS | bootstrap | PASS | PASS | PASS | Cleaner-only. The chrome is removed, not just hidden, for an account without the workspace — see F-2 and F-6; this route was where the second bypass showed | PASS | — |
 | `/cleaner/jobs-map` | C | Jobs map | PASS | PASS | PASS | hc | PASS | matching | PASS | PASS | PASS | `localPreview` renders sample jobs on loopback only, calls no privileged API | PASS | preview bypasses the shared gate on localhost |
 | `/cleaner/schedule` | C | Availability | PASS | PASS | PASS | hc | PASS | availability | PASS | PASS | PASS | Own availability only | PASS | — |
 | `/cleaner/messages` | C | Conversations | PASS | PASS | PASS | hc | PASS | messages, realtime | PASS | PASS | PASS | Participants only | PASS | — |
 | `/cleaner/notifications` | C | Cleaner inbox | PASS | PASS | PASS | hc | PASS | notifications | PASS | PASS | PASS | Own rows only | PASS | bell now points here — P2-15 |
 | `/cleaner/performance` | C | Ratings and reliability | PASS | PASS | PASS | hc | PASS | reviews | PASS | PASS | PASS | — | PASS | — |
-| `/cleaner/payouts` | C | Stripe Connect onboarding | PASS | PASS | PASS | hc | BLOCKED | payouts | PASS | PASS | PASS | Refuses any destination that is not `connect.stripe.com` | BLOCKED | Stripe not configured; was P1-2, P2-8 |
+| `/cleaner/payouts` | C | Stripe Connect onboarding | PASS | PASS | PASS | hc | BLOCKED | payouts | PASS | PASS | PASS | Refuses any destination that is not `connect.stripe.com` | BLOCKED | Stripe not configured; was P1-2, D-9 |
 | `/cleaner/settings` | C | Cleaner settings | PASS | PASS | PASS | hc | PASS | profile | PASS | PASS | PASS | — | PASS | — |
 | `/cleaner/profile/preview` | C | Public profile preview | PASS | PASS | PASS | hc | PASS | profile | PASS | PASS | PASS | Shows only what the public sees | PASS | deep link only |
 | `/cleaner/documents` `/cleaner/training` `/cleaner/contracts` | C | Compliance | PASS | PASS | PASS | hc | PASS | onboarding docs | PASS | PASS | PASS | Private document storage, signed reads | PASS | canvas fixed — P3-1 |
