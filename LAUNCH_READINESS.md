@@ -47,7 +47,8 @@ detect the collision rather than allowing it through silently.
 | P1-4 | Critical | Landing-clip tests fail on any Chromium without an H.264 decoder | **FIXED / VERIFIED** |
 | P2-1 | Important | `/landlord/properties` is headed "Bookings" | Documented — deliberate |
 | P2-2 | Important | Verification email is plain text only | Documented |
-| P2-3 | Important | New customer's first screen leads with an infrastructure caveat | Documented — resolves once configured |
+| P2-3 | Important | New customer’s first screen leads with an infrastructure caveat | Documented — resolves once configured |
+| P2-4 | Important | Publication-safety guard blocks on four false positives | Documented — founder decision |
 
 ---
 
@@ -364,6 +365,33 @@ detect the collision rather than allowing it through silently.
   change was made. If either persists in production, the cause should be fixed
   rather than the banner suppressed.
 * **Status** — Documented, not changed. Resolves once configuration is complete.
+
+### P2-4 — The publication-safety guard blocks on four false positives.
+
+* **Location** — `tools/check-publication-safety.mjs` (`pnpm run prepush:safety`).
+* **Current behaviour** — the guard refuses to pass, naming four files. All four
+  were inspected and none contains private material:
+  * `src/marketplace/config.mjs` — holds the literal string
+    `-----BEGIN PRIVATE KEY-----`, used to check that a supplied
+    `APPLE_PRIVATE_KEY` is in PKCS#8 PEM form. No key material.
+  * `tests/authentication-activation-readiness.mjs` — a placeholder reading
+    `unit-test-private-key-not-used-by-readiness`.
+  * `data/scan-benchmark/synthetic-seed.json` — hand-written scanner fixtures,
+    marked `"synthetic": true` in the file itself and version-controlled
+    deliberately.
+  * `data/scan-benchmark/README.md` — documentation.
+* **Assessment** — this does not block launch: the guard is not part of
+  `pnpm run check` or `pnpm test`, and gates a separate public-publication
+  workflow. It matters because a control that always cries wolf gets bypassed,
+  and this one exists to stop real customer data reaching a public repository —
+  precisely the thing you want working under pressure.
+* **Deliberately not changed** — narrowing a data-leak guard is a security
+  decision for the founder, not an audit's to take unilaterally, and the risk of
+  loosening it wrongly is far worse than the inconvenience. Suggested narrowing
+  when it is reviewed: match on actual key material rather than the PEM marker
+  alone, and exempt `data/scan-benchmark/`, which is synthetic by construction.
+  Pre-existing on `main` and unrelated to this audit's changes.
+* **Status** — Documented, not changed.
 
 ### P2-2 — Transactional email is plain text only.
 
