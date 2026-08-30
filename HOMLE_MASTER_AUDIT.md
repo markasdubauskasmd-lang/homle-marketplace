@@ -548,19 +548,33 @@ Recorded so the next reader does not re-derive it.
   rewriting the image rather than trusting it. Submission then reached
   `searching-for-cleaner` — the step that was BLOCKED before storage existed.
 
-  **Scope correction.** The store this ran against is a test double I wrote, and
-  it does not verify signatures — it accepts unsigned `GET`, `PUT` and `DELETE`
-  on any key in the bucket. An independent reviewer demonstrated exactly that.
-  So this chain is verified as far as **Homle's own** behaviour goes — the keys
-  it chooses, the checksums it demands, the sanitiser it runs, the ownership it
-  enforces, the expiry it requests — and **not** as far as the storage
-  provider's enforcement goes. Specifically **unverified**: that a presigned
-  read URL stops working after its 5 minutes, that a URL cannot be edited to
-  reach another key, and that the signed `PUT` scope holds. Reading the adapter,
-  the presign construction is correct — the `PUT` signs
-  `content-length;content-type;host;x-amz-checksum-sha256;x-amz-meta-tideway-sha256;x-amz-server-side-encryption`
-  with `X-Amz-Expires=600`, reads use 300 — but construction is not enforcement.
-  **These three must be re-run against real S3 before anyone relies on them.**
+  **What this rested on, and what was done about it.** The store is a test
+  double I wrote, and its first version verified **no signatures at all** — it
+  accepted unsigned `GET`, `PUT` and `DELETE` on any key in the bucket. An
+  independent reviewer demonstrated exactly that, and was right that it made the
+  presigned-scope and expiry claims worthless: a double more permissive than the
+  real service does not test the thing you think it tests.
+
+  The double now implements SigV4 presigned verification — signature, expiry,
+  signed headers and credential scope — and refuses any request carrying neither
+  a presigned query nor an SDK `Authorization` header. Re-run against it:
+
+  | Probe | Result |
+  |---|---|
+  | Unsigned `GET` / `PUT` / `DELETE` on a private key | `403` each (all three were `200`/`204` before) |
+  | The app's own read URL, untouched | `200`, and it asks for `X-Amz-Expires=300` |
+  | Same signature, key edited to another photo | `403` |
+  | Same signature, `X-Amz-Expires` lengthened in the query | `403` |
+  | A URL signed with a one-second life, after it lapsed | `403` (`200` before it did) |
+
+  **What that is worth, precisely.** The first four are genuine
+  cross-implementation evidence: the URL was signed by the real AWS SDK inside
+  the application and verified by a hand-written implementation of the
+  specification, so agreement means the app's presign is well-formed and its
+  scope is real. The expiry-lapse row is weaker — both ends of it are mine.
+  **Still to do against real S3:** bucket policy, server-side encryption
+  actually applied, and that the provider enforces the same scope. Construction
+  and a second implementation agreeing is not the provider's own enforcement.
 - **[x] That chain refuses the four ways it can be abused.** A non-image
   declared `image/jpeg` → `409 unsafe-request-photo`. Bytes of a different size
   than declared → `409 request-photo-mismatch`. Bytes that do not match the
