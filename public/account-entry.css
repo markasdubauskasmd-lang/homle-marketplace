@@ -17,6 +17,20 @@
  * email + password plus Google/Apple/Facebook when configured.
  */
 
+/*
+ * The shared stylesheet enables cross-document View Transitions for the
+ * application as a whole. Account entry is different: its first paint is a
+ * deliberately neutral security check that is replaced as provider
+ * capability arrives. Letting the browser snapshot that temporary state can
+ * produce a visible flash and Chromium's noisy `Transition was skipped`
+ * AbortError during redirects such as /landlord/book -> /signup. This later,
+ * page-only descriptor opts the account document out without changing any
+ * dashboard or shared navigation behaviour.
+ */
+@view-transition {
+  navigation: none;
+}
+
 body.account-entry {
   min-height: 100vh;
   display: flex;

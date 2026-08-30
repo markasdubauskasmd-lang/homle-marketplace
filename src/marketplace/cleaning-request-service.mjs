@@ -220,7 +220,10 @@ export function createCleaningRequestService(repository, options = {}) {
       let platformQuote = null;
       if (input?.pricingRequest != null) {
         if (typeof options.quotePlatformRequest !== "function") throw Object.assign(new Error("Platform pricing is temporarily unavailable."), { statusCode: 503, code: "pricing-not-configured" });
-        platformQuote = await options.quotePlatformRequest(actor, input.pricingRequest);
+        const requestedStart = instant(input.requestedStartAt, "Requested start");
+        const requestedEnd = instant(input.requestedEndAt, "Requested end");
+        const requestedMinutes = (requestedEnd.getTime() - requestedStart.getTime()) / 60_000;
+        platformQuote = await options.quotePlatformRequest(actor, { ...input.pricingRequest, requestedMinutes });
       }
       return projection(await repository.createOwnRequest(actor, normalizedCleaningRequest({ ...input, submit: false }, { ...options, platformQuote })));
     },

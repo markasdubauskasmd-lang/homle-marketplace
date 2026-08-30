@@ -36,6 +36,7 @@ const providers = {
   ok: true,
   providers: { emailPassword: false, passwordReset: false, emailVerification: false, google: true, apple: false, facebook: false, roles: ["cleaner", "landlord"] }
 };
+const cleanerDirectory = { ok: true, cleaners: [] };
 const pages = new Map([
   ["/", '<title>Homle — cleaning, understood clearly</title><link rel="canonical" href="https://homlle.com/">'],
   ["/login", '<title>Sign in to Homle</title><meta name="robots" content="noindex, nofollow">'],
@@ -53,6 +54,7 @@ function liveFetch(overrides = {}) {
       if (overrides[parsed.pathname]) return overrides[parsed.pathname](parsed, options);
       if (parsed.pathname === "/api/health") return response(JSON.stringify(health), 200, { "content-type": "application/json", "cache-control": "no-store" });
       if (parsed.pathname === "/api/auth/providers") return response(JSON.stringify(providers), 200, { "content-type": "application/json", "cache-control": "no-store" });
+      if (parsed.pathname === "/api/marketplace/cleaners" && parsed.searchParams.get("limit") === "1") return response(JSON.stringify(cleanerDirectory), 200, { "content-type": "application/json", "cache-control": "no-store" });
       if (pages.has(parsed.pathname)) {
         const permissions = parsed.pathname.startsWith("/landlord/") ? landlordPermissions : publicPermissions;
         return response(pages.get(parsed.pathname), 200, securityHeaders(permissions, { "content-type": "text/html; charset=utf-8" }));
@@ -75,7 +77,7 @@ assert.deepEqual(result.verified, {
   activation: true, publicPages: 4, privateHtmlNoStore: true, securityHeaders: true,
   crawlerBoundary: true, canonicalSitemap: true, redirects: 2, sensitivePathDenials: 2
 });
-assert.equal(live.requests.length, 12);
+assert.equal(live.requests.length, 13);
 assert(live.requests.every(({ options }) => options.method === "GET" && !options.headers.authorization && !options.headers.cookie), "Release check sent credentials to a public endpoint.");
 
 await assert.rejects(verifyLiveRelease({

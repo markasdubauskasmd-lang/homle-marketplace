@@ -130,7 +130,7 @@ function priceRoom(room, config, index) {
 /**
  * The quote.
  *
- * @param request  { serviceType, frequency, rooms:[{roomType,label,items:[{code,label}]}], addOns:[{code,quantity}] }
+ * @param request  { serviceType, frequency, requestedMinutes, rooms:[{roomType,label,items:[{code,label}]}], addOns:[{code,quantity}] }
  * @param config   a pricing configuration (normalised here if it is not already)
  */
 export function quoteRooms(request = {}, config = {}) {
@@ -142,6 +142,13 @@ export function quoteRooms(request = {}, config = {}) {
   const serviceCode = String(request?.serviceType || "standard");
   const service = rules.serviceTypes[serviceCode] ?? rules.serviceTypes.standard;
   const frequency = String(request?.frequency || "one-time");
+  const suppliedRequestedMinutes = request?.requestedMinutes;
+  const requestedMinutes = suppliedRequestedMinutes == null
+    ? rules.minimumBookingMinutes
+    : Number(suppliedRequestedMinutes);
+  if (!Number.isInteger(requestedMinutes) || requestedMinutes < rules.minimumBookingMinutes || requestedMinutes > 16 * 60) {
+    throw new TypeError(`Requested cleaning duration must be a whole number of minutes between ${rules.minimumBookingMinutes} and 960.`);
+  }
 
   const pricedRooms = rooms.map((room, index) => priceRoom(room, rules, index));
 
@@ -204,13 +211,13 @@ export function quoteRooms(request = {}, config = {}) {
   //    standard work. The service type keeps its own cash floor on top — an
   //    end-of-tenancy clean carries a guarantee that two hours does not cover.
   const minimumDurationPence = Math.round(
-    (rules.minimumBookingMinutes / 60) * rules.customerHourlyRatePence * service.multiplierBasisPoints / basisPointDivisor
+    (requestedMinutes / 60) * rules.customerHourlyRatePence * service.multiplierBasisPoints / basisPointDivisor
   );
   const floor = Math.max(minimumDurationPence, service.minimumPence);
   const minimumAdjustmentPence = Math.max(0, floor - beforeMinimum);
   if (minimumAdjustmentPence > 0) {
-    const hours = Math.round(rules.minimumBookingMinutes / 6) / 10;
-    lines.push(line("minimum", `Minimum ${hours}-hour visit — ${formatPounds(floor)}`, minimumAdjustmentPence, { kind: "minimum" }));
+    const hours = Math.round(requestedMinutes / 6) / 10;
+    lines.push(line("minimum", `${hours}-hour visit — ${formatPounds(floor)}`, minimumAdjustmentPence, { kind: "minimum" }));
   }
 
   const totalPence = beforeMinimum + minimumAdjustmentPence;
@@ -219,7 +226,7 @@ export function quoteRooms(request = {}, config = {}) {
   // twenty-five minutes of work would make every cleaner-pay check meaningless
   // and would tell the cleaner to expect a job far shorter than the one sold.
   const workedMinutes = pricedRooms.reduce((total, room) => total + room.minutes, 0) + addOnMinutes;
-  const estimatedMinutes = Math.max(workedMinutes, rules.minimumBookingMinutes);
+  const estimatedMinutes = Math.max(workedMinutes, requestedMinutes, rules.minimumBookingMinutes);
 
   const total = lines.reduce((sum, entry) => sum + entry.pence, 0);
   // Not a defensive nicety. If this ever fires, a customer is being shown a
@@ -238,6 +245,7 @@ export function quoteRooms(request = {}, config = {}) {
     serviceType: serviceCode,
     serviceLabel: service.label,
     frequency,
+    requestedMinutes,
     rooms: Object.freeze(pricedRooms),
     lines: Object.freeze(lines),
     roomSubtotalPence,

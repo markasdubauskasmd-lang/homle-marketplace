@@ -69,6 +69,8 @@ assert(accountScript.includes("workspaceReadinessPromise = readWorkspaceReadines
 assert(!accountScript.slice(providerFetch, providerActivation).includes("await resolveWorkspaceReadiness()"), "Account entry waits for marketplace health before showing available sign-in providers.");
 const staticMarkup = await readFile(new URL("../public/account.html", import.meta.url), "utf8");
 const accountStyles = await readFile(new URL("../public/account-entry.css", import.meta.url), "utf8");
+assert(/@view-transition\s*\{\s*navigation:\s*none;\s*\}/.test(accountStyles), "Account entry still inherits cross-document transitions and can log a skipped-transition AbortError while a booking redirect resolves.");
+assert(staticMarkup.includes('/account-entry.css?v=20260825-1'), "The account-entry transition fix is not cache-busted in the served account document.");
 assert(staticMarkup.includes("Checking secure account access"), "The served account page does not say that the capability check is still running.");
 assert(!staticMarkup.includes('<header class="site-header">'), "The retired account-page header returned.");
 assert(/<article class="ae-panel">[\s\S]*?<a class="ae-logo" href="\/" aria-label="Return to Homle home"><img src="\/homle-logo-192-c8defd4b\.png"/.test(staticMarkup), "The compact Homle logo is not inside the account panel where the decorative tile used to be.");

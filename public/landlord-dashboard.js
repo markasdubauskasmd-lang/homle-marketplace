@@ -7,7 +7,7 @@ import { consumeRoomPhotoInputFiles, maximumRoomPhotos, validatedRoomPhotoSelect
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, liveBookingForRequest, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, propertyCleaningBlocker, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260811-2";
+import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, liveBookingForRequest, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, propertyCleaningBlocker, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260830-1";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260723-3";
 import { activeBookingChangeRequestFor, supportRequestPage, supportStatusLabels } from "./landlord-help-model.js?v=20260804-1";
 import { storedCsrf } from "./session-csrf.js";
@@ -579,7 +579,11 @@ function currentManualPricingRequest() {
   if (!cleaningType) return { message: "Choose a cleaning service to calculate the current estimate." };
   try {
     const tasks = optionalRequestScope(requestForm.elements.tasks.value, { cleaningType }).tasks;
-    return { pricingRequest: pricingRequestFromManualTasks(tasks, { cleaningType, frequency: String(requestForm.elements.frequency.value || "one-time") }) };
+    return { pricingRequest: pricingRequestFromManualTasks(tasks, {
+      cleaningType,
+      frequency: String(requestForm.elements.frequency.value || "one-time"),
+      requestedMinutes: Number(requestForm.elements.durationMinutes.value)
+    }) };
   } catch (error) {
     return { message: error.message };
   }
@@ -661,7 +665,12 @@ async function recoverCompletionQuote(requestId) {
   requestCompleteDuration.textContent = "Calculating…";
   requestCompleteQuoteNote.textContent = "Checking the current Homle price for the confirmed rooms and tasks…";
   try {
-    const pricingRequest = pricingRequestFromManualTasks(source.tasks, { cleaningType: source.cleaningType, frequency: source.frequency });
+    const requestedMinutes = Math.round((Date.parse(source.requestedEndAt) - Date.parse(source.requestedStartAt)) / 60_000);
+    const pricingRequest = pricingRequestFromManualTasks(source.tasks, {
+      cleaningType: source.cleaningType,
+      frequency: source.frequency,
+      requestedMinutes
+    });
     const result = await requestJson("/api/marketplace/pricing/quote", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
@@ -4249,7 +4258,11 @@ async function createRequestDraft(event, options = {}) {
       tasks,
       // Scope only. The server applies its active price list and freezes the
       // quote; omitting this field was why manual requests displayed no price.
-      pricingRequest: pricingRequestFromManualTasks(tasks, { cleaningType, frequency }),
+      pricingRequest: pricingRequestFromManualTasks(tasks, {
+        cleaningType,
+        frequency,
+        requestedMinutes: Number(data.get("durationMinutes"))
+      }),
       submit: false
     };
     const result = await requestJson("/api/marketplace/cleaning-requests", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });

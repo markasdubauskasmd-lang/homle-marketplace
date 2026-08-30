@@ -40,7 +40,7 @@ for (const card of CARDS) {
   const shownPence = Number(shown[1]) * 100;
 
   const tasks = card.rooms.map((roomName) => ({ roomName, description: `clean the ${roomName.toLowerCase()}`, sortOrder: 0 }));
-  const quote = quoteRooms(pricingRequestFromManualTasks(tasks, { cleaningType: card.cleaningType, frequency: "one-time" }), config);
+  const quote = quoteRooms(pricingRequestFromManualTasks(tasks, { cleaningType: card.cleaningType, frequency: "one-time", requestedMinutes: 120 }), config);
 
   assert.ok(quote.priceable, `The price list can no longer price the basket "${card.name}" advertises (${card.rooms.join(", ")}): ${quote.reason}.`);
   assert.equal(

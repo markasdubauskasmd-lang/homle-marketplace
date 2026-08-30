@@ -32,6 +32,26 @@ const sharedBrowserDependencies = Object.freeze([
   "public/workspace-access.js"
 ]);
 
+// The visible Cleaner files are not the whole protected product boundary.
+// These shared server modules decide which Cleaner is offered a job, the terms
+// they see, what they earn and whether the request is dispatched automatically.
+// Pinning this deliberately narrow set prevents a Landlord or pricing change
+// from silently rewriting Cleaner behaviour while leaving the dashboard bytes
+// untouched.
+const sharedCleanerOutcomeDependencies = Object.freeze([
+  "src/marketplace/automatic-dispatch-repository.mjs",
+  "src/marketplace/automatic-dispatch-worker.mjs",
+  "src/marketplace/booking-repository.mjs",
+  "src/marketplace/booking-workflow.mjs",
+  "src/marketplace/matching-repository.mjs",
+  "src/marketplace/matching-service.mjs",
+  "src/marketplace/pricing-economics.mjs",
+  "src/marketplace/worker-attachment.mjs",
+  "src/marketplace/worker-runtime.mjs"
+]);
+
+const expectedSharedBackendDigest = "a6f5375b9ed65905ce30ae550806280ebe9b8501094e52548fa84f258c79e017";
+
 async function protectedFiles() {
   const [publicNames, marketplaceNames] = await Promise.all([
     readdir(path.join(repositoryRoot, "public")),
@@ -68,6 +88,10 @@ async function boundaryDigest(files) {
   return digest.digest("hex");
 }
 
+async function sharedBackendDigest() {
+  return boundaryDigest(sharedCleanerOutcomeDependencies);
+}
+
 const files = await protectedFiles();
 assert.equal(files.length, expectedFileCount, "The protected Cleaner Dashboard file set changed. Do not add, remove or rename Cleaner Dashboard files under the no-change objective.");
 assert.equal(
@@ -75,5 +99,10 @@ assert.equal(
   expectedDigest,
   "The Cleaner Dashboard or one of its shared browser dependencies changed. Revert the change; do not refresh this digest unless the user explicitly replaces the no-change objective."
 );
+assert.equal(
+  await sharedBackendDigest(),
+  expectedSharedBackendDigest,
+  "A shared module controlling Cleaner matching, job terms, payout or automatic dispatch changed. Revert it or isolate the non-Cleaner work; do not refresh this digest while the Cleaner backend freeze remains active."
+);
 
-console.log(`Cleaner Dashboard freeze passed: ${files.length} protected files are byte-for-byte unchanged.`);
+console.log(`Cleaner Dashboard freeze passed: ${files.length} protected files and ${sharedCleanerOutcomeDependencies.length} shared Cleaner-outcome modules are byte-for-byte unchanged.`);
