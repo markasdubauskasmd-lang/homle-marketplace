@@ -1,7 +1,7 @@
 import { bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerInvitationDeadlineState, formatBookingMoment, formatBookingMoney, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260723-3";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260830-1";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260830-2";
 
 const gate = document.querySelector("[data-job-gate]");
 const gateTitle = document.querySelector("[data-job-gate-title]");

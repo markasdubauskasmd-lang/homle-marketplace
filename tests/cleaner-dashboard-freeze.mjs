@@ -20,8 +20,8 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // shared backend below: which Cleaner is offered a job, on what terms, what
 // they earn and whether it is dispatched automatically. That digest has not
 // moved and must not be refreshed without the same explicit instruction.
-const expectedFileCount = 88;
-const expectedDigest = "bf76f2b9ee2f83513e42fb45b5d6964d234399ae24df1474d75facf57080d581";
+const expectedFileCount = 89;
+const expectedDigest = "6e0e0ea930567ca180f19caa4104857c1f6bf07a879bccd7056167e94377cf12";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",

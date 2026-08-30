@@ -2,7 +2,7 @@ import { bookingSummaryBuckets, bookingSummaryStatusLabels, formatBookingMoney }
 import { activeJobMessagingOpen } from "./active-job-model.js?v=20260728-1";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260830-1";
+import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260830-2";
 import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260805-2";
 
 const gate = document.querySelector("[data-schedule-gate]");

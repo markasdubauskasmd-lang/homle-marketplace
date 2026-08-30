@@ -24,6 +24,8 @@
  */
 
 import { accountNav, onboardingIcons, onboardingNav, workspaceNav } from "./cleaner-onboarding-steps.js?v=20260830-1";
+import { rememberCleanerAccess, rememberedCleanerAccess } from "./cleaner-access-marker.js?v=20260830-1";
+import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 
 const svgNamespace = "http://www.w3.org/2000/svg";
 
@@ -135,6 +137,63 @@ function homeReturn() {
 }
 
 /**
+ * Reveals the Cleaner sidebar. Called once the account is confirmed to hold a
+ * Cleaner workspace.
+ */
+export function revealCleanerShell() {
+  const side = document.querySelector(".hc-side");
+  if (side) side.hidden = false;
+}
+
+/**
+ * Removes it. Not merely hidden: a page that is not a Cleaner's should carry no
+ * Cleaner navigation in its DOM at all, so nothing can reveal it later and
+ * nothing reads it out to assistive technology.
+ */
+export function removeCleanerShell() {
+  document.querySelector(".hc-side")?.remove();
+}
+
+/**
+ * Decides whether this reader has a Cleaner workspace, and reveals or removes
+ * the sidebar accordingly.
+ *
+ * The sidebar states an identity — a "CLEANER" pill, five Cleaner destinations,
+ * an Account group and an unread count. Rendering it before the account is
+ * known told a signed-in Landlord that their account was a Cleaner's, which is
+ * the defect P1-2 recorded against one page; consolidating nineteen copies into
+ * one renderer made it uniform rather than fixing it. So the shell now answers
+ * the same question the content gate answers, from the same account read.
+ *
+ * A tab that has already confirmed a Cleaner workspace skips the wait, so a
+ * Cleaner moving between pages never sees the sidebar appear late. That marker
+ * grants nothing on its own: every read is authorised server-side, and the page
+ * bootstrap clears it the moment a check comes back denied.
+ */
+async function resolveCleanerShell() {
+  if (rememberedCleanerAccess()) return revealCleanerShell();
+  try {
+    const response = await fetch("/api/marketplace/account", {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { accept: "application/json" }
+    });
+    if (!response.ok) return removeCleanerShell();
+    const body = await response.json();
+    if (!dashboardWorkspaceAccess(body.account, "cleaner").ready) {
+      rememberCleanerAccess(false);
+      return removeCleanerShell();
+    }
+    rememberCleanerAccess(true);
+    revealCleanerShell();
+  } catch {
+    // Offline or a refused request is not permission. The page's own gate
+    // explains what happened; the sidebar simply does not claim a workspace.
+    removeCleanerShell();
+  }
+}
+
+/**
  * Builds the sidebar and puts it in front of the page's `.hc` content.
  *
  * Returns early if a page still carries its own `<aside>`, so a page that has
@@ -147,6 +206,8 @@ export function renderCleanerShell() {
   const current = location.pathname;
 
   const side = element("aside", "hc-side cleaner-site-header");
+  // Hidden until the account is known. See resolveCleanerShell above.
+  side.hidden = !rememberedCleanerAccess();
   if (onboarding) side.dataset.previewSidebar = "";
   side.append(brandBlock(onboarding));
 
@@ -378,6 +439,7 @@ export function renderCleanerAccountNav() {
 // The shell has to exist before the two group renderers can fill it.
 renderCleanerShell();
 renderCleanerAccountNav();
+resolveCleanerShell();
 // Paint the fourteen step icons straight away. Their completion marks need the account,
 // profile, availability and onboarding reads, but the icons themselves do not, and waiting
 // on four round trips is what left this rail empty while moving between tabs. cleaner-page.js

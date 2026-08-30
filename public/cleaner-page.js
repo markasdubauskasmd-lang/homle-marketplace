@@ -13,7 +13,8 @@
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260830-1";
-import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260830-1";
+import { removeCleanerShell, renderCleanerNav, revealCleanerShell } from "./cleaner-sidebar.js?v=20260830-2";
+import { rememberCleanerAccess, rememberedCleanerAccess } from "./cleaner-access-marker.js?v=20260830-1";
 
 export function element(name, className, text) {
   const node = document.createElement(name);
@@ -48,24 +49,6 @@ export async function requestJson(path, options = {}) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body.ok === false) throw Object.assign(new Error(body.error || "Homle could not load this page."), { statusCode: response.status, code: body.code });
   return body;
-}
-
-// Remembers only that this tab already confirmed a Cleaner workspace. No account data is
-// stored. The marker is per-tab (sessionStorage), is cleared the moment a check comes back
-// denied, and never grants access on its own: every API call is enforced server-side, so the
-// worst case is a page painting its own chrome a moment before the check closes it again.
-const cleanerAccessMarker = "homle.cleaner.access";
-
-function rememberedCleanerAccess() {
-  try { return window.sessionStorage.getItem(cleanerAccessMarker) === "ready"; }
-  catch { return false; }
-}
-
-function rememberCleanerAccess(ready) {
-  try {
-    if (ready) window.sessionStorage.setItem(cleanerAccessMarker, "ready");
-    else window.sessionStorage.removeItem(cleanerAccessMarker);
-  } catch { /* Private browsing can refuse storage; the check simply runs visibly instead. */ }
 }
 
 /**
@@ -121,6 +104,9 @@ export function createCleanerPage(key, render) {
       const access = dashboardWorkspaceAccess(account, "cleaner");
       if (!access.ready) {
         rememberCleanerAccess(false);
+        // This account has no Cleaner workspace, so the page must not carry a
+        // Cleaner navigation while it says so.
+        removeCleanerShell();
         if (createAccount) {
           createAccount.href = access.reason === "role-missing" ? "/onboarding?intent=work" : "/login?intent=work";
           createAccount.textContent = access.reason === "role-missing" ? "Add Cleaner workspace" : "Switch to Cleaner workspace";
@@ -136,6 +122,7 @@ export function createCleanerPage(key, render) {
       if (gate) gate.hidden = true;
       if (view) view.hidden = false;
       rememberCleanerAccess(true);
+      revealCleanerShell();
       const payoutLink = document.querySelector("[data-cleaner-payout-link]");
       if (payoutLink) payoutLink.hidden = false;
       // One profile read so the shared sidebar shows the same completion marks here as on
@@ -157,7 +144,10 @@ export function createCleanerPage(key, render) {
       showFeedback("");
       await render({ account, showFeedback, requestJson });
     } catch (error) {
-      if (error.statusCode === 401 || error.statusCode === 403) rememberCleanerAccess(false);
+      if (error.statusCode === 401 || error.statusCode === 403) {
+        rememberCleanerAccess(false);
+        removeCleanerShell();
+      }
       if (error.code === "browser-offline") showGate("You are offline.", "Reconnect to load this page.", { allowRetry: true });
       else if (error.statusCode === 401) showGate("Sign in as a Cleaner to open this page.", "This workspace is private to the assigned Cleaner account.", { allowSignIn: true });
       else if (error.statusCode === 403) showGate("This account cannot open the Cleaner workspace.", "Use a Cleaner account selected during onboarding.", { allowSignIn: true });
