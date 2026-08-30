@@ -229,6 +229,8 @@ export async function launchBrowser({ headless = true } = {}) {
   await send("Runtime.enable", {}, sessionId);
   await send("Page.enable", {}, sessionId);
   await send("Log.enable", {}, sessionId);
+  // Needed by setCookie, which is how an authenticated workspace is reached.
+  await send("Network.enable", {}, sessionId);
 
   return {
     consoleMessages,
@@ -279,6 +281,32 @@ export async function launchBrowser({ headless = true } = {}) {
         throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text || "evaluation failed");
       }
       return result.result?.value;
+    },
+    /**
+     * Installs a cookie before navigation.
+     *
+     * A signed-in workspace is most of this application, and its session cookie
+     * is HttpOnly by design — so `document.cookie` cannot put it there and a
+     * browser proof of an authenticated page has to go through CDP.
+     */
+    async setCookie({ name, value, domain = "127.0.0.1", path: cookiePath = "/", httpOnly = true, secure = false } = {}) {
+      if (!name || typeof name !== "string") throw new TypeError("A cookie name is required.");
+      await send("Network.setCookie", { name, value: String(value ?? ""), domain, path: cookiePath, httpOnly, secure }, sessionId);
+    },
+    /**
+     * Captures the rendered page as a PNG buffer.
+     *
+     * Reading the DOM proves a selector exists; it cannot tell you whether a
+     * page still *looks* like the rest of the product. A design audit needs the
+     * pixels, and `Page.captureScreenshot` is the only way to get them without
+     * adding a dependency.
+     */
+    async screenshot({ fullPage = false } = {}) {
+      const { data } = await send("Page.captureScreenshot", {
+        format: "png",
+        captureBeyondViewport: Boolean(fullPage)
+      }, sessionId);
+      return Buffer.from(data, "base64");
     },
     async close() {
       try { socket.close(); } catch {}

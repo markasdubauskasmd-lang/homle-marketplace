@@ -1,0 +1,163 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   The Updates inbox.
+   ───────────────────────────────────────────────────────────────────────────
+   Two rules used to compete for the card in this list and neither one worked.
+   account-pages.css styled `body.notifications-page .notification-list > li`,
+   but the renderer builds `<article class="notification-card">` — so that
+   selector matched nothing at all. What did apply came from styles.css and
+   painted every unread update in a MINT-GREEN gradient (#eaf9f4) with
+   --green-dark headings: the palette Homle retired when it moved to coral. The
+   only reason nobody saw it is that an empty inbox has no cards in it.
+
+   This file replaces both. It sits after homle-workspace.css and is scoped to
+   the page, so it beats the older `.notification-card` block on specificity
+   without reaching for !important.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+body.notifications-page .hw-main,
+body.notifications-page #notifications-main {
+  /* An inbox is a reading column, not a data table. Beyond about this width the
+     eye loses the start of the next line, and the old page's answer — a fixed
+     760px centred in a 1440px viewport — left the workspace looking abandoned. */
+  max-width: 940px;
+}
+
+body.notifications-page .notification-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
+  border-radius: 18px;
+  background: var(--homle-ws-paper, #fff);
+}
+body.notifications-page .notification-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0;
+  min-width: 0;
+}
+body.notifications-page .notification-summary strong { font-size: 15px; font-weight: 700; }
+body.notifications-page .notification-summary span { color: var(--homle-ws-muted, #666); font-size: 13px; }
+body.notifications-page .notification-toolbar .button { flex: none; min-height: 40px; padding: 9px 16px; }
+
+body.notifications-page .notification-groups { margin-top: 22px; }
+body.notifications-page .notification-group + .notification-group { margin-top: 26px; }
+body.notifications-page .notification-group-label {
+  margin: 0 0 10px;
+  padding-left: 2px;
+  color: var(--homle-ws-dim, #6b6b6b);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+body.notifications-page .notification-group-items { display: grid; gap: 10px; }
+
+body.notifications-page .notification-card {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: 4px 15px;
+  align-items: start;
+  padding: 17px 20px;
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
+  border-radius: 20px;
+  background: var(--homle-ws-paper, #fff);
+  box-shadow: var(--homle-ws-card-shadow, 0 1px 2px rgba(32, 20, 15, .05), 0 6px 16px rgba(32, 20, 15, .06));
+}
+
+/* Unread is a left rail and a weight, not a wash. A tinted card fights the tone
+   colour the glyph is already carrying, and the retired mint made every unread
+   update look like a success regardless of what it said. */
+body.notifications-page .notification-card-unread {
+  border-left: 3px solid var(--homle-ws-accent, #e11b22);
+  padding-left: 18px;
+}
+body.notifications-page .notification-card-unread .notification-title { font-weight: 700; }
+
+body.notifications-page .notification-marker {
+  display: grid;
+  grid-row: span 3;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 999px;
+  background: #f2f0ee;
+  color: var(--homle-ws-ink-soft, #3a3a3a);
+}
+body.notifications-page .notification-marker svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+body.notifications-page .notification-card[data-tone="action"] .notification-marker { background: var(--homle-ws-accent-tint, #fdecec); color: var(--homle-ws-accent-dark, #c4151b); }
+body.notifications-page .notification-card[data-tone="alert"] .notification-marker { background: var(--homle-ws-warn-tint, #fbf1df); color: var(--homle-ws-warn-ink, #9a6d14); }
+body.notifications-page .notification-card[data-tone="success"] .notification-marker { background: var(--homle-ws-success-tint, #eaf4ee); color: var(--homle-ws-success-ink, #2e7d51); }
+body.notifications-page .notification-card[data-tone="journey"] .notification-marker,
+body.notifications-page .notification-card[data-tone="progress"] .notification-marker,
+body.notifications-page .notification-card[data-tone="message"] .notification-marker { background: #eef1f6; color: #3d4a63; }
+
+/* Titles are ink. The retired sheet set them in the accent, which spent the one
+   colour that means "this needs you" on every row equally. */
+body.notifications-page .notification-title {
+  grid-column: 2;
+  margin: 0;
+  color: var(--homle-ws-ink, #1a1a1a);
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+body.notifications-page .notification-card p {
+  grid-column: 2;
+  margin: 3px 0 0;
+  color: var(--homle-ws-muted, #666);
+  font-size: 14px;
+  line-height: 1.5;
+}
+body.notifications-page .notification-meta {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+body.notifications-page .notification-meta time { color: var(--homle-ws-dim, #6b6b6b); font-size: 12.5px; font-weight: 600; }
+body.notifications-page .notification-unread-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--homle-ws-accent-tint, #fdecec);
+  color: var(--homle-ws-accent-dark, #c4151b);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+body.notifications-page .notification-action {
+  grid-column: 3;
+  grid-row: 1 / span 3;
+  align-self: center;
+  min-height: 40px;
+  padding: 9px 16px;
+  white-space: nowrap;
+}
+
+body.notifications-page .notification-more { justify-content: center; margin-top: 22px; }
+
+@media (max-width: 900px) {
+  body.notifications-page .notification-toolbar { flex-direction: column; align-items: stretch; gap: 12px; }
+  body.notifications-page .notification-toolbar .button { width: 100%; }
+  body.notifications-page .notification-card {
+    grid-template-columns: 40px minmax(0, 1fr);
+    padding: 15px 16px;
+    border-radius: 18px;
+  }
+  body.notifications-page .notification-card-unread { padding-left: 14px; }
+  /* The action becomes a full-width row under the copy rather than a nowrap
+     button squeezed against the edge, which is what cut its label off. */
+  body.notifications-page .notification-action {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    width: 100%;
+    margin-top: 12px;
+  }
+}

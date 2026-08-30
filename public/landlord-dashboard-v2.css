@@ -10,13 +10,10 @@
  * property cards, dialogs, payments) to the file before it, which still
  * describes them accurately.
  *
- * The palette is written as hex, once, at the top. The design was drawn against
- * homle-tokens.css — same DM Sans, same two-step shadow, a coral within a hair
- * of --homle-coral — so most of it could read tokens directly. But "match the
- * approved composition" is the requirement, and quietly rounding #E11B22 to the
- * nearest token is how the drift homle-tokens.css exists to end starts again.
- * So: exact values, declared in one place, mapped onto the --ld-* names the
- * earlier stylesheet already consumes.
+ * The palette remains local to the Landlord surface. The shared token sheet is
+ * also loaded by the frozen Cleaner workspace, so moving these values there
+ * would change a protected dependency. The new non-Cleaner workspace sheet uses
+ * the same literal values as fallbacks without altering that shared boundary.
  */
 
 body.landlord-dashboard-page {
@@ -25,13 +22,6 @@ body.landlord-dashboard-page {
   --ld-paper: #ffffff;
   --ld-ink: #1a1a1a;
   --ld-ink-soft: #3a3a3a;
-  /* The grey ramp is contrast-led, not comp-led. The approved comp's
-     #7a7a7a / #8c8c8c / #a8a8a8 measure 3.98 / 3.12 / 2.20 against this
-     canvas, and every one of their ~88 uses is small text, so none earns the
-     large-text exemption. These are the nearest neutrals that clear 4.5:1 on
-     canvas, paper and cream alike while keeping three distinguishable steps;
-     collapsing them to the lightest passing value would have made the three
-     tokens near-identical and flattened the hierarchy they exist to carry. */
   --ld-muted: #666666;
   --ld-dim: #6b6b6b;
   --ld-faint: #707070;
@@ -137,7 +127,11 @@ body.landlord-dashboard-page .landlord-dashboard-nav a:first-child svg {
   stroke: currentColor;
 }
 body.landlord-dashboard-page .landlord-dashboard-nav a:hover { background: #f5f4f3; color: var(--ld-ink); }
-body.landlord-dashboard-page .landlord-dashboard-nav a[aria-current="page"] { background: var(--ld-coral-tint); color: var(--ld-coral); }
+/* Accent text on the accent tint measures 4.20:1 against the 4.5:1 this
+   14.5px label needs; the darker shade measures 5.30:1 on the same tint. This
+   moves the committed computed-style baseline for the four sidebar rows, on
+   purpose. */
+body.landlord-dashboard-page .landlord-dashboard-nav a[aria-current="page"] { background: var(--ld-coral-tint); color: var(--homle-ws-accent-on-tint, #c4151b); }
 
 body.landlord-dashboard-page .site-header .account-menu summary {
   border: 0;
@@ -1496,7 +1490,7 @@ body.landlord-dashboard-page .hub-book-close {
   flex: none;
   display: grid;
   place-items: center;
-  border: 1px solid #e7e4e0;
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
   border-radius: 12px;
   background: #fff;
   color: #6a6a6a;
@@ -1504,7 +1498,7 @@ body.landlord-dashboard-page .hub-book-close {
   font-size: 21px;
   cursor: pointer;
 }
-body.landlord-dashboard-page .hub-book-close:hover { background: #f7f6f5; }
+body.landlord-dashboard-page .hub-book-close:hover { background: var(--homle-ws-canvas, #f7f6f5); }
 body.landlord-dashboard-page .hub-book-step { padding-top: 22px; }
 body.landlord-dashboard-page .hub-book-label { margin: 0 0 12px; color: var(--ld-dim); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 body.landlord-dashboard-page .hub-book-places { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -1516,7 +1510,7 @@ body.landlord-dashboard-page .hub-book-method-grid > button {
   gap: 13px;
   min-width: 0;
   padding: 15px 16px;
-  border: 1.5px solid #e7e4e0;
+  border: 1.5px solid var(--homle-ws-border, #e7e4e0);
   border-radius: 17px;
   background: #fff;
   color: var(--ld-ink);
@@ -1527,7 +1521,7 @@ body.landlord-dashboard-page .hub-book-method-grid > button {
 }
 body.landlord-dashboard-page .hub-book-place:hover,
 body.landlord-dashboard-page .hub-book-new:hover,
-body.landlord-dashboard-page .hub-book-method-grid > button:hover { transform: translateY(-1px); border-color: color-mix(in oklch, var(--ld-coral) 48%, #e7e4e0); }
+body.landlord-dashboard-page .hub-book-method-grid > button:hover { transform: translateY(-1px); border-color: color-mix(in oklch, var(--ld-coral) 48%, var(--homle-ws-border, #e7e4e0)); }
 body.landlord-dashboard-page .hub-book-place[aria-pressed="true"] { border-color: var(--ld-coral); background: color-mix(in oklch, var(--ld-coral) 7%, #fff); }
 body.landlord-dashboard-page .hub-book-place-icon,
 body.landlord-dashboard-page .hub-book-new > span:first-child {

@@ -67,7 +67,14 @@ const [landlordPage, landlordScript, adminPage, adminScript, styles, server, das
 ]);
 assert(landlordPage.includes("data-support-workspace hidden") && landlordPage.includes("Do not include door or alarm codes") && landlordPage.includes('name="confirmNoSensitiveData"') && landlordPage.includes('value="booking-change"') && landlordPage.includes("payment stay unchanged"), "The Landlord help screen lost its fail-closed gate, booking-change boundary or privacy warning.");
 assert(landlordScript.includes('roles?.includes("landlord")') && landlordScript.includes("/api/marketplace/landlord/support-requests") && landlordScript.includes('"X-CSRF-Token": csrf'), "The Landlord help screen lost authenticated role or CSRF binding.");
-assert(landlordPage.includes("data-support-private-navigation hidden") && landlordPage.includes('<a class="brand" href="/">') && landlordScript.includes('const privateNavigation = document.querySelector("[data-support-private-navigation]")') && landlordScript.includes("privateNavigation.hidden = true") && landlordScript.includes("privateNavigation.hidden = false") && landlordScript.indexOf("privateNavigation.hidden = false") > landlordScript.indexOf('roles?.includes("landlord")'), "Signed-out, loading or wrong-role visitors can see private Landlord Help navigation, or the Homle brand no longer returns to the public home page.");
+assert(
+  landlordPage.includes('data-workspace-main')
+    && !landlordPage.includes("data-support-private-navigation")
+    && landlordScript.includes('import { renderWorkspaceShell } from "./workspace-shell.js?v=20260830-1"')
+    && landlordScript.includes("await renderWorkspaceShell({")
+    && landlordScript.indexOf("await renderWorkspaceShell({") < landlordScript.indexOf('roles?.includes("landlord")'),
+  "Landlord Help no longer mounts the account-derived, fail-closed workspace shell before its private role gate."
+);
 assert(dashboardScript.includes('/api/marketplace/landlord/bootstrap') && dashboardScript.includes('!unavailable.has("supportRequests")') && dashboardScript.includes('activeBookingChangeRequestFor(supportRequests, booking.bookingId)') && dashboardScript.includes('"View change request"') && dashboardScript.includes('Cleaner commitment and payment remain unchanged'), "The Landlord dashboard does not securely load and reconcile an open booking-change request with its confirmed booking card.");
 assert(landlordScript.includes("crypto.randomUUID()") && landlordScript.includes("sent ?") && !landlordScript.includes("innerHTML") && !landlordScript.includes("localStorage"), "Support retries can duplicate a request or private text enters unsafe browser storage/rendering.");
 assert(adminPage.includes("Recording a response never changes a booking or payment") && adminPage.includes('value="booking-change"') && adminPage.includes('name="privacyConfirmed"') && adminPage.includes('name="noExternalActionConfirmed"'), "The Administrator queue lost its booking-change or no-external-action boundary.");

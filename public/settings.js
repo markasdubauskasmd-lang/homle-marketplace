@@ -1,4 +1,15 @@
 import { createRequestJson } from "./request-json.js";
+import { renderWorkspaceShell } from "./workspace-shell.js?v=20260830-1";
+
+// The shell replaces the standalone header this page used to carry, so it goes
+// in before anything else measures or reveals the page.
+await renderWorkspaceShell({
+  active: "account",
+  title: "Security & login",
+  subtitle: "How you sign in, and the private requests you can make about your data.",
+  eyebrow: "Private account security"
+});
+
 const stateTitle = document.querySelector("[data-settings-title]");
 const stateCopy = document.querySelector("[data-settings-copy]");
 const feedback = document.querySelector("[data-settings-feedback]");
@@ -41,7 +52,10 @@ let privacyRecords = [];
 let selectedPrivacyType = "";
 const pendingPrivacyIds = new Map();
 
-document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
+// The page no longer carries a standalone footer, so the year stamp is optional
+// rather than something whose absence throws before any control is bound.
+const yearStamp = document.querySelector("[data-year]");
+if (yearStamp) yearStamp.textContent = String(new Date().getFullYear());
 const fragment = new URLSearchParams(location.hash.slice(1));
 history.replaceState(null, "", `${location.pathname}${location.search}`);
 

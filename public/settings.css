@@ -1,0 +1,87 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Security & login — the parts that are only this page.
+   ───────────────────────────────────────────────────────────────────────────
+   Everything structural comes from homle-workspace.css. What is left is the
+   sign-in method list and the two destructive-request controls, both of which
+   styles.css still paints in the retired green palette (#fbfdfc panels,
+   --green-dark headings) and in the old red-brown danger colour (#8a2f28 on
+   #d8a8a3) that predates the current accent.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+body.settings-page .settings-provider-list {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+body.settings-page .settings-provider-list li {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 13px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
+  border-radius: 16px;
+  background: #fbfaf9;
+}
+body.settings-page .settings-provider-list strong,
+body.settings-page .settings-provider-list small { display: block; }
+body.settings-page .settings-provider-list strong { font-size: 15px; }
+body.settings-page .settings-provider-list small { margin-top: 2px; color: var(--homle-ws-muted, #666); font-size: 13px; }
+/* The connected mark: a filled disc in the status green rather than the accent,
+   because "connected" is a state, not an action waiting on the reader. */
+body.settings-page .settings-provider-list li > span:first-child {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--homle-ws-success-tint, #eaf4ee);
+  color: var(--homle-ws-success-ink, #2e7d51);
+  font-weight: 700;
+}
+
+body.settings-page .settings-connect { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--homle-ws-line, #efedeb); }
+body.settings-page .settings-connect h3 { margin-bottom: 4px; }
+body.settings-page .settings-step-up { margin: 14px 0; }
+
+/* Requesting deletion is destructive and should look it, without borrowing the
+   primary accent that every ordinary action already uses. */
+body.settings-page .settings-danger-button {
+  border-color: #d9b3b1;
+  color: #9d2f2a;
+}
+body.settings-page .settings-danger-button:hover {
+  border-color: #9d2f2a;
+  background: #fdf5f4;
+  color: #9d2f2a;
+}
+
+body.settings-page .settings-confirmation {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #d9b3b1;
+  border-radius: 14px;
+  background: #fdf5f4;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+body.settings-page .settings-confirmation input { width: 18px; height: 18px; min-height: 0; margin: 2px 0 0; }
+
+body.settings-page .settings-privacy-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13.5px;
+}
+body.settings-page .settings-privacy-list li {
+  padding: 11px 0;
+  border-top: 1px solid var(--homle-ws-line, #efedeb);
+  color: var(--homle-ws-muted, #666);
+}
+body.settings-page [data-privacy-history] { margin-top: 20px; }
