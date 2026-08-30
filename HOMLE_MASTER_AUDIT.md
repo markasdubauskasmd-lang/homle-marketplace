@@ -300,15 +300,80 @@ the previous Cleaner generation. **Status `[ ]`.**
 Zero `href` to it anywhere in `public/`. Reachable only by typing the URL.
 **Status `[ ]`.**
 
-**D-19 · P3 · Dead code** — *Two retired stylesheets are still loaded ahead of
-their replacements*: `landlord-dashboard.css` (72 KB, 35 dead selectors) on
-`/landlord/dashboard`, and `landlord-help.css` on `/landlord/help`. Both are
-overridden by their v2 successors, so nothing is visibly wrong; both are bytes
-every reader downloads and a trap for the next editor. **Status `[ ]`.**
+**D-19 · P2 · Design** — *`landlord-dashboard.css` is not retired, and parts of
+the dashboard were still on the landing palette.*
 
-**D-20 · P3 · Accessibility** — *Six pages have no skip link*
-(`landlord-journey`, `not-found`, `privacy`, `terms`,
-`facebook-data-deletion`, `room-scan`), against 41 that do. **Status `[ ]`.**
+- **Problem, as first recorded.** I described this file as a retired sheet
+  loaded ahead of its v2 replacement, overridden by it, with nothing visibly
+  wrong. **That was wrong, and it mattered.**
+- **Evidence.** Of its 211 classes, **110 are used in the live dashboard markup
+  and appear nowhere in `landlord-dashboard-v2.css`.** It is not a leftover: it
+  is still the only stylesheet for Payments, the Cleaner-profile dialog, the
+  photo dialogs, property work, request continuation, favourites, history and
+  the whole `pac-*` composition. `landlord-dashboard-v2.css` is a partial
+  redesign layered on top. 68 of its classes are genuinely dead; 33 are shadowed
+  by v2.
+- **What was actually wrong.** Most of its live rules had already been moved
+  onto the `--ld-*` family, which is why the page reads as coherent. Three
+  blocks had not: the checklist-change note, the Cleaner-profile reviews and the
+  payments list still read the **landing** token family — a translucent 1.5px
+  edge derived from the landing ink, the landing 16px radius, and
+  `--homle-surface`, which is a **cream** mix, inside a workspace that is
+  `#f7f6f5`. Five card-shaped surfaces sat at an 18px radius where the workspace
+  card is 20px; `.pac-card` at 26px and the photo dialog at 24px where the panel
+  is 22px; and the outline button carried a raw `oklch()` edge at 1.5px where
+  every other quiet edge is 1px on a named token. **This is the "some areas
+  still belong to the old version" complaint, inside the screen the design
+  system is measured from.**
+- **Fix.** Every one of those now reads a `--homle-ws-*` token with its literal
+  as the fallback, matching the convention the rest of the tree uses. No
+  landing-family reference remains in the file.
+- **Verification.** `tests/landlord-computed-styles.mjs` reported exactly two
+  changed properties across its 760-element sample — the payment row's border
+  moving from the translucent landing ink to the workspace border — and nothing
+  else moved. The baseline was regenerated deliberately and the diff read.
+- **Status.** `[x]` for the palette. **`[ ]`** for the 68 dead selectors and for
+  `landlord-help.css`, which `/landlord/help` and `/admin/support` both still
+  load; those are bytes every reader downloads and a trap for the next editor,
+  but nothing renders from them incorrectly.
+
+**D-21 · P2 · Design** — *The "no Cleaner matched" dialog rendered on the
+retired green palette.*
+
+- **Problem.** `.landlord-match-outcome-dialog` in **`landlord-dashboard-v2.css`
+  itself** — the approved sheet — styled its facts on `var(--homle-line)` (the
+  landing edge) over a `#fff9f7` peach, its values in `var(--green-dark)`, and
+  its boundary note as `#7d201b` on `#fff1ee`. `--green-dark` resolves through
+  `styles.css` to the brand green Homle **left behind when it moved to coral**.
+- **Evidence.** Found by the guard added for D-19, not by reading. It is not a
+  cosmetic corner: this dialog is what a Landlord reads when their booking
+  found nobody — a real outcome on the primary screen.
+- **Root cause.** The v2 redesign migrated the sheet's surfaces but not its
+  dialogs, and nothing failed when it didn't.
+- **Fix.** Workspace tokens throughout: border and radius from the scale, paper
+  background, `--homle-ws-ink` values, and the boundary note on the accent tint
+  with `--homle-ws-accent-on-tint`, which measures 5.30:1 on that tint.
+- **Files.** `public/landlord-dashboard-v2.css`, `public/landlord-dashboard.css`,
+  `tests/design-system.mjs`.
+- **Verification.** `tests/design-system.mjs` now fails if any workspace sheet —
+  including `landlord-dashboard.css`, which is not the retired file it was taken
+  for — reads a landing-family token (`--homle-surface`, `--homle-line`,
+  `--homle-radius`, `--homle-cream`, `--homle-paper`). Confirmed by
+  reintroducing one and watching it fail. `tests/landlord-computed-styles.mjs`
+  passes unchanged, so nothing else in the composition moved.
+- **Status.** `[x]`
+
+**D-20 · P3 · Accessibility** — *Six pages had no skip link,* against 41 that
+did. Four now have one, each with a focusable landmark to land on:
+`not-found`, `privacy`, `terms`, `facebook-data-deletion`.
+
+Two deliberately do not. `room-scan.html` is 308-redirected to
+`/landlord/book` and never renders. `landlord-journey.html` keeps its `<main>`
+hidden behind an access gate, so a skip link would be a visible control that
+does nothing until the gate opens — worse for a screen-reader user than no link
+at all. Fixing it properly means revealing the link with the shell, which is a
+change to the journey's bootstrap rather than a markup addition.
+**Status `[~]` — four fixed, two recorded.**
 
 **S-2 · P3 · Security** — *The legacy `/api/admin/*` surface authorises on shape,
 not on a key.* `isAdminAuthorised()` (`server.mjs:2314`) returns true with no

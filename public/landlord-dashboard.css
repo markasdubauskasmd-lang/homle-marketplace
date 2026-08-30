@@ -140,7 +140,7 @@ body.landlord-dashboard-page .landlord-history-stats {
 body.landlord-dashboard-page .landlord-dashboard-stats > div,
 body.landlord-dashboard-page .landlord-history-stats > div {
   background: #fff;
-  border-radius: 18px;
+  border-radius: var(--homle-ws-radius-card, 20px);
   padding: 20px;
   box-shadow: var(--ld-card-shadow);
 }
@@ -171,7 +171,7 @@ body.landlord-dashboard-page .landlord-booking-section,
 body.landlord-dashboard-page .landlord-workspace-panel { margin-bottom: 22px; }
 body.landlord-dashboard-page .landlord-history-overview { margin-top: 22px; box-shadow: none; border: 0; padding: 0; background: transparent; }
 body.landlord-dashboard-page .landlord-history-overview .landlord-previous-cleaners,
-body.landlord-dashboard-page .landlord-history-overview .landlord-favourite-cleaners { background: #fff; border: 1px solid var(--ld-line); border-radius: 18px; padding: 20px; box-shadow: var(--ld-card-shadow); margin-top: 16px; }
+body.landlord-dashboard-page .landlord-history-overview .landlord-favourite-cleaners { background: #fff; border: 1px solid var(--ld-line); border-radius: var(--homle-ws-radius-card, 20px); padding: 20px; box-shadow: var(--ld-card-shadow); margin-top: 16px; }
 
 body.landlord-dashboard-page .landlord-completion-quote {
   display: grid;
@@ -246,7 +246,7 @@ body.landlord-dashboard-page .landlord-request-list > *,
 body.landlord-dashboard-page .landlord-waiting-list > * {
   background: #fff;
   border: 1px solid var(--ld-line);
-  border-radius: 18px;
+  border-radius: var(--homle-ws-radius-card, 20px);
   padding: 20px 22px;
   box-shadow: var(--ld-card-shadow);
 }
@@ -292,7 +292,7 @@ body.landlord-dashboard-page .button {
 body.landlord-dashboard-page .button.button-outline {
   background: transparent;
   color: var(--ld-ink-2);
-  border: 1.5px solid oklch(0.4 0.02 60 / 0.25);
+  border: 1px solid var(--ld-quiet-border);
   box-shadow: none;
 }
 body.landlord-dashboard-page .landlord-property-actions { gap: 10px; flex-wrap: wrap; }
@@ -375,7 +375,7 @@ body.landlord-dashboard-page .landlord-archived-properties {
   margin-top: 22px;
   padding: 16px;
   border: 1px solid var(--ld-line);
-  border-radius: 18px;
+  border-radius: var(--homle-ws-radius-card, 20px);
   background: color-mix(in oklch, #fff 88%, var(--ld-canvas));
 }
 body.landlord-dashboard-page .landlord-archived-properties > summary {
@@ -831,7 +831,7 @@ body.landlord-dashboard-page .landlord-section-toggle {
   margin: 0 0 14px;
   padding: 16px 20px;
   border: 1px solid var(--ld-line);
-  border-radius: 18px;
+  border-radius: var(--homle-ws-radius-card, 20px);
   background: #fff;
   color: var(--ld-ink);
   box-shadow: var(--ld-card-shadow);
@@ -938,7 +938,7 @@ body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requ
 body.landlord-dashboard-page .pac-card {
   background: #fff;
   border: 1px solid var(--ld-line);
-  border-radius: 26px;
+  border-radius: var(--homle-ws-radius-panel, 22px);
   box-shadow: 0 20px 50px oklch(0.3 0.05 60 / 0.06);
   padding: clamp(22px, 3vw, 34px);
   margin-bottom: 22px;
@@ -1429,7 +1429,7 @@ body.landlord-dashboard-page .landlord-photo-dialog {
   color: var(--ld-ink);
   background: #fff;
   border: 1px solid var(--ld-line);
-  border-radius: 24px;
+  border-radius: var(--homle-ws-radius-panel, 22px);
   box-shadow: 0 28px 80px rgb(40 24 16 / 0.24);
 }
 body.landlord-dashboard-page .landlord-photo-dialog::backdrop {
@@ -1699,9 +1699,9 @@ body.landlord-dashboard-page .pac-basket-quote-status {
 .landlord-checklist-changes {
   margin: 16px 0 0;
   padding: 16px 18px;
-  border: 1.5px solid var(--homle-line, rgba(11, 9, 10, .12));
-  border-radius: var(--homle-radius, 16px);
-  background: var(--homle-surface, #fbf9f3);
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
+  border-radius: var(--homle-ws-radius-field, 12px);
+  background: var(--homle-ws-canvas, #f7f6f5);
 }
 .landlord-checklist-changes h4 {
   margin: 0 0 12px;
@@ -1778,8 +1778,8 @@ body.landlord-dashboard-page .pac-basket-quote-status {
 .landlord-cleaner-profile-reviews { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .landlord-cleaner-profile-reviews li {
   padding: 12px 14px;
-  border: 1.5px solid var(--homle-line-soft, rgba(11, 9, 10, .07));
-  border-radius: var(--homle-radius, 16px);
+  border: 1px solid var(--homle-ws-line, #efedeb);
+  border-radius: var(--homle-ws-radius-field, 12px);
 }
 .landlord-cleaner-profile-reviews strong { font-size: .85rem; }
 .landlord-cleaner-profile-reviews p { margin: 6px 0 0; color: var(--homle-muted, #665f61); }
@@ -1816,11 +1816,11 @@ body.landlord-dashboard-page .pac-basket-quote-status {
   position: absolute;
   inset: 0;
   z-index: 5;
-  border-radius: var(--homle-radius-lg, 22px);
+  border-radius: var(--homle-ws-radius-panel, 22px);
   background: linear-gradient(
     100deg,
     transparent 20%,
-    color-mix(in oklch, var(--homle-paper, #fff) 70%, transparent) 45%,
+    color-mix(in oklch, var(--homle-ws-paper, #ffffff) 70%, transparent) 45%,
     transparent 70%
   );
   background-size: 220% 100%;
@@ -1848,9 +1848,9 @@ body.landlord-dashboard-page .pac-basket-quote-status {
 .landlord-payments-list { display: grid; gap: 12px; }
 .landlord-payment-row {
   padding: 16px 18px;
-  border: 1.5px solid var(--homle-line, rgba(11, 9, 10, .12));
-  border-radius: var(--homle-radius-lg, 22px);
-  background: var(--homle-paper, #fff);
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
+  border-radius: var(--homle-ws-radius-panel, 22px);
+  background: var(--homle-ws-paper, #ffffff);
 }
 .landlord-payment-head {
   display: flex;
@@ -1881,7 +1881,7 @@ body.landlord-dashboard-page .pac-basket-quote-status {
 .landlord-payment-stage::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .landlord-payment-stage-ready { color: var(--homle-success, #137738); background: color-mix(in oklch, var(--homle-success, #137738) 10%, white); }
 .landlord-payment-stage-action { color: var(--homle-coral-action, #c8102e); background: color-mix(in oklch, var(--homle-coral-action, #c8102e) 9%, white); }
-.landlord-payment-stage-idle { color: var(--homle-muted, #665f61); background: var(--homle-surface, #fbf9f3); }
+.landlord-payment-stage-idle { color: var(--homle-muted, #665f61); background: var(--homle-ws-canvas, #f7f6f5); }
 .landlord-payment-booking-state { font-size: .85rem; color: var(--homle-muted, #665f61); }
 .landlord-payment-boundary { margin: 12px 0 0; font-size: .82rem; line-height: 1.5; color: var(--homle-muted, #665f61); }
 .landlord-payments-empty,

@@ -378,4 +378,28 @@ for (const sheet of workspaceSheets) {
   }
 }
 
+// The landing palette must not reach into the signed-in workspace.
+//
+// `--homle-surface` is a CREAM mix, `--homle-line` a translucent edge derived
+// from the landing ink, `--homle-radius` the landing 16px. Three blocks of
+// landlord-dashboard.css read them — the checklist-change note, the Cleaner
+// profile reviews and the payments list — so the parts of the dashboard a
+// Landlord reaches after a booking rendered on a different palette from the
+// screen they reached it from. That is the "some areas still look like the old
+// version" complaint, inside the screen the design system is measured from.
+//
+// landlord-dashboard.css is included here deliberately: it is not the retired
+// sheet it was taken for. 110 of its classes are live and appear in no v2 sheet.
+const landingFamily = ["--homle-surface", "--homle-line", "--homle-line-soft", "--homle-radius", "--homle-radius-lg", "--homle-cream", "--homle-paper"];
+for (const sheet of [...workspaceSheets, "landlord-dashboard.css"]) {
+  const css = stripComments(read(`public/${sheet}`));
+  for (const token of landingFamily) {
+    // `--homle-ws-*` shares the prefix; match the landing name exactly.
+    assert.ok(
+      !new RegExp(`var\\(\\s*${token}\\b`).test(css),
+      `${sheet} reads ${token}, which belongs to the landing composition, not the signed-in workspace. Use the --homle-ws-* equivalent with its literal as the fallback.`
+    );
+  }
+}
+
 console.log(`Design system contrast and isolation tests passed: every shared variable carries a literal fallback so the Cleaner workspace is unaffected, the five formerly-maroon panels carry no leftover light text, white-on-action measures ${actionOnWhite.toFixed(2)}:1 and the focus ring ${focusOnCream.toFixed(2)}:1 on cream and ${focusOnHeader.toFixed(2)}:1 on the header, no stylesheet imports an off-origin font the CSP would refuse, and styles.css is served at one fresh version. The Landlord workspace's own grey ramp now measures at worst ${landlordRampWorst.toFixed(2)}:1 across canvas, paper and cream.`);

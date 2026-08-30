@@ -3463,10 +3463,10 @@ body.landlord-dashboard-page .ld-care-note {
 /* A no-match result is a booking outcome, not an inline validation error. Keep
    its facts scannable on desktop and stack them within thumb reach on phones. */
 .landlord-match-outcome-dialog .landlord-match-outcome-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
-.landlord-match-outcome-dialog .landlord-match-outcome-facts > div { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--homle-line, #dcd4d1); border-radius: 14px; background: #fff9f7; }
-.landlord-match-outcome-dialog dt { color: var(--muted); font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
-.landlord-match-outcome-dialog dd { margin: 0; color: var(--green-dark); font-weight: 800; }
-.landlord-match-outcome-dialog .landlord-match-outcome-boundary { padding: 14px 16px; border-radius: 12px; background: #fff1ee; color: #7d201b; font-weight: 700; }
+.landlord-match-outcome-dialog .landlord-match-outcome-facts > div { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--homle-ws-border, #e7e4e0); border-radius: var(--homle-ws-radius-field, 12px); background: var(--homle-ws-paper, #ffffff); }
+.landlord-match-outcome-dialog dt { color: var(--homle-ws-muted, #666666); font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.landlord-match-outcome-dialog dd { margin: 0; color: var(--homle-ws-ink, #1a1a1a); font-weight: 800; }
+.landlord-match-outcome-dialog .landlord-match-outcome-boundary { padding: 14px 16px; border-radius: var(--homle-ws-radius-field, 12px); background: var(--homle-ws-accent-tint, #fdecec); color: var(--homle-ws-accent-on-tint, #c4151b); font-weight: 700; }
 .landlord-match-outcome-dialog .landlord-match-outcome-step { display: grid; gap: 16px; }
 .landlord-match-outcome-dialog .landlord-match-outcome-step[hidden] { display: none; }
 .landlord-match-outcome-dialog .landlord-match-outcome-timing-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
