@@ -40,6 +40,7 @@ retired shell or palette.
 | `/cleaner/payouts` | C | Stripe Connect onboarding | **legacy** | P1-2 | ok | payments | P1-2, P2-8 | migrated to hc |
 | `/cleaner/onboarding` + 12 registration routes | C | Cleaner registration | hc + redesign | ok | ok | onboarding API | P3-1 | body canvas fixed |
 | `/opportunity` | C | Pre-acceptance offer view | tokens | ok | ok | matching | — | none |
+| `/not-found` (any unmatched path) | P | Error page | **shell** | ok | ok | none | was raw JSON | added |
 | `/bookings/:id` `/bookings/:id/tracking` `/bookings/:id/cleaning-progress` | L,C | Active job | tokens | ok | ok | progress, realtime | — | none |
 | `/cleaner/jobs/:id` | C | Job offer detail | hc | ok | ok | matching | — | none |
 | `/admin` + 10 admin routes | A | Operations desks | tokens | ok | **overflow** | admin API | P2-9 | fixed |
@@ -173,10 +174,14 @@ account's rows.
   *Fixed:* the empty state's action is resolved from the account, and the fallback
   is the workspace, never sign-in.
 
-- **[x] P2-7 · Checkout and Help carry the retired top bar and footer.**
+- **[x] P2-7 · Checkout and Help carried the retired top bar and footer.**
   `public/landlord-checkout.html`, `public/landlord-help.html`
-  Both are Landlord workspace steps reached from inside the workspace.
-  *Fixed:* both adopt the shared shell.
+  Both are Landlord workspace steps reached from inside the workspace. Checkout
+  is the one screen where a Landlord is about to authorise money, and it looked
+  least like the product they had been using a moment earlier.
+  *Fixed:* both adopt the shared shell. Checkout's panels were also centred in
+  their own 760px column by `styles.css`, which left the heading left-aligned
+  and everything under it drifting right inside a workspace column.
 
 - **[x] P2-8 · `/cleaner/payouts` belongs to no design system.**
   It is the only Cleaner route that does not load `homle-cleaner.css`. It renders

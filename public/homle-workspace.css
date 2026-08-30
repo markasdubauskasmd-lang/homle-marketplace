@@ -302,6 +302,10 @@ body.homle-workspace .hw-card + .hw-card { margin-top: 16px; }
 body.homle-workspace .hw-card > :first-child { margin-top: 0; }
 body.homle-workspace .hw-card > :last-child { margin-bottom: 0; }
 
+/* `.eyebrow` is the older name for the same thing, and pages joining the shell
+   already carry it. Without this it falls through to styles.css and renders in
+   the PUBLIC eyebrow colour on a workspace surface. */
+body.homle-workspace .eyebrow,
 body.homle-workspace .hw-section-title {
   margin: 0 0 4px;
   font-size: 11px;
@@ -328,8 +332,11 @@ body.homle-workspace .hw-btn {
   align-items: center;
   justify-content: center;
   gap: 9px;
+  /* The approved composition's .ld-btn box, so a button here and a button on
+     the dashboard are the same control. 44px is a floor under its 13px padding,
+     not a resize: it is what a finger can reliably hit. */
   min-height: 44px;
-  padding: 12px 20px;
+  padding: 13px 22px;
   border: 1px solid transparent;
   border-radius: var(--homle-ws-radius-control, 11px);
   background: var(--homle-ws-accent, #e11b22);

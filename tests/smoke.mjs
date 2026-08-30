@@ -399,7 +399,11 @@ try {
   const landlordCheckoutScript = await fetch(`${base}/landlord-checkout.js?v=smoke-test`);
   const landlordCheckoutText = await landlordCheckout.text();
   const landlordCheckoutScriptText = await landlordCheckoutScript.text();
-  assert(landlordCheckout.ok && landlordCheckoutText.includes("Protected booking step") && landlordCheckoutScript.ok && landlordCheckoutScriptText.includes("stripe.confirmPayment"), "Authenticated Landlord checkout page or controller is unavailable.");
+  // "Protected booking step" is now the shell's eyebrow, supplied at render time
+  // rather than written into the markup, because paying for a booking is a step
+  // inside the workspace and no longer a standalone page with its own dark bar.
+  assert(landlordCheckout.ok && landlordCheckoutScript.ok && landlordCheckoutScriptText.includes("stripe.confirmPayment") && landlordCheckoutScriptText.includes("Protected booking step"), "Authenticated Landlord checkout page or controller is unavailable.");
+  assert(landlordCheckoutText.includes("homle-workspace") && landlordCheckoutText.includes("data-workspace-main") && !landlordCheckoutText.includes("account-footer"), "Checkout left the shared workspace shell and is a standalone page again.");
   const authProviders = await fetch(`${base}/api/auth/providers`);
   const authProvidersBody = await authProviders.json();
   const serialisedAuthProviders = JSON.stringify(authProvidersBody);
