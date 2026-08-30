@@ -25,7 +25,9 @@ const supportedScopes = Object.freeze([
   "marketplace-landlord:room-reading",
   // Stores nothing, but costs CPU and a rates lookup — see migration 077.
   "marketplace-landlord:scan-preview",
-  "marketplace-cleaner:address-lookup"
+  "marketplace-cleaner:address-lookup",
+  // Every authenticated marketplace write, keyed by account — see migration 105.
+  "marketplace:mutation"
 ]);
 
 function secretKey(value) {

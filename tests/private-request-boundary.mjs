@@ -62,8 +62,44 @@ for (const name of csrfConsumers) {
 // from this list keep their own request on purpose: they detect offline state, word
 // failures differently for a mutation than a read, and for payments set an `uncertain`
 // flag meaning a step may already have been prepared.
-const delegating = ["account-menu", "active-job", "admin-cases", "admin-verifications", "cleaner-payouts", "notifications"];
-const ownRequest = ["admin-bookings", "admin-payments", "cleaner-dashboard", "landlord-dashboard", "landlord-journey"];
+const delegating = ["account-menu", "active-job", "admin-cases", "admin-verifications", "notifications"];
+const ownRequest = ["admin-bookings", "admin-payments", "cleaner-dashboard", "cleaner-page", "landlord-dashboard", "landlord-journey"];
+
+// A third shape, which did not exist when this file was written. The Cleaner
+// pages no longer bootstrap themselves: `createCleanerPage` confirms the
+// workspace boundary and hands the page a request. So `cleaner-payouts` neither
+// imports the shared owner nor writes its own — it is given one, and asserting
+// either literal against it would be asserting the wrong thing.
+//
+// `cleaner-page` is in `ownRequest` above for the stated reason: it detects
+// offline state and bounds the request, which the shared owner deliberately
+// does not. That makes it a second implementation of the same guarantees, so
+// they are asserted against it here exactly as they are against the shared
+// owner — a page handed a request must get the same protection as one that
+// imports it.
+const cleanerBootstrapSource = read("public/cleaner-page.js");
+assert.match(cleanerBootstrapSource, /credentials: "same-origin"/, "The Cleaner page bootstrap no longer sends the session cookie, so every Cleaner page it serves would be answered as if signed out.");
+assert.match(cleanerBootstrapSource, /cache: "no-store"/, "The Cleaner page bootstrap no longer sets no-store, so a proxy or the browser may cache private Cleaner responses.");
+assert.match(cleanerBootstrapSource, /accept: "application\/json"/i, "The Cleaner page bootstrap no longer asks for JSON, so an HTML error page can arrive and fail to parse as a generic failure.");
+
+const bootstrapped = ["cleaner-payouts"];
+for (const name of bootstrapped) {
+  const source = read(`public/${name}.js`);
+  assert.ok(
+    source.includes('from "./cleaner-page.js'),
+    `${name} no longer takes its request from createCleanerPage. It would then have neither the shared owner's guarantees nor the bootstrap's, and its Cleaner workspace check would be gone too.`
+  );
+  assert.ok(
+    !source.includes("async function requestJson"),
+    `${name} has written its own request again alongside the one the bootstrap hands it. One is dead code, and which one the call sites reach depends on declaration order.`
+  );
+  const rawApiFetches = [...source.matchAll(/fetch\(\s*[`"']\/api\//g)].map((match) => source.slice(match.index, match.index + 400));
+  assert.deepEqual(
+    rawApiFetches.filter((call) => !/credentials:/.test(call)),
+    [],
+    `${name} calls a private /api route with a bare fetch instead of the request it was handed, so it sends no session cookie and may be cached.`
+  );
+}
 
 for (const name of delegating) {
   const source = read(`public/${name}.js`);
@@ -110,4 +146,4 @@ for (const name of delegating) {
   );
 }
 
-console.log(`Private request boundary tests passed: the shared owner still sends same-origin credentials, no-store and a JSON Accept header and reports the status under both names; timeouts stay opt-in; all ${delegating.length} delegating modules route through it with no leftover local copy and no bare /api fetch; and all ${ownRequest.length} modules that need offline and uncertain-result handling keep their own.`);
+console.log(`Private request boundary tests passed: the shared owner still sends same-origin credentials, no-store and a JSON Accept header and reports the status under both names; timeouts stay opt-in; all ${delegating.length} delegating modules route through it with no leftover local copy and no bare /api fetch; and all ${ownRequest.length} modules that need offline and uncertain-result handling keep their own, with ${bootstrapped.length} Cleaner page taking its request from the bootstrap that owns the same guarantees.`);

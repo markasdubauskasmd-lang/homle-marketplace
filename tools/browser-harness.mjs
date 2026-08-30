@@ -190,6 +190,10 @@ export async function launchBrowser({ headless = true } = {}) {
   const pending = new Map();
   const consoleMessages = [];
   const pageErrors = [];
+  // Every request the page made that did not come back cleanly. A page can look
+  // correct and still be quietly failing — a missing stylesheet, a 404 on a
+  // script, an API call answered 500 — and none of that reaches the console.
+  const networkFailures = [];
 
   await new Promise((resolve, reject) => {
     socket.addEventListener("open", resolve, { once: true });
@@ -210,6 +214,12 @@ export async function launchBrowser({ headless = true } = {}) {
     }
     if (message.method === "Runtime.exceptionThrown") {
       pageErrors.push(message.params.exceptionDetails?.exception?.description || message.params.exceptionDetails?.text || "unknown error");
+    }
+    if (message.method === "Network.responseReceived" && Number(message.params.response?.status) >= 400) {
+      networkFailures.push({ kind: "status", status: message.params.response.status, type: message.params.type, url: message.params.response.url });
+    }
+    if (message.method === "Network.loadingFailed" && message.params.canceled !== true) {
+      networkFailures.push({ kind: "failed", type: message.params.type, error: message.params.errorText });
     }
   });
 
@@ -235,6 +245,7 @@ export async function launchBrowser({ headless = true } = {}) {
   return {
     consoleMessages,
     pageErrors,
+    networkFailures,
     async setViewport({ width, height, deviceScaleFactor = 1, mobile = true } = {}) {
       const validatedWidth = Number(width);
       const validatedHeight = Number(height);

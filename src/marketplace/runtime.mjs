@@ -1,4 +1,5 @@
 import { createAccountSecurity } from "./account-security.mjs";
+import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 import { createAccountSessionService } from "./account-session-service.mjs";
 import { createAuthenticationRepository } from "./auth-repository.mjs";
 import { createAuthenticationHttpRouter } from "./authentication-http.mjs";
@@ -159,10 +160,18 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const providerLinkState = createProviderLinkState({ secret: env.AUTH_TOKEN_SECRET, appOrigin: environment.appOrigin });
   const credentialService = createCredentialService(authenticationRepository, { tokenSecret: env.AUTH_TOKEN_SECRET, accountAccess: stagingAccountAccess });
   const accountSessionService = createAccountSessionService(authenticationRepository, { sessionSecret: env.SESSION_SECRET, production: environment.production });
+  // An authenticated account could previously replay any marketplace write as
+  // fast as the database would accept it — 400 properties in under three
+  // seconds from one session, with nothing to stop it. Keyed by the account
+  // rather than the address, so a shared office or carrier NAT does not put
+  // unrelated people in one bucket, and so the allowance follows the account
+  // that is actually spending it.
+  const limitMutation = createRateLimitBoundary(options.rateLimiter, (actor) => `account:${actor.userId}`, { onUnexpectedError: options.onUnexpectedError });
   const security = createAccountSecurity(authenticationRepository, {
     sessionSecret: env.SESSION_SECRET,
     appOrigin: environment.appOrigin,
-    production: environment.production
+    production: environment.production,
+    onMutation: (context) => limitMutation(context.actor, "marketplace:mutation")
   });
   const geocoder = options.geocoder || geocoderFromEnvironment(env);
   const addressLookup = options.addressLookup === undefined ? addressLookupFromEnvironment(env, { fetch: options.addressLookupFetch }) : options.addressLookup;

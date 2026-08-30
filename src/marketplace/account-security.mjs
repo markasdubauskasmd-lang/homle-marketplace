@@ -29,6 +29,12 @@ export function createAccountSecurity(repository, options) {
   const appOrigin = exactOrigin(options?.appOrigin);
   const production = options?.production === true;
   const expectedCookieName = production ? sessionCookieName : developmentSessionCookieName;
+  // Every authenticated mutation passes through `protect({ mutation: true })`,
+  // which makes this the one place an allowance can cover all of them. Optional
+  // so the authentication router — whose own routes are already throttled by
+  // scope — composes unchanged.
+  const onMutation = options?.onMutation ?? null;
+  if (onMutation !== null && typeof onMutation !== "function") throw new TypeError("An optional mutation allowance must be a function.");
 
   async function authenticate(request) {
     const token = parseCookies(header(request, "cookie"))[expectedCookieName] || "";
@@ -76,6 +82,10 @@ export function createAccountSecurity(repository, options) {
         requireCsrf(request, context);
       }
       requireRole(context, policy.roles);
+      // Deliberately last. A request refused for origin, CSRF or role has not
+      // proved it comes from the account whose allowance it would spend, so
+      // charging it would let a third party exhaust somebody else's budget.
+      if (policy.mutation === true && onMutation) await onMutation(context);
       return context;
     },
     authenticate,

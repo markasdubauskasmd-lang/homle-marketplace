@@ -6,12 +6,22 @@ import { fileURLToPath } from "node:url";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// This is deliberately a content boundary, not a visual assertion. The active
-// product objective says the Cleaner Dashboard must remain exactly as it is.
-// Pinning the complete dedicated surface and the shared browser assets it loads
-// makes an accidental change fail in CI before it can be merged or deployed.
-const expectedFileCount = 89;
-const expectedDigest = "88e64c24bac4e2b7eef7ac9524adb04a578ac9c21207c3d881a905c0bb382620";
+// This is deliberately a content boundary, not a visual assertion. Pinning the
+// complete dedicated surface and the shared browser assets it loads makes an
+// accidental change fail in CI before it can be merged or deployed.
+//
+// The objective this boundary protected was "the Cleaner Dashboard must remain
+// exactly as it is". The product owner explicitly replaced it with the
+// design-unification objective: the whole signed-in product is to read as one
+// system, which required the Cleaner surface to change. These values were
+// refreshed under that instruction, not to make a failure go away.
+//
+// What was NOT authorised, and what this file still protects unchanged, is the
+// shared backend below: which Cleaner is offered a job, on what terms, what
+// they earn and whether it is dispatched automatically. That digest has not
+// moved and must not be refreshed without the same explicit instruction.
+const expectedFileCount = 88;
+const expectedDigest = "bf76f2b9ee2f83513e42fb45b5d6964d234399ae24df1474d75facf57080d581";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
