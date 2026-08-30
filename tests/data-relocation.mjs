@@ -17,6 +17,17 @@ const destination = path.join(fixtureRoot, "private-destination");
 // including Linux CI, so the relocation guard rails are proven on every push.
 const powershellCommand = process.platform === "win32" ? "powershell.exe" : "pwsh";
 
+// An interpreter that will not launch is not a failing guard rail, it is an
+// absent tool — and reporting it as `null !== 0` aborted the whole run, hiding
+// every test that came after this one. Skip loudly instead, exactly as the
+// browser proofs do when no Chromium is installed. Wherever PowerShell exists,
+// including a CI image that provides it, the guard rails below still run.
+const interpreter = spawnSync(powershellCommand, ["-NoProfile", "-Command", "exit 0"], { encoding: "utf8", windowsHide: true });
+if (interpreter.error || interpreter.status !== 0) {
+  console.log(`Data relocation checks SKIPPED: ${powershellCommand} is not available on this machine.`);
+  process.exit(0);
+}
+
 function powershell(args) {
   return spawnSync(powershellCommand, ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, ...args], {
     cwd: projectRoot,

@@ -89,6 +89,16 @@ import { createLandlordCareService } from "./landlord-care-service.mjs";
 import { createFavouriteCleanerRepository } from "./favourite-cleaner-repository.mjs";
 import { createFavouriteCleanerService } from "./favourite-cleaner-service.mjs";
 
+// Whether travel is charged by distance rather than as a flat fee. A blank or
+// zero per-kilometre rate keeps the flat-fee path, which needs no distance and
+// so no geocoding provider.
+function travelPricedPerDistance(env) {
+  const supplied = String(env?.BOOKING_TRAVEL_COST_PER_KM_PENCE ?? "").trim();
+  if (!supplied) return false;
+  const rate = Number(supplied);
+  return Number.isFinite(rate) && rate > 0;
+}
+
 export function createMarketplaceRuntime(pool, options = {}) {
   const env = options.env || process.env;
   const validation = validateMarketplaceEnvironment(env);
@@ -328,7 +338,14 @@ export function createMarketplaceRuntime(pool, options = {}) {
     // variable looks identical to one running the intended tier, right up until
     // someone compares grading quality and has nothing to check.
     roomVisionModels: roomVision?.models || null,
-    matchingReady: bookingPricingPolicy !== null,
+    // Ready means a Landlord can actually be shown a Cleaner, not merely that a
+    // pricing policy loaded. When travel is charged per kilometre the policy
+    // refuses to quote without a resolved Cleaner-to-property distance, and
+    // without a geocoding provider a service area has no coordinates — so every
+    // candidate is dropped and the request matches nobody, for ever. Reporting
+    // that as ready is what let a marketplace which cannot complete a single
+    // booking sit green on the health endpoint and in monitoring.
+    matchingReady: bookingPricingPolicy !== null && (!travelPricedPerDistance(env) || geocoder !== null),
     paymentRepository,
     paymentService,
     cleanerPayoutRepository,

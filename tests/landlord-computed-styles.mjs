@@ -205,9 +205,28 @@ const PROBE = (PREFIXES) => `
       // Real 1px shadow edits still fail; decorative timing noise does not.
       // Only px is normalized; colour alpha keeps its full precision.
       if (animatedProperties.has(property)) { entry[property] = "animated"; continue; }
+      // With outline-style: none the browser paints no outline at all, so its
+      // width and colour describe nothing a customer can see — they are an
+      // internal default, and Chromium builds disagree about it (3px on the
+      // build this baseline was captured with, 0px on others). Recording them
+      // made all 764 measured elements differ on any other Chromium and turned
+      // the whole suite red for a difference nobody could see. Focus rings are
+      // unaffected: wherever an outline is actually painted, outline-style is
+      // not none and its width and colour are still compared exactly.
+      if ((property === "outline-width" || property === "outline-color") && style.getPropertyValue("outline-style") === "none") continue;
       const scale = property === "box-shadow" ? 1 : 10;
       entry[property] = style.getPropertyValue(property)
         .replace(/([0-9]+[.][0-9]+)px/g, (whole, number) => String(Math.round(Number(number) * scale) / scale) + "px")
+        // Chromium builds resolve an oklch() colour to slightly different
+        // floating-point components — oklch(0.974813 0.0135622 27.005) on one
+        // and oklch(0.97481 0.0135611 27.0044) on another for the same
+        // stylesheet. That is arithmetic noise six decimal places down, far
+        // below anything an eye or a screen can resolve, and it made this
+        // baseline fail on any machine but the one that captured it. Three
+        // significant figures still catches every real colour edit: a design
+        // change moves a channel by orders of magnitude more than this.
+        .replace(/(oklch|oklab)[(]([^)]*)[)]/g, (whole, name, components) =>
+          name + "(" + components.replace(/[0-9]*[.][0-9]+/g, (number) => String(Number(Number(number).toPrecision(3)))) + ")")
         .replace(/rgba[(][^)]*,[ ]*0[)]/g, "rgba(0, 0, 0, 0)");
     }
     snapshot[base + "#" + index] = entry;
