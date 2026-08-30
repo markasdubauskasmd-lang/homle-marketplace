@@ -126,6 +126,17 @@ const tiny = quoteRooms({ rooms: [{ roomType: "hallway", items: ordinary("Floor"
 assert(tiny.priceable && tiny.totalPence === 5600, "A one-task hallway did not reach the two-hour minimum visit.");
 assert(reviewedQuote(tiny).economics.grossMarginPence > 0, "The smallest possible booking loses money.");
 
+/* ── A deliberately longer visit changes both price and booked time ──────── */
+
+const endOfTenancyTwoHours = quoteRooms({ serviceType: "end-of-tenancy", requestedMinutes: 120, rooms: [{ roomType: "bedroom", items: ordinary("Floor") }] }, config);
+const endOfTenancyThreeHours = quoteRooms({ serviceType: "end-of-tenancy", requestedMinutes: 180, rooms: [{ roomType: "bedroom", items: ordinary("Floor") }] }, config);
+assert(endOfTenancyTwoHours.totalPence === 15000 && endOfTenancyThreeHours.totalPence === 16800,
+  `Changing an end-of-tenancy visit from two to three hours did not move £150.00 to £168.00 (${endOfTenancyTwoHours.totalPence}p → ${endOfTenancyThreeHours.totalPence}p).`);
+assert(endOfTenancyThreeHours.estimatedMinutes === 180 && endOfTenancyThreeHours.requestedMinutes === 180,
+  "The selected three-hour visit was priced but not returned as the booked duration.");
+assert(throws(() => quoteRooms({ requestedMinutes: 119, rooms: [{ roomType: "bedroom", items: ordinary("Floor") }] }, config), "between 120 and 960"),
+  "A duration below the server price list's minimum entered a quote.");
+
 /* ── Scenario 8: a large booking stays profitable and pays properly ───────── */
 
 const large = quoteRooms({

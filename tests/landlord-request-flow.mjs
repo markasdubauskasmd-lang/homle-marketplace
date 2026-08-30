@@ -300,7 +300,7 @@ const readQuote = `
    become rooms, the shown price stops matching this and the test names it. */
 function enginePriceFor(run, cleaningType) {
   const scope = optionalRequestScope(run.tasks, { cleaningType });
-  const pricing = pricingRequestFromManualTasks(scope.tasks, { cleaningType, frequency: run.frequency });
+  const pricing = pricingRequestFromManualTasks(scope.tasks, { cleaningType, frequency: run.frequency, requestedMinutes: Number(run.durationMinutes) });
   return quoteRooms(pricing, pricingConfig);
 }
 
@@ -324,6 +324,29 @@ try {
     assert(shownPrice === expected,
       `${run.label}: the page shows ${shownPrice} but the real engine prices these selections at ${expected} — the live estimate is not tracking the actual selections.`);
     proved.push(`${run.label}: live price ${shownPrice} matches the engine`);
+
+    const alternateDuration = run.durationMinutes === "120" ? "180" : "360";
+    await browser.evaluate(`
+      const panel = document.querySelector('[data-landlord-panel="requests"]');
+      const control = panel.querySelector('[name="durationMinutes"]');
+      control.value = ${JSON.stringify(alternateDuration)};
+      control.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    `);
+    const durationPrice = await browser.evaluate(readQuote);
+    const directDuration = enginePriceFor({ ...run, durationMinutes: alternateDuration }, run.cleaningType);
+    const expectedDuration = `£${(directDuration.totalPence / 100).toFixed(2)}`;
+    assert(durationPrice === expectedDuration && durationPrice !== shownPrice,
+      `${run.label}: changing the duration should move the price from ${shownPrice} to ${expectedDuration}, but the page shows ${durationPrice}.`);
+    await browser.evaluate(`
+      const panel = document.querySelector('[data-landlord-panel="requests"]');
+      const control = panel.querySelector('[name="durationMinutes"]');
+      control.value = ${JSON.stringify(run.durationMinutes)};
+      control.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    `);
+    await browser.evaluate(readQuote);
+    proved.push(`${run.label}: changing the duration moved the price to ${durationPrice}`);
 
     /* Change one selection and watch the number move. This is the "dynamic"
        claim at its sharpest: same page, one different choice, different price

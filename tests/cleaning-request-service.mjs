@@ -107,12 +107,16 @@ assert(withdrawn.status === "cancelled" && withdrawn.previousStatus === "searchi
 const rescheduled = await service.rescheduleOwnRequest(landlord, requestId, { requestedStartAt: "2026-07-22T09:00:00.000Z" });
 assert(rescheduled.status === "searching-for-cleaner" && rescheduled.requestedStartAt === "2026-07-22T09:00:00.000Z" && rescheduled.requestedEndAt === "2026-07-22T12:00:00.000Z" && calls.at(-1).kind === "reschedule" && calls.at(-1).actor.userId === landlordId, "Open-request rescheduling was not owner-bound, duration-preserving or safely projected.");
 assert(await rejects(() => service.createOwnRequest({ userId: "cleaner", roles: ["cleaner"] }, input), "Landlord account"), "A Cleaner could create a Landlord cleaning request.");
+let authoritativePricingRequest = null;
 const pricedService = createCleaningRequestService(fakeRepository, {
   clock: () => new Date(now),
-  quotePlatformRequest: async () => ({ priceable: true, totalPence: 7850, estimatedMinutes: 180, configVersion: 4 })
+  quotePlatformRequest: async (_actor, pricingRequest) => {
+    authoritativePricingRequest = pricingRequest;
+    return { priceable: true, totalPence: 7850, estimatedMinutes: 180, configVersion: 4 };
+  }
 });
-const platformPriced = await pricedService.createOwnRequest(landlord, { ...input, pricingRequest: { rooms: [{ roomType: "kitchen", items: [] }] } });
-assert(platformPriced.quotedTotalPence === 7850 && platformPriced.quotedMinutes === 180 && platformPriced.pricingConfigVersion === 4 && platformPriced.quotedAt === now.toISOString(), "The server-authoritative scanner quote was not frozen onto the request.");
+const platformPriced = await pricedService.createOwnRequest(landlord, { ...input, pricingRequest: { requestedMinutes: 480, rooms: [{ roomType: "kitchen", items: [] }] } });
+assert(platformPriced.quotedTotalPence === 7850 && platformPriced.quotedMinutes === 180 && platformPriced.pricingConfigVersion === 4 && platformPriced.quotedAt === now.toISOString() && authoritativePricingRequest.requestedMinutes === 180, "The server-authoritative scanner quote was not frozen onto the request, or it trusted a duration that disagreed with the actual three-hour booking window.");
 assert(await rejects(() => service.createOwnRequest(landlord, { ...input, pricingRequest: { rooms: [] } }), "temporarily unavailable"), "A client-supplied pricing request bypassed the server pricing boundary.");
 assert(await rejects(() => service.submitOwnRequest(landlord, requestId, { scopeReviewed: false, cleanerPreviewAuthorized: false }), "Review and confirm") && await rejects(() => service.submitOwnRequest(landlord, requestId, { scopeReviewed: true }), "Choose whether"), "Request submission accepted missing scope review or an implicit photo-preview choice.");
 assert(await rejects(() => service.configureAutomaticDispatch({ userId: "cleaner", roles: ["cleaner"] }, requestId, { enabled: true }), "Landlord account") && await rejects(() => service.configureAutomaticDispatch(landlord, requestId, { enabled: "yes" }), "Choose whether") && await rejects(() => service.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 6 }), "between 1 and 5") && await rejects(() => service.configureAutomaticDispatch(landlord, requestId, { enabled: true, attemptLimit: 1 }), "approve the maximum"), "Automatic matching accepted the wrong role, implicit consent, an unbounded attempt limit or a missing price approval.");

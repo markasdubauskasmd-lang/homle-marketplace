@@ -153,6 +153,10 @@ function manualTaskPriceCode(description, index) {
 // price list and freezes the result on the private request.
 export function pricingRequestFromManualTasks(tasks, options = {}) {
   if (!Array.isArray(tasks) || !tasks.length) throw new TypeError("Add at least one cleaning task before pricing.");
+  const requestedMinutes = Number(options.requestedMinutes);
+  if (!Number.isInteger(requestedMinutes) || requestedMinutes < 120 || requestedMinutes > 480) {
+    throw new TypeError("Choose a cleaning duration between 2 and 8 hours before pricing.");
+  }
   const grouped = new Map();
   tasks.forEach((task, index) => {
     const roomName = String(task?.roomName || "").trim();
@@ -164,6 +168,7 @@ export function pricingRequestFromManualTasks(tasks, options = {}) {
   return Object.freeze({
     serviceType: pricingServiceTypeByCleaningType[String(options.cleaningType || "")] || "standard",
     frequency: String(options.frequency || "one-time"),
+    requestedMinutes,
     rooms: [...grouped.values()],
     addOns: []
   });
