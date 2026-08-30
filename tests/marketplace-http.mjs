@@ -813,27 +813,46 @@ const enabledRuntime = createMarketplaceRuntime(pool, {
   ...runtimeAbuseControl
 });
 assert(enabledRuntime.authenticationHttpReady && enabledRuntime.authenticationRouter && enabledRuntime.router !== enabledRuntime.marketplaceRouter, "A complete trusted email/rate/client boundary did not compose the isolated authentication controller into the runtime chain.");
+const pricedRuntimeEnvironment = {
+  ...enabledEnvironment,
+  BOOKING_TARGET_MARGIN_BPS: "2000",
+  BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1000",
+  BOOKING_LABOUR_ON_COST_BPS: "1500",
+  BOOKING_PAYMENT_FEE_BPS: "200",
+  BOOKING_PAYMENT_FEE_FIXED_PENCE: "20",
+  BOOKING_RISK_CONTINGENCY_BPS: "500",
+  BOOKING_TRAVEL_COST_PENCE: "500",
+  BOOKING_TRAVEL_COST_PER_KM_PENCE: "50",
+  BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS: "10000",
+  BOOKING_SUPPLIES_COST_PENCE: "300",
+  BOOKING_OTHER_COST_PENCE: "0",
+  BOOKING_INVITATION_TTL_MINUTES: "60"
+};
 const pricedRuntime = createMarketplaceRuntime(pool, {
-  env: {
-    ...enabledEnvironment,
-    BOOKING_TARGET_MARGIN_BPS: "2000",
-    BOOKING_MINIMUM_CONTRIBUTION_PENCE: "1000",
-    BOOKING_LABOUR_ON_COST_BPS: "1500",
-    BOOKING_PAYMENT_FEE_BPS: "200",
-    BOOKING_PAYMENT_FEE_FIXED_PENCE: "20",
-    BOOKING_RISK_CONTINGENCY_BPS: "500",
-    BOOKING_TRAVEL_COST_PENCE: "500",
-    BOOKING_TRAVEL_COST_PER_KM_PENCE: "50",
-    BOOKING_TRAVEL_DISTANCE_MULTIPLIER_BPS: "10000",
-    BOOKING_SUPPLIES_COST_PENCE: "300",
-    BOOKING_OTHER_COST_PENCE: "0",
-    BOOKING_INVITATION_TTL_MINUTES: "60"
-  },
+  env: pricedRuntimeEnvironment,
   emailDelivery: { async send() {} },
   ...runtimeAbuseControl
 });
-assert(pricedRuntime.matchingReady === true, "A complete private booking-pricing policy was not exposed as matching-ready.");
+// A per-kilometre travel rate makes a resolved Cleaner-to-property distance
+// mandatory, and without a geocoding provider a service area has no
+// coordinates — so every candidate is dropped as unpriceable and the request
+// matches nobody, permanently. Reporting that as matching-ready is what let a
+// marketplace that cannot complete a single booking sit green in monitoring.
+assert(pricedRuntime.matchingReady === false, "A distance-priced policy without geocoding was falsely exposed as matching-ready.");
 assert(pricedRuntime.geocodingReady === false, "Pricing configuration falsely advertised postcode geocoding as attached.");
+const pricedGeocodedRuntime = createMarketplaceRuntime(pool, {
+  env: { ...pricedRuntimeEnvironment, GEOCODING_PROVIDER: "postcodes-io" },
+  emailDelivery: { async send() {} },
+  ...runtimeAbuseControl
+});
+assert(pricedGeocodedRuntime.matchingReady === true, "A distance-priced policy with geocoding attached was not exposed as matching-ready.");
+// A flat travel fee needs no distance, so matching is ready without geocoding.
+const flatTravelRuntime = createMarketplaceRuntime(pool, {
+  env: { ...pricedRuntimeEnvironment, BOOKING_TRAVEL_COST_PER_KM_PENCE: "0" },
+  emailDelivery: { async send() {} },
+  ...runtimeAbuseControl
+});
+assert(flatTravelRuntime.matchingReady === true, "A flat-fee travel policy needs no distance, so it must still be matching-ready.");
 const geocodedRuntime = createMarketplaceRuntime(pool, {
   env: { ...enabledEnvironment, GEOCODING_PROVIDER: "postcodes-io" },
   emailDelivery: { async send() {} },

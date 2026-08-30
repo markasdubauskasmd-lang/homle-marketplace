@@ -511,6 +511,16 @@
       "order": 102,
       "file": "102_scan_telemetry_release_comparison.sql",
       "sha256": "22751f39d1e2ad27bbe504cb87fde20a3f2f11f6630680912b44814ddfee8a25"
+    },
+    {
+      "order": 103,
+      "file": "103_authentication_lifecycle_column_resolution.sql",
+      "sha256": "9e47596657ce86336a151bed34afc5f4ebb2e9c9550cf5c045294958bca458fc"
+    },
+    {
+      "order": 104,
+      "file": "104_correct_outward_postcode.sql",
+      "sha256": "052871a91d33a335156a4d649cebccdb0e0b9f9a600a36fa09edea59df620359"
     }
   ],
   "grantFiles": [

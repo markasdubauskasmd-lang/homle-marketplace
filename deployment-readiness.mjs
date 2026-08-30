@@ -32,6 +32,20 @@ function publicOrigin(value) {
   }
 }
 
+// True when travel is charged by distance rather than as a flat fee. A blank or
+// zero per-kilometre rate keeps the flat-fee path, which needs no distance.
+function travelPricedPerKilometre(env) {
+  const supplied = exact(env.BOOKING_TRAVEL_COST_PER_KM_PENCE);
+  if (!supplied) return false;
+  const rate = Number(supplied);
+  return Number.isFinite(rate) && rate > 0;
+}
+
+function geocodingConfigured(env) {
+  const provider = exact(env.GEOCODING_PROVIDER).toLowerCase();
+  return provider === "postcodes-io" || provider === "google-maps";
+}
+
 function safeAdminKey(value) {
   const supplied = typeof value === "string" ? value : "";
   return supplied.length >= 32 && supplied.length <= 256 && !/[\u0000-\u0020\u007f]/.test(supplied) && !/replace|example|changeme|password|admin-key/i.test(supplied);
@@ -90,6 +104,16 @@ export function validateProductionDeployment(env = process.env, options = {}) {
     if (exact(env.MARKETPLACE_ADAPTER_MODULE) === builtInRenderLogMonitoringAdapter) errors.push(...validateRenderLogMonitoringEnvironment(env).errors);
   }
   if (marketplace.marketplace.requested && !marketplace.objectStorageConfigured && !marketplace.launchApproval.stagingAccountsRestricted) errors.push("The enabled marketplace requires complete private object-storage configuration.");
+
+  // Per-kilometre travel pricing needs a resolved Cleaner-to-property distance.
+  // Without a geocoding provider a service area has no coordinates, so the
+  // distance is NULL, every candidate is rejected as unpriceable, and the
+  // Landlord is shown an empty Cleaner list with no explanation — a marketplace
+  // that boots healthy and can never complete a booking. Refuse the combination
+  // here rather than discovering it after a customer has submitted a request.
+  if (marketplace.marketplace.requested && travelPricedPerKilometre(env) && !geocodingConfigured(env)) {
+    errors.push("BOOKING_TRAVEL_COST_PER_KM_PENCE prices travel by distance, so GEOCODING_PROVIDER must be postcodes-io or google-maps. Without it no Cleaner can ever be matched.");
+  }
 
   return Object.freeze({
     ok: errors.length === 0,

@@ -34,6 +34,8 @@ DECLARE
   request_reschedule_installed boolean := false;
   durable_scan_telemetry_installed boolean := false;
   scan_telemetry_release_comparison_installed boolean := false;
+  authentication_column_resolution_installed boolean := false;
+  outward_postcode_helper_installed boolean := false;
   structured_room_scans_installed boolean := false;
   room_measurements_installed boolean := false;
   landlord_support_installed boolean := false;
@@ -249,6 +251,10 @@ BEGIN
       INTO durable_scan_telemetry_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 102)'
       INTO scan_telemetry_release_comparison_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 103)'
+      INTO authentication_column_resolution_installed;
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 104)'
+      INTO outward_postcode_helper_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 73)'
       INTO structured_room_scans_installed;
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 74)'
@@ -308,6 +314,11 @@ BEGIN
       WHERE attrelid=to_regclass('tideway_private.scan_telemetry_hourly')
         AND attname='release_commit' AND NOT attisdropped
     );
+    -- Migration 103 is detected by the absence of the ambiguous reference that
+    -- made email verification and password reset raise `column reference
+    -- "user_id" is ambiguous` and return a 500 to every customer.
+    authentication_column_resolution_installed := to_regprocedure('tideway_private.consume_email_verification(bytea)') IS NOT NULL;
+    outward_postcode_helper_installed := to_regprocedure('tideway_private.outward_postcode(text)') IS NOT NULL;
     structured_room_scans_installed := to_regclass('public.room_scan_sessions') IS NOT NULL;
     room_measurements_installed := to_regclass('public.room_scan_measurements') IS NOT NULL;
     landlord_support_installed := to_regprocedure('tideway_private.create_landlord_support_request(uuid,uuid,text,text,text)') IS NOT NULL;
@@ -435,6 +446,32 @@ BEGIN
     WHERE procedure.oid=to_regprocedure('tideway_private.get_administrator_scan_telemetry(integer)');
     IF position('administrator-required' IN COALESCE(selected_source,''))=0 THEN
       RAISE EXCEPTION 'Scanner telemetry aggregate lost its Administrator-only read boundary';
+    END IF;
+  END IF;
+  -- The authentication lifecycle must be executable, not merely present. A
+  -- deployment still carrying the pre-103 bodies cannot verify an email address
+  -- or reset a password at all, so it must never be reported as healthy.
+  IF authentication_column_resolution_installed THEN
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.consume_email_verification(bytea)');
+    IF position('WHERE user_id =' IN COALESCE(selected_source,''))>0 THEN
+      RAISE EXCEPTION 'Email verification still resolves an ambiguous user_id column and will fail at runtime';
+    END IF;
+    SELECT procedure.prosrc INTO selected_source FROM pg_proc procedure
+    WHERE procedure.oid=to_regprocedure('tideway_private.consume_password_reset(bytea,text)');
+    IF position('WHERE user_id =' IN COALESCE(selected_source,''))>0 THEN
+      RAISE EXCEPTION 'Password reset still resolves an ambiguous user_id column and will fail at runtime';
+    END IF;
+  END IF;
+  -- Matching eligibility depends on the outward postcode being the district a
+  -- Cleaner actually registered. The pre-104 expression turned BS1 4ST into
+  -- "BS14", a different real district, so nobody matched in single-digit areas.
+  IF outward_postcode_helper_installed THEN
+    IF tideway_private.outward_postcode('BS1 4ST') <> 'BS1'
+       OR tideway_private.outward_postcode('M1 1AE') <> 'M1'
+       OR tideway_private.outward_postcode('SW1A 1AA') <> 'SW1A'
+       OR tideway_private.outward_postcode('BS16 4ST') <> 'BS16' THEN
+      RAISE EXCEPTION 'Outward postcode resolution is incorrect and Cleaner matching will silently find nobody';
     END IF;
   END IF;
   IF scan_telemetry_release_comparison_installed THEN
