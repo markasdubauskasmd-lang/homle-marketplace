@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { notificationActionPath, notificationBookingPath, notificationPresentation, notificationUnreadBadge, notificationWorkspace, notificationWorkspacePath } from "../public/notification-inbox-model.js";
+import { accountNav as cleanerAccountNav } from "../public/cleaner-onboarding-steps.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -25,7 +26,7 @@ assert(notificationWorkspace({ selectedRole: "landlord", roles: ["landlord"] }).
 assert(notificationUnreadBadge(3).visible && notificationUnreadBadge(3).label === "3" && notificationUnreadBadge(100).label === "99+", "Unread counts are not presented compactly.");
 assert(!notificationUnreadBadge(0).visible && !notificationUnreadBadge(-1).visible && !notificationUnreadBadge("not-a-count").visible, "Invalid or empty unread counts create a badge.");
 
-const [page, script, shell, shellModel, cleanerPage, cleanerScript, cleanerStyles, accountMenu, badgeScript, landlordBadgeScript, model, styles, workspaceStyles, landlordStyles, server, cleanerDashboard, cleanerDashboardScript, landlordDashboard, landlordDashboardScript, packageFile] = await Promise.all([
+const [page, script, shell, shellModel, cleanerPage, cleanerScript, cleanerStyles, cleanerSidebar, accountMenu, badgeScript, landlordBadgeScript, model, styles, workspaceStyles, landlordStyles, server, cleanerDashboard, cleanerDashboardScript, landlordDashboard, landlordDashboardScript, packageFile] = await Promise.all([
   readFile(new URL("../public/notifications.html", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8"),
   readFile(new URL("../public/workspace-shell.js", import.meta.url), "utf8"),
@@ -33,6 +34,7 @@ const [page, script, shell, shellModel, cleanerPage, cleanerScript, cleanerStyle
   readFile(new URL("../public/cleaner-notifications.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-notifications.js", import.meta.url), "utf8"),
   readFile(new URL("../public/homle-cleaner.css", import.meta.url), "utf8"),
+  readFile(new URL("../public/cleaner-sidebar.js", import.meta.url), "utf8"),
   readFile(new URL("../public/account-menu.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notification-badge.js", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-notification-badge.js", import.meta.url), "utf8"),
@@ -80,16 +82,25 @@ assert(script.includes("replaceChildren") && script.includes("textContent") && !
 assert(script.includes("inboxCutoff") && script.includes("cutoffCreatedAt"), "Mark-all-read is not protected by a race-safe cutoff.");
 assert(model.includes("No price changes automatically") && model.includes("private message") && model.includes("Private booking case opened") && !model.includes("address"), "Public update copy leaks details or omits the private booking-case state.");
 assert(server.includes('"/notifications": "notifications.html"') && cleanerDashboard.includes('href="/notifications"'), "The private inbox is not reachable from the Cleaner workspace.");
-assert(server.includes('"/cleaner/notifications": "cleaner-notifications.html"') && cleanerPage.includes('href="/cleaner/notifications"') && cleanerPage.includes('aria-current="page"'), "The replacement Cleaner Notifications page is not routed or selected in the Account navigation.");
+// The Cleaner sidebar is built from one list now rather than copied into
+// nineteen pages, so the destination and the current-page mark are asserted
+// where they are decided.
+assert(server.includes('"/cleaner/notifications": "cleaner-notifications.html"') && cleanerAccountNav.some((entry) => entry.href === "/cleaner/notifications" && entry.notificationHook === true) && cleanerSidebar.includes('item.setAttribute("aria-current", "page")'), "The replacement Cleaner Notifications page is not routed or selected in the Account navigation.");
+// No Cleaner destination may point at the Landlord inbox: it redirects a Cleaner
+// straight back. One of the nineteen pages used to do exactly that.
+assert(!cleanerAccountNav.some((entry) => entry.href === "/notifications"), "A Cleaner Account destination points at the Landlord inbox, which bounces them back.");
 assert(cleanerPage.includes("Notifications") && cleanerPage.includes("Recent") && cleanerPage.includes("Channels") && cleanerPage.includes("Push notification settings") && cleanerPage.includes("Mark all as read"), "The supplied Cleaner Notifications layout is incomplete.");
 assert(cleanerScript.includes('createCleanerPage("cleaner-notifications"') && cleanerScript.includes('/api/marketplace/notifications?') && cleanerScript.includes('/api/marketplace/notifications/read-all') && cleanerScript.includes("inboxCutoff") && cleanerScript.includes("cutoffCreatedAt") && cleanerScript.includes("notificationPresentation(item.eventType)"), "The replacement Cleaner Notifications centre is not connected to the private inbox or its race-safe read controls.");
 assert(cleanerScript.includes('"X-CSRF-Token"') && cleanerScript.includes("keepalive: true") && cleanerScript.includes("account.email") && cleanerScript.includes("replaceChildren") && !cleanerScript.includes("innerHTML") && !cleanerScript.includes("localStorage"), "The Cleaner Notifications centre lost secure mutations, real account hydration or safe rendering.");
 assert(cleanerStyles.includes(".hc-notifications-grid") && cleanerStyles.includes(".hc-notification-row.is-unread") && cleanerStyles.includes(".hc-channel-switch") && cleanerStyles.includes(".hc-notification-push-empty"), "The supplied Cleaner Notifications grid, unread state, channel controls or push settings state is not styled.");
-assert(cleanerDashboard.includes("data-notification-link") && cleanerDashboard.includes("data-notification-count") && cleanerDashboard.includes("notification-badge.js"), "Unread updates are not visible from the Cleaner dashboard.");
-for (const [workspace, dashboard] of [["Cleaner", cleanerDashboard], ["Landlord", landlordDashboard]]) {
-  for (const hook of ['href="/notifications"', "data-notification-link", "data-notification-count", "notification-badge.js"]) {
-    assert(dashboard.includes(hook), `${workspace} accounts cannot open the private notification inbox or see its unread count (${hook} is missing).`);
-  }
+// The Cleaner unread hooks live in the shared sidebar now, not in each page.
+assert(cleanerSidebar.includes("dataset.notificationLink") && cleanerSidebar.includes("dataset.notificationCount") && cleanerDashboard.includes("notification-badge.js"), "Unread updates are not visible from the Cleaner dashboard.");
+// A Cleaner's bell opens the CLEANER inbox. Fourteen of the fifteen pages used
+// to send it to the Landlord one, which redirects them straight back — a wasted
+// round trip and a flash of the wrong page, on every page.
+assert(cleanerDashboard.includes('class="hc-bell" href="/cleaner/notifications"') && !cleanerDashboard.includes('class="hc-bell" href="/notifications"'), "The Cleaner notification bell opens the Landlord inbox, which bounces them back.");
+for (const hook of ['href="/notifications"', "data-notification-link", "data-notification-count", "notification-badge.js"]) {
+  assert(landlordDashboard.includes(hook), `Landlord accounts cannot open the private notification inbox or see its unread count (${hook} is missing).`);
 }
 assert(landlordDashboard.includes(">Bookings</span>") && !landlordDashboard.includes(">Updates</span>"), "Adding Landlord notifications changed the approved primary navigation instead of keeping Bookings there.");
 assert(landlordDashboard.includes('class="landlord-notification-link"') && landlordDashboard.includes("<span>Notifications</span>"), "Landlord notifications are not a compact secondary account action beside the signed-in profile.");

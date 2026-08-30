@@ -1,4 +1,4 @@
-import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
+import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260830-1";
 import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
 
 const draftKey = "homle-cleaner-business-details-draft-v1";

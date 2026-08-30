@@ -1,4 +1,4 @@
-import { onboardingIcons, onboardingProgress, requiredOnboardingSubmissionKeys } from "./cleaner-onboarding-steps.js?v=20260807-3";
+import { onboardingIcons, onboardingProgress, requiredOnboardingSubmissionKeys } from "./cleaner-onboarding-steps.js?v=20260830-1";
 import { element } from "./cleaner-page.js?v=20260807-1";
 import { saveCsrf, storedCsrf } from "./session-csrf.js";
 

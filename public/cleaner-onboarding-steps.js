@@ -68,6 +68,28 @@ export const onboardingNav = [
   { label: "Review & Submit", icon: "reg", step: "review", href: "/cleaner/review-submit" }
 ];
 
+/*
+ * The Cleaner workspace's primary destinations.
+ *
+ * These used to be static markup repeated in nineteen HTML files, which had
+ * drifted into twelve different shapes — different icons, different labels,
+ * one page linking Notifications at the LANDLORD inbox. Most of it never
+ * reached the screen, because configureCleanerShell pruned the list and
+ * renderCleanerAccountNav replaced the Account group wholesale on every load.
+ * So nineteen files disagreed about a navigation the runtime then overwrote:
+ * editing one of them looked like it worked and changed nothing.
+ *
+ * `hidden` marks a destination that a page reveals once it knows the account
+ * has something behind it — Earnings only appears once payouts are reachable.
+ */
+export const workspaceNav = [
+  { label: "Activity", icon: "dash", href: "/cleaner/dashboard", pendingDot: true },
+  { label: "Jobs Map", icon: "pin", href: "/cleaner/jobs-map" },
+  { label: "Messages", icon: "chat", href: "/cleaner/messages", notificationHook: true },
+  { label: "Earnings", icon: "pound", href: "/cleaner/payouts", payoutGated: true },
+  { label: "Performance", icon: "star", href: "/cleaner/performance" }
+];
+
 export const accountNav = [
   { label: "My Profile", icon: "user", href: "/cleaner/profile/preview" },
   { label: "Notifications", icon: "bell", href: "/cleaner/notifications", notificationHook: true },

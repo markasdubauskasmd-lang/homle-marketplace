@@ -41,7 +41,7 @@ retired shell or palette, **shell** the new shared workspace shell
 | `/landlord/book` | L | Scan / manual request builder | v2-adjacent | ok | ok | scan, request API | — | none |
 | `/landlord/checkout` | L | Stripe authorisation | tokens + `landlord-checkout-v2.css` | ok (gated) | ok | payments | P2-7 | shell unified |
 | `/landlord/help` | L | Support requests | tokens + `landlord-help-v2.css` | ok | ok | support API | P2-7 | shell unified |
-| `/cleaner/dashboard` … `/cleaner/profile/preview` (18 routes) | C | Cleaner workspace | **hc** | ok | ok | many | P3-1 | body canvas fixed |
+| `/cleaner/dashboard` … `/cleaner/profile/preview` (18 routes) | C | Cleaner workspace | **hc** | ok | ok | many | P3-1, P2-14, P2-15 | canvas fixed, sidebar consolidated |
 | `/cleaner/payouts` | C | Stripe Connect onboarding | **legacy** | P1-2 | ok | payments | P1-2, P2-8 | migrated to hc |
 | `/cleaner/onboarding` + 12 registration routes | C | Cleaner registration | hc + redesign | ok | ok | onboarding API | P3-1 | body canvas fixed |
 | `/opportunity` | C | Pre-acceptance offer view | tokens | ok | ok | matching | — | none |
@@ -230,6 +230,36 @@ account's rows.
   because a phone has no sidebar to reach them from, so the bar changed shape as
   a Landlord moved from the dashboard to their own Updates.
   *Fixed:* the shell model carries a separate phone composition.
+
+- **[x] P2-14 · The Cleaner sidebar was copied into nineteen HTML files, and the
+  copies had drifted into twelve shapes.**
+  Different icons, different labels, a brand mark that was a link on one page and
+  a dead `<div>` on the next, and Account groups listing between one and four
+  destinations depending on which file you opened.
+
+  The worse half is that almost none of it reached the screen.
+  `configureCleanerShell()` pruned the primary list on load and
+  `renderCleanerAccountNav()` replaced the entire Account group from a single
+  list — so nineteen files disagreed about a navigation the runtime then
+  overwrote. **Editing a page's sidebar looked like it worked and changed
+  nothing.** Measured in a browser with a real Cleaner account, the rendered
+  sidebar was already identical everywhere; the markup was 1,336 lines of
+  decoration and a trap.
+  *Fixed:* one `renderCleanerShell()` builds both shells — workspace and
+  onboarding — from `workspaceNav` and `accountNav`. All nineteen asides deleted.
+  The rendered output is unchanged, verified page by page before and after.
+
+- **[x] P2-15 · The Cleaner notification bell opened the Landlord inbox.**
+  Fourteen of the fifteen Cleaner pages set `class="hc-bell" href="/notifications"`.
+  A Cleaner tapping it loaded the Landlord Updates page, which redirected them to
+  `/cleaner/notifications` — a wasted round trip and a flash of the wrong page,
+  on every page. One page's Account group did the same.
+  *Fixed:* all fifteen point at the Cleaner inbox. The redirect stays for old links.
+
+- **[x] P2-16 · One stylesheet was requested at two versions.**
+  The four onboarding pages asked for `cleaner-design-preview-motion.css` at
+  `20260816-restore-1` and `20260817-sharp-visuals-1` — two cache entries for one
+  file, and two chances to serve a stale one.
 
 ### P3 — refinement / polish
 

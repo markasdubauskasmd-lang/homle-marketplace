@@ -1,106 +1,192 @@
 /*
- * Renders the design's ONBOARDING sidebar group.
+ * The Cleaner workspace sidebar — built here, once, for all nineteen pages.
  *
- * Shared so all nine Cleaner pages show the same fourteen entries in the same order with
- * the same completion marks. Previously only the dashboard filled this group, which left
- * it empty everywhere else.
+ * It used to be static markup copied into each of those nineteen HTML files,
+ * and the copies had drifted into TWELVE different shapes: different icons,
+ * different labels, a brand mark that was a link on one page and a plain div on
+ * the next, and one page pointing its Notifications entry at the LANDLORD inbox
+ * (which redirects a Cleaner straight back).
  *
- * The ACCOUNT group is rendered here too, so every Cleaner page exposes the same destinations
- * while future screenshot-led pages can be connected at one stable URL apiece.
+ * Almost none of that drift reached the screen, which is the worse half of the
+ * problem: `configureCleanerShell` pruned the primary list on load and
+ * `renderCleanerAccountNav` replaced the whole Account group wholesale, so
+ * nineteen files disagreed about a navigation the runtime then overwrote.
+ * Editing one of them looked like it worked and changed nothing.
+ *
+ * There are two shells, and the page declares which by `data-cleaner-shell`:
+ *
+ *   workspace  — brand, five destinations, the Account group          (15 pages)
+ *   onboarding — brand linked to the introduction, the fourteen steps, and a
+ *                way back to the public site                           (4 pages)
+ *
+ * The pages now carry `<div class="hc">` with their main content and nothing
+ * else; the aside is inserted before it here.
  */
 
-import { accountNav, onboardingIcons, onboardingNav } from "./cleaner-onboarding-steps.js?v=20260816-restore-1";
+import { accountNav, onboardingIcons, onboardingNav, workspaceNav } from "./cleaner-onboarding-steps.js?v=20260830-1";
 
-function configureCleanerShell() {
-  const nav = document.querySelector(".hc-side .hc-nav");
-  if (!nav) return;
-  const side = nav.closest(".hc-side");
-  const onboardingGroup = nav.querySelector("[data-onboarding-group]");
-  const accountGroup = nav.querySelector("[data-account-group]");
-  const primaryItems = [...nav.children].filter((child) => child.matches(".hc-nav-item, .hc-nav-cta"));
-  const onboardingShell = document.body.dataset.cleanerShell === "onboarding";
+const svgNamespace = "http://www.w3.org/2000/svg";
 
-  if (!onboardingShell) {
-    onboardingGroup?.remove();
-    const onboardingEntry = primaryItems.find((item) => item.getAttribute("href") === "/cleaner/onboarding");
-    const scheduleEntry = primaryItems.find((item) => item.getAttribute("href") === "/cleaner/schedule");
-    const reviewsEntry = primaryItems.find((item) => item.getAttribute("href") === "/cleaner/reviews");
-    onboardingEntry?.remove();
-    scheduleEntry?.remove();
-    reviewsEntry?.remove();
-    primaryItems
-      .filter((item) => item.matches(".hc-nav-cta"))
-      .forEach((item) => item.remove());
-    return;
+function svgPath(d, { fill = "none", width = "1.7" } = {}) {
+  const path = document.createElementNS(svgNamespace, "path");
+  path.setAttribute("d", d);
+  path.setAttribute("fill", fill);
+  if (fill === "none") {
+    path.setAttribute("stroke", "currentColor");
+    path.setAttribute("stroke-width", width);
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
   }
+  return path;
+}
 
-  if (side) {
-    side.dataset.previewSidebar = "";
-    side.classList.remove("is-preview-expanded");
-  }
-  const brandMark = side?.querySelector(".hc-brand-mark");
-  if (brandMark) {
-    const logo = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+function element(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/* The house mark, in the two forms the two shells use. */
+function brandGlyph(onboarding) {
+  const logo = document.createElementNS(svgNamespace, "svg");
+  logo.setAttribute("aria-hidden", "true");
+  logo.setAttribute("focusable", "false");
+  if (onboarding) {
     logo.classList.add("hc-brand-logo");
     logo.setAttribute("viewBox", "0 0 64 64");
     logo.setAttribute("preserveAspectRatio", "none");
-    logo.setAttribute("aria-hidden", "true");
-    logo.setAttribute("focusable", "false");
-    const roof = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    roof.setAttribute("d", "M9 27 32 7l23 20");
-    roof.setAttribute("fill", "none");
-    roof.setAttribute("stroke", "currentColor");
-    roof.setAttribute("stroke-width", "7");
-    roof.setAttribute("stroke-linecap", "round");
-    roof.setAttribute("stroke-linejoin", "round");
-    const left = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    left.setAttribute("d", "M17 29 28 19v18c0 5 3 8 8 8-5 0-8 3-8 8v4H17V29Z");
-    left.setAttribute("fill", "currentColor");
-    const right = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    right.setAttribute("d", "m36 19 11 10v28H36V43c0-4-3-7-8-7 5 0 8-3 8-8v-9Z");
-    right.setAttribute("fill", "currentColor");
-    logo.append(roof, left, right);
-    brandMark.replaceChildren(logo);
+    logo.append(
+      svgPath("M9 27 32 7l23 20", { width: "7" }),
+      svgPath("M17 29 28 19v18c0 5 3 8 8 8-5 0-8 3-8 8v4H17V29Z", { fill: "currentColor" }),
+      svgPath("m36 19 11 10v28H36V43c0-4-3-7-8-7 5 0 8-3 8-8v-9Z", { fill: "currentColor" })
+    );
+    return logo;
   }
-  if (side && !side.querySelector(".hc-home-return")) {
-    const home = document.createElement("a");
-    home.className = "hc-home-return";
-    home.href = "https://homlle.com/";
-    home.setAttribute("aria-label", "Return to Homlle.com");
-    home.title = "Return to Homlle.com";
-    const homeIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    homeIcon.setAttribute("width", "19");
-    homeIcon.setAttribute("height", "19");
-    homeIcon.setAttribute("viewBox", "0 0 24 24");
-    homeIcon.setAttribute("aria-hidden", "true");
-    const homePath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    homePath.setAttribute("d", "M10 5H5v14h5M14 8l4 4-4 4M18 12H9");
-    homePath.setAttribute("fill", "none");
-    homePath.setAttribute("stroke", "currentColor");
-    homePath.setAttribute("stroke-width", "1.7");
-    homePath.setAttribute("stroke-linecap", "round");
-    homePath.setAttribute("stroke-linejoin", "round");
-    homeIcon.append(homePath);
-    const homeLabel = document.createElement("span");
-    homeLabel.textContent = "Return to Homlle.com";
-    home.append(homeIcon, homeLabel);
-    side.append(home);
+  logo.setAttribute("width", "22");
+  logo.setAttribute("height", "22");
+  logo.setAttribute("viewBox", "0 0 24 24");
+  logo.append(svgPath("M12 4 4.5 10.5V20h15v-9.5z", { width: "2" }), svgPath("M10 20v-5h4v5", { width: "2" }));
+  return logo;
+}
+
+function brandBlock(onboarding) {
+  const brand = element("div", "hc-brand");
+  // On the onboarding shell the mark returns to the introduction. Three of the
+  // four onboarding pages had it as a plain div, so it was a dead end there.
+  const mark = element(onboarding ? "a" : "div", "hc-brand-mark");
+  mark.setAttribute("aria-hidden", onboarding ? "false" : "true");
+  if (onboarding) {
+    mark.href = "/cleaner/introduction";
+    mark.setAttribute("aria-label", "Open the Homle onboarding introduction");
+  }
+  mark.append(brandGlyph(onboarding));
+  const copy = element("div");
+  copy.append(element("div", "hc-brand-name", "Homle"), element("div", "hc-brand-role", onboarding ? "ONBOARDING" : "CLEANER"));
+  brand.append(mark, copy);
+  return brand;
+}
+
+function navItem(entry, current) {
+  const item = element("a", "hc-nav-item");
+  item.href = entry.href;
+  if (entry.href === current) {
+    item.classList.add("is-current");
+    item.setAttribute("aria-current", "page");
+  }
+  if (entry.notificationHook) {
+    item.dataset.notificationLink = "";
+    item.dataset.notificationLabel = entry.label;
+  }
+  // Earnings stays hidden until a page confirms the account can reach payouts.
+  if (entry.payoutGated) {
+    item.dataset.cleanerPayoutLink = "";
+    item.hidden = true;
+  }
+  item.append(icon(entry.icon), element("span", "hc-nav-label", entry.label));
+  if (entry.pendingDot) {
+    const dot = element("span", "hc-nav-dot");
+    dot.dataset.cleanerPendingDot = "";
+    dot.hidden = true;
+    item.append(dot);
+  }
+  if (entry.notificationHook) {
+    const count = element("span", "notification-nav-count");
+    count.dataset.notificationCount = "";
+    count.hidden = true;
+    item.append(count);
+  }
+  return item;
+}
+
+function homeReturn() {
+  const home = element("a", "hc-home-return");
+  home.href = "https://homlle.com/";
+  home.setAttribute("aria-label", "Return to Homlle.com");
+  home.title = "Return to Homlle.com";
+  const glyph = document.createElementNS(svgNamespace, "svg");
+  glyph.setAttribute("width", "19");
+  glyph.setAttribute("height", "19");
+  glyph.setAttribute("viewBox", "0 0 24 24");
+  glyph.setAttribute("aria-hidden", "true");
+  glyph.append(svgPath("M10 5H5v14h5M14 8l4 4-4 4M18 12H9"));
+  home.append(glyph, element("span", "", "Return to Homlle.com"));
+  return home;
+}
+
+/**
+ * Builds the sidebar and puts it in front of the page's `.hc` content.
+ *
+ * Returns early if a page still carries its own `<aside>`, so a page that has
+ * not been migrated keeps working rather than getting two of them.
+ */
+export function renderCleanerShell() {
+  const shell = document.querySelector(".hc");
+  if (!shell || shell.querySelector(".hc-side")) return;
+  const onboarding = document.body.dataset.cleanerShell === "onboarding";
+  const current = location.pathname;
+
+  const side = element("aside", "hc-side cleaner-site-header");
+  if (onboarding) side.dataset.previewSidebar = "";
+  side.append(brandBlock(onboarding));
+
+  const nav = element("nav", "hc-nav");
+  nav.setAttribute("aria-label", "Cleaner navigation");
+
+  if (onboarding) {
+    // The fourteen steps, filled by renderCleanerNav once progress is known.
+    const steps = element("div", "hc-nav-group");
+    steps.dataset.onboardingGroup = "";
+    steps.setAttribute("aria-label", "Onboarding steps");
+    const list = element("div");
+    list.dataset.onboardingNav = "";
+    steps.append(list);
+    nav.append(steps);
+  } else {
+    for (const entry of workspaceNav) nav.append(navItem(entry, current));
+
+    const account = element("details", "hc-nav-group");
+    account.dataset.accountGroup = "";
+    account.open = true;
+    const summary = element("summary", "hc-nav-group-summary");
+    summary.append(element("span", "hc-nav-group-label", "ACCOUNT"));
+    const chevron = element("span", "hc-nav-chevron", "▾");
+    chevron.setAttribute("aria-hidden", "true");
+    summary.append(chevron);
+    const list = element("div");
+    list.dataset.accountNav = "";
+    const status = element("small", "hc-account-nav-status");
+    status.dataset.accountSignOutStatus = "";
+    status.setAttribute("role", "status");
+    status.setAttribute("aria-live", "polite");
+    status.hidden = true;
+    account.append(summary, list, status);
+    nav.append(account);
   }
 
-  primaryItems.forEach((item) => item.remove());
-  accountGroup?.remove();
-  const role = document.querySelector(".hc-brand-role");
-  if (role) role.textContent = "ONBOARDING";
-  if (onboardingGroup) {
-    const onboardingList = document.createElement("div");
-    onboardingList.className = onboardingGroup.className;
-    onboardingList.dataset.onboardingGroup = "";
-    onboardingList.setAttribute("aria-label", "Onboarding steps");
-    [...onboardingGroup.children]
-      .filter((child) => !child.matches(".hc-nav-group-summary"))
-      .forEach((child) => onboardingList.append(child));
-    onboardingGroup.replaceWith(onboardingList);
-  }
+  side.append(nav);
+  if (onboarding) side.append(homeReturn());
+  shell.prepend(side);
 }
 
 function positionOnboardingIndicator(host, item, immediate = false) {
@@ -289,7 +375,8 @@ export function renderCleanerAccountNav() {
 
 // Module scripts run after the page markup is parsed and before the later account/notification
 // controllers, so their event listeners see these shared buttons and hooks on first load.
-configureCleanerShell();
+// The shell has to exist before the two group renderers can fill it.
+renderCleanerShell();
 renderCleanerAccountNav();
 // Paint the fourteen step icons straight away. Their completion marks need the account,
 // profile, availability and onboarding reads, but the icons themselves do not, and waiting
