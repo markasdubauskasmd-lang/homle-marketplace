@@ -491,6 +491,34 @@ body.ci-body {
   padding: 88px 44px 24px;
 }
 
+/* Legibility scrim for type set over the photograph.
+ *
+ * `.ci-hero-veil` darkens the frame by `.3 + progress * .7`, so it is at its
+ * weakest at the very first paint — the one frame every visitor sees. Measured
+ * against the rendered pixels there, the worst regions of the headline reached
+ * 1.3:1 and the italic "clearly." 1.0:1 against WCAG's 3:1 for large text, and
+ * the standfirst 1.6:1 against 4.5:1. Mean contrast was fine; it is the bright
+ * cushions and pale stone the words cross that make them disappear.
+ *
+ * This sits between the image and the words only, so the photograph keeps its
+ * presence everywhere the copy is not, and it does not move with scroll — the
+ * words stay readable through the whole wipe.
+ */
+.ci-hero-copy::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(8, 8, 9, .58) 0%,
+    rgba(8, 8, 9, .78) 38%,
+    rgba(8, 8, 9, .78) 72%,
+    rgba(8, 8, 9, .42) 100%);
+}
+
+/* Lift the words above the scrim they sit on. */
+.ci-hero-copy > * { position: relative; }
+
 .ci-eyebrow {
   margin: 0 0 26px;
   font-family: var(--ci-mono);

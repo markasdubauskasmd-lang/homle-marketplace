@@ -45,10 +45,13 @@ detect the collision rather than allowing it through silently.
 | P1-2 | Critical | No test executes the authentication SQL against a real database | **FIXED / VERIFIED** |
 | P1-3 | Critical | Visual baseline pinned to one Chromium build, so the suite is red elsewhere | **FIXED / VERIFIED** |
 | P1-4 | Critical | Landing-clip tests fail on any Chromium without an H.264 decoder | **FIXED / VERIFIED** |
+| P1-5 | Critical | Landing hero text is illegible over the photograph (1.0:1 measured) | **FIXED / VERIFIED** |
+| P1-6 | Critical | Landlord and Cleaner dashboards look like two different products | Documented — Cleaner side is frozen |
 | P2-1 | Important | `/landlord/properties` is headed "Bookings" | Documented — deliberate |
 | P2-2 | Important | Verification email is plain text only | Documented |
 | P2-3 | Important | New customer’s first screen leads with an infrastructure caveat | Documented — resolves once configured |
 | P2-4 | Important | Publication-safety guard blocks on four false positives | Documented — founder decision |
+| P2-5 | Important | Cleaner with no work sees an example job in their calendar | Documented — Cleaner side is frozen |
 
 ---
 
@@ -328,6 +331,71 @@ detect the collision rather than allowing it through silently.
 * **Status** — **FIXED / VERIFIED.** Both tests now pass here and retain full
   strength on a proprietary-codec build.
 
+### P1-5 — The landing hero headline is unreadable where it crosses the photograph.
+
+* **Issue** — the first screen every visitor sees. The headline, the italic
+  "clearly." and the standfirst are set directly over a photograph, and where
+  they cross its bright regions — pale stone, white cushions — they effectively
+  disappear.
+* **Location** — `public/home.html` hero, `public/landing-*.css`
+  (`.ci-hero-veil`, `.ci-hero-copy`).
+* **Reproduction** — measured against the actual rendered pixels: each text
+  element's computed colour was compared to every pixel of the backdrop behind
+  its own rectangle, with the text hidden by node reference so only the image
+  was sampled. Worst-case WCAG contrast, before the fix:
+
+  | Text | Needs | 320px | 390px | 1280px |
+  |---|---|---|---|---|
+  | "Cleaning," | 3:1 | 1.62:1 | 1.31:1 | 1.17:1 |
+  | "understood" | 3:1 | 1.44:1 | 1.54:1 | 1.33:1 |
+  | "clearly." | 3:1 | **1.00:1** | **1.00:1** | **1.00:1** |
+  | Standfirst | 4.5:1 | 1.61:1 | 1.55:1 | 3.12:1 |
+
+  1.00:1 means the red type is rendering over pixels of identical luminance —
+  literally invisible in those regions. (The method was validated by the eyebrow
+  text over the flat black background, which correctly measured 17.8:1.)
+* **Root cause** — a scrim does exist, but `.ci-hero-veil` has
+  `opacity: calc(.3 + var(--p) * .7)`, where `--p` is scroll progress. It is at
+  its **weakest at the very first paint** — the one frame every visitor sees —
+  and only strengthens as they scroll away from it.
+* **Why nothing caught it** — every CSS value here is correct in isolation, so
+  the computed-style baseline and the structural accessibility checks both pass.
+  Contrast between text and a photograph cannot be computed from CSS; it has to
+  be measured from rendered pixels. That is a real gap in the existing coverage,
+  and this audit initially missed it for the same reason.
+* **Severity** — P1. It is the product's first impression and a clear WCAG
+  failure at every width tested.
+* **Solution** — a scrim between the photograph and the words only, that does
+  not weaken with scroll, so the copy stays readable through the whole
+  messy-to-spotless wipe. The frame veil, the wipe, the animation timings and
+  the layout are untouched. After the fix, every element passes at all three
+  widths: worst case rose from 1.00:1 to **3.21:1** for "clearly." and to
+  9.3–13.9:1 for everything else. The landing motion, smoothness, hero-frame and
+  mobile-entry suites all still pass, and the stylesheet received a new
+  content-addressed filename as its own guard requires.
+* **Status** — **FIXED / VERIFIED.** The photograph is noticeably darker at rest
+  than before — that is the cost of setting type over an image, and it is a
+  single self-contained commit to reverse or re-tune if the art direction is
+  judged more important than the legibility.
+
+### P1-6 — The Landlord and Cleaner dashboards look like two different products.
+
+* **Issue** — placed side by side they do not read as the same application.
+  The Landlord workspace is near-white with a light sidebar, compact headings
+  and red accents. The Cleaner workspace is warm cream with a different sidebar
+  treatment, a much larger display heading scale, different card and stat-tile
+  styling, and a floating chat button the Landlord side does not have.
+* **Location** — `public/landlord-dashboard.*` versus `public/cleaner-*`.
+* **Assessment** — this is the clearest gap against the brief's "one intentional
+  product… it must not feel as though different pages were created at different
+  times." Both are competent designs; they are simply not the same design.
+* **Deliberately not changed** — the entire Cleaner Dashboard (89 files) is
+  under the freeze that `tests/cleaner-dashboard-freeze.mjs` enforces
+  byte-for-byte. Converging them is also a substantial design decision, not a
+  defect fix. It needs a token-level decision — one palette, one heading scale,
+  one card and sidebar treatment — applied deliberately to both sides.
+* **Status** — Documented. Needs a founder decision and the freeze lifted.
+
 ---
 
 ## P2 — IMPORTANT
@@ -337,11 +405,14 @@ detect the collision rather than allowing it through silently.
 * **Location** — `public/landlord-dashboard.js:1131` (`workspaceTabCopy`).
 * **Current behaviour** — `/landlord/properties` resolves to the `places` view,
   whose heading is "Bookings"; `/landlord/requests` is headed "Properties".
-* **Assessment** — this is deliberate and documented in the source: Properties
-  was folded into Bookings, and the old address is kept resolving rather than
-  404ing a bookmarked link. It is an information-architecture inconsistency
-  rather than a defect, and changing it is a product decision about naming, not
-  a bug fix.
+* **Assessment** — the consolidation is deliberate and documented in the source.
+  Seeing it rendered, though, the naming is harder to defend than the code
+  comment suggests: a single screen at `/landlord/properties` shows the heading
+  "Bookings", the sidebar item "Bookings", the section label "YOUR PLACES", the
+  button "Add a place" and the standfirst "Everything for every place you own".
+  Three words — Properties, Bookings, Places — for two concepts, in one view.
+  This is the terminology question the brief raised, and it is a naming decision
+  rather than a bug fix, so it is recorded rather than changed.
 * **Status** — Documented, not changed. Recommended follow-up: settle the
   Property / Place / Booking vocabulary and make the URL, navigation label and
   heading agree.
@@ -392,6 +463,20 @@ detect the collision rather than allowing it through silently.
   alone, and exempt `data/scan-benchmark/`, which is synthetic by construction.
   Pre-existing on `main` and unrelated to this audit's changes.
 * **Status** — Documented, not changed.
+
+### P2-5 — A Cleaner with no work sees an example job in their calendar.
+
+* **Location** — Cleaner Activity schedule (`/cleaner/dashboard`).
+* **Current behaviour** — a new Cleaner's week shows a "Deep clean £68.00 ·
+  example" entry, and the Upcoming cleans list below shows the same job tagged
+  "EXAMPLE LAYOUT", while the stat tiles above correctly read £0.00 and 0 jobs.
+* **Assessment** — it is labelled, and it does demonstrate what a real job will
+  look like, which is a defensible empty-state choice. The risk is that a
+  priced, dated, located entry sitting in an otherwise empty calendar can be
+  read as real work at a glance, and it contradicts the stat tiles directly
+  above it. Worth a look before Cleaners are recruited.
+* **Deliberately not changed** — the Cleaner Dashboard is under the freeze.
+* **Status** — Documented.
 
 ### P2-2 — Transactional email is plain text only.
 
@@ -455,7 +540,8 @@ can be served.
 | **Cleaner journey** | Verified: register → verify → sign in → onboard → publish a 100 %-complete profile with services and service areas → add availability → become matchable. |
 | **Mobile** | Checked at 320, 375, 390, 430, 768, 1280 and 1920 px. No horizontal overflow on any tested route. |
 | **Performance** | Not profiled. No blocking issue observed; page loads carried no failed requests. Core Web Vitals need a deployed HTTPS origin to measure honestly. |
-| **Accessibility** | Reviewed. Correct `lang`, sound heading structure, every form control labelled, every button named, and every image carries an `alt` attribute — decorative images correctly using `alt=""`. |
+| **Accessibility** | Structure is sound: correct `lang`, sensible heading order, every form control labelled, every button named, every image carrying an `alt` attribute with decorative images correctly using `alt=""`. Contrast was **not** sound: the landing hero measured as low as 1.00:1 against a 3:1 requirement (P1-5), now fixed and re-measured. Structural checks alone had reported this page as clean, which is precisely why text-over-image needs pixel measurement rather than CSS inspection. |
+| **Design** | Reviewed by looking at rendered screens, not only computed styles. The Landlord dashboards, account page, manual-request flow and scanner entry are genuinely well made — clear hierarchy, consistent spacing and radii, both primary actions obvious, a good mobile bottom bar, and empty states that guide rather than dead-end. Two real problems: the hero contrast failure (P1-5, fixed) and the Landlord/Cleaner visual divergence (P1-6, needs a decision). Terminology remains inconsistent (P2-1). |
 
 ### Changes completed
 

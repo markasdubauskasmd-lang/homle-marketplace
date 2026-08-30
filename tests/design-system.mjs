@@ -76,14 +76,14 @@ const stylesheets = readdirSync(new URL("../public", import.meta.url)).filter((n
 const declaringFonts = stylesheets.filter((name) => /@font-face\s*\{/.test(stripComments(read(`public/${name}`))));
 // Two stylesheets own type outside homle-tokens.css, and both are deliberate:
 // homle-cleaner.css is the Cleaner workspace's own system (Archivo/Poppins), a
-// separate, newer design owned by someone else; landing-1b980c00.css is the public
+// separate, newer design owned by someone else; landing-f56e7ce9.css is the public
 // landing page, a self-contained dark design that loads neither styles.css nor
 // the tokens (see public-brand.mjs) precisely so its typography and surface
 // cannot be pulled around by the app's. Neither shares the app's look, so
 // neither can read the app's font declarations.
 assert.deepEqual(
   declaringFonts.sort(),
-  ["homle-cleaner.css", "homle-tokens.css", "landing-1b980c00.css"],
+  ["homle-cleaner.css", "homle-tokens.css", "landing-f56e7ce9.css"],
   `@font-face is declared in ${declaringFonts.join(", ")}. The same two families were once repeated across three stylesheets; one owner means a font swap is one edit rather than a hunt.`
 );
 
