@@ -20,11 +20,16 @@ Statuses: `[ ]` not started · `[~] `in progress · `[x]` complete · `[!]` need
 
 ## 1. Route matrix
 
+**The `Design`, `Functional` and `Mobile` columns record what the audit FOUND.**
+The `Action` column records what was done about it. So a row can read `legacy`
+and `migrated` at once — that is the point of keeping both.
+
 `USER` — L Landlord, C Cleaner, A Admin, P public, ? any signed-in account.
 `DESIGN` — **v2** the approved Landlord composition (`landlord-dashboard-v2.css`),
 **hc** the Cleaner workspace system (`homle-cleaner.css`), **landing** the public
 marketing design, **tokens** shared tokens with no page composition, **legacy** a
-retired shell or palette.
+retired shell or palette, **shell** the new shared workspace shell
+(`homle-workspace.css` + `workspace-shell.js`).
 
 | Route | User | Purpose | Design | Functional | Mobile | Backend | Issues | Action |
 |---|---|---|---|---|---|---|---|---|
@@ -69,18 +74,19 @@ The approved composition is the Landlord v2 workspace. Extracted from it and fro
 | Muted ramp | `#666666`, `#6b6b6b`, `#707070` (contrast-led, ≥4.5:1 on canvas) |
 | Accent | `#e11b22`, hover `#c4151b`, tint `#fdecec` |
 | Lines | `#efedeb`, `#e7e4e0`, `#e1deda` |
-| Success | `#2e9e63` / ink `#2e7d51` / tint `#eaf4ee` |
+| Success | `#2e9e63` / ink `#2a7047` / tint `#eaf4ee` (ink darkened from `#2e7d51`, which measured 4.48:1) |
 | Warning | ink `#9a6d14` / tint `#fbf1df` |
 | Type | DM Sans body **and** headings on workspace surfaces; Bricolage Grotesque for voice |
-| Radius | 10 chips · 12 nav rows · 16 buttons · 20–22 cards · 999 pills |
+| Radius | 11px buttons · 12px fields and nav rows · 20px cards · 22px panels · 999 pills |
 | Elevation | `0 1px 2px …/.05, 0 6px 16px …/.06` for cards; one deeper step for overlays |
 | Shell | 240px white sidebar ≥900px; top bar with title, bell, avatar; floating bottom tab bar <900px |
 | Focus | 3px `#2456e6`, offset 2px |
 
-**The problem was never that these values were unknown.** They were declared three
-times, in three files, as literals — `landlord-dashboard-v2.css`,
-`account-pages.css` and scattered rules in `styles.css` — so "one design system"
-was a coincidence maintained by hand.
+**The problem was never that these values were unknown.** They were declared six
+times, as literals, in six files — `landlord-dashboard-v2.css`,
+`account-pages.css`, `landlord-help-v2.css`, `landlord-checkout-v2.css`,
+`landlord-journey-v2.css` and `admin-pricing.css` — so "one design system" was a
+coincidence maintained by hand, and it had already started coming apart.
 
 ---
 
