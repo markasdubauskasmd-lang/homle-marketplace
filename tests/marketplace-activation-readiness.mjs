@@ -118,7 +118,7 @@ const [adminPage, adminScript, server] = await Promise.all([
   readFile(new URL("../public/admin.js", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8")
 ]);
-assert(adminPage.includes('/admin-launch.css?v=20260821-4') && adminPage.includes('/admin.js?v=20260821-4') && adminPage.includes('/readiness-navigator.js?v=20260821-1'), "The Administrator launch guides omitted their cache-safe assets.");
+assert(adminPage.includes('/admin-launch.css?v=20260830-1') && adminPage.includes('/admin.js?v=20260821-4') && adminPage.includes('/readiness-navigator.js?v=20260821-1'), "The Administrator launch guides omitted their cache-safe assets.");
 for (const key of ["privateMedia", "transactionalEmail", "realtimeUpdates", "postcodeGeocoding", "matchingPricing"]) assert(adminPage.includes(`data-activation-check="${key}"`), `The Administrator activation panel omitted ${key}.`);
 assert(adminPage.includes('id="technical-readiness-score">0/11'), "The Administrator activation panel retained the old bundled score.");
 for (const evidence of [

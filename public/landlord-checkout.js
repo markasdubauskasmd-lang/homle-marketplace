@@ -1,8 +1,18 @@
 import { bookingIdFromSearch, formatPaymentAmount, paymentPresentation, paymentRetryStorageKey } from "./landlord-checkout-model.js";
 import { storedCsrf } from "./session-csrf.js";
+import { renderWorkspaceShell } from "./workspace-shell.js?v=20260830-1";
 
 const stripeScriptUrl = "https://js.stripe.com/clover/stripe.js";
 const bookingId = bookingIdFromSearch(location.search);
+// The shell replaces the standalone header and footer this page used to carry,
+// and goes in before anything else measures or reveals the page.
+await renderWorkspaceShell({
+  active: "bookings",
+  title: "Authorize the agreed cleaning total",
+  subtitle: "Payment details stay inside Stripe's secure element. Homle receives a payment status, never your full card number or security code.",
+  eyebrow: "Protected booking step"
+});
+
 const state = document.querySelector("[data-payment-state]");
 const stateTitle = document.querySelector("[data-payment-state-title]");
 const stateCopy = document.querySelector("[data-payment-state-copy]");
@@ -324,7 +334,11 @@ async function confirmPayment(event) {
 }
 
 async function load() {
-  document.querySelector("[data-year]").textContent = new Date().getFullYear();
+  // The page no longer carries a standalone footer, so the year stamp is
+  // optional rather than something whose absence throws before the booking
+  // reference is even checked.
+  const yearStamp = document.querySelector("[data-year]");
+  if (yearStamp) yearStamp.textContent = new Date().getFullYear();
   if (!bookingId) return showState("Open a valid booking checkout link", "This address does not contain a valid private booking reference. No payment was attempted.", { kind: "error" });
   if (loading) return;
   loading = true;

@@ -43,14 +43,14 @@
 html:has(body.journey-page) { --scroll-offset: 80px; }
 
 body.journey-page {
-  --j-red: #e11b22;
-  --j-red-hot: #c4151b;
-  --j-ok: #2e7d51;
-  --j-ink: #1a1a1a;
-  --j-dim: #666666;
-  --j-ghost: #6b6b6b;
-  --j-line: #efedeb;
-  background: #f7f6f5;
+  --j-red: var(--homle-ws-accent, #e11b22);
+  --j-red-hot: var(--homle-ws-accent-dark, #c4151b);
+  --j-ok: var(--homle-ws-success-ink, #2e7d51);
+  --j-ink: var(--homle-ws-ink, #1a1a1a);
+  --j-dim: var(--homle-ws-muted, #666666);
+  --j-ghost: var(--homle-ws-dim, #6b6b6b);
+  --j-line: var(--homle-ws-line, #efedeb);
+  background: var(--homle-ws-canvas, #f7f6f5);
   font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
 }
 
@@ -72,10 +72,10 @@ body.journey-page .eyebrow {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
-  color: #6b6b6b;
+  color: var(--homle-ws-dim, #6b6b6b);
   gap: 9px;
 }
-body.journey-page .eyebrow::before { background: #6b6b6b; }
+body.journey-page .eyebrow::before { background: var(--homle-ws-dim, #6b6b6b); }
 
 /* ── Buttons ────────────────────────────────────────────────────────────── */
 
@@ -89,34 +89,34 @@ body.journey-page .btn {
   box-shadow: none;
   transition: background 0.16s ease, transform 0.16s ease, border-color 0.16s ease;
 }
-body.journey-page .btn-p { background: #e11b22; color: #ffffff; border: 0; }
-body.journey-page .btn-p:hover { background: #c4151b; box-shadow: none; }
+body.journey-page .btn-p { background: var(--homle-ws-accent, #e11b22); color: #ffffff; border: 0; }
+body.journey-page .btn-p:hover { background: var(--homle-ws-accent-dark, #c4151b); box-shadow: none; }
 body.journey-page .btn:active { transform: scale(0.97); }
 body.journey-page .btn-lg { padding: 15px 26px; font-size: 15.5px; min-height: 52px; }
 body.journey-page .btn:disabled { opacity: 0.32; box-shadow: none; transform: none; }
 /* The journey's ghost is a full-width text link rather than a button, so it
    takes the workspace's quiet treatment instead of its outline. */
 body.journey-page .btn-ghost {
-  color: #666666;
+  color: var(--homle-ws-muted, #666666);
   font-weight: 600;
   box-shadow: none;
 }
-body.journey-page .btn-ghost:hover { color: #c4151b; }
+body.journey-page .btn-ghost:hover { color: var(--homle-ws-accent-dark, #c4151b); }
 
 /* ── Fields ─────────────────────────────────────────────────────────────── */
 
-body.journey-page .field label { font-size: 12.5px; font-weight: 700; color: #666666; }
-body.journey-page .field .hint { color: #6b6b6b; font-size: 12px; }
+body.journey-page .field label { font-size: 12.5px; font-weight: 700; color: var(--homle-ws-muted, #666666); }
+body.journey-page .field .hint { color: var(--homle-ws-dim, #6b6b6b); font-size: 12px; }
 body.journey-page .inp {
   min-height: 48px;
   padding: 12px 14px;
-  border: 1px solid #e7e4e0;
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
   border-radius: 12px;
   /* Outlined on paper, as the workspace does, rather than the journey's grey
      fill. 16px is kept from the original: it is what stops iOS zooming the
      page when a field takes focus. */
   background: #ffffff;
-  color: #1a1a1a;
+  color: var(--homle-ws-ink, #1a1a1a);
   font-size: 16px;
   font-weight: 500;
 }
@@ -125,13 +125,13 @@ body.journey-page textarea.inp { min-height: 120px; line-height: 1.55; }
    substitutes a coral glow; this restores a real ring and keeps the coral
    border alongside it. */
 body.journey-page .inp:focus {
-  outline: 3px solid #2456e6;
+  outline: 3px solid var(--homle-ws-focus, #2456e6);
   outline-offset: 1px;
-  border-color: #e11b22;
+  border-color: var(--homle-ws-accent, #e11b22);
   background: #ffffff;
   box-shadow: none;
 }
-body.journey-page .err { color: #c4151b; font-size: 12.5px; font-weight: 600; }
+body.journey-page .err { color: var(--homle-ws-accent-dark, #c4151b); font-size: 12.5px; font-weight: 600; }
 
 /* ── Choices ────────────────────────────────────────────────────────────── */
 
@@ -140,7 +140,7 @@ body.journey-page .err { color: #c4151b; font-size: 12.5px; font-weight: 600; }
    selectable-tile treatment now. */
 body.journey-page .opt,
 body.journey-page .journey-property-option {
-  border: 1.5px solid #e7e4e0;
+  border: 1.5px solid var(--homle-ws-border, #e7e4e0);
   border-radius: 14px;
   background: #ffffff;
   transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
@@ -149,19 +149,19 @@ body.journey-page .opt:hover,
 body.journey-page .journey-property-option:hover { transform: translateY(-1px); border-color: #f0a0a3; }
 body.journey-page .opt.on,
 body.journey-page .journey-property-option.on {
-  border-color: #e11b22;
-  background: #fdecec;
+  border-color: var(--homle-ws-accent, #e11b22);
+  background: var(--homle-ws-accent-tint, #fdecec);
 }
 body.journey-page .day,
 body.journey-page .chip {
-  border: 1.5px solid #e7e4e0;
+  border: 1.5px solid var(--homle-ws-border, #e7e4e0);
   border-radius: 11px;
   background: #ffffff;
   font-family: inherit;
   font-weight: 600;
 }
 body.journey-page .day.on,
-body.journey-page .chip.on { border-color: #e11b22; background: #fdecec; color: #1a1a1a; }
+body.journey-page .chip.on { border-color: var(--homle-ws-accent, #e11b22); background: var(--homle-ws-accent-tint, #fdecec); color: var(--homle-ws-ink, #1a1a1a); }
 
 /* ── Cards ──────────────────────────────────────────────────────────────── */
 
@@ -170,13 +170,13 @@ body.journey-page .journey-property,
 body.journey-page .scan-invite,
 body.journey-page .journey-access-card {
   background: #ffffff;
-  border: 1px solid #efedeb;
+  border: 1px solid var(--homle-ws-line, #efedeb);
   border-radius: 16px;
   box-shadow: 0 1px 2px oklch(0.2 0.03 60 / 0.05), 0 6px 16px oklch(0.2 0.03 60 / 0.06);
 }
 body.journey-page .res-hero {
   border-radius: 20px;
-  border: 1px solid #efedeb;
+  border: 1px solid var(--homle-ws-line, #efedeb);
   box-shadow: 0 1px 2px oklch(0.2 0.03 60 / 0.05), 0 6px 16px oklch(0.2 0.03 60 / 0.06);
 }
 
@@ -184,23 +184,23 @@ body.journey-page .res-hero {
 
 body.journey-page .rail {
   background: #ffffff;
-  border-bottom: 1px solid #efedeb;
+  border-bottom: 1px solid var(--homle-ws-line, #efedeb);
 }
 body.journey-page .rail-lbl {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #6b6b6b;
+  color: var(--homle-ws-dim, #6b6b6b);
 }
-body.journey-page .rail-back { color: #666666; border-radius: 9px; }
-body.journey-page .rail-back:hover { color: #c4151b; }
+body.journey-page .rail-back { color: var(--homle-ws-muted, #666666); border-radius: 9px; }
+body.journey-page .rail-back:hover { color: var(--homle-ws-accent-dark, #c4151b); }
 
 /* The workspace's focus contract, for everything the rail and steps contain. */
 body.journey-page a:focus-visible,
 body.journey-page button:focus-visible,
 body.journey-page select:focus-visible,
 body.journey-page textarea:focus-visible {
-  outline: 3px solid #2456e6;
+  outline: 3px solid var(--homle-ws-focus, #2456e6);
   outline-offset: 1px;
 }

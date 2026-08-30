@@ -391,7 +391,11 @@ try {
   const landlordCheckoutScript = await fetch(`${base}/landlord-checkout.js?v=smoke-test`);
   const landlordCheckoutText = await landlordCheckout.text();
   const landlordCheckoutScriptText = await landlordCheckoutScript.text();
-  assert(landlordCheckout.ok && landlordCheckoutText.includes("Protected booking step") && landlordCheckoutScript.ok && landlordCheckoutScriptText.includes("stripe.confirmPayment"), "Authenticated Landlord checkout page or controller is unavailable.");
+  // "Protected booking step" is now the shell's eyebrow, supplied at render time
+  // rather than written into the markup, because paying for a booking is a step
+  // inside the workspace and no longer a standalone page with its own dark bar.
+  assert(landlordCheckout.ok && landlordCheckoutScript.ok && landlordCheckoutScriptText.includes("stripe.confirmPayment") && landlordCheckoutScriptText.includes("Protected booking step"), "Authenticated Landlord checkout page or controller is unavailable.");
+  assert(landlordCheckoutText.includes("homle-workspace") && landlordCheckoutText.includes("data-workspace-main") && !landlordCheckoutText.includes("account-footer"), "Checkout left the shared workspace shell and is a standalone page again.");
   const authProviders = await fetch(`${base}/api/auth/providers`);
   const authProvidersBody = await authProviders.json();
   const serialisedAuthProviders = JSON.stringify(authProvidersBody);
@@ -418,7 +422,11 @@ try {
   assert(loginPageText.includes("data-account-ready-dashboard") && loginPageText.includes("data-account-avatar") && loginPageText.includes("data-account-side-title") && loginPageText.includes("Signing in does not create a booking or take payment.") && loginPageText.includes("Secure sign-in") && loginPageText.includes("Choose workspace") && !loginPageText.includes("while this check runs") && !loginPageText.includes("Loading booking") && authEntryText.includes("accountReadyPresentation(result.account, workspaceReady)") && authEntryText.includes("accountReadyDashboard.href = presentation.actionHref") && authEntryText.includes("renderAccountAvatar(result.account)") && authEntryText.includes('setAccountSide(cleaner ? "cleaner" : "landlord")') && authEntryText.includes("Landlord properties and booking controls never appear in the Cleaner dashboard") && authEntryText.includes("Cleaner profile, availability and earnings controls never appear in the Landlord dashboard"), "The signed-in account handoff still mixes Landlord and Cleaner actions, lacks a profile photo/initials identity, cannot choose a safe role-specific next action, or leaves a resolved account page looking stuck in a loading state.");
   const settingsPageText = await settingsPage.text();
   const settingsAssetText = await settingsAsset.text();
-  assert(settingsPage.ok && settingsAsset.ok && settingsPageText.includes("Sign-in methods") && settingsPageText.includes('data-privacy-action="export"') && settingsPageText.includes('data-privacy-action="deletion"') && settingsAssetText.includes('requestJson("/api/marketplace/auth/provider-links")') && settingsAssetText.includes('requestJson("/api/marketplace/privacy-requests")'), "The secure account settings and privacy-request destination is unavailable.");
+  // The page is titled by what the Account view calls it — "Security & login" —
+  // and sits inside the shared workspace shell instead of the standalone dark
+  // bar carrying one "Back to Homle" link.
+  assert(settingsPage.ok && settingsAsset.ok && settingsPageText.includes("Security &amp; login") && settingsPageText.includes("Your methods") && settingsPageText.includes('data-privacy-action="export"') && settingsPageText.includes('data-privacy-action="deletion"') && settingsAssetText.includes('requestJson("/api/marketplace/auth/provider-links")') && settingsAssetText.includes('requestJson("/api/marketplace/privacy-requests")'), "The secure account settings and privacy-request destination is unavailable.");
+  assert(settingsPageText.includes("homle-workspace.css") && settingsPageText.includes("data-workspace-main") && !settingsPageText.includes("account-footer"), "Security & login left the shared workspace shell and is a standalone page again.");
   const sharedStyles = await fetch(`${base}/styles.css?v=smoke-test`);
   const sharedStylesText = await sharedStyles.text();
   assert(sharedStylesText.includes(".readiness-continue") && sharedStylesText.includes("label.readiness-field-focus"), "Guided launch setup omitted its visible continue action or focused-field styling.");

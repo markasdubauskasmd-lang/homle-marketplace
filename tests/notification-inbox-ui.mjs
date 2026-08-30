@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { notificationActionPath, notificationBookingPath, notificationPresentation, notificationUnreadBadge, notificationWorkspace, notificationWorkspacePath } from "../public/notification-inbox-model.js";
+import { notificationDayGroup, notificationGroups, notificationTone } from "../public/notification-inbox-view-model.js";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 
@@ -24,10 +25,15 @@ assert(notificationWorkspacePath({ selectedRole: "cleaner", roles: ["landlord"] 
 assert(notificationWorkspace({ selectedRole: "landlord", roles: ["landlord"] }).label === "Landlord" && notificationWorkspace({ selectedRole: "cleaner", roles: ["cleaner"] }).label === "Cleaner", "The inbox cannot present the active role as a distinct workspace.");
 assert(notificationUnreadBadge(3).visible && notificationUnreadBadge(3).label === "3" && notificationUnreadBadge(100).label === "99+", "Unread counts are not presented compactly.");
 assert(!notificationUnreadBadge(0).visible && !notificationUnreadBadge(-1).visible && !notificationUnreadBadge("not-a-count").visible, "Invalid or empty unread counts create a badge.");
+assert(notificationTone("payment-action-required").tone === "action" && notificationTone("booking-confirmed").tone === "success" && notificationTone("unknown").tone === "neutral", "The redesigned Updates view does not derive safe presentation tones from event types.");
+assert(notificationDayGroup("2026-08-30T09:00:00Z", new Date("2026-08-30T12:00:00Z")).key === "today", "Today's updates are not grouped together.");
+assert(notificationGroups([{ createdAt: "2026-08-30T09:00:00Z" }, { createdAt: "2026-08-29T09:00:00Z" }], new Date("2026-08-30T12:00:00Z")).length === 2, "Updates from distinct days are not separated.");
 
-const [page, script, cleanerPage, cleanerScript, cleanerStyles, accountMenu, badgeScript, landlordBadgeScript, model, styles, landlordStyles, server, cleanerDashboard, cleanerDashboardScript, landlordDashboard, landlordDashboardScript, packageFile] = await Promise.all([
+const [page, script, shell, shellModel, cleanerPage, cleanerScript, cleanerStyles, accountMenu, badgeScript, landlordBadgeScript, model, viewModel, styles, workspaceStyles, notificationStyles, landlordStyles, server, cleanerDashboard, cleanerDashboardScript, landlordDashboard, landlordDashboardScript, packageFile] = await Promise.all([
   readFile(new URL("../public/notifications.html", import.meta.url), "utf8"),
   readFile(new URL("../public/notifications.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/workspace-shell.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/workspace-shell-model.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-notifications.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-notifications.js", import.meta.url), "utf8"),
   readFile(new URL("../public/homle-cleaner.css", import.meta.url), "utf8"),
@@ -35,7 +41,10 @@ const [page, script, cleanerPage, cleanerScript, cleanerStyles, accountMenu, bad
   readFile(new URL("../public/notification-badge.js", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-notification-badge.js", import.meta.url), "utf8"),
   readFile(new URL("../public/notification-inbox-model.js", import.meta.url), "utf8"),
+  readFile(new URL("../public/notification-inbox-view-model.js", import.meta.url), "utf8"),
   readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
+  readFile(new URL("../public/homle-workspace.css", import.meta.url), "utf8"),
+  readFile(new URL("../public/notifications.css", import.meta.url), "utf8"),
   readFile(new URL("../public/landlord-dashboard.css", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-dashboard.html", import.meta.url), "utf8"),
@@ -47,9 +56,30 @@ const [page, script, cleanerPage, cleanerScript, cleanerStyles, accountMenu, bad
 
 for (const selectedCopy of ["Updates", "Mark all read", "You are all caught up.", "Load earlier updates"]) assert(page.includes(selectedCopy), `The inbox omitted ${selectedCopy}.`);
 assert(page.includes('role="status"') && page.includes('aria-live="polite"') && page.includes('data-notification-retry'), "The inbox lacks accessible loading, retry or update states.");
-assert(page.includes('data-workspace-nav="cleaner"') && page.includes('data-workspace-nav="landlord"') && page.includes('aria-label="Cleaner navigation"') && page.includes('aria-label="Landlord navigation"') && page.includes('data-account-menu') && page.includes('data-account-avatar'), "Updates do not retain separate Cleaner and Landlord navigation or the signed-in account picture.");
+// The page used to carry BOTH navigations as static markup and pick one at
+// runtime — except the Cleaner branch was unreachable, because load() redirects
+// a Cleaner to /cleaner/notifications before the picking function ever runs. It
+// now renders one shell, from the account, in workspace-shell.js.
+assert(page.includes("homle-workspace") && page.includes("homle-workspace.css") && page.includes("data-workspace-main"), "Updates left the shared workspace shell, which is how it became a standalone page with its own header the last time.");
+assert(!page.includes("site-header") && !page.includes("account-footer") && !page.includes("directory-nav"), "Updates has grown its own header, footer or navigation again instead of using the shared shell.");
+assert(shell.includes("workspaceShell(account") && shell.includes("dataset.accountMenu") && shell.includes("dataset.accountAvatar") && shell.includes("dataset.accountSignOut"), "The shared shell no longer builds the account control from the signed-in account.");
+// Its sign-out button is created after account-menu.js has already collected
+// the buttons it binds, so the shell has to bind its own or the control does
+// nothing at all.
+assert(shell.includes("bindWorkspaceSignOut") && shell.includes('/api/marketplace/auth/logout') && !accountMenu.includes("export function bindAccountSignOut"), "The rendered shell's Sign out button is not safely bound without changing the Cleaner workspace's shared account menu.");
+assert(shellModel.includes('roles.includes(selected)'), "The shell decides a workspace role without checking the account is entitled to it, which is how a page can offer a workspace that then refuses the visitor.");
 assert(script.includes('/api/marketplace/notifications?') && script.includes('/api/marketplace/notifications/read-all') && script.includes('/read`'), "The inbox is not connected to list and read APIs.");
-assert(script.includes('readSignedInAccount()') && script.includes('showWorkspace(accountResult.account)') && script.includes('workspace.role === "cleaner"') && script.includes('workspace.role === "landlord"'), "The Updates page does not restore the exact signed-in workspace without a second account request.");
+assert(script.includes("renderWorkspaceShell(") && script.includes('shell?.shell.role === "cleaner"') && script.includes('location.replace("/cleaner/notifications")'), "The Updates page does not restore the exact signed-in workspace, or no longer sends a Cleaner to their own inbox.");
+// The empty state used to default its action to /login and only rewrite it once
+// an account resolved, so a signed-in Landlord with a quiet inbox was offered
+// sign-in as the page's primary action.
+assert(script.includes("emptyLink.href = shell.shell.home") && !/data-empty-workspace-link[^>]*>\s*(Sign in|Return to workspace)/.test(page) && !/href="\/login[^"]*"[^>]*data-empty-workspace-link/.test(page), "The empty state can offer sign-in to an account that is already signed in.");
+// Grouping, tone and a readable timestamp are what make the list scannable.
+assert(script.includes("notificationGroups(") && script.includes("notificationTone(") && script.includes("RelativeTimeFormat"), "The inbox lost day grouping, per-event tone or its relative timestamps and is back to an undifferentiated list.");
+assert(viewModel.includes("export function notificationTone") && viewModel.includes("export function notificationGroups") && !model.includes("export function notificationTone"), "Updates presentation was not isolated from the frozen Cleaner inbox model.");
+// Tone is chosen from the event type alone. Deriving it from the payload would
+// let stored text decide how an update presents itself.
+assert(!/notificationTone\([^)]*payload/.test(script), "Notification tone is being derived from payload data rather than the event type.");
 assert(accountMenu.includes("export function readSignedInAccount()") && accountMenu.includes("signedInAccountRequest = null") && accountMenu.includes('requestJson("/api/marketplace/account"'), "Shared account hydration cannot recover after a temporary account-read failure.");
 assert(script.includes('"X-CSRF-Token"') && script.includes("keepalive: true"), "Read mutations lost session, CSRF or navigation-safe delivery.");
 assert(script.includes("replaceChildren") && script.includes("textContent") && !script.includes("innerHTML"), "Notification content is not rendered with safe DOM operations.");
@@ -80,10 +110,16 @@ assert(landlordBadgeScript.includes('method: "POST"') && landlordBadgeScript.inc
 assert(landlordBadgeScript.includes("closeStream()") && landlordBadgeScript.includes("lastResponseStatus !== 401") && landlordBadgeScript.includes("lastResponseStatus !== 403") && landlordBadgeScript.includes("Math.min(60_000") && landlordBadgeScript.includes('addEventListener("offline", stop)') && landlordBadgeScript.includes('addEventListener("pagehide", stop)'), "A failed or expired Landlord notification stream can keep retrying a private endpoint indefinitely, or survives offline/page exit.");
 assert(landlordDashboardScript.includes('new Event("homle:landlord-session-ready")') && landlordBadgeScript.includes("function accessReady()") && landlordBadgeScript.includes('addEventListener("homle:landlord-session-ready"') && !landlordBadgeScript.includes("render(0);\nvoid start();"), "The Landlord badge can start its private read before the secure Landlord bootstrap authorises the session.");
 assert(!landlordBadgeScript.includes("setInterval") && landlordBadgeScript.includes("textContent") && !landlordBadgeScript.includes("innerHTML"), "The Landlord notification badge uses constant polling or unsafe rendering.");
-assert(styles.includes(".cleaner-workspace-page .directory-nav, .landlord-dashboard-page .directory-nav") && styles.includes(".cleaner-workspace-page .directory-nav a, .landlord-dashboard-page .directory-nav a") && styles.includes(".notifications-page .directory-nav a") && styles.includes(".workspace-role-nav[hidden]"), "Mobile navigation can hide the Updates or workspace return action.");
+assert(styles.includes(".cleaner-workspace-page .directory-nav, .landlord-dashboard-page .directory-nav") && styles.includes(".cleaner-workspace-page .directory-nav a, .landlord-dashboard-page .directory-nav a") && styles.includes(".workspace-role-nav[hidden]"), "Mobile navigation can hide the Updates or workspace return action.");
+// On a phone the shell replaces the sidebar with the tab bar. Without it the
+// Updates page had no navigation at all below 900px — which is exactly what the
+// standalone version shipped.
+assert(workspaceStyles.includes(".hw-mobile-nav") && /@media \(max-width: 900px\)[\s\S]*\.hw-mobile-nav \{[\s\S]*position: fixed/.test(workspaceStyles), "The shared shell has no phone tab bar, so a workspace page below 900px would have no navigation.");
+// The retired mint-green unread card cannot come back.
+assert(!/background\s*:\s*#eaf9f4/i.test(notificationStyles) && notificationStyles.includes(".notification-card"), "The redesigned Updates page lost its isolated neutral card styling.");
 assert(packageFile.includes("tests/notification-inbox-ui.mjs"), "Notification inbox verification is not part of the project gate.");
 assert(script.includes('new URLSearchParams(location.search).get("view") === "messages"') && script.includes('location.replace("/cleaner/messages")'), "The old Messages query-string destination does not forward to the dedicated Cleaner inbox.");
-assert(script.includes('workspace.role === "cleaner"') && script.includes('location.replace("/cleaner/notifications")'), "The old generic Updates destination does not forward Cleaner accounts to the replacement Notifications centre.");
+assert(script.includes('shell?.shell.role === "cleaner"') && script.includes('location.replace("/cleaner/notifications")'), "The old generic Updates destination does not forward Cleaner accounts to the replacement Notifications centre.");
 
 
 console.log("Notification inbox UI tests passed: private role return, safe event copy, pagination, read controls, mobile states and booking actions.");

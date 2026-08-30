@@ -11,18 +11,21 @@
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1">
-  <link rel="stylesheet" href="/landlord-checkout-v2.css?v=20260813-1">
-  <script src="/landlord-checkout.js?v=20260813-2" type="module"></script>
+  <link rel="stylesheet" href="/landlord-checkout-v2.css?v=20260830-1">
+  <!-- The shared workspace shell, last so it wins without !important. -->
+  <link rel="stylesheet" href="/homle-workspace.css?v=20260830-1">
+  <script src="/landlord-checkout.js?v=20260830-1" type="module"></script>
 </head>
-<body class="booking-payment-page">
+<!-- Paying for a booking is a step inside the workspace, reached from the
+     dashboard or from an update. It used to answer with the retired dark bar
+     and dark footer — the same shell Updates carried — so the one screen where
+     a Landlord is about to authorise money looked least like the product they
+     had been using a moment earlier. -->
+<body class="homle-workspace booking-payment-page">
   <a class="skip-link" href="#payment-main">Skip to booking checkout</a>
-  <header class="site-header"><div class="shell nav-wrap"><a class="brand" href="/landlord/dashboard" aria-label="Homle Landlord dashboard"><img src="/homle-logo-128-4f82ebad.png" alt="" width="40" height="40"><span>Homle</span></a><nav class="directory-nav" aria-label="Checkout navigation"><a href="/landlord/dashboard">Landlord dashboard</a><a href="/landlord/help">Help</a></nav></div></header>
 
-  <main id="payment-main" class="booking-payment-main shell">
-    <section class="booking-payment-intro">
-      <div><p class="eyebrow">Protected booking step</p><h1>Authorize the agreed cleaning total.</h1><p>Payment details stay inside Stripe's secure element. Homle receives a payment status, never your full card number or security code.</p></div>
-      <span class="booking-payment-mode">Stripe test mode · no real money moves</span>
-    </section>
+  <main id="payment-main" class="booking-payment-main hw-main-narrow" data-workspace-main>
+    <p class="booking-payment-mode">Stripe test mode · no real money moves</p>
 
     <section class="booking-payment-network" data-payment-network role="status" aria-live="polite" hidden><span aria-hidden="true">!</span><div><strong>You are offline.</strong><p>The last verified total and status remain visible. Homle will not start or repeat a payment action while offline.</p></div></section>
 
@@ -69,6 +72,5 @@
       <details class="booking-payment-trust"><summary>Why this payment is protected</summary><div class="booking-payment-trust-grid"><div><strong>Server-frozen amount</strong><span>The browser cannot change the accepted booking total.</span></div><div><strong>No card storage</strong><span>Sensitive payment fields are sent directly to Stripe.</span></div><div><strong>Signed status</strong><span>Homle trusts the verified server webhook, not this browser.</span></div></div></details>
     </section>
   </main>
-  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle.</span><a href="/privacy">Privacy notice</a></div></footer>
 </body>
 </html>
