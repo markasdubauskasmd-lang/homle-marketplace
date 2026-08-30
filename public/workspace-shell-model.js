@@ -23,6 +23,27 @@ const destinations = Object.freeze({
   ])
 });
 
+/*
+ * The phone tab bar is NOT the sidebar list.
+ *
+ * The approved composition gives a phone six controls — Places and a raised
+ * scan action either side of the four the sidebar carries — because a phone has
+ * no sidebar to reach them from. A shared shell that rendered only the four
+ * would change the shape of the bar as a Landlord moved from the dashboard to
+ * their own Updates, which is the drift this whole exercise is undoing.
+ */
+const phoneDestinations = Object.freeze({
+  landlord: Object.freeze([
+    Object.freeze({ key: "home", label: "Home", href: "/landlord/home", icon: "home" }),
+    Object.freeze({ key: "places", label: "Places", href: "/landlord/bookings#your-places", icon: "place" }),
+    Object.freeze({ key: "scan", label: "Start a room scan", href: "/landlord/book", icon: "scan", action: true }),
+    Object.freeze({ key: "bookings", label: "Bookings", href: "/landlord/bookings", icon: "calendar" }),
+    Object.freeze({ key: "messages", label: "Messages", href: "/landlord/messages", icon: "message" }),
+    Object.freeze({ key: "account", label: "Account", href: "/landlord/account", icon: "person" })
+  ]),
+  cleaner: Object.freeze([])
+});
+
 const labels = Object.freeze({ landlord: "Landlord", cleaner: "Cleaner" });
 
 /**
@@ -50,9 +71,13 @@ export function workspaceShell(account, options = {}) {
   const role = workspaceRole(account);
   const active = String(options.active || "");
   const items = (destinations[role] || []).map((item) => Object.freeze({ ...item, current: item.key === active }));
+  const phone = (phoneDestinations[role] || []).map((item) => Object.freeze({ ...item, current: item.key === active }));
   return Object.freeze({
     role,
     label: labels[role] || "Account",
+    /* Falls back to the sidebar list, so a role with no phone composition of its
+       own still gets navigation rather than none. */
+    phoneNavigation: Object.freeze(phone.length ? phone : items),
     /* A visitor with no usable role has nowhere to be sent but back through
        onboarding, which is where the account menu already sends them. */
     home: role ? destinations[role][0].href : "/onboarding",

@@ -143,13 +143,23 @@
   --homle-ws-accent: #e11b22;
   --homle-ws-accent-dark: #c4151b;
   --homle-ws-accent-tint: #fdecec;
+  /* Accent TEXT on the accent tint. The accent itself measures 4.20:1 there,
+     which is under the 4.5:1 small text needs — and the place it lands is the
+     current sidebar destination, at 14.5px, on every workspace page. The darker
+     shade measures 5.30:1 on the tint and 6.05:1 on white, so the same token
+     works for a label, a link and a badge. The fill stays --homle-ws-accent:
+     a filled control carries white text and is a different measurement. */
+  --homle-ws-accent-on-tint: #c4151b;
 
   --homle-ws-line: #efedeb;          /* dividers inside a surface */
   --homle-ws-border: #e7e4e0;        /* the edge of a card */
   --homle-ws-quiet-border: #e1deda;  /* the edge of a secondary control */
 
   --homle-ws-success: #2e9e63;
-  --homle-ws-success-ink: #2e7d51;
+  /* Was #2e7d51, which measures 4.48:1 on the success tint — just under the
+     4.5:1 bar, and its uses are all small text. This measures 5.32:1 on the
+     tint, 5.99:1 on white and 5.55:1 on the canvas. */
+  --homle-ws-success-ink: #2a7047;
   --homle-ws-success-tint: #eaf4ee;
   --homle-ws-success-rail: #9fd3b8;
   --homle-ws-success-ring: #cfe6da;

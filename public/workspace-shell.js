@@ -28,7 +28,9 @@ const icons = Object.freeze({
   calendar: [["rect", { x: "4", y: "6", width: "16", height: "14", rx: "2.5" }], ["path", { d: "M4 10.5h16M8.5 4v4M15.5 4v4" }]],
   message: [["rect", { x: "3.5", y: "5", width: "17", height: "12.5", rx: "3" }], ["path", { d: "M8 21l3.2-3.5" }]],
   person: [["circle", { cx: "12", cy: "8", r: "3.4" }], ["path", { d: "M5.2 20c1.4-3.1 3.9-4.7 6.8-4.7s5.4 1.6 6.8 4.7" }]],
-  bell: [["path", { d: "M6.5 16v-5.5a5.5 5.5 0 0 1 11 0V16l1.5 2.5H5z" }], ["path", { d: "M10 20.5a2 2 0 0 0 4 0" }]]
+  bell: [["path", { d: "M6.5 16v-5.5a5.5 5.5 0 0 1 11 0V16l1.5 2.5H5z" }], ["path", { d: "M10 20.5a2 2 0 0 0 4 0" }]],
+  place: [["path", { d: "M4 10.5 12 4.5l8 6V20H4z" }], ["circle", { cx: "12", cy: "12.5", r: "1.6" }], ["path", { d: "M12 14.5V17" }]],
+  scan: [["path", { d: "M4 8.5V6a2 2 0 0 1 2-2h2.5M15.5 4H18a2 2 0 0 1 2 2v2.5M20 15.5V18a2 2 0 0 1-2 2h-2.5M8.5 20H6a2 2 0 0 1-2-2v-2.5" }], ["path", { d: "M4 12h16" }]]
 });
 
 function svg(name) {
@@ -189,7 +191,24 @@ function mobileNav(shell) {
   if (!shell.showNavigation) return null;
   const nav = element("nav", "hw-mobile-nav");
   nav.setAttribute("aria-label", `${shell.label} navigation`);
-  nav.append(...navigationLinks(shell));
+  for (const item of shell.phoneNavigation) {
+    const link = element("a", item.action ? "hw-mobile-action" : "");
+    link.href = item.href;
+    if (item.current) link.setAttribute("aria-current", "page");
+    if (item.action) {
+      // The raised centre control is an icon with no visible label, as the
+      // composition draws it, so the label has to reach a screen reader another
+      // way. The glyph sits in its own span because the circle is the span.
+      link.setAttribute("aria-label", item.label);
+      const mark = element("span");
+      mark.setAttribute("aria-hidden", "true");
+      mark.append(svg(item.icon));
+      link.append(mark);
+    } else {
+      link.append(svg(item.icon), element("span", "", item.label));
+    }
+    nav.append(link);
+  }
   return nav;
 }
 

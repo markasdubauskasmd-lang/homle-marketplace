@@ -138,7 +138,11 @@ body.landlord-dashboard-page .landlord-dashboard-nav a:first-child svg {
   stroke: currentColor;
 }
 body.landlord-dashboard-page .landlord-dashboard-nav a:hover { background: #f5f4f3; color: var(--ld-ink); }
-body.landlord-dashboard-page .landlord-dashboard-nav a[aria-current="page"] { background: var(--ld-coral-tint); color: var(--ld-coral); }
+/* Accent text on the accent tint measures 4.20:1 against the 4.5:1 this
+   14.5px label needs; the darker shade measures 5.30:1 on the same tint. This
+   moves the committed computed-style baseline for the four sidebar rows, on
+   purpose. */
+body.landlord-dashboard-page .landlord-dashboard-nav a[aria-current="page"] { background: var(--ld-coral-tint); color: var(--homle-ws-accent-on-tint, #c4151b); }
 
 body.landlord-dashboard-page .site-header .account-menu summary {
   border: 0;

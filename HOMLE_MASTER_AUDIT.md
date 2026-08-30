@@ -191,6 +191,35 @@ account's rows.
   the whole page slides sideways and the header leaves the screen.
   *Fixed:* one shared table-scroll treatment.
 
+- **[x] P2-10 · The workspace palette had six declarations, not two.**
+  Beyond `landlord-dashboard-v2.css` and `account-pages.css`, the same literals
+  were written out again in `landlord-help-v2.css`, `landlord-checkout-v2.css`,
+  `landlord-journey-v2.css` and `admin-pricing.css`. Two of those files say so
+  in their own headers — *"Every value is copied from landlord-dashboard-v2.css
+  rather than invented."* Copying is the failure mode, not the fix.
+  *Fixed:* 87 literals across the four Landlord sheets now read
+  `var(--homle-ws-*, <literal>)`. `tests/design-system.mjs` fails if any
+  workspace sheet writes one of those values outside a var() fallback.
+
+- **[x] P2-11 · The current sidebar destination failed text contrast.**
+  `#e11b22` on the `#fdecec` tint measures **4.20:1** at 14.5px, under the
+  4.5:1 normal text needs. It is the one label on every workspace page that says
+  where you are. The darker accent measures 5.30:1 on the same tint.
+  *Fixed:* a `--homle-ws-accent-on-tint` token, applied on both the shared shell
+  and the dashboard. The computed-style baseline was regenerated deliberately.
+
+- **[x] P2-12 · Status green failed against its own tint.**
+  `--homle-ws-success-ink` `#2e7d51` on `#eaf4ee` measures 4.48:1 — a hair
+  under, and all of its uses are small text. Now `#2a7047`, 5.32:1 on the tint,
+  5.99:1 on white, 5.55:1 on the canvas.
+
+- **[x] P2-13 · The shared shell's phone tab bar did not match the dashboard's.**
+  First cut rendered the sidebar's four destinations. The approved composition
+  gives a phone six controls — Places and a raised scan action either side —
+  because a phone has no sidebar to reach them from, so the bar changed shape as
+  a Landlord moved from the dashboard to their own Updates.
+  *Fixed:* the shell model carries a separate phone composition.
+
 ### P3 — refinement / polish
 
 - **[x] P3-1 · Three different body canvases inside the Cleaner workspace.**
@@ -245,8 +274,63 @@ account's rows.
 
 ---
 
-## 5. Verification
+## 5. What was tested, and what held
 
-Recorded in §6 of the final report: `pnpm run check`, the full `pnpm test` suite,
-the design-system suite, the landlord computed-style baseline, and a re-run of the
-57-route × 3-viewport browser sweep.
+### Checked and found correct — no change made
+
+These were audited under the brief and are recorded here so the next reader does
+not re-derive them.
+
+- **[x] Pricing cannot diverge between browser and server.** `public/pricing-engine.js`
+  is the single implementation of the customer price, and the server imports it
+  (`src/marketplace/marketplace-http.mjs:11`, `runtime.mjs:28`). The margin,
+  cleaner share and processor fees live server-side only, in
+  `pricing-economics.mjs`, which documents the split. The two sides cannot drift
+  because there is only one arithmetic.
+- **[x] The booking journey gates every step and says why.** Walked in a browser
+  with a real account and a real saved property: step 1 keeps Continue disabled
+  until a property is chosen; step 3 blocks an empty checklist with *"Add at
+  least one room task before continuing"*; step 4 blocks with *"Pick a day, an
+  arrival window and how often."* Scope carries intact to checkout — duration,
+  area, service, task count, day, arrival window, frequency and property.
+- **[x] Checkout refuses to submit without a room photo** and says so, offering a
+  private draft instead. Correct behaviour; it is why the walk stops there in
+  this environment, which has no object storage.
+- **[x] Landlord → Cleaner data flow and isolation.** The PostgreSQL integration
+  suite passes against a real cluster: RLS fixtures, paid-mode payout-ready
+  matching, two-worker dispatch lease evidence, concurrent-overlap outcome.
+- **[x] Rate limiting, CSRF and session rotation are real.** Repeated sign-ins
+  during testing were refused with `429 rate-limited`; a mutation without
+  `X-CSRF-Token` was refused with `csrf-rejected`; each sign-in invalidated the
+  previous session.
+- **[x] The 404 negotiates.** A browser gets the designed page; `/api/*`, a
+  non-HTML extension and a client that does not accept HTML all keep the JSON.
+- **[x] Console is clean.** Zero page errors and zero console errors across all
+  57 routes at three viewports, and across the full booking walk. The only
+  errors anywhere are TensorFlow.js backend fallbacks on the scan page, which
+  are headless-Chromium having no GPU, not a defect.
+
+### Known limitations of this environment
+
+- Object storage, geocoding, address lookup, Stripe and the vision model are not
+  configured, so photo upload, real matching, live ETA, card authorisation and
+  the scan's object detection could not be exercised end to end here. Their unit
+  and integration suites pass, and every one of them fails closed with an honest
+  message in the UI, which was verified.
+- The desktop Chromium runs are not a device trial. Physical iOS and Android
+  handsets over HTTPS remain required before launch, as the repository's own
+  harness notes.
+
+### Verification runs
+
+| What | Result |
+|---|---|
+| `node tools/syntax-check.mjs` | 508 files, pass |
+| Full `pnpm test` (76 steps) | 75 pass, 0 fail |
+| `tests/design-system.mjs` | pass, including the new one-owner assertions |
+| `tests/landlord-computed-styles.mjs` | 764 elements, pass |
+| `tests/postgres-integration-runner.mjs` | pass against a real cluster |
+| `tests/postgres-verification-runner.mjs` | pass |
+| `tests/postgres-rate-limiter.mjs` | pass against a real cluster |
+| 57-route × 3-viewport browser sweep | no horizontal overflow, no console errors |
+| Accessibility sweep | no contrast, naming or focus failures on workspace pages |

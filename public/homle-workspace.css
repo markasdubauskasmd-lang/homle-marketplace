@@ -134,7 +134,9 @@ body.homle-workspace .hw-nav a svg { width: 19px; height: 19px; flex: none; fill
 body.homle-workspace .hw-nav a:hover { background: #f5f4f3; color: var(--homle-ws-ink, #1a1a1a); }
 body.homle-workspace .hw-nav a[aria-current="page"] {
   background: var(--homle-ws-accent-tint, #fdecec);
-  color: var(--homle-ws-accent, #e11b22);
+  /* Accent text on the accent tint measures 4.20:1, under the 4.5:1 this 14.5px
+     label needs. The darker shade measures 5.30:1 on the same tint. */
+  color: var(--homle-ws-accent-on-tint, #c4151b);
 }
 body.homle-workspace .hw-nav-count {
   margin-left: auto;
@@ -224,7 +226,10 @@ body.homle-workspace .hw-eyebrow {
   letter-spacing: .12em;
   text-transform: uppercase;
 }
-body.homle-workspace .hw-eyebrow span { color: var(--homle-ws-success, #2e9e63); font-size: 8px; }
+/* The status dot is decorative and aria-hidden, but it is still painted text:
+   the success fill measures 3.14:1 at 8px on the canvas. The ink measures
+   5.55:1 and is indistinguishable at this size. */
+body.homle-workspace .hw-eyebrow span { color: var(--homle-ws-success-ink, #2a7047); font-size: 8px; }
 body.homle-workspace .hw-topbar-copy h1 {
   margin: 8px 0 0;
   font-size: 30px;
@@ -618,4 +623,18 @@ body.homle-workspace .hw-actions { display: flex; flex-wrap: wrap; gap: 10px; ma
   /* The narrowest handsets still in use are 320px wide. Tighten the label
      rather than let the bar scroll or drop a destination. */
   body.homle-workspace .hw-mobile-nav a span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* The raised scan control, in the centre position the composition gives it. */
+  body.homle-workspace .hw-mobile-nav .hw-mobile-action { flex: 0 0 62px; width: 62px; margin: 0 2px -6px; }
+  body.homle-workspace .hw-mobile-nav .hw-mobile-action span {
+    display: grid;
+    width: 58px;
+    height: 58px;
+    place-items: center;
+    border-radius: 999px;
+    background: var(--homle-ws-accent, #e11b22);
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(225, 27, 34, .32);
+  }
+  body.homle-workspace .hw-mobile-nav .hw-mobile-action svg { width: 25px; height: 25px; stroke-width: 2; stroke-linecap: round; }
 }
