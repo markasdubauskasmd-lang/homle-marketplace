@@ -144,22 +144,38 @@ try {
   assert(result.subjectStillTyped === "",
     "help: the form kept its contents after a successful send, inviting an accidental duplicate.");
 
-  /* The stale nav item. "Prepare a clean" pointed at the scan journey from a
-     header that also offers Dashboard; the workspace owns that entry point. */
+  /* Navigation. This page used to carry its own two-item header — a third
+     navigation pattern inside one signed-in session, after the dashboard's
+     sidebar and the Updates page's dark bar. It now renders the shared
+     workspace shell, so the destinations here are the same four a Landlord has
+     on every other screen, and they come from the signed-in account rather than
+     from static markup. */
   const nav = await browser.evaluate(`
-    [...document.querySelectorAll("[data-support-private-navigation] a")].map((link) => link.textContent.trim())
+    [...document.querySelectorAll(".hw-sidebar .hw-nav a")].map((link) => link.textContent.trim())
   `);
   assert(!nav.includes("Prepare a clean"),
     `help: the header still offers "Prepare a clean" — nav reads [${nav.join(", ")}].`);
-  assert(nav.includes("Dashboard") && nav.includes("Help"),
-    `help: the header lost a route it needs — nav reads [${nav.join(", ")}].`);
+  for (const destination of ["Home", "Bookings", "Messages", "Account"]) {
+    assert(nav.includes(destination),
+      `help: the shared shell lost ${destination} — nav reads [${nav.join(", ")}].`);
+  }
+  /* Below 900px the sidebar folds away and the tab bar replaces it. Without one
+     the page would have no navigation at all on a phone, which is exactly what
+     the standalone header shipped. */
+  const phoneNav = await browser.evaluate(`
+    [...document.querySelectorAll(".hw-mobile-nav a")].map((link) => link.textContent.trim())
+  `);
+  assert(phoneNav.length >= 4,
+    `help: the shared shell rendered no phone tab bar — it reads [${phoneNav.join(", ")}].`);
 
   /* The restyle, measured rather than eyeballed: the page must resolve to the
      workspace's own ink, canvas and control radius. */
   const look = await browser.evaluate(`
     const body = getComputedStyle(document.body);
     const send = getComputedStyle(document.querySelector("[data-support-submit]"));
-    const eyebrow = getComputedStyle(document.querySelector(".support-heading .eyebrow"));
+    // The page heading and its section label are the shared shell's now, not
+    // this page's own header block.
+    const eyebrow = getComputedStyle(document.querySelector(".hw-topbar .hw-eyebrow"));
     return {
       background: body.backgroundColor,
       ink: body.color,

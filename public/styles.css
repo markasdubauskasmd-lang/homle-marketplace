@@ -166,7 +166,7 @@ h3 { margin-bottom: 10px; font-size: 1.25rem; }
 .form-promise strong, .form-promise span { display: block; }
 .form-promise span { margin-top: 4px; color: var(--muted); font-size: .88rem; }
 .guided-progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 6px; padding: 0; list-style: none; }
-.guided-progress li { display: grid; grid-template-columns: 34px 1fr; gap: 8px; align-items: center; position: relative; color: var(--muted); font-size: .82rem; }
+.guided-progress li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; align-items: center; position: relative; color: var(--muted); font-size: .82rem; }
 .guided-progress li::after { content: ""; position: absolute; z-index: 0; top: 16px; right: calc(100% - 4px); width: calc(100% - 38px); height: 2px; background: var(--line); }
 .guided-progress li:first-child::after { display: none; }
 .guided-progress li span { display: grid; z-index: 1; width: 34px; height: 34px; place-items: center; border: 2px solid var(--line); border-radius: 50%; background: #fff; font-weight: 900; }
@@ -409,8 +409,12 @@ textarea { resize: vertical; }
 
 .admin-page { min-height: 100vh; background: var(--homle-cream, #f7f4eb); }
 .admin-header { border-bottom: 1px solid var(--line); background: #fff; }
-.admin-nav { min-height: 76px; display: flex; justify-content: space-between; align-items: center; }
-.admin-nav > div { display: flex; gap: 18px; align-items: center; }
+/* Eight destinations in one non-wrapping row. On a 390px phone that row was
+   694px wide, so every admin desk scrolled sideways and its header left the
+   screen. .admin-cases-page had a private wrap fix; this is the same fix at
+   the rule every desk actually uses. */
+.admin-nav { min-height: 76px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px; }
+.admin-nav > div { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
 .admin-badge { padding: .35rem .65rem; color: var(--green-dark); border-radius: 999px; background: var(--mint); font-size: .76rem; font-weight: 800; }
 .admin-main { padding-block: 58px 90px; }
 .admin-auth { max-width: 620px; margin: 40px auto; padding: 36px; border: 1px solid var(--line); border-radius: 22px; background: #fff; box-shadow: var(--shadow); }
@@ -1415,7 +1419,7 @@ textarea { resize: vertical; }
 .progress-track { overflow: hidden; height: 8px; margin: 10px 0 8px; border-radius: 999px; background: var(--homle-line-soft, #e8e2e0); }
 .progress-track i { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--green); transition: width .25s ease; }
 .room-progress-list { margin: 0; padding: 0; list-style: none; }
-.room-progress-list li { display: grid; grid-template-columns: 34px 1fr auto; gap: 11px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
+.room-progress-list li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 11px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
 .room-progress-list li > span { display: grid; width: 30px; height: 30px; place-items: center; color: var(--muted); border: 1px solid var(--line); border-radius: 9px; background: #fff; font-size: .75rem; font-weight: 900; }
 .room-progress-list li.complete > span { color: #fff; border-color: var(--green); background: var(--green); }
 .room-progress-list li.current > span { color: var(--green-dark); border-color: var(--homle-muted, #665f61); background: var(--mint); }
@@ -1527,7 +1531,8 @@ textarea { resize: vertical; }
 .account-menu-panel .account-sign-out { width: 100%; color: #8b2118; }
 .account-menu-panel .account-sign-out:disabled { cursor: wait; opacity: .65; }
 .account-menu-status { display: block; margin-top: 8px; color: #8b2118; font-size: .72rem; line-height: 1.35; }
-.cleaner-dashboard-page { min-height: 100vh; background: linear-gradient(180deg,var(--homle-ink, #0b090a) 0,var(--homle-ink, #0b090a) 180px,var(--homle-cream, #f7f4eb) 420px); }
+/* The Cleaner dashboard's dark-header gradient belonged to a design that no
+   longer exists; homle-cleaner.css owns that workspace's ground now. */
 .cleaner-dashboard-page .booking-dashboard-main { position: relative; }
 .cleaner-dashboard-page .booking-dashboard-heading { grid-template-columns: minmax(220px,.55fr) minmax(0,1fr) auto; padding: clamp(22px,4vw,34px); color: #fff; border: 1px solid var(--homle-muted, #665f61); border-radius: 24px; background: linear-gradient(135deg,var(--homle-ink-2, #211d1e),#093f39); box-shadow: 0 22px 55px rgba(7,62,56,.22); }
 .cleaner-dashboard-page .booking-dashboard-heading h1, .cleaner-dashboard-page .booking-dashboard-heading .eyebrow { color: #fff; }
@@ -1732,7 +1737,7 @@ textarea { resize: vertical; }
 @media (max-width: 680px) {
   .cleaner-editor-main { padding-block: 31px 82px; }
   .cleaner-editor-heading h1 { font-size: clamp(2.5rem, 14vw, 3.9rem); }
-  .cleaner-editor-state { grid-template-columns: 34px 1fr; padding: 18px 15px; border-radius: 17px; }
+  .cleaner-editor-state { grid-template-columns: 34px minmax(0, 1fr); padding: 18px 15px; border-radius: 17px; }
   .cleaner-editor-state > span { width: 31px; height: 31px; }
   .cleaner-editor-state-actions { display: grid; }
   .cleaner-profile-next { grid-template-columns: 42px 1fr; padding: 17px 15px; border-radius: 17px; }
@@ -1843,17 +1848,8 @@ textarea { resize: vertical; }
 .dashboard-optional-fields summary span { color: var(--muted); font-size: .78rem; }
 .dashboard-optional-fields > div { display: grid; gap: 17px; padding: 4px 14px 16px; }
 
-.cleaner-payout-main { min-height: calc(100vh - 12rem); display: grid; place-items: center; padding-block: clamp(2rem, 8vw, 5rem); }
-.cleaner-payout-card { width: min(100%, 42rem); background: #fff; border: 1px solid rgba(14, 102, 91, .18); border-radius: 1.5rem; padding: clamp(1.25rem, 5vw, 2.25rem); box-shadow: 0 1.25rem 3rem rgba(11, 48, 43, .09); }
-.cleaner-payout-card h1 { margin: .3rem 0 .8rem; max-width: 18ch; }
-.cleaner-payout-state { display: grid; grid-template-columns: auto 1fr; gap: .85rem; align-items: start; margin: 1.5rem 0; padding: 1rem; border-radius: 1rem; background: #edf7f5; }
-.cleaner-payout-state[data-kind="ready"] { background: var(--homle-success-wash, #e9f6ee); }
-.cleaner-payout-state[data-kind="error"] { background: #fff1ee; }
-.cleaner-payout-state p { margin: .2rem 0 0; }
-.cleaner-payout-mark { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 800; }
-.cleaner-payout-state[data-kind="error"] .cleaner-payout-mark { background: #a63822; }
-.cleaner-payout-action { width: 100%; min-height: 3.25rem; }
-.cleaner-payout-note { margin: 1rem 0 0; font-size: .9rem; color: #52625f; }
+/* The Cleaner payout screen moved onto homle-cleaner.css with the rest of
+   that workspace; its old teal-tinted card rules lived here and are gone. */
 .landlord-request-form { margin-top: 0; margin-bottom: 22px; }
 .landlord-selected-cleaner { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 17px; border: 1px solid var(--homle-line-soft, #e8e2e0); border-radius: 16px; background: linear-gradient(135deg, #eaf9f5, #fff); }
 .landlord-selected-cleaner[hidden] { display: none; }
@@ -1955,7 +1951,7 @@ textarea { resize: vertical; }
 
 @media (max-width: 720px) {
   .landlord-dashboard-main { padding-block: 28px 82px; }
-  .landlord-dashboard-state { grid-template-columns: 34px 1fr; padding: 18px 15px; border-radius: 17px; }
+  .landlord-dashboard-state { grid-template-columns: 34px minmax(0, 1fr); padding: 18px 15px; border-radius: 17px; }
   .landlord-dashboard-state > span { width: 31px; height: 31px; }
   .landlord-dashboard-heading h1 { font-size: clamp(2.5rem, 14vw, 3.9rem); }
   .landlord-dashboard-stats { grid-template-columns: 1fr; }
@@ -2003,7 +1999,7 @@ textarea { resize: vertical; }
 .booking-payment-intro h1 { max-width: 760px; margin: 6px 0 12px; font-size: clamp(2.5rem, 7vw, 5rem); line-height: .96; }
 .booking-payment-intro p:last-child { max-width: 660px; margin: 0; color: var(--muted); }
 .booking-payment-mode { flex: 0 0 auto; padding: .55rem .75rem; color: #7b4300; border: 1px solid #dfb66f; border-radius: 999px; background: #fff7df; font-size: .72rem; font-weight: 850; text-transform: uppercase; }
-.booking-payment-network { position: sticky; z-index: 20; top: 10px; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; max-width: 760px; margin: 0 auto 18px; padding: 13px 16px; color: #70420a; border: 1px solid #d9a55f; border-radius: 13px; background: #fff6df; box-shadow: 0 8px 24px rgba(74,45,10,.12); }
+.booking-payment-network { position: sticky; z-index: 20; top: 10px; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; max-width: 760px; margin: 0 auto 18px; padding: 13px 16px; color: #70420a; border: 1px solid #d9a55f; border-radius: 13px; background: #fff6df; box-shadow: 0 8px 24px rgba(74,45,10,.12); }
 .booking-payment-network[hidden] { display: none; }
 .booking-payment-network > span { display: grid; width: 32px; height: 32px; place-items: center; color: #fff; border-radius: 50%; background: #8a520c; font-weight: 900; }
 .booking-payment-network strong { display: block; }
@@ -2050,7 +2046,7 @@ textarea { resize: vertical; }
   .booking-payment-main { padding-block: 28px 76px; }
   .booking-payment-intro { display: grid; gap: 16px; }
   .booking-payment-mode { justify-self: start; }
-  .booking-payment-state { grid-template-columns: 34px 1fr; padding: 18px 15px; border-radius: 18px; }
+  .booking-payment-state { grid-template-columns: 34px minmax(0, 1fr); padding: 18px 15px; border-radius: 18px; }
   .booking-payment-state > span { width: 32px; height: 32px; }
   .booking-payment-summary { display: grid; padding: 24px 18px; }
   .booking-payment-status { width: 100%; }
@@ -2320,7 +2316,7 @@ textarea { resize: vertical; }
 @media (max-width: 680px) {
   .active-job-header nav a:last-child { display: none; }
   .active-job-main { padding-block: 24px 110px; }
-  .active-job-gate { grid-template-columns: 34px 1fr; padding: 18px 15px; border-radius: 18px; }
+  .active-job-gate { grid-template-columns: 34px minmax(0, 1fr); padding: 18px 15px; border-radius: 18px; }
   .active-job-gate > span { width: 32px; height: 32px; }
   .active-job-heading { display: grid; gap: 16px; }
   .active-job-reference { width: 100%; }
@@ -2371,9 +2367,20 @@ textarea { resize: vertical; }
 /* Participant booking dashboards */
 .booking-dashboard-page { min-height: 100vh; background: var(--homle-cream, #f7f4eb); }
 .booking-dashboard-main { min-height: calc(100vh - 160px); padding-block: clamp(32px, 6vw, 72px) 96px; }
-.booking-dashboard-gate { display: grid; grid-template-columns: 42px 1fr; gap: 16px; max-width: 760px; margin: 5vh auto 0; padding: 25px; border: 1px solid var(--line); border-radius: 24px; background: #fff; box-shadow: 0 18px 50px rgba(16,36,33,.08); }
+/* `1fr` cannot shrink below its content, so on a 390px phone this grid grew
+   past the viewport and slid the whole page sideways — the second column was
+   measuring its own text rather than the space available. `minmax(0, 1fr)` is
+   the fix, and it is why every admin desk overflowed horizontally on a phone. */
+.booking-dashboard-gate { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 16px; max-width: 760px; margin: 5vh auto 0; padding: 25px; border: 1px solid var(--line); border-radius: 24px; background: #fff; box-shadow: 0 18px 50px rgba(16,36,33,.08); }
 .booking-dashboard-gate > span { display: grid; width: 40px; height: 40px; place-items: center; color: #fff; border-radius: 50%; background: var(--green); font-weight: 900; }
-.booking-dashboard-gate strong { display: block; color: var(--green-dark); font-size: 1.08rem; }
+/* The gate's heading is a status line, not a hero. Six admin desks write it as
+   an <h1>, which fell through to the global `h1 { font-size: clamp(3rem, 6.5vw,
+   5.5rem) }` and rendered "Sign in as a Homle Administrator" at 58.5px inside a
+   small card — wide enough on a phone to push the whole page sideways. Sized
+   here by role rather than by tag, so it does not matter which one a page uses. */
+.booking-dashboard-gate strong,
+.booking-dashboard-gate h1,
+.booking-dashboard-gate h2 { display: block; max-width: none; margin: 0; color: var(--green-dark); font-size: 1.08rem; line-height: 1.3; letter-spacing: -.01em; overflow-wrap: anywhere; }
 .booking-dashboard-gate p { margin: 5px 0 0; color: var(--muted); }
 .booking-dashboard-gate div > div { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px; }
 .booking-dashboard-gate[data-kind="unavailable"] { border-color: #e2bb76; background: #fff9e9; }
@@ -2565,7 +2572,7 @@ textarea { resize: vertical; }
 
 @media (max-width: 620px) {
   .booking-dashboard-main { padding-block: 26px 100px; }
-  .booking-dashboard-gate { grid-template-columns: 34px 1fr; padding: 18px 15px; border-radius: 18px; }
+  .booking-dashboard-gate { grid-template-columns: 34px minmax(0, 1fr); padding: 18px 15px; border-radius: 18px; }
   .booking-dashboard-gate > span { width: 32px; height: 32px; }
   .booking-dashboard-heading .button { width: 100%; }
   .booking-dashboard-stats { grid-template-columns: 1fr; }
@@ -2619,24 +2626,12 @@ textarea { resize: vertical; }
 .notifications-heading { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 24px; }
 .notifications-heading h1 { margin: 5px 0 8px; color: var(--green-dark); font-size: clamp(2.55rem, 7vw, 5rem); }
 .notifications-heading p:last-child { max-width: 680px; margin: 0; color: var(--muted); }
-.notifications-summary { display: flex; justify-content: space-between; gap: 16px; padding: 14px 18px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.82); color: var(--muted); }
-.notifications-summary strong { color: var(--green-dark); }
-.notification-list { display: grid; gap: 12px; margin-top: 16px; }
-.notification-card { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 20px; border: 1px solid var(--line); border-radius: 20px; background: #fff; box-shadow: 0 9px 28px rgba(16,36,33,.05); }
-.notification-card-unread { border-color: var(--homle-line-soft, #e8e2e0); background: linear-gradient(145deg, #eaf9f4, #fff); }
-.notification-marker { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 50%; background: #edf2ef; color: var(--muted); font-weight: 900; }
-.notification-card-unread .notification-marker { background: var(--green); color: #fff; font-size: 1.35rem; }
-.notification-card h2 { margin: 0 0 4px; color: var(--green-dark); font-size: 1.08rem; }
-.notification-card p { margin: 0 0 7px; color: var(--muted); }
-.notification-card time { color: var(--homle-muted, #665f61); font-size: .8rem; font-weight: 750; }
-.notification-action { min-width: 135px; text-align: center; white-space: nowrap; }
-.notification-empty { margin-top: 16px; }
-.notification-empty .button { margin-top: 10px; }
-.notification-feedback { margin-top: 16px; }
-.notification-load-more { display: block; margin: 20px auto 0; }
+/* The Updates inbox moved onto the shared workspace shell and notifications.css.
+   Its old card, marker, summary and identity-pill rules lived here, in the green
+   palette Homle retired: unread updates rendered on a mint-green gradient with
+   --green-dark headings, and the card selector that was meant to override them
+   targeted an <li> the renderer never produced. All of it is gone. */
 .workspace-role-nav[hidden] { display: none !important; }
-.notifications-page .workspace-identity-pill { color: var(--homle-ink-2, #211d1e); border-color: var(--homle-line-soft, #e8e2e0); background: #edf8f5; }
-.notifications-page.cleaner-workspace-page .workspace-identity-pill { color: #073e38; border-color: var(--homle-line-soft, #e8e2e0); background: var(--homle-beam, #7be8ac); }
 .directory-nav a[data-notification-link] { display: inline-flex; gap: 6px; align-items: center; }
 .notification-nav-count { display: inline-grid; min-width: 20px; height: 20px; padding-inline: 5px; place-items: center; border-radius: 999px; background: var(--green); color: #fff; font-size: .68rem; font-weight: 900; line-height: 1; }
 @media (max-width: 680px) {
@@ -2649,19 +2644,11 @@ textarea { resize: vertical; }
   .account-menu summary { width: 40px; height: 40px; }
   .account-avatar { width: 34px; height: 34px; }
   .account-menu-panel { position: fixed; top: 72px; right: 12px; left: 12px; min-width: 0; }
-  .notifications-main { padding-block: 27px 90px; }
   .cleaner-workspace-page .nav-wrap, .landlord-dashboard-page .nav-wrap { flex-wrap: wrap; gap: 10px 14px; padding-block: 8px; }
   .cleaner-workspace-page .directory-nav, .landlord-dashboard-page .directory-nav { order: 3; width: 100%; gap: 18px; padding: 4px 2px 7px; overflow-x: auto; scrollbar-width: thin; }
   .cleaner-workspace-page .directory-nav a, .landlord-dashboard-page .directory-nav a { display: inline-flex; flex: 0 0 auto; min-height: 32px; align-items: center; }
   .cleaner-workspace-page .account-menu, .landlord-dashboard-page .account-menu { margin-left: auto; }
   .cleaner-profile-steps, .landlord-workspace-tabs { top: 132px; }
-  .notifications-page .directory-nav a { display: block; }
-  .notifications-heading { display: grid; align-items: stretch; }
-  .notifications-heading .button { width: 100%; }
-  .notifications-summary { align-items: start; flex-direction: column; }
-  .notification-card { grid-template-columns: 34px minmax(0, 1fr); padding: 17px 14px; border-radius: 17px; }
-  .notification-action { grid-column: 1 / -1; width: 100%; }
-  .notification-load-more { width: 100%; }
 }
 
 /* Protected test-payment operations */

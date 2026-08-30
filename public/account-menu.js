@@ -117,5 +117,20 @@ async function signOut(button) {
   }
 }
 
-for (const button of buttons) button.addEventListener("click", () => signOut(button));
+/**
+ * Binds a sign-out control that was not in the document when this module ran.
+ *
+ * The list above is taken once, at load. That is correct for the pages whose
+ * header is static markup, and wrong for any page whose chrome is rendered —
+ * workspace-shell.js builds its account menu after this module has already
+ * evaluated, and without this its Sign out button would be a button that does
+ * nothing.
+ */
+export function bindAccountSignOut(button) {
+  if (!button || button.dataset.signOutBound === "true") return;
+  button.dataset.signOutBound = "true";
+  button.addEventListener("click", () => signOut(button));
+}
+
+for (const button of buttons) bindAccountSignOut(button);
 void hydrateAccountMenu();

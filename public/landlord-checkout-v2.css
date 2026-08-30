@@ -20,8 +20,8 @@
  */
 
 body.booking-payment-page {
-  background: #f7f6f5;
-  color: #1a1a1a;
+  background: var(--homle-ws-canvas, #f7f6f5);
+  color: var(--homle-ws-ink, #1a1a1a);
   font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
 }
 
@@ -32,13 +32,13 @@ body.booking-payment-page .booking-payment-intro h1 {
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-body.booking-payment-page .booking-payment-intro p { color: #666666; }
+body.booking-payment-page .booking-payment-intro p { color: var(--homle-ws-muted, #666666); }
 
 /* Cards: the dashboard's paper, border and shadow instead of r24 + green. */
 body.booking-payment-page .booking-payment-card,
 body.booking-payment-page .booking-payment-state {
   background: #ffffff;
-  border: 1px solid #efedeb;
+  border: 1px solid var(--homle-ws-line, #efedeb);
   border-radius: 20px;
   box-shadow: 0 1px 2px oklch(0.2 0.03 60 / 0.05), 0 6px 16px oklch(0.2 0.03 60 / 0.06);
 }
@@ -53,7 +53,7 @@ body.booking-payment-page .booking-payment-summary h2 {
 body.booking-payment-page .button {
   border-radius: 11px;
   border: 0;
-  background: #e11b22;
+  background: var(--homle-ws-accent, #e11b22);
   color: #ffffff;
   font-family: inherit;
   font-size: 14.5px;
@@ -63,15 +63,15 @@ body.booking-payment-page .button {
   box-shadow: none;
   transition: background 0.16s ease, transform 0.16s ease;
 }
-body.booking-payment-page .button:hover { background: #c4151b; }
+body.booking-payment-page .button:hover { background: var(--homle-ws-accent-dark, #c4151b); }
 body.booking-payment-page .button:active { transform: scale(0.97); }
 body.booking-payment-page .button-outline {
   background: #ffffff;
-  color: #1a1a1a;
-  border: 1px solid #e1deda;
+  color: var(--homle-ws-ink, #1a1a1a);
+  border: 1px solid var(--homle-ws-quiet-border, #e1deda);
 }
-body.booking-payment-page .button-outline:hover { background: #f7f6f5; border-color: #c4151b; color: #c4151b; }
-body.booking-payment-page .text-button { color: #666666; }
+body.booking-payment-page .button-outline:hover { background: var(--homle-ws-canvas, #f7f6f5); border-color: var(--homle-ws-accent-dark, #c4151b); color: var(--homle-ws-accent-dark, #c4151b); }
+body.booking-payment-page .text-button { color: var(--homle-ws-muted, #666666); }
 
 /* What is being paid for. Same 11px/700/uppercase label voice as the
    dashboard's fact lists, so the strip reads as one of its cards. */
@@ -81,8 +81,8 @@ body.booking-payment-page .booking-payment-context {
   gap: 14px;
   margin: 0 0 18px;
   padding: 16px;
-  background: #f7f6f5;
-  border: 1px solid #efedeb;
+  background: var(--homle-ws-canvas, #f7f6f5);
+  border: 1px solid var(--homle-ws-line, #efedeb);
   border-radius: 16px;
 }
 body.booking-payment-page .booking-payment-context div { display: grid; gap: 3px; }
@@ -91,7 +91,7 @@ body.booking-payment-page .booking-payment-context dt {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #6b6b6b;
+  color: var(--homle-ws-dim, #6b6b6b);
 }
 body.booking-payment-page .booking-payment-context dd {
   margin: 0;
@@ -103,6 +103,6 @@ body.booking-payment-page .booking-payment-context dd {
    details is not the page with the weakest focus evidence. */
 body.booking-payment-page a:focus-visible,
 body.booking-payment-page button:focus-visible {
-  outline: 3px solid #2456e6;
+  outline: 3px solid var(--homle-ws-focus, #2456e6);
   outline-offset: 1px;
 }

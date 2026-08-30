@@ -5513,6 +5513,41 @@ function streamTrackingTest(request, response) {
   }
 }
 
+/**
+ * Whether this unmatched request came from a browser navigating to a page.
+ *
+ * Deliberately narrow. `/api/...` is never a document however it is asked for,
+ * a request for a path with a non-HTML extension is asking for that asset, and
+ * anything that did not say it accepts HTML is a program, not a reader. Getting
+ * this wrong in the permissive direction would start returning a web page where
+ * a caller expects JSON, so the default is the JSON that was always returned.
+ */
+function wantsHtmlDocument(request, requestUrl) {
+  if (requestUrl.pathname.startsWith("/api/")) return false;
+  const extension = path.extname(requestUrl.pathname).toLowerCase();
+  if (extension && extension !== ".html") return false;
+  return String(request.headers.accept || "").split(",").some((type) => type.trim().toLowerCase().startsWith("text/html"));
+}
+
+/**
+ * Sends the designed 404 page with a 404 status.
+ *
+ * Falls back to `false` — and therefore to the JSON body — if the file is
+ * missing, so a packaging mistake degrades to what the server did before rather
+ * than to a blank response.
+ */
+async function serveNotFoundDocument(request, response, cspNonce = "") {
+  try {
+    const body = await readFile(path.resolve(publicDir, "not-found.html"));
+    response.writeHead(404, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    if (request.method === "HEAD") response.end();
+    else response.end(body);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function serveFile(requestPath, response, cspNonce = "") {
   const routes = {
     "/": "home.html",
@@ -5889,6 +5924,15 @@ async function handleHttpRequest(request, response) {
     }
     if (request.method === "GET" || request.method === "HEAD") {
       if (await serveFile(requestUrl.pathname, response, cspNonce)) return;
+      // A browser asking for a page gets a page. Until this existed, every
+      // mistyped URL, stale bookmark and expired share link in the product
+      // answered with `{"ok":false,"error":"Not found."}` as application/json,
+      // which a browser renders as unstyled serif text with no way back into
+      // Homle. The JSON body below is still what an API caller receives, and
+      // the status is 404 either way.
+      if (wantsHtmlDocument(request, requestUrl)) {
+        if (await serveNotFoundDocument(request, response, cspNonce)) return;
+      }
     }
     json(response, 404, { ok: false, error: "Not found." });
   } catch (error) {

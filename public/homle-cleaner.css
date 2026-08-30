@@ -945,6 +945,21 @@
   --hc-font-body: Poppins, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
+/* ---------------------------------------------------------------- canvas --
+ * The Cleaner workspace owns its own ground, once.
+ *
+ * It never did before. `.hc` covers the viewport on a laptop, so nobody noticed
+ * that the BODY behind it was painted by three unrelated rules left over from
+ * earlier designs: styles.css gave .cleaner-dashboard-page a DARK GRADIENT for
+ * its first 420px — the header of a cleaner dashboard that no longer exists —
+ * and #f7f4eb to the rest, while cleaner-onboarding-redesign.css painted a flat
+ * #d7d7d7. Overscroll on a phone, and the rubber-band showed whichever one the
+ * page happened to inherit. */
+.cleaner-workspace-page {
+  min-height: 100vh;
+  background: var(--hc-ground, #f7f0e5);
+}
+
 /* ---------------------------------------------------------------- shell -- */
 
 .hc {
@@ -7559,4 +7574,47 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   .hc-settings-security-actions > * {
     text-align: center;
   }
+}
+
+/* ------------------------------------------------------- earnings/payouts --
+ * /cleaner/payouts was the one Cleaner route that never joined this system. It
+ * rendered on cream in the app's display face inside a marketing-shaped hero,
+ * while its eighteen siblings rendered here. These are the shapes it needs to
+ * belong, written in this file's own tokens rather than a fourth palette. */
+
+.hc-payout-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin: 18px 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--hc-panel-tint);
+}
+.hc-payout-state[data-kind="ready"] { background: var(--hc-green-note); }
+.hc-payout-state[data-kind="error"] { background: var(--hc-alert-red-soft); }
+.hc-payout-state p { margin: 3px 0 0; color: var(--hc-ink-3); font-size: 14px; line-height: 1.55; }
+.hc-payout-state strong { font-size: 15.5px; }
+
+.hc-payout-mark {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--hc-red);
+  color: #fff;
+  font-weight: 700;
+}
+.hc-payout-state[data-kind="ready"] .hc-payout-mark { background: var(--hc-green); }
+.hc-payout-state[data-kind="error"] .hc-payout-mark { background: var(--hc-red-deep); }
+
+.hc-payout-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.hc-payout-note { margin-top: 16px; }
+.hc-payout-note code { padding: 2px 6px; border-radius: 6px; background: var(--hc-track); font-size: .92em; }
+
+@media (max-width: 700px) {
+  .hc-payout-actions { flex-direction: column; align-items: stretch; }
+  .hc-payout-actions > * { width: 100%; }
 }

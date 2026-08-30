@@ -10,7 +10,10 @@ body.cleaner-onboarding-page {
   margin: 0;
   min-height: 100vh;
   overflow: hidden;
-  background: #d7d7d7;
+  /* The one flat grey in the Cleaner workspace. The body is overflow:hidden
+     behind a full-height .hc, so it is never actually seen — which is exactly
+     why it survived three redesigns. It reads the workspace ground now. */
+  background: var(--hc-ground, #f7f0e5);
 }
 
 body.cleaner-onboarding-page .hc {

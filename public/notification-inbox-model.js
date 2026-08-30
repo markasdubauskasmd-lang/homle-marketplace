@@ -65,3 +65,79 @@ export function notificationUnreadBadge(value) {
   if (!Number.isSafeInteger(count) || count <= 0) return Object.freeze({ count: 0, visible: false, label: "" });
   return Object.freeze({ count, visible: true, label: count > 99 ? "99+" : String(count) });
 }
+
+/* ── What an update looks like ──────────────────────────────────────────────
+ *
+ * Until this audit every update in the inbox looked identical: one grey dot,
+ * one title, one line, one bare clock time. A payment that needs authorising,
+ * a Cleaner two streets away and a review request all read the same, so the
+ * list had no shape and nothing in it could be scanned.
+ *
+ * A tone and a glyph per event give the list that shape. Both are derived from
+ * the event type alone — never from payload text — so a hostile payload cannot
+ * change how an update presents itself.
+ */
+
+const tones = Object.freeze({
+  action: new Set(["payment-window-opened", "payment-action-required", "unexpected-task-approval-requested", "review-requested", "new-booking-request"]),
+  alert: new Set(["issue-reported", "issue-photo-added", "dispute-opened", "dispute-reviewing", "cleaner-declined", "cleaner-invitation-expired"]),
+  success: new Set(["booking-confirmed", "cleaning-completed", "booking-completed", "review-submitted", "dispute-resolved"]),
+  journey: new Set(["cleaner-start-journey", "cleaner-started-travelling", "cleaner-nearby", "cleaner-arrived"]),
+  progress: new Set(["cleaning-started", "cleaning-paused", "cleaning-resumed", "cleaning-progress-update", "job-photo-added", "unexpected-task-decision"]),
+  message: new Set(["booking-message"])
+});
+
+const glyphs = Object.freeze({
+  action: "action", alert: "alert", success: "success",
+  journey: "journey", progress: "progress", message: "message", neutral: "neutral"
+});
+
+/**
+ * The tone an update carries, and the glyph that states it without colour.
+ *
+ * Colour alone would not be enough: a tone that is only a hue is invisible to a
+ * reader who cannot separate those hues, and this list is how a Landlord learns
+ * that money is waiting on them.
+ */
+export function notificationTone(eventType) {
+  for (const [tone, members] of Object.entries(tones)) {
+    if (members.has(eventType)) return Object.freeze({ tone, glyph: glyphs[tone] });
+  }
+  return Object.freeze({ tone: "neutral", glyph: glyphs.neutral });
+}
+
+/**
+ * The day an update belongs to, as a heading.
+ *
+ * A bare `18:08` is only meaningful next to other times from the same day. The
+ * old inbox printed exactly that for anything from today and a full date for
+ * anything else, so a list spanning a week read as a jumble of two formats with
+ * no divisions in it.
+ */
+export function notificationDayGroup(value, now = new Date()) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return Object.freeze({ key: "earlier", label: "Earlier" });
+  const startOfDay = (input) => Date.UTC(input.getFullYear(), input.getMonth(), input.getDate());
+  const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+  if (days <= 0) return Object.freeze({ key: "today", label: "Today" });
+  if (days === 1) return Object.freeze({ key: "yesterday", label: "Yesterday" });
+  if (days < 7) return Object.freeze({ key: "week", label: "Earlier this week" });
+  return Object.freeze({ key: "earlier", label: "Earlier" });
+}
+
+/**
+ * Updates in the order given, split into day groups.
+ *
+ * Grouping happens here rather than in the renderer so it can be tested without
+ * a browser, and so the Cleaner inbox can reuse it.
+ */
+export function notificationGroups(items, now = new Date()) {
+  const groups = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    const group = notificationDayGroup(item?.createdAt, now);
+    const last = groups.at(-1);
+    if (last && last.key === group.key) last.items.push(item);
+    else groups.push({ key: group.key, label: group.label, items: [item] });
+  }
+  return groups.map((group) => Object.freeze({ ...group, items: Object.freeze(group.items) }));
+}

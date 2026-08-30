@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
 // One product, one visual system.
 //
@@ -102,6 +102,7 @@ const cleanerWorkspace = new Set([
   "cleaner-incident-reports",
   "cleaner-support-tickets",
   "cleaner-performance",
+  "cleaner-payouts",
   "cleaner-public-profile",
   "cleaner-registration",
   "cleaner-reviews",
@@ -321,20 +322,59 @@ assert.ok(panelRulesMeasured >= 10, `Only ${panelRulesMeasured} panel text rules
 // as landlord-dashboard.css and loads second, so it quietly darkened 16 further
 // declarations that used to pass at 5.84:1. Every use is small text: none earns
 // the large-text exemption, so 4.5:1 is the bar for all of them.
+// The values themselves moved to homle-tokens.css. They were declared as
+// literals in landlord-dashboard-v2.css AND — the same twenty-four decisions,
+// written out again — in account-pages.css, landlord-help-v2.css,
+// landlord-checkout-v2.css and landlord-journey-v2.css. Five copies of one
+// design, agreeing only until someone edited one of them. This measures the
+// owner, and then asserts the consumers still read it.
 const landlordV2 = stripComments(read("public/landlord-dashboard-v2.css"));
 // The three grounds these tokens actually land on.
 const landlordGrounds = { canvas: "f7f6f5", paper: "ffffff", cream: "f8f4eb" };
+const workspaceRamp = { "--ld-ink": "--homle-ws-ink", "--ld-ink-soft": "--homle-ws-ink-soft", "--ld-muted": "--homle-ws-muted", "--ld-dim": "--homle-ws-dim", "--ld-faint": "--homle-ws-faint" };
 let landlordRampWorst = Infinity;
-for (const token of ["--ld-ink", "--ld-ink-soft", "--ld-muted", "--ld-dim", "--ld-faint"]) {
-  const declared = new RegExp(token + ":[ ]*#([0-9a-f]{6})[ ]*;", "i").exec(landlordV2);
-  assert.ok(declared, `${token} is no longer a literal hex in landlord-dashboard-v2.css, so this check can no longer measure it.`);
+for (const [token, source] of Object.entries(workspaceRamp)) {
+  const declared = new RegExp(source + ":[ ]*#([0-9a-f]{6})[ ]*;", "i").exec(stripComments(tokens));
+  assert.ok(declared, `${source} is no longer a literal hex in homle-tokens.css, so this check can no longer measure the Landlord ramp.`);
+  // A consumer that stopped reading the token is back to a private copy, which
+  // is the exact drift this file exists to catch — and it would still pass the
+  // measurement above while rendering something else.
+  assert.match(
+    landlordV2,
+    new RegExp(token + ":[ ]*var\\(" + source + ","),
+    `${token} no longer reads ${source}. The workspace palette has a second owner again.`
+  );
   for (const [groundName, ground] of Object.entries(landlordGrounds)) {
     const measured = contrast(hexToRgb(declared[1]), hexToRgb(ground));
     landlordRampWorst = Math.min(landlordRampWorst, measured);
     assert.ok(
       measured >= 4.5,
-      `${token} is #${declared[1]}, which measures ${measured.toFixed(2)}:1 on the ${groundName} ground. Every declaration using it is small text, so it needs 4.5:1.`
+      `${source} is #${declared[1]}, which measures ${measured.toFixed(2)}:1 on the ${groundName} ground. Every declaration using it is small text, so it needs 4.5:1.`
     );
+  }
+}
+
+/* ── One owner for the workspace palette ── */
+
+// The retired stop-gap, by name: it restyled the Updates and Settings pages by
+// re-declaring the whole palette under --acct-* names.
+assert.ok(!existsSync(new URL("../public/account-pages.css", import.meta.url)), "account-pages.css is back. It was a second declaration of the workspace palette, and the pages it patched now use the shared shell.");
+
+// Every workspace sheet reads the tokens rather than carrying its own copy. The
+// literal is allowed — and required — only as a var() fallback.
+const workspaceSheets = ["landlord-dashboard-v2.css", "landlord-help-v2.css", "landlord-checkout-v2.css", "landlord-journey-v2.css", "homle-workspace.css"];
+const paletteLiterals = ["#f7f6f5", "#1a1a1a", "#e11b22", "#c4151b", "#efedeb", "#e7e4e0", "#2e9e63"];
+for (const sheet of workspaceSheets) {
+  const css = stripComments(read(`public/${sheet}`));
+  for (const literal of paletteLiterals) {
+    for (const match of css.matchAll(new RegExp(literal, "gi"))) {
+      const before = css.slice(Math.max(0, match.index - 40), match.index);
+      assert.match(
+        before,
+        /var\(--homle-ws-[a-z0-9-]+,\s*$/,
+        `${sheet} writes ${literal} outside a var(--homle-ws-*, …) fallback. That is how one design came to be declared five times.`
+      );
+    }
   }
 }
 

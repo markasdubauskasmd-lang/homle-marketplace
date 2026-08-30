@@ -10,47 +10,48 @@
  * property cards, dialogs, payments) to the file before it, which still
  * describes them accurately.
  *
- * The palette is written as hex, once, at the top. The design was drawn against
- * homle-tokens.css — same DM Sans, same two-step shadow, a coral within a hair
- * of --homle-coral — so most of it could read tokens directly. But "match the
- * approved composition" is the requirement, and quietly rounding #E11B22 to the
- * nearest token is how the drift homle-tokens.css exists to end starts again.
- * So: exact values, declared in one place, mapped onto the --ld-* names the
- * earlier stylesheet already consumes.
+ * The palette is the workspace palette, and it is NOT declared here. It used to
+ * be — twenty-four exact hex values, written out at the top of this file. The
+ * audit that produced homle-workspace.css found the same twenty-four decisions
+ * written out a second time, as literals, in account-pages.css under --acct-*
+ * names. Two files, one design, nothing linking them: they agreed only until
+ * someone edited one of them, and the "these pages look like different
+ * products" feeling is what editing one of them looks like.
+ *
+ * So the values now live once, in homle-tokens.css, as --homle-ws-*. The names
+ * below are kept — three thousand lines and landlord-dashboard.css already
+ * consume --ld-* — and each one carries its own literal as a var() fallback, the
+ * convention styles.css already uses, so a page that somehow loads this sheet
+ * without the tokens still renders the approved composition rather than nothing.
+ * Every resolved value is byte-identical to what it was; tests/landlord-computed-styles.mjs
+ * holds all 764 of them still.
  */
 
 body.landlord-dashboard-page {
-  --ld-canvas: #f7f6f5;        /* the working surface behind the cards */
-  --ld-sidebar: #ffffff;
-  --ld-paper: #ffffff;
-  --ld-ink: #1a1a1a;
-  --ld-ink-soft: #3a3a3a;
-  /* The grey ramp is contrast-led, not comp-led. The approved comp's
-     #7a7a7a / #8c8c8c / #a8a8a8 measure 3.98 / 3.12 / 2.20 against this
-     canvas, and every one of their ~88 uses is small text, so none earns the
-     large-text exemption. These are the nearest neutrals that clear 4.5:1 on
-     canvas, paper and cream alike while keeping three distinguishable steps;
-     collapsing them to the lightest passing value would have made the three
-     tokens near-identical and flattened the hierarchy they exist to carry. */
-  --ld-muted: #666666;
-  --ld-dim: #6b6b6b;
-  --ld-faint: #707070;
-  --ld-coral: #e11b22;
-  --ld-coral-dark: #c4151b;
-  --ld-coral-tint: #fdecec;
-  --ld-line: #efedeb;
-  --ld-border: #e7e4e0;
-  --ld-quiet-border: #e1deda;
-  --ld-success: #2e9e63;
-  --ld-success-ink: #2e7d51;
-  --ld-success-tint: #eaf4ee;
-  --ld-success-rail: #9fd3b8;
-  --ld-success-ring: #cfe6da;
-  --ld-warn-ink: #9a6d14;
-  --ld-warn-tint: #fbf1df;
-  --ld-card-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
-  --ld-sidebar-w: 240px;
-  --ld-focus: #2456e6;         /* matches --focus in styles.css */
+  --ld-canvas: var(--homle-ws-canvas, #f7f6f5);   /* the working surface behind the cards */
+  --ld-sidebar: var(--homle-ws-paper, #ffffff);
+  --ld-paper: var(--homle-ws-paper, #ffffff);
+  --ld-ink: var(--homle-ws-ink, #1a1a1a);
+  --ld-ink-soft: var(--homle-ws-ink-soft, #3a3a3a);
+  --ld-muted: var(--homle-ws-muted, #666666);
+  --ld-dim: var(--homle-ws-dim, #6b6b6b);
+  --ld-faint: var(--homle-ws-faint, #707070);
+  --ld-coral: var(--homle-ws-accent, #e11b22);
+  --ld-coral-dark: var(--homle-ws-accent-dark, #c4151b);
+  --ld-coral-tint: var(--homle-ws-accent-tint, #fdecec);
+  --ld-line: var(--homle-ws-line, #efedeb);
+  --ld-border: var(--homle-ws-border, #e7e4e0);
+  --ld-quiet-border: var(--homle-ws-quiet-border, #e1deda);
+  --ld-success: var(--homle-ws-success, #2e9e63);
+  --ld-success-ink: var(--homle-ws-success-ink, #2e7d51);
+  --ld-success-tint: var(--homle-ws-success-tint, #eaf4ee);
+  --ld-success-rail: var(--homle-ws-success-rail, #9fd3b8);
+  --ld-success-ring: var(--homle-ws-success-ring, #cfe6da);
+  --ld-warn-ink: var(--homle-ws-warn-ink, #9a6d14);
+  --ld-warn-tint: var(--homle-ws-warn-tint, #fbf1df);
+  --ld-card-shadow: var(--homle-ws-card-shadow, 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06));
+  --ld-sidebar-w: var(--homle-ws-sidebar-w, 240px);
+  --ld-focus: var(--homle-ws-focus, #2456e6);     /* matches --focus in styles.css */
 
   background: var(--ld-canvas);
   color: var(--ld-ink);
@@ -1496,7 +1497,7 @@ body.landlord-dashboard-page .hub-book-close {
   flex: none;
   display: grid;
   place-items: center;
-  border: 1px solid #e7e4e0;
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
   border-radius: 12px;
   background: #fff;
   color: #6a6a6a;
@@ -1504,7 +1505,7 @@ body.landlord-dashboard-page .hub-book-close {
   font-size: 21px;
   cursor: pointer;
 }
-body.landlord-dashboard-page .hub-book-close:hover { background: #f7f6f5; }
+body.landlord-dashboard-page .hub-book-close:hover { background: var(--homle-ws-canvas, #f7f6f5); }
 body.landlord-dashboard-page .hub-book-step { padding-top: 22px; }
 body.landlord-dashboard-page .hub-book-label { margin: 0 0 12px; color: var(--ld-dim); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 body.landlord-dashboard-page .hub-book-places { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -1516,7 +1517,7 @@ body.landlord-dashboard-page .hub-book-method-grid > button {
   gap: 13px;
   min-width: 0;
   padding: 15px 16px;
-  border: 1.5px solid #e7e4e0;
+  border: 1.5px solid var(--homle-ws-border, #e7e4e0);
   border-radius: 17px;
   background: #fff;
   color: var(--ld-ink);
@@ -1527,7 +1528,7 @@ body.landlord-dashboard-page .hub-book-method-grid > button {
 }
 body.landlord-dashboard-page .hub-book-place:hover,
 body.landlord-dashboard-page .hub-book-new:hover,
-body.landlord-dashboard-page .hub-book-method-grid > button:hover { transform: translateY(-1px); border-color: color-mix(in oklch, var(--ld-coral) 48%, #e7e4e0); }
+body.landlord-dashboard-page .hub-book-method-grid > button:hover { transform: translateY(-1px); border-color: color-mix(in oklch, var(--ld-coral) 48%, var(--homle-ws-border, #e7e4e0)); }
 body.landlord-dashboard-page .hub-book-place[aria-pressed="true"] { border-color: var(--ld-coral); background: color-mix(in oklch, var(--ld-coral) 7%, #fff); }
 body.landlord-dashboard-page .hub-book-place-icon,
 body.landlord-dashboard-page .hub-book-new > span:first-child {

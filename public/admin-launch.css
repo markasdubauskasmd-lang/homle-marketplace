@@ -47,7 +47,7 @@
 
 .cleaner-supply-stage {
   display: grid;
-  grid-template-columns: 34px 1fr;
+  grid-template-columns: 34px minmax(0, 1fr);
   align-items: center;
   gap: 9px;
   min-width: 0;

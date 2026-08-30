@@ -1,0 +1,621 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Homle workspace — the shell and components every signed-in page shares.
+   ───────────────────────────────────────────────────────────────────────────
+   The audit that produced this file walked all 57 routes in a browser at three
+   viewports. Inside one signed-in session it found FOUR different answers to
+   "where am I":
+
+     · the approved v2 composition — 240px white sidebar, top bar with the bell
+       and avatar, floating tab bar on a phone                (/landlord/*)
+     · a near-black top bar with a horizontal `Dashboard · Properties · Updates`
+       nav and a dark footer, and NO bottom bar at all on a phone
+                                                    (/notifications, /landlord/checkout)
+     · the same near-black bar carrying only "Back to Homle"           (/settings)
+     · a white bar carrying `Dashboard · Help`                    (/landlord/help)
+
+   Those pages are not edge cases. Updates is one tap from the dashboard bell,
+   from the Account view's Notifications row and from the account menu; Settings
+   is the Account view's "Security & login" row; Checkout is where a booking is
+   paid for. A Landlord crosses between the first shell and the others several
+   times in a single booking, and on a phone the five destinations they have on
+   every dashboard screen simply disappeared when they did.
+
+   So: one shell, here, written entirely from the --homle-ws-* tokens, rendered
+   from one place by workspace-shell.js. The metrics are the approved
+   composition's, read out of landlord-dashboard-v2.css rather than re-guessed —
+   240px sidebar, 44px nav rows at 12px radius, 11px buttons, 20px cards, the
+   same two-step shadow, the same coral tint for the current destination. Those
+   four radii are tokens now (--homle-ws-radius-*), because a shared sheet that
+   guesses one puts a visibly different control beside the dashboard's.
+
+   Scope. This sheet styles `body.homle-workspace`. The Landlord dashboard is
+   deliberately NOT given that class: it is the approved composition itself,
+   it is held still by tests/landlord-computed-styles.mjs, and re-deriving it
+   from a second sheet would risk the one surface that is already right in order
+   to tidy a file. Both read the same tokens, and tests/design-system.mjs now
+   asserts that neither can go back to declaring a palette of its own.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+body.homle-workspace {
+  min-height: 100vh;
+  margin: 0;
+  background: var(--homle-ws-canvas, #f7f6f5);
+  color: var(--homle-ws-ink, #1a1a1a);
+  font-family: var(--homle-body, system-ui, sans-serif);
+}
+
+/* Headings are set in the body face on workspace surfaces, as v2 sets them:
+   its weight and tight tracking are DM Sans 700, and Bricolage at these sizes
+   reads noticeably heavier than the approved composition. */
+body.homle-workspace h1,
+body.homle-workspace h2,
+body.homle-workspace h3,
+body.homle-workspace h4 {
+  font-family: var(--homle-body, system-ui, sans-serif);
+  color: var(--homle-ws-ink, #1a1a1a);
+  letter-spacing: -.02em;
+}
+
+/* ── Keyboard focus ─────────────────────────────────────────────────────────
+   styles.css declares a site-wide `:focus-visible` outline and then, at higher
+   specificity, `input:focus, select:focus, textarea:focus { outline: none }`.
+   The field rule wins, so fields lose their indicator. v2 restores one for the
+   dashboard; this restores the same one here rather than editing the global
+   sheet every other page depends on. */
+body.homle-workspace :is(a[href], button, summary, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 3px solid var(--homle-ws-focus, #2456e6);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+body.homle-workspace :is(input, select, textarea):focus-visible {
+  outline-offset: 1px;
+  border-color: var(--homle-ws-accent, #e11b22);
+}
+
+/* ═══ Shell ════════════════════════════════════════════════════════════════ */
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+
+body.homle-workspace .hw-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  width: var(--homle-ws-sidebar-w, 240px);
+  background: var(--homle-ws-paper, #fff);
+  border-right: 1px solid var(--homle-ws-line, #efedeb);
+}
+body.homle-workspace .hw-sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 100%;
+  padding: 22px 16px 20px;
+}
+body.homle-workspace .hw-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  color: inherit;
+  text-decoration: none;
+}
+body.homle-workspace .hw-brand img { width: 38px; height: 38px; border-radius: 11px; }
+body.homle-workspace .hw-brand strong {
+  display: block;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1;
+}
+body.homle-workspace .hw-brand small {
+  display: block;
+  margin-top: 3px;
+  color: var(--homle-ws-dim, #6b6b6b);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+body.homle-workspace .hw-nav { display: flex; flex-direction: column; gap: 3px; }
+body.homle-workspace .hw-nav a {
+  display: flex;
+  /* 44px is the floor a finger can reliably hit; the padding renders about 41. */
+  min-height: 44px;
+  align-items: center;
+  gap: 13px;
+  padding: 11px 13px;
+  border-radius: var(--homle-ws-radius-field, 12px);
+  color: #4a4a4a;
+  font-size: 14.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+body.homle-workspace .hw-nav a svg { width: 19px; height: 19px; flex: none; fill: none; stroke: currentColor; }
+body.homle-workspace .hw-nav a:hover { background: #f5f4f3; color: var(--homle-ws-ink, #1a1a1a); }
+body.homle-workspace .hw-nav a[aria-current="page"] {
+  background: var(--homle-ws-accent-tint, #fdecec);
+  color: var(--homle-ws-accent, #e11b22);
+}
+body.homle-workspace .hw-nav-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--homle-ws-accent, #e11b22);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+body.homle-workspace .hw-sidebar-account {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: auto;
+  padding: 9px 8px;
+  border-radius: 12px;
+  color: inherit;
+  text-decoration: none;
+}
+body.homle-workspace .hw-sidebar-account:hover { background: #f5f4f3; }
+body.homle-workspace .hw-sidebar-account strong { display: block; font-size: 14px; line-height: 1.2; }
+body.homle-workspace .hw-sidebar-account small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  color: var(--homle-ws-dim, #6b6b6b);
+  font-size: 12px;
+  white-space: nowrap;
+}
+body.homle-workspace .hw-status-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--homle-ws-success, #2e9e63);
+}
+body.homle-workspace .hw-avatar {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--homle-ws-ink, #1a1a1a);
+  color: #fff;
+  box-shadow: 0 0 0 1px var(--homle-ws-border, #e7e4e0), 0 5px 14px rgba(26, 26, 26, .12);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+body.homle-workspace .hw-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+
+/* ── Main column ─────────────────────────────────────────────────────────── */
+
+body.homle-workspace .hw-main {
+  margin-left: var(--homle-ws-sidebar-w, 240px);
+  padding: 26px 34px 44px;
+}
+/* A workspace, not a reading page: the sidebar is the only reserved column.
+   A measure cap still applies to prose-shaped views, opted into per page. */
+body.homle-workspace .hw-main-narrow { max-width: 980px; }
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+
+body.homle-workspace .hw-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 22px;
+}
+body.homle-workspace .hw-topbar-copy { min-width: 0; }
+body.homle-workspace .hw-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--homle-ws-success-ink, #2e7d51);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+body.homle-workspace .hw-eyebrow span { color: var(--homle-ws-success, #2e9e63); font-size: 8px; }
+body.homle-workspace .hw-topbar-copy h1 {
+  margin: 8px 0 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1.1;
+}
+/* The eyebrow is also a <p> in this block, and this rule used to come after it
+   at equal specificity — so the 11px uppercase label silently rendered at
+   15px. Excluding it keeps both readable as what they are. */
+body.homle-workspace .hw-topbar-copy > p:not(.hw-eyebrow) { margin: 6px 0 0; color: var(--homle-ws-muted, #666); font-size: 15px; }
+body.homle-workspace .hw-topbar-actions { display: flex; align-items: center; gap: 12px; flex: none; }
+
+body.homle-workspace .hw-bell {
+  position: relative;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
+  border-radius: 999px;
+  background: var(--homle-ws-paper, #fff);
+  color: var(--homle-ws-ink, #1a1a1a);
+  text-decoration: none;
+  transition: border-color .16s ease, color .16s ease;
+}
+body.homle-workspace .hw-bell:hover,
+body.homle-workspace .hw-bell:focus-visible { border-color: var(--homle-ws-accent, #e11b22); color: var(--homle-ws-accent, #e11b22); }
+body.homle-workspace .hw-bell svg { width: 19px; height: 19px; }
+/* The label stays a real element for screen readers rather than being removed. */
+body.homle-workspace .hw-bell > span:not(.hw-bell-count) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+body.homle-workspace .hw-bell-count {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 19px;
+  padding: 1px 5px;
+  border: 2px solid var(--homle-ws-paper, #fff);
+  border-radius: 999px;
+  background: var(--homle-ws-accent, #e11b22);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: center;
+}
+body.homle-workspace .hw-mobile-brand { display: none; }
+
+/* ── Mobile tab bar ──────────────────────────────────────────────────────── */
+
+body.homle-workspace .hw-mobile-nav { display: none; }
+
+/* ═══ Components ═══════════════════════════════════════════════════════════ */
+
+body.homle-workspace .hw-card {
+  padding: 22px 24px;
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
+  border-radius: var(--homle-ws-radius-card, 20px);
+  background: var(--homle-ws-paper, #fff);
+  box-shadow: var(--homle-ws-card-shadow, 0 1px 2px rgba(32, 20, 15, .05), 0 6px 16px rgba(32, 20, 15, .06));
+}
+body.homle-workspace .hw-card + .hw-card { margin-top: 16px; }
+body.homle-workspace .hw-card > :first-child { margin-top: 0; }
+body.homle-workspace .hw-card > :last-child { margin-bottom: 0; }
+
+body.homle-workspace .hw-section-title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--homle-ws-dim, #6b6b6b);
+}
+body.homle-workspace .hw-card h2 { margin: 0; font-size: 19px; font-weight: 700; }
+body.homle-workspace .hw-card h3 { margin: 0; font-size: 15.5px; font-weight: 700; }
+body.homle-workspace .hw-card > p { margin: 8px 0 0; color: var(--homle-ws-muted, #666); font-size: 14.5px; line-height: 1.55; }
+
+/* Buttons. `.button` and `.button-outline` are the class names the existing
+   markup and scripts already use across these pages, so this restyles them
+   rather than asking every template and every DOM-building script to change.
+
+   styles.css gives `.button` a pill radius, a gradient and two coloured drop
+   shadows that lift on hover — a marketing-page control. The workspace design
+   is flat: a 16px radius, one flat fill, no glow. `box-shadow: none` and
+   `transform: none` are here to switch those off, not decoration. */
+body.homle-workspace .button,
+body.homle-workspace .hw-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 12px 20px;
+  border: 1px solid transparent;
+  border-radius: var(--homle-ws-radius-control, 11px);
+  background: var(--homle-ws-accent, #e11b22);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background .16s ease, border-color .16s ease, color .16s ease;
+}
+body.homle-workspace .button:hover,
+body.homle-workspace .button:active,
+body.homle-workspace .hw-btn:hover,
+body.homle-workspace .hw-btn:active { box-shadow: none; transform: none; }
+body.homle-workspace .button:hover,
+body.homle-workspace .hw-btn:hover { background: var(--homle-ws-accent-dark, #c4151b); color: #fff; }
+body.homle-workspace .button-outline,
+body.homle-workspace .hw-btn-outline {
+  background: var(--homle-ws-paper, #fff);
+  border-color: var(--homle-ws-quiet-border, #e1deda);
+  color: var(--homle-ws-ink, #1a1a1a);
+}
+body.homle-workspace .button-outline:hover,
+body.homle-workspace .hw-btn-outline:hover {
+  background: var(--homle-ws-paper, #fff);
+  border-color: var(--homle-ws-accent, #e11b22);
+  color: var(--homle-ws-accent, #e11b22);
+}
+body.homle-workspace .button:disabled,
+body.homle-workspace .hw-btn:disabled,
+body.homle-workspace .button[aria-disabled="true"] {
+  opacity: .55;
+  cursor: not-allowed;
+}
+body.homle-workspace .button:disabled:hover,
+body.homle-workspace .hw-btn:disabled:hover { background: var(--homle-ws-accent, #e11b22); }
+body.homle-workspace .button-outline:disabled:hover,
+body.homle-workspace .hw-btn-outline:disabled:hover {
+  background: var(--homle-ws-paper, #fff);
+  border-color: var(--homle-ws-quiet-border, #e1deda);
+  color: var(--homle-ws-ink, #1a1a1a);
+}
+
+/* Form fields. */
+body.homle-workspace label { display: block; margin-top: 14px; font-size: 13.5px; font-weight: 600; }
+/* A tickbox and its sentence are one line of reading, not a caption above a
+   control. Blocking them apart is what left the consent line on the support
+   form sitting under an orphaned box. */
+body.homle-workspace label.checkbox,
+body.homle-workspace label:has(> input[type="checkbox"]),
+body.homle-workspace label:has(> input[type="radio"]) {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  font-weight: 500;
+  line-height: 1.5;
+}
+body.homle-workspace input[type="checkbox"],
+body.homle-workspace input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  margin: 1px 0 0;
+  accent-color: var(--homle-ws-accent, #e11b22);
+}
+body.homle-workspace .hw-field { display: block; margin-top: 14px; }
+body.homle-workspace input[type="text"],
+body.homle-workspace input[type="email"],
+body.homle-workspace input[type="password"],
+body.homle-workspace input[type="search"],
+body.homle-workspace select,
+body.homle-workspace textarea {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
+  border-radius: var(--homle-ws-radius-field, 12px);
+  background: #fbfaf9;
+  color: inherit;
+  font-family: inherit;
+  font-size: 15px;
+}
+body.homle-workspace textarea { min-height: 120px; resize: vertical; }
+body.homle-workspace .hw-hint { margin: 6px 0 0; color: var(--homle-ws-dim, #6b6b6b); font-size: 12.5px; line-height: 1.5; }
+
+/* Badges and status. */
+body.homle-workspace .hw-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: #f2f0ee;
+  color: var(--homle-ws-ink-soft, #3a3a3a);
+  font-size: 12px;
+  font-weight: 600;
+}
+body.homle-workspace .hw-badge-success { background: var(--homle-ws-success-tint, #eaf4ee); color: var(--homle-ws-success-ink, #2e7d51); }
+body.homle-workspace .hw-badge-warn { background: var(--homle-ws-warn-tint, #fbf1df); color: var(--homle-ws-warn-ink, #9a6d14); }
+body.homle-workspace .hw-badge-accent { background: var(--homle-ws-accent-tint, #fdecec); color: var(--homle-ws-accent-dark, #c4151b); }
+
+/* A row inside a card that opens something else. */
+body.homle-workspace .hw-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 4px;
+  border: 0;
+  border-top: 1px solid var(--homle-ws-line, #efedeb);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+body.homle-workspace .hw-row:first-of-type { border-top: 0; }
+body.homle-workspace .hw-row-copy { flex: 1; min-width: 0; }
+body.homle-workspace .hw-row-copy strong { display: block; font-size: 15px; }
+body.homle-workspace .hw-row-copy small { display: block; margin-top: 2px; color: var(--homle-ws-muted, #666); font-size: 13px; }
+
+/* Empty, loading and feedback states. Every page used to hand-roll these. */
+body.homle-workspace .hw-empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 44px 24px;
+  border: 1px dashed var(--homle-ws-border, #e7e4e0);
+  border-radius: var(--homle-ws-radius-card, 20px);
+  background: var(--homle-ws-paper, #fff);
+  text-align: center;
+}
+body.homle-workspace .hw-empty-mark {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 6px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--homle-ws-success-tint, #eaf4ee);
+  color: var(--homle-ws-success-ink, #2e7d51);
+}
+body.homle-workspace .hw-empty-mark svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+body.homle-workspace .hw-empty strong { font-size: 17px; }
+body.homle-workspace .hw-empty p { margin: 0; max-width: 42ch; color: var(--homle-ws-muted, #666); font-size: 14.5px; }
+body.homle-workspace .hw-empty .button { margin-top: 12px; }
+
+body.homle-workspace .hw-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--homle-ws-border, #e7e4e0);
+  border-radius: var(--homle-ws-radius-card, 20px);
+  background: var(--homle-ws-paper, #fff);
+}
+/* The mark is informational by default. Amber is reserved for a state that is
+   actually asking something of the reader — spending it on every notice is how
+   a warning colour stops meaning anything. */
+body.homle-workspace .hw-state > span[aria-hidden] {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  place-items: center;
+  border-radius: 999px;
+  background: #eef1f6;
+  color: #3d4a63;
+  font-weight: 700;
+}
+body.homle-workspace .hw-state[data-tone="warn"] > span[aria-hidden] { background: var(--homle-ws-warn-tint, #fbf1df); color: var(--homle-ws-warn-ink, #9a6d14); }
+body.homle-workspace .hw-state[data-tone="success"] > span[aria-hidden] { background: var(--homle-ws-success-tint, #eaf4ee); color: var(--homle-ws-success-ink, #2e7d51); }
+body.homle-workspace .hw-state[data-tone="alert"] > span[aria-hidden] { background: var(--homle-ws-accent-tint, #fdecec); color: var(--homle-ws-accent-dark, #c4151b); }
+body.homle-workspace .hw-state strong { display: block; font-size: 15.5px; }
+body.homle-workspace .hw-state p { margin: 4px 0 0; color: var(--homle-ws-muted, #666); font-size: 14px; }
+body.homle-workspace .hw-state div > div { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+
+/* Skeleton rows, for a list that is still loading. */
+body.homle-workspace .hw-skeleton { display: grid; gap: 12px; }
+body.homle-workspace .hw-skeleton-row {
+  height: 92px;
+  border-radius: 20px;
+  background: linear-gradient(100deg, #f1efed 30%, #f8f7f6 50%, #f1efed 70%) 0 0 / 300% 100%;
+  animation: hw-shimmer 1.4s linear infinite;
+}
+@keyframes hw-shimmer { to { background-position: -150% 0; } }
+
+body.homle-workspace .hw-feedback {
+  margin-top: 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--homle-ws-warn-tint, #fbf1df);
+  color: var(--homle-ws-warn-ink, #9a6d14);
+  font-size: 13.5px;
+}
+body.homle-workspace .hw-feedback[data-kind="success"] {
+  background: var(--homle-ws-success-tint, #eaf4ee);
+  color: var(--homle-ws-success-ink, #2e7d51);
+}
+
+/* Wide content — tables, timelines, code — scrolls inside its own box so the
+   page body never slides sideways on a phone. */
+body.homle-workspace .hw-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Dialogs. The `<dialog>` element already gives modality, focus trapping and
+   Escape; this only dresses it. The backdrop is a warm ink rather than the
+   `rgba(4, 34, 30, .68)` green that styles.css still applies — a tint left over
+   from the palette Homle retired. */
+body.homle-workspace .hw-dialog {
+  width: min(520px, calc(100% - 28px));
+  padding: 0;
+  border: 0;
+  border-radius: var(--homle-ws-radius-panel, 22px);
+  background: var(--homle-ws-paper, #fff);
+  color: var(--homle-ws-ink, #1a1a1a);
+  box-shadow: 0 28px 80px oklch(.2 .03 60 / .28);
+}
+body.homle-workspace .hw-dialog::backdrop { background: oklch(.2 .03 60 / .55); }
+body.homle-workspace .hw-dialog form { display: grid; gap: 6px; padding: clamp(22px, 5vw, 30px); }
+body.homle-workspace .hw-dialog h2 { margin: 4px 0 6px; color: var(--homle-ws-ink, #1a1a1a); font-size: 21px; font-weight: 700; }
+body.homle-workspace .hw-dialog p { margin: 0; color: var(--homle-ws-muted, #666); font-size: 14.5px; line-height: 1.55; }
+body.homle-workspace .hw-dialog button:disabled { cursor: wait; opacity: .65; }
+
+body.homle-workspace .hw-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  body.homle-workspace .hw-skeleton-row { animation: none; }
+  body.homle-workspace * { transition-duration: .01ms !important; }
+}
+
+/* ═══ Phone and tablet ═════════════════════════════════════════════════════
+   Under 900px the sidebar folds away and the tab bar replaces it, exactly as
+   the approved composition does. Account stays reachable from the top-bar
+   avatar, so there is no duplicate profile control. */
+
+@media (max-width: 900px) {
+  body.homle-workspace .hw-sidebar { display: none; }
+  body.homle-workspace .hw-main { margin-left: 0; padding: 16px 16px 96px; }
+
+  body.homle-workspace .hw-topbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "brand actions" "copy copy";
+    align-items: center;
+    gap: 10px 12px;
+  }
+  body.homle-workspace .hw-mobile-brand { grid-area: brand; display: inline-grid; }
+  body.homle-workspace .hw-mobile-brand img { width: 38px; height: 38px; border-radius: 11px; }
+  body.homle-workspace .hw-topbar-copy { grid-area: copy; }
+  body.homle-workspace .hw-topbar-copy h1 { font-size: 25px; }
+  body.homle-workspace .hw-topbar-actions { grid-area: actions; justify-self: end; }
+
+  body.homle-workspace .hw-card { padding: 18px; border-radius: var(--homle-ws-radius-card, 20px); }
+  body.homle-workspace .hw-actions { flex-direction: column; align-items: stretch; }
+  body.homle-workspace .hw-actions .button { width: 100%; }
+
+  body.homle-workspace .hw-mobile-nav {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 40;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    padding: 9px 8px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--homle-ws-paper, #fff);
+    border-top: 1px solid var(--homle-ws-line, #efedeb);
+  }
+  body.homle-workspace .hw-mobile-nav a {
+    display: flex;
+    flex: 0 1 58px;
+    min-width: 0;
+    width: 58px;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0;
+    color: #6f6f6f;
+    font-size: 10px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  body.homle-workspace .hw-mobile-nav a svg { width: 21px; height: 21px; fill: none; stroke: currentColor; }
+  body.homle-workspace .hw-mobile-nav a[aria-current="page"] { color: var(--homle-ws-accent, #e11b22); }
+  /* The narrowest handsets still in use are 320px wide. Tighten the label
+     rather than let the bar scroll or drop a destination. */
+  body.homle-workspace .hw-mobile-nav a span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

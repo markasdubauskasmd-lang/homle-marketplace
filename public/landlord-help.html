@@ -6,26 +6,33 @@
   <meta name="robots" content="noindex, nofollow">
   <title>Help | Homle</title>
   <link rel="icon" href="/homle-logo-128-4f82ebad.png" type="image/png">
-  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
-  <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <link rel="stylesheet" href="/homle-tokens.css?v=20260830-1">
+  <link rel="stylesheet" href="/styles.css?v=20260830-1">
   <link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1">
   <link rel="stylesheet" href="/landlord-help.css?v=20260730-1">
   <!-- landlord-help.css is shared with admin-support.html, so the landlord
        restyle is a separate sheet scoped to this page body class. -->
-  <link rel="stylesheet" href="/landlord-help-v2.css?v=20260813-3">
-  <script type="module" src="/landlord-help.js?v=20260813-3"></script>
+  <link rel="stylesheet" href="/landlord-help-v2.css?v=20260830-1">
+  <!-- The shared workspace shell, last so it wins without !important. -->
+  <link rel="stylesheet" href="/homle-workspace.css?v=20260830-1">
+  <script type="module" src="/landlord-help.js?v=20260830-1"></script>
 </head>
-<body class="support-page homle-landlord-support">
+<!-- Support is reached from the workspace and used when something has already
+     gone wrong, which makes it the worst possible place to also change shell.
+     It used to answer with a white bar carrying `Dashboard · Help` — a third
+     navigation pattern in one signed-in session. -->
+<body class="homle-workspace support-page homle-landlord-support">
   <a class="skip-link" href="#support-main">Skip to support</a>
-  <header class="support-header"><div class="shell support-nav"><a class="brand" href="/"><img src="/homle-logo-128-4f82ebad.png" alt="" width="42" height="42"><span>Homle</span></a><nav aria-label="Landlord" data-support-private-navigation hidden><a href="/landlord/dashboard">Dashboard</a><a aria-current="page" href="/landlord/help">Help</a></nav></div></header>
-  <main id="support-main" class="shell support-main">
-    <section class="support-gate" data-support-gate role="status" aria-live="polite">
-      <strong data-support-gate-title>Checking secure Landlord access…</strong>
-      <p data-support-gate-copy>Your support history opens only inside your Landlord account.</p>
-      <div><a class="button" href="/login?intent=book" data-support-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-support-retry hidden>Try again</button></div>
+  <main id="support-main" class="support-main" data-workspace-main>
+    <section class="hw-state" data-support-gate role="status" aria-live="polite">
+      <span aria-hidden="true">i</span>
+      <div>
+        <strong data-support-gate-title>Checking secure Landlord access…</strong>
+        <p data-support-gate-copy>Your support history opens only inside your Landlord account.</p>
+        <div><a class="button" href="/login?intent=book" data-support-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-support-retry hidden>Try again</button></div>
+      </div>
     </section>
     <div data-support-workspace hidden>
-      <header class="support-heading"><div><p class="eyebrow">Private Landlord support</p><h1>How can we help?</h1><p>Describe the problem once. Keep passwords, property access details and payment-card data out of your message.</p></div><a class="button button-outline" href="/landlord/dashboard">Back to dashboard</a></header>
       <div class="support-layout">
         <section class="support-card" aria-labelledby="support-form-title">
           <h2 id="support-form-title">Ask Homle for help</h2>
