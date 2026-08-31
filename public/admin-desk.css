@@ -1,0 +1,88 @@
+/* One canvas for the eleven administrator desks.
+ *
+ * They belonged to no design system. Measured signed in as a real
+ * administrator, they rendered on FOUR different canvases at once:
+ *
+ *   oklch(0.975 0.015 95)   eight desks, inherited from styles.css
+ *   rgb(247, 242, 233)      /admin/support, from the RETIRED landlord-help.css
+ *   rgb(247, 241, 232)      /admin/coverage, its own cream
+ *   rgba(0, 0, 0, 0)        /admin/funnel — a transparent body, so whatever
+ *                           the browser paints behind it shows through
+ *
+ * and three of the sheets declared entire palettes from scratch with no tokens
+ * at all: teal-and-amber on the control desk, four different reds on coverage,
+ * a fifth red plus teal on the funnel. None of those colours appears anywhere
+ * else in the product.
+ *
+ * This file is deliberately small. It does NOT restyle the desks — they are
+ * internal tooling with dense tables that work, and rewriting them wholesale is
+ * how you break an operator's day. It settles the things that made them read as
+ * a different application: the canvas they sit on, the ink on it, and the
+ * navigation strip every one of them now shares.
+ *
+ * Loaded last on every admin page, and scoped to `.admin-desk` so it cannot
+ * reach a page that is not one.
+ */
+
+body.admin-desk {
+  background: var(--homle-ws-canvas, #f7f6f5);
+  color: var(--homle-ws-ink, #1a1a1a);
+}
+
+/* The funnel painted no body background at all. */
+body.admin-desk.funnel-page,
+body.admin-desk.coverage-page,
+body.admin-desk.support-page {
+  background: var(--homle-ws-canvas, #f7f6f5);
+}
+
+/* The shared navigation strip, which is the one component all eleven have in
+   common now that admin-navigation.js builds it. */
+body.admin-desk [data-admin-private-navigation] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+body.admin-desk [data-admin-private-navigation] .admin-badge {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--homle-ws-accent-tint, #fdecec);
+  color: var(--homle-ws-accent-on-tint, #c4151b);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+body.admin-desk [data-admin-private-navigation] .back-link {
+  color: var(--homle-ws-muted, #666666);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  /* 24px minimum, so the strip is usable on a phone. */
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 2px;
+}
+
+body.admin-desk [data-admin-private-navigation] .back-link:hover {
+  color: var(--homle-ws-ink, #1a1a1a);
+  text-decoration: underline;
+}
+
+/* Where you are. Measured at 5.30:1 on the tint — the same value the workspace
+   sidebar uses, and for the same reason: it is the one label on every page that
+   says which desk you are looking at. */
+body.admin-desk [data-admin-private-navigation] .back-link.is-current {
+  color: var(--homle-ws-accent-on-tint, #c4151b);
+  text-decoration: none;
+  cursor: default;
+}
+
+body.admin-desk [data-admin-private-navigation] .back-link:focus-visible {
+  outline: 3px solid var(--homle-ws-focus, #2456e6);
+  outline-offset: 2px;
+  border-radius: 6px;
+}

@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/admin-launch.css?v=20260830-1">
   <link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1">
+  <link rel="stylesheet" href="/admin-desk.css?v=20260831-1">
   <script src="/scope-time-breakdown.js?v=20260715-1" defer></script>
   <script src="/proposal-economics.js?v=20260716-1" defer></script>
   <script src="/scan-review-workspace.js?v=20260715-2" defer></script>
@@ -17,13 +18,14 @@
   <script src="/readiness-navigator.js?v=20260821-1" defer></script>
   <script src="/dispatch-order.js?v=20260715-1" defer></script>
   <script src="/admin.js?v=20260821-4" defer></script>
+  <script type="module" src="/admin-navigation.js?v=20260831-1"></script>
 </head>
-<body class="admin-page">
+<body class="admin-page admin-desk">
   <a class="skip-link" href="#admin-main">Skip to leads</a>
   <header class="admin-header">
     <div class="shell admin-nav">
       <a class="brand" href="/" aria-label="Homle website"><img src="/homle-logo.png" alt="" width="40" height="40"><span>Homle</span></a>
-      <div><span class="admin-badge">Private control desk</span><a class="back-link" href="/admin/pricing">Pricing</a><a class="back-link" href="/admin/bookings">Booking operations</a><a class="back-link" href="/admin/cases">Booking cases</a><a class="back-link" href="/admin/support">Landlord support</a><a class="back-link" href="/admin/coverage">Coverage</a><a class="back-link" href="/admin/funnel">Funnel</a><a class="back-link" href="/admin/payments">Test payments</a><a class="back-link" href="/">View website</a></div>
+      <div><nav aria-label="Administrator" data-admin-private-navigation hidden></nav><a class="back-link" href="/">View website</a></div>
     </div>
   </header>
   <main id="admin-main" class="shell admin-main">
