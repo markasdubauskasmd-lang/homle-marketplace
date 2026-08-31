@@ -23,6 +23,13 @@ assert.equal(queue.disputes.length, 1);
 assert.equal(queue.disputes[0].description, example.description);
 assert.equal(queue.disputes[0].privateEmail, undefined);
 assert.equal(queue.disputes[0].exactAddress, undefined);
+// Reachability now comes from the one shared list in admin-navigation.js, not
+// from markup copied into each desk. Asserting it there is stronger: it means
+// this desk is reachable from ALL ELEVEN desks rather than from the control
+// desk alone, which is the fault that left /admin/scan-operations linked from
+// exactly one page and reachable nowhere else.
+const adminNavigation = await readFile(new URL("../public/admin-navigation.js", import.meta.url), "utf8");
+
 assert(Object.isFrozen(queue) && Object.isFrozen(queue.disputes) && Object.isFrozen(queue.disputes[0]), "Projected case records must remain immutable.");
 assert.equal(adminCaseFilter(" REVIEWING "), "reviewing");
 assert.equal(adminCaseFilter(""), "");
@@ -76,7 +83,7 @@ assert(script.includes("casePolicyForCategory") && script.includes('data.get("po
 assert(script.includes("Secure marketplace administration is not connected yet") && script.includes("Administrator account required") && script.includes("navigator.onLine"), "The case screen lacks unavailable, unauthorized or connection-failure states.");
 assert(model.includes("privateEmail") === false && model.includes("exactAddress") === false, "The case projection added unrelated identity or property fields.");
 assert(styles.includes(".admin-case-card") && styles.includes("@media (max-width: 620px)") && styles.includes(".admin-case-confirmation"), "The case screen lacks mobile or decision-confirmation styling.");
-assert(server.includes('"/admin/cases": "admin-cases.html"') && pilotAdmin.includes('href="/admin/cases"'), "The marketplace case route is not served or linked from private operations.");
+assert(server.includes('"/admin/cases": "admin-cases.html"') && adminNavigation.includes('{ href: "/admin/cases", label: ') && pilotAdmin.includes("/admin-navigation.js?v="), "The marketplace case route is not served or linked from private operations.");
 assert(packageJson.includes('"check:admin-cases"') && packageJson.includes('"test:admin-cases"') && packageJson.includes("tests/admin-cases-ui.mjs"), "The case UI is not included in repository quality gates.");
 
 

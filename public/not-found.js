@@ -8,7 +8,7 @@
  */
 
 import { readSignedInAccount } from "./account-menu.js?v=20260830-1";
-import { workspaceShell } from "./workspace-shell-model.js";
+import { notFoundDestination } from "./not-found-destination.js?v=20260831-1";
 
 const primary = document.querySelector("[data-not-found-primary]");
 const back = document.querySelector("[data-not-found-back]");
@@ -24,12 +24,18 @@ if (back) {
 
 try {
   const account = (await readSignedInAccount())?.account || null;
-  const shell = workspaceShell(account);
-  if (shell.role && primary) {
-    primary.href = shell.home;
-    primary.textContent = `Back to your ${shell.label} workspace`;
+  const destination = notFoundDestination(account);
+  if (primary) {
+    primary.href = destination.href;
+    primary.textContent = destination.label;
   }
-  if (help) help.href = shell.role === "cleaner" ? "/cleaner/help-centre" : "/landlord/help";
+  if (help) {
+    // No support page this reader may open — an administrator holds no Landlord
+    // workspace, so /landlord/help would answer the 404 with a second refusal.
+    // Drop the whole sentence rather than leave a link that dead-ends.
+    if (destination.helpHref) help.href = destination.helpHref;
+    else (help.closest("p") || help).hidden = true;
+  }
 } catch {
   // Signed out, or the account service is unavailable. The marketing home the
   // markup already carries is the right destination for both.

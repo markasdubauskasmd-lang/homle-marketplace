@@ -12,8 +12,8 @@
  *
  * The palette remains local to the Landlord surface. The shared token sheet is
  * also loaded by the frozen Cleaner workspace, so moving these values there
- * would change a protected dependency. The new non-Cleaner workspace sheet uses
- * the same literal values as fallbacks without altering that shared boundary.
+ * would change a protected dependency. The non-Cleaner workspace sheet uses
+ * the same literal values as fallbacks without altering that boundary.
  */
 
 body.landlord-dashboard-page {
@@ -1137,6 +1137,16 @@ body.landlord-dashboard-page [data-places-section] .landlord-property-card-headi
   font-size: 16px;
   line-height: 1.15;
   letter-spacing: -.02em;
+  /* A property name is free text the owner chose, and the server accepts 160
+     characters with no requirement that any of them be a space. One such name
+     pushed the card to 1328px inside a 348px column and gave the whole page
+     954px of sideways scroll at 390px wide — on the primary Landlord screen.
+     A grid track of minmax(0, 1fr) bounds the BOX; nothing bounds the word
+     inside it. `anywhere` rather than `break-word` so the wrap is also taken
+     into account when the intrinsic minimum width is computed, which is what
+     stops the track being widened in the first place. */
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 body.landlord-dashboard-page [data-places-section] .ld-prop-summary {
   margin-top: 4px;
@@ -3452,10 +3462,10 @@ body.landlord-dashboard-page .ld-care-note {
 /* A no-match result is a booking outcome, not an inline validation error. Keep
    its facts scannable on desktop and stack them within thumb reach on phones. */
 .landlord-match-outcome-dialog .landlord-match-outcome-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
-.landlord-match-outcome-dialog .landlord-match-outcome-facts > div { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--homle-line, #dcd4d1); border-radius: 14px; background: #fff9f7; }
-.landlord-match-outcome-dialog dt { color: var(--muted); font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
-.landlord-match-outcome-dialog dd { margin: 0; color: var(--green-dark); font-weight: 800; }
-.landlord-match-outcome-dialog .landlord-match-outcome-boundary { padding: 14px 16px; border-radius: 12px; background: #fff1ee; color: #7d201b; font-weight: 700; }
+.landlord-match-outcome-dialog .landlord-match-outcome-facts > div { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--homle-ws-border, #e7e4e0); border-radius: var(--homle-ws-radius-field, 12px); background: var(--homle-ws-paper, #ffffff); }
+.landlord-match-outcome-dialog dt { color: var(--homle-ws-muted, #666666); font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.landlord-match-outcome-dialog dd { margin: 0; color: var(--homle-ws-ink, #1a1a1a); font-weight: 800; }
+.landlord-match-outcome-dialog .landlord-match-outcome-boundary { padding: 14px 16px; border-radius: var(--homle-ws-radius-field, 12px); background: var(--homle-ws-accent-tint, #fdecec); color: var(--homle-ws-accent-on-tint, #c4151b); font-weight: 700; }
 .landlord-match-outcome-dialog .landlord-match-outcome-step { display: grid; gap: 16px; }
 .landlord-match-outcome-dialog .landlord-match-outcome-step[hidden] { display: none; }
 .landlord-match-outcome-dialog .landlord-match-outcome-timing-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }

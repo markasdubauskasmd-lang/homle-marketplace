@@ -10,11 +10,13 @@
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1">
   <link rel="stylesheet" href="/landlord-help.css?v=20260730-1">
+  <link rel="stylesheet" href="/admin-desk.css?v=20260831-1">
   <script type="module" src="/admin-support.js?v=20260805-1"></script>
+  <script type="module" src="/admin-navigation.js?v=20260831-1"></script>
 </head>
-<body class="support-page admin-support-page">
+<body class="support-page admin-support-page admin-desk">
   <a class="skip-link" href="#admin-support-main">Skip to support queue</a>
-  <header class="support-header"><div class="shell support-nav"><a class="brand" href="/"><img src="/homle-logo.png" alt="" width="42" height="42"><span>Homle</span></a><nav aria-label="Administrator" data-admin-support-private-navigation hidden><a href="/admin">Control desk</a><a href="/admin/cases">Booking cases</a><a aria-current="page" href="/admin/support">Landlord support</a></nav></div></header>
+  <header class="support-header"><div class="shell support-nav"><a class="brand" href="/"><img src="/homle-logo.png" alt="" width="42" height="42"><span>Homle</span></a><nav aria-label="Administrator" data-admin-support-private-navigation hidden><span data-admin-private-navigation></span></nav></div></header>
   <main id="admin-support-main" class="shell support-main">
     <section class="support-gate" data-admin-support-gate role="status" aria-live="polite"><strong data-admin-support-gate-title>Checking secure Administrator access…</strong><p data-admin-support-gate-copy>Landlord support messages are private.</p><div><a class="button" href="/login" data-admin-support-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-admin-support-retry hidden>Try again</button></div></section>
     <div data-admin-support-workspace hidden>

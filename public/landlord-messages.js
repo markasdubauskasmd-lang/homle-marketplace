@@ -27,6 +27,9 @@ const state = {
   cursors: new Map(),
   selectedBookingId: "",
   loadingBookingId: "",
+  // The in-flight thread load, so a second caller can wait for it instead of
+  // returning as though it had already settled. See selectConversation.
+  pendingLoad: null,
   sending: false,
   loaded: false
 };
@@ -125,8 +128,14 @@ function renderThread({ forceBottom = false } = {}) {
   if (form) form.hidden = !conversation;
 
   if (!conversation) {
+    // Two panes, two different questions. The list answers "do you have any
+    // conversations"; the reading pane answers "which one are you reading". It
+    // used to answer the first as well, so an empty Messages view printed the
+    // same sentence twice — once in the list and once, stranded, in the middle
+    // of a 300px-tall blank card on a phone.
     const empty = element("div", "ld-messages-empty");
-    empty.append(element("p", "", state.loaded ? MESSAGES_EMPTY_COPY : "Loading…"));
+    if (!state.loaded) empty.append(element("p", "", "Loading…"));
+    else if (state.conversations.length) empty.append(element("p", "", "Choose a conversation to read it."));
     body.replaceChildren(empty);
     return;
   }
@@ -198,7 +207,24 @@ function applyPage(bookingId, result, { earlier = false } = {}) {
 
 async function selectConversation(bookingId) {
   const selected = safeBookingId(bookingId);
-  if (!selected || state.loadingBookingId || state.sending) return;
+  if (!selected || state.sending) return;
+
+  // A thread load is already in flight. If it is this same conversation, WAIT
+  // for it rather than returning as though it had settled.
+  //
+  // The dashboard clears the Messages panel's `aria-busy` when this call
+  // resolves. Returning early made that a lie: `loadWorkspace` can refresh the
+  // bookings while the first open is still fetching, and the second open then
+  // resolved instantly and announced a settled Messages view with the thread
+  // still in flight — so the panel reported ready and then changed under the
+  // reader. It surfaced as a flake in tests/landlord-computed-styles.mjs, where
+  // the failed-conversation banner rendered in some runs and not others, on
+  // whichever viewport lost the race; three identical runs disagreed.
+  if (state.loadingBookingId) {
+    if (state.loadingBookingId === selected) await state.pendingLoad;
+    return;
+  }
+
   state.selectedBookingId = selected;
   showFeedback("");
   render({ forceBottom: true });
@@ -206,15 +232,18 @@ async function selectConversation(bookingId) {
 
   state.loadingBookingId = selected;
   render({ forceBottom: true });
-  try {
-    const result = await deps.requestJson(`/api/marketplace/bookings/${encodeURIComponent(selected)}/messages?limit=100`);
-    applyPage(selected, result);
-  } catch (error) {
-    showFeedback(error.message || "That conversation could not be opened. Try again.");
-  } finally {
-    state.loadingBookingId = "";
-    render({ forceBottom: true });
-  }
+  state.pendingLoad = (async () => {
+    try {
+      applyPage(selected, await deps.requestJson(`/api/marketplace/bookings/${encodeURIComponent(selected)}/messages?limit=100`));
+    } catch (error) {
+      showFeedback(error.message || "That conversation could not be opened. Try again.");
+    } finally {
+      state.loadingBookingId = "";
+      state.pendingLoad = null;
+      render({ forceBottom: true });
+    }
+  })();
+  await state.pendingLoad;
 }
 
 async function loadEarlier() {
@@ -312,8 +341,11 @@ export async function openLandlordMessages(options = {}) {
   }
 
   render();
-  if (wanted && wanted !== state.selectedBookingId) await selectConversation(wanted);
-  else if (wanted) render({ forceBottom: true });
+  // Always await, including when this conversation is already the selected one:
+  // a second open that arrives while the first is still fetching must wait for
+  // that fetch, not report the view settled. selectConversation is the one place
+  // that knows whether a load is in flight.
+  if (wanted) await selectConversation(wanted);
 }
 
 /** Lets the dashboard refresh the conversation list when bookings change. */

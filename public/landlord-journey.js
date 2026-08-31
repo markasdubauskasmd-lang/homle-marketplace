@@ -33,6 +33,7 @@ import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
 import { requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
+import { landlordRequestDraftLifetimeMs } from "./landlord-request-draft.js?v=20260830-1";
 import { isUkPostcode } from "./contact-validation.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -218,13 +219,39 @@ async function recoverCsrf() {
 
 // The journey is long enough that losing it to a refresh or a phone call would
 // be a real cost, so every answered step is kept locally until it is submitted.
+//
+// It is kept for THIRTY MINUTES, not for the life of the tab. The privacy
+// notice tells the customer that an incomplete request keeps its property
+// scope, timing, access and contact entries "for up to 30 minutes" and is
+// removed on "expiry", and the same promise appears on the landing page and the
+// dashboard. Ten sibling draft modules implement it; this one did not, so the
+// product stated a retention limit it did not keep. The lifetime is imported
+// rather than restated so there is one number to change.
 function saveDraft() {
-  try { sessionStorage.setItem(draftKey, JSON.stringify({ step: state.step, draft: state.draft })); } catch {}
+  try {
+    const savedAt = Date.now();
+    sessionStorage.setItem(draftKey, JSON.stringify({ step: state.step, draft: state.draft, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs }));
+  } catch {}
+}
+
+function discardDraft() {
+  try { sessionStorage.removeItem(draftKey); } catch {}
 }
 
 function restoreDraft() {
   try {
     const stored = JSON.parse(sessionStorage.getItem(draftKey) || "null");
+    const savedAt = Number(stored?.savedAt);
+    const expiresAt = Number(stored?.expiresAt);
+    // A draft with no stamp predates this and cannot be shown to be inside the
+    // promised window, so it is discarded rather than trusted. Clock changes cut
+    // both ways, so a stamp from the future is refused too.
+    const live = Number.isFinite(savedAt)
+      && Number.isFinite(expiresAt)
+      && expiresAt === savedAt + landlordRequestDraftLifetimeMs
+      && Date.now() >= savedAt - 5 * 60 * 1000
+      && Date.now() < expiresAt;
+    if (stored && !live) return discardDraft();
     if (stored?.draft && typeof stored.draft === "object") Object.assign(state.draft, stored.draft);
     if (typeof stored?.step === "string" && stepIndex(stored.step) >= 0) state.step = stored.step;
     if (!durationChoices.includes(Number(state.draft.durationMinutes))) state.draft.durationMinutes = 120;
@@ -265,7 +292,31 @@ function adoptScan() {
 }
 
 /* ── Navigation ─────────────────────────────────────── */
-function show(stepId) {
+
+// The six steps are one document, so without this the browser Back button
+// leaves the journey entirely from step 2 rather than stepping back through it
+// — and on a phone Back is the primary way people go back. No work was ever
+// lost, because the draft restores, but the control did the wrong thing on the
+// product's longest flow.
+//
+// Three modes, because the wrong one strands somebody:
+//   "push"    a forward move. Adds an entry, so Back returns here.
+//   "replace" a move that should not be re-enterable by going forward: the
+//             in-app back control, and the first render.
+//   "none"    we are already responding to a popstate; touching history again
+//             would fight the browser.
+function syncJourneyHistory(stepId, mode) {
+  if (mode === "none") return;
+  const entry = { journeyStep: stepId };
+  try {
+    // Nothing to go back to yet on the first render, so replace rather than
+    // push: otherwise Back lands on the same step it started from.
+    if (mode === "push" && typeof window.history.state?.journeyStep === "string") window.history.pushState(entry, "");
+    else window.history.replaceState(entry, "");
+  } catch { /* A sandboxed or file: context can refuse history. The journey still works. */ }
+}
+
+function show(stepId, historyMode = "push") {
   state.step = stepId;
   for (const section of $$(".jstep")) section.hidden = section.dataset.step !== stepId;
   const rail = railState(stepId);
@@ -293,6 +344,7 @@ function show(stepId) {
   if (stepId === "when") renderWhen();
   if (stepId === "cleaner") loadCleaners();
   if (stepId === "checkout") renderCheckout();
+  syncJourneyHistory(stepId, historyMode);
 }
 
 function goNext() {
@@ -1656,7 +1708,7 @@ async function confirmJourney() {
       catch (error) { invitation.reason = cleanerInvitationRecovery(error); }
     }
 
-    try { sessionStorage.removeItem(draftKey); } catch {}
+    discardDraft();
     state.draft.requestId = "";
     state.draft.propertyDraftId = "";
     state.scanPhotos = [];
@@ -1776,12 +1828,23 @@ el.propertyNewToggle.addEventListener("click", () => {
   el.propertyType.focus();
 });
 el.accessRetry.addEventListener("click", async () => {
-  if (await openAuthenticatedJourney()) show(state.step);
+  if (await openAuthenticatedJourney()) show(state.step, "replace");
 });
 el.back.addEventListener("click", () => {
   readCurrentStep();
   const previous = previousStep(state.step);
-  if (previous) show(previous);
+  // Replace rather than push: going back in the app should not leave a forward
+  // entry that returns to the step just left.
+  if (previous) show(previous, "replace");
+});
+
+window.addEventListener("popstate", (event) => {
+  const stepId = event.state?.journeyStep;
+  if (typeof stepId !== "string" || stepIndex(stepId) < 0 || stepId === state.step) return;
+  // Keep whatever was typed on the step being left, exactly as the in-app
+  // control does, so Back is not a way to lose an answer.
+  readCurrentStep();
+  show(stepId, "none");
 });
 
 restoreDraft();
@@ -1812,7 +1875,8 @@ if (state.draft.postcode) {
 const capabilitiesReady = loadCapabilities();
 const journeyOpened = await openAuthenticatedJourney();
 if (journeyOpened) {
-  show(state.step);
+  // The first render: replace, so Back does not land on the step it started on.
+  show(state.step, "replace");
   if (cameFromScan) toast("Your scan is here. Check the checklist before continuing.");
 }
 await capabilitiesReady;

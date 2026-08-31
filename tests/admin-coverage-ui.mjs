@@ -17,6 +17,13 @@ const [html, script, css, server, admin] = await Promise.all([
   readFile(new URL("../server.mjs", import.meta.url), "utf8"),
   readFile(new URL("../public/admin.html", import.meta.url), "utf8")
 ]);
+// Reachability now comes from the one shared list in admin-navigation.js, not
+// from markup copied into each desk. Asserting it there is stronger: it means
+// this desk is reachable from ALL ELEVEN desks rather than from the control
+// desk alone, which is the fault that left /admin/scan-operations linked from
+// exactly one page and reachable nowhere else.
+const adminNavigation = await readFile(new URL("../public/admin-navigation.js", import.meta.url), "utf8");
+
 assert(html.includes("Outward-postcode aggregates") && html.includes("Operational snapshot, not a supply promise") && html.includes("data-coverage-window"), "The report does not explain its privacy or operational limits.");
 assert(script.includes("/api/marketplace/admin/coverage") && script.includes("/api/marketplace/account") && script.includes('roles?.includes("administrator")'), "The report lost its secure Administrator gate or protected endpoint.");
 assert(!script.includes("innerHTML") && script.includes("textContent"), "The aggregate report is not rendered with a safe text-only boundary.");
@@ -24,6 +31,6 @@ for (const privateField of ["addressLine", "exactPostcode", "landlordId", "clean
   assert(!html.includes(privateField) && !script.includes(privateField), `The coverage UI references private field ${privateField}.`);
 }
 assert(css.includes("@media(max-width:520px)") && css.includes("grid-template-columns:1fr"), "The report is missing its one-column mobile layout.");
-assert(server.includes('"/admin/coverage": "admin-coverage.html"') && admin.includes('href="/admin/coverage"'), "The protected report is not served or reachable from the Administrator control desk.");
+assert(server.includes('"/admin/coverage": "admin-coverage.html"') && adminNavigation.includes('{ href: "/admin/coverage", label: ') && admin.includes("/admin-navigation.js?v="), "The protected report is not served or reachable from the Administrator control desk.");
 
 console.log("Administrator coverage UI tests passed: privacy copy, role gate, safe rendering, navigation and mobile layout.");
