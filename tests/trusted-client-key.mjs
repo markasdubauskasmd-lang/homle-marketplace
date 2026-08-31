@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createTrustedClientAddressResolver, createTrustedClientKeyResolver } from "../src/marketplace/trusted-client-key.mjs";
 
-function request(remoteAddress, forwardedFor, trueClientIp) {
+function request(remoteAddress, forwardedFor, trueClientIp, connectingIp) {
   const headers = {};
   if (forwardedFor !== undefined) headers["x-forwarded-for"] = forwardedFor;
   if (trueClientIp !== undefined) headers["true-client-ip"] = trueClientIp;
+  if (connectingIp !== undefined) headers["cf-connecting-ip"] = connectingIp;
   return { socket: { remoteAddress }, headers };
 }
 
@@ -48,6 +49,41 @@ assert.equal(
   "A browser-forged leftmost X-Forwarded-For entry displaced the Cloudflare-verified client identity."
 );
 assert.equal(rendered(request("10.0.0.8", "198.51.100.71, 10.0.0.8", "::ffff:198.51.100.71")), "render:ipv4:198.51.100.71");
+
+// Cloudflare sets CF-Connecting-IP on every request it fronts, and unlike
+// True-Client-IP it is not an optional feature. When it is present the two must
+// identify the same client, so forging only one of them no longer works.
+//
+// It is deliberately NOT required. Making an unconfirmed header mandatory would
+// answer 503 on every throttled route — sign-in included — if the platform does
+// not send it, and breaking sign-in is worse than leaving this gap closed only
+// when the header happens to be there. See S-6 in HOMLE_MASTER_AUDIT.md for the
+// measurement that would settle it.
+assert.equal(
+  rendered(request("10.0.0.8", "198.51.100.71, 10.0.0.8", "198.51.100.71", "198.51.100.71")),
+  "render:ipv4:198.51.100.71",
+  "Cloudflare's two client headers agreeing was rejected."
+);
+assert.equal(
+  rendered(request("10.0.0.8", "198.51.100.71, 10.0.0.8", "::ffff:198.51.100.71", "198.51.100.71")),
+  "render:ipv4:198.51.100.71",
+  "The same address written as IPv4 and as an IPv4-mapped IPv6 was treated as two different clients."
+);
+assert.throws(
+  () => rendered(request("10.0.0.8", "203.0.113.99, 198.51.100.71, 10.0.0.8", "203.0.113.99", "198.51.100.71")),
+  /same client/,
+  "A caller who forged True-Client-IP to an address in the chain was accepted while Cloudflare's own header said otherwise."
+);
+assert.equal(
+  rendered(request("10.0.0.8", "198.51.100.71, 10.0.0.8", "198.51.100.71")),
+  "render:ipv4:198.51.100.71",
+  "A request with no CF-Connecting-IP was refused. This must stay optional: requiring it would 503 every throttled route if the platform does not send it."
+);
+assert.throws(
+  () => rendered(request("10.0.0.8", "198.51.100.71, 10.0.0.8", "198.51.100.71", "not-an-address")),
+  /CF-Connecting-IP/,
+  "A malformed CF-Connecting-IP was ignored rather than refused."
+);
 assert.equal(
   rendered(request("10.0.0.8", "2001:0db8:0:0:0:0:0:71, 10.0.0.8", "2001:DB8::71")),
   "render:ipv6:2001:db8::71",

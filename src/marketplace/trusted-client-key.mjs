@@ -99,11 +99,39 @@ function forwardedClient(request) {
 // client. Render fronts every service with Cloudflare, which sets True-Client-IP
 // to the verified connecting address; require that header and cross-check it
 // against the validated bounded chain, failing closed on any mismatch.
+//
+// THE UNVERIFIED ASSUMPTION, STATED. Everything here rests on Cloudflare
+// REPLACING an inbound True-Client-IP rather than passing it through. That is
+// its documented behaviour, and it is why the chain cross-check is meaningful:
+// a caller who sends `True-Client-IP: X` and `X-Forwarded-For: X` satisfies the
+// cross-check on its own, so if the header ever reached the application
+// unreplaced, the caller would be choosing their own rate-limit identity and
+// every IP-keyed limit — sign-in throttling included — would be evadable.
+//
+// It has NOT been measured against the deployed platform. What that measurement
+// is, precisely: from outside, send both headers with an address you do not own
+// and read them back from a request-echo route. If the value you sent survives,
+// this is exploitable and the fix is to stop trusting headers and pin the peer
+// instead. See S-6 in HOMLE_MASTER_AUDIT.md.
+//
+// What IS done here without that measurement: Cloudflare sets CF-Connecting-IP
+// on every request and, unlike True-Client-IP, it is not an optional feature.
+// When it is present the two must agree, so forging only one of them no longer
+// works. It is deliberately NOT required: making an unconfirmed header
+// mandatory would answer 503 on every throttled route if the platform does not
+// send it, and breaking sign-in is worse than the risk being closed.
 function renderForwardedClient(request) {
   const chain = forwardedEntries(request, { chainAllowed: true });
   const trueClient = normalizedAddress(request?.headers?.["true-client-ip"], "Render True-Client-IP");
   if (!chain.some((entry) => entry.address === trueClient.address && entry.family === trueClient.family)) {
     throw new TypeError("Render True-Client-IP must appear in its X-Forwarded-For chain.");
+  }
+  const connecting = request?.headers?.["cf-connecting-ip"];
+  if (connecting) {
+    const cloudflareClient = normalizedAddress(connecting, "Cloudflare CF-Connecting-IP");
+    if (cloudflareClient.address !== trueClient.address || cloudflareClient.family !== trueClient.family) {
+      throw new TypeError("Cloudflare CF-Connecting-IP and True-Client-IP must identify the same client.");
+    }
   }
   return trueClient;
 }

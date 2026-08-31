@@ -526,6 +526,16 @@
       "order": 105,
       "file": "105_marketplace_mutation_rate_limit.sql",
       "sha256": "8b2ebd0023526f7f18ae3d51aefdeaa5b7e2a4c21c41674bbb335613052196e5"
+    },
+    {
+      "order": 106,
+      "file": "106_bound_cleaner_photo_access_after_completion.sql",
+      "sha256": "0e759d8b2bfca2f3ec2259c352fb552209804be3db05f2eb56f86ef53eec2f97"
+    },
+    {
+      "order": 107,
+      "file": "107_serialise_support_request_cap.sql",
+      "sha256": "0f88820f17d08926befe5e1d86b2e8aaad6fd8fdc51d46676f4186de0c042ca1"
     }
   ],
   "grantFiles": [

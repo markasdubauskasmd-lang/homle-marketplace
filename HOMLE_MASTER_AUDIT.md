@@ -568,13 +568,34 @@ mirror gate does offer one). Related: `intent` on
 signup and verification resend — so signing in with `intent: "book"` still lands
 a dual-role account in the Cleaner workspace. **Status `[ ]`.**
 
-**Q-3 · P2 · Concurrency** — *The five-open-support-request cap leaks under
-concurrency.* Measured sequentially it holds (five, then `409`). Eight
-concurrent posts against an account with one open request produced **five
-accepted where four slots remained**. The cap is a `SELECT count(*) … >= 5`
-inside plpgsql with no row or advisory lock, at READ COMMITTED, with no database
-constraint behind it — a check-then-insert race. The correct fix serialises it
-in SQL. **Status `[ ]`.**
+**Q-3 · P2 · Concurrency** — *The five-open-support-request cap leaked under
+concurrency.*
+
+- **Problem.** `SELECT count(*) … >= 5` then INSERT, at READ COMMITTED, with no
+  lock and no constraint behind it. Every concurrent transaction saw the same
+  pre-insert count and every one passed. Eight concurrent posts against an
+  account with one open request accepted **five where four slots remained**.
+- **Fix.** A transaction-scoped advisory lock keyed on the account, taken in
+  both creators — the support request and the booking-change request. Requests
+  from different accounts never contend, so it costs nothing at scale.
+- **A second race fixed in the same place.** The lock is taken **before** the
+  retry-key read, not just before the count, so a double-click can no longer
+  have both transactions miss and race the unique index —
+  `create_landlord_support_request` also gains the `ON CONFLICT … DO NOTHING`
+  and re-read that its sibling already had.
+- **A wrong turn worth recording.** The first version factored the lock into a
+  shared `SECURITY DEFINER` helper. That function is owned by whichever role
+  runs the migration, and the two creators are owned by `homle_owner`, so the
+  inner call was refused and **every support request answered 500**. Inlining is
+  the fix; a test asserts the key stays byte-identical between them, which is
+  what the helper was for.
+- **Files.** `db/migrations/107_serialise_support_request_cap.sql`,
+  `tests/support-request-cap.mjs` (new).
+- **Verification.** Same probe: **four accepted where four remained**, four
+  `409 support-request-limit`. Separately, on an account with all five slots
+  free, six concurrent retries sharing one key produced **one row, six `201`s**,
+  no `500` and no spurious `409`.
+- **Status.** `[x]`
 
 **Q-4 · P2 · Empty states** — *Escape hatches send a signed-in user to
 `/login`.* On `/bookings/<uuid>` and `…/tracking` with an unknown booking, a
@@ -658,6 +679,14 @@ about the platform.*
   spoofing fails: 14 wrong-password sign-ins carrying rotating
   `x-forwarded-for`, `x-real-ip` and `forwarded` headers were still cut off at
   the tenth with `429`.
+- **Hardened in the meantime.** Cloudflare sets `CF-Connecting-IP` on every
+  request it fronts, and unlike `True-Client-IP` it is not an optional feature.
+  The two must now identify the same client whenever both are present, so
+  forging only one no longer works. It is deliberately **not** required:
+  making an unconfirmed header mandatory would answer `503` on every throttled
+  route — sign-in included — if the platform does not send it, and breaking
+  sign-in is worse than the gap. `tests/trusted-client-key.mjs` covers agreement,
+  disagreement, absence and a malformed value.
 - **Status.** `[!]` **BLOCKED — needs one measurement against the real
   deployment.**
 
@@ -677,10 +706,29 @@ rather than enforced as a gate. Whether an unverified self-listed Cleaner can be
 dispatched a job could not be closed out here — no bookings exist in this
 database. **Status `[ ]`.**
 
-**S-8 · P3 · Security** — *A Cleaner keeps photo access indefinitely after the
-job ends.* `get_cleaning_request_photo_object` admits a Cleaner whose booking
-status is `completed`, with no time bound, so a former Cleaner can keep minting
-signed URLs for the interior of a home they once cleaned. **Status `[ ]`.**
+**S-8 · P2 · Security** — *A Cleaner kept photo access indefinitely after the
+job ended.*
+
+- **Problem.** `get_cleaning_request_photo_object` admitted a Cleaner whose
+  booking status was `completed`, with no time bound at all, so somebody who
+  cleaned a flat once could keep minting signed URLs for photographs of its
+  inside for as long as the record existed. Raised from P3: the severity scale
+  says low, the content does not.
+- **Fix.** Fourteen days from `completed_at`, which covers a dispute or a review
+  and matches the window in which a booking can still be disputed. Two adjacent
+  holes are closed with it: `awaiting-review`, which a booking can sit in
+  indefinitely if nobody reviews and which would otherwise have been a way
+  around the bound, and the pre-acceptance preview, which is now bounded to the
+  invitation. A booking with no `completed_at` recorded is treated as expired
+  rather than as forever. The Landlord who owns the request and an administrator
+  are unchanged.
+- **Files.** `db/migrations/106_bound_cleaner_photo_access_after_completion.sql`.
+- **Verification.** Behavioural, against a real booking row in a transaction
+  that was rolled back: the same Cleaner, the same booking, the same photograph,
+  only the completion date moving. **Completed 1 day ago → 1 row. Completed 60
+  days ago → refused. `completed_at` NULL → refused. The Landlord who owns it →
+  1 row, unchanged.**
+- **Status.** `[x]`
 
 **S-3 · P3 · Security** — *A correct password on an unverified account returns
 `403 email-verification-required`, distinct from `401 invalid-credentials`.* It
