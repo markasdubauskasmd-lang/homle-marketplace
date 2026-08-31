@@ -77,6 +77,26 @@ let composed = null;
 try { composed = createAccountSecurity(repository, { sessionSecret: secret, appOrigin: "https://tideway.example.com", onMutation: "not-a-function" }); } catch (error) { composed = error; }
 assert(composed instanceof TypeError, "A non-function mutation allowance was accepted at composition.");
 
+/* ── Same-origin proof for a request that cannot carry Origin ── */
+
+// Chrome sends NO Origin on a same-origin EventSource GET — measured, with a
+// capture server: the request arrives with `sec-fetch-site: same-origin` and no
+// Origin at all. requireOrigin therefore refused every Cleaner notification
+// stream, and nineteen Cleaner pages had no live notifications in Chrome.
+// Sec-Fetch-* are forbidden header names, so page script cannot forge them.
+function streamRejected(headers) {
+  try { security.requireBrowserSameOrigin({ headers }); } catch (error) { return error instanceof AccountHttpError && error.statusCode === 403 && error.code === "origin-rejected"; }
+  return false;
+}
+assert(!streamRejected({ origin: "https://tideway.example.com" }), "An exact Origin was refused on the stream, so a fetch or XHR could not open it.");
+assert(!streamRejected({ "sec-fetch-site": "same-origin" }), "A same-origin request with no Origin was refused. That is every EventSource in Chrome.");
+assert(!streamRejected({ "sec-fetch-site": "Same-Origin" }), "The Sec-Fetch-Site check is case-sensitive; header values should be compared case-insensitively.");
+assert(streamRejected({ origin: "https://attacker.example", "sec-fetch-site": "same-origin" }), "A hostile Origin was accepted because Sec-Fetch-Site claimed same-origin. A present Origin must always decide.");
+assert(streamRejected({ "sec-fetch-site": "cross-site" }), "A cross-site request opened the private notification stream.");
+assert(streamRejected({ "sec-fetch-site": "same-site" }), "A same-site — but not same-origin — request opened the private notification stream. A sibling subdomain is not this origin.");
+assert(streamRejected({ "sec-fetch-site": "none" }), "A user-initiated navigation opened the stream.");
+assert(streamRejected({}), "A request carrying neither proof opened the stream. This must fail closed: the badge already polls on visibilitychange.");
+
 const pendingSession = { ...session, selected_role: null, roles: [] };
 const pendingSecurity = createAccountSecurity({ async findSession() { return pendingSession; } }, { sessionSecret: secret, appOrigin: "http://127.0.0.1:4173", production: false });
 const pendingContext = await pendingSecurity.protect({ headers: { cookie: `${developmentSessionCookieName}=${material.token}` } });

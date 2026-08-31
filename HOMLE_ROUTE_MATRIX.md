@@ -82,10 +82,10 @@ a defect; the page degrades without layout shift.
 | Route | Role | Purpose | Desktop | Tablet | Mobile | Design | Functionality | API/data | Console | Network | A11y | Security relevance | Status | Issues |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `/landlord/dashboard` `/landlord/home` | L | Workspace home | PASS | PASS | PASS | v2 | PASS | bootstrap | PASS | PASS | PASS | Landlord-only; RLS-scoped | PASS | source of truth |
-| `/landlord/bookings` | L | Bookings panel | PASS | PASS | PASS | v2 | PASS | bookings | PASS | PASS | PASS | Own bookings only | PASS | — |
+| `/landlord/bookings` | L | Bookings panel | PASS | PASS | PASS | v2 | PASS | bookings | PASS | PASS | PASS | Own bookings only | PASS | was 954px of sideways scroll on a long property name — F-9 |
 | `/landlord/requests` | L | Requests panel | PASS | PASS | PASS | v2 | PASS | requests | PASS | PASS | PASS | Own requests only | PASS | deep link only, intentional |
 | `/landlord/properties` | L | Properties panel | PASS | PASS | PASS | v2 | PASS | properties | PASS | PASS | PASS | Own properties only | PASS | deep link only, intentional |
-| `/landlord/messages` | L | Conversations | PASS | PASS | PASS | v2 | PASS | messages, realtime | PASS | PASS | PASS | Participants only — a non-participant gets `404` | PASS | — |
+| `/landlord/messages` | L | Conversations | PASS | PASS | PASS | v2 | PARTIAL | messages, realtime | PASS | PASS | PASS | Participants only — a non-participant gets `404` | PARTIAL | Empty and gated states only: **no booking exists in this database**, so no real conversation was ever exercised. Renders its empty-state sentence twice — Q-4 |
 | `/landlord/account` | L | Account panel | PASS | PASS | PASS | v2 | PASS | account | PASS | PASS | PASS | — | PASS | — |
 | `/landlord/payments` | L | Payments panel | PASS | PASS | PASS | v2 | BLOCKED | payments | PASS | PASS | PASS | Amounts are server-derived; the browser never sends one | BLOCKED | Stripe not configured here |
 | `/landlord/book` | L | Scan / manual request builder | PASS | PASS | PASS | v2-adjacent | PASS² | scan, requests, pricing | PASS³ | PASS | PASS | Price recomputed server-side from the published rate list | PASS | 4 page-specific sheets |
@@ -107,7 +107,7 @@ Nineteen routes, all on `homle-cleaner.css`, all now rendering one sidebar from
 | Route | Role | Purpose | Desktop | Tablet | Mobile | Design | Functionality | API/data | Console | Network | A11y | Security relevance | Status | Issues |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `/cleaner/dashboard` | C | Activity | PASS | PASS | PASS | hc | PASS | bootstrap | PASS | PASS | PASS | Cleaner-only. The chrome is removed, not just hidden, for an account without the workspace — see F-2 and F-6; this route was where the second bypass showed | PASS | — |
-| `/cleaner/jobs-map` | C | Jobs map | PASS | PASS | PASS | hc | PASS | matching | PASS | PASS | PASS | `localPreview` renders sample jobs on loopback only, calls no privileged API | PASS | preview bypasses the shared gate on localhost |
+| `/cleaner/jobs-map` | C | Jobs map | PASS | PASS | PASS | hc | **BLOCKED** | **BLOCKED** | PASS | PASS | PASS | On loopback the page renders in full to a Landlord-only account **and to a signed-out visitor** | **BLOCKED** | Q-7 — `localPreview` is gated on the hostname being loopback, and this whole audit ran on `127.0.0.1`, so the real job load, the access gate and the matching API were never executed. Also ships an undisclosed CSP allowance for `tile.openstreetmap.org` and `api.postcodes.io` |
 | `/cleaner/schedule` | C | Availability | PASS | PASS | PASS | hc | PASS | availability | PASS | PASS | PASS | Own availability only | PASS | — |
 | `/cleaner/messages` | C | Conversations | PASS | PASS | PASS | hc | PASS | messages, realtime | PASS | PASS | PASS | Participants only | PASS | — |
 | `/cleaner/notifications` | C | Cleaner inbox | PASS | PASS | PASS | hc | PASS | notifications | PASS | PASS | PASS | Own rows only | PASS | bell now points here — P2-15 |
@@ -125,7 +125,7 @@ Nineteen routes, all on `homle-cleaner.css`, all now rendering one sidebar from
 
 | Route | Role | Purpose | Desktop | Tablet | Mobile | Design | Functionality | API/data | Console | Network | A11y | Security relevance | Status | Issues |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `/bookings/:uuid` `…/tracking` `…/cleaning-progress` | L, C | Active job | PASS | PASS | PASS | base | PASS | progress, realtime | PASS | PASS | PASS | Both participants, each seeing their own side | PASS | on neither workspace system |
+| `/bookings/:uuid` `…/tracking` `…/cleaning-progress` | L, C | Active job | PASS | PASS | PASS | base | **PARTIAL** | progress, realtime | PASS | PASS | PASS | Both participants, each seeing their own side | **PARTIAL** | Gated states only — no booking exists in this database. Every escape hatch on the refusal state sends a signed-in user to `/login` — Q-4. On neither workspace system |
 | `/opportunity` | C | Pre-acceptance offer | PASS | PASS | PASS | base | PASS | matching | PASS | PASS | PASS | Token-scoped | PASS | — |
 
 ## Administrator
@@ -169,11 +169,29 @@ intended fail-closed behaviour.
 | Routes rendered at three viewports, signed out and signed in | 57 |
 | Routes with an uncaught page error | **0** |
 | Routes with a console error | **0** |
-| Routes with horizontal overflow at any viewport | **0** |
-| Routes with an unexpected network failure | **0**⁵ |
+| Routes with horizontal overflow at any viewport | **0**, but see the correction below |
+| Routes with an unexpected network failure | **0** now; **12 Cleaner routes were failing** — see F-7 |
 | Routes marked BLOCKED on an unconfigured integration | 6 |
 
-⁵ Every `4xx` observed was correct behaviour: `401` on a workspace route fetched
+**Two corrections an independent QA reviewer forced on this table, both about
+the instrument rather than the application.**
+
+*Network.* This table first read "0 unexpected network failures" everywhere. It
+was measured on Cleaner routes with a **Landlord** session, which the role gate
+refuses before the notification badge ever runs. With a real Cleaner session,
+`GET /notifications/events` answered **403 on twelve Cleaner routes** — the live
+notification stream was dead in Chrome on all nineteen Cleaner pages. Fixed
+(F-7) and re-measured as `[]`, but the cell was wrong when written.
+
+*Overflow.* The check compared `scrollWidth` to `innerWidth` **under mobile
+emulation**, and Chrome expands the layout viewport to fit overflowing content —
+so `innerWidth` grows with `scrollWidth` and the check reports "no overflow"
+precisely when overflow is worst. Re-measured at `mobile: false`,
+`/landlord/bookings` had **954px of sideways scroll** at 390px with a
+160-character property name the API accepts. Fixed (F-9); the figures above are
+from the corrected measurement.
+
+Every `4xx` that remains is correct behaviour: `401` on a workspace route fetched
 while signed out, `404` on the deliberate missing-page probe, and `404` on the
 payments config endpoint that is genuinely not configured.
 

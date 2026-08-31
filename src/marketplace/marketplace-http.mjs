@@ -769,14 +769,21 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         }
         if (pathname === "/api/marketplace/notifications/events") {
           if (!["GET", "POST"].includes(request.method)) return methodNotAllowed(response, ["GET", "POST"]), true;
-          // Native EventSource remains available to the frozen Cleaner client.
-          // The Landlord client uses a streamed POST because it can carry CSRF
-          // proof even when Chrome omits Origin from a same-origin EventSource
-          // GET. This branch is additive and role-isolated from Cleaner traffic.
+          // Two shapes, because a browser will not let an EventSource carry a
+          // CSRF header and Chrome sends no Origin on its same-origin GET. The
+          // Landlord client uses a streamed POST, which proves both. The
+          // Cleaner client uses native EventSource on nineteen pages, and
+          // requireOrigin refused every one of those in Chrome — measured, 403
+          // on twelve Cleaner routes with a real Cleaner session, so that side
+          // of the marketplace had no live notifications at all.
+          //
+          // requireBrowserSameOrigin accepts an exact Origin OR
+          // `Sec-Fetch-Site: same-origin`, which page script cannot forge and a
+          // browser sets to `cross-site` when it is one. See its own comment.
           const context = request.method === "POST"
-            ? await security.protect(request, { mutation: true, roles: ["landlord"] })
+            ? await security.protect(request, { mutation: true, allowance: false, roles: ["landlord"] })
             : await security.protect(request);
-          if (request.method === "GET") security.requireOrigin(request);
+          if (request.method === "GET") security.requireBrowserSameOrigin(request);
           await realtime.openNotificationStream(context.actor, request, response, context.expiresAt);
           return true;
         }

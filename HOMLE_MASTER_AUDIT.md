@@ -154,6 +154,87 @@ ceiling covers the largest policy, which is the invariant migration 105's own
 header describes and which had been fixed by hand without a guard. Confirmed by
 reverting each and watching it fail. **Status `[x]`.**
 
+**F-7 · P0 · Broken feature** — *Cleaner live notifications were dead in Chrome,
+on all nineteen Cleaner pages.*
+
+- **Problem.** `GET /api/marketplace/notifications/events` called
+  `requireOrigin`. **Chrome sends no `Origin` on a same-origin `EventSource`
+  GET.** The Landlord client had been moved to a streamed POST to work around
+  exactly that; the Cleaner client, on `notification-badge.js`, had not. So
+  every Cleaner page opened the stream, got `403`, and — because Chrome does not
+  retry a non-200 SSE — silently never reconnected. The Cleaner unread badge
+  only ever updated on `visibilitychange`.
+- **Evidence.** An independent QA reviewer swept 16 Cleaner routes with a real
+  Cleaner session: `403` on 12 of them, `[]` on the Landlord equivalent. I
+  reproduced it in Chrome, then measured the headers with a capture server: a
+  same-origin EventSource arrives with `accept: text/event-stream`,
+  `sec-fetch-site: same-origin`, `sec-fetch-mode: cors` and **no `Origin` at
+  all**.
+- **How my own sweep missed it.** I swept Cleaner routes only with a *Landlord*
+  session, which the role gate refuses before the badge runs, and my signed-in
+  Cleaner checks did not watch network failures. A whole side of the marketplace
+  had a dead feature behind a `PASS`.
+- **Fix.** `requireBrowserSameOrigin` accepts an exact `Origin` **or**
+  `Sec-Fetch-Site: same-origin`. Those headers are forbidden header names —
+  page script cannot set or override them, and a browser sets `cross-site` when
+  it is one — so this is a real same-origin proof against the threat CSRF exists
+  for. It fails closed: a browser sending neither is refused and the badge falls
+  back to the polling it already does.
+- **Files.** `src/marketplace/account-security.mjs`,
+  `src/marketplace/marketplace-http.mjs`, `tests/account-security.mjs`.
+- **Verification.** Chrome, same probe: `[]` on every Cleaner route. And the
+  control still refuses what it must — an exact `Origin` passes; no `Origin`
+  with `sec-fetch-site: same-origin` passes; a **hostile `Origin` is refused
+  even when `same-origin` is claimed**; `cross-site`, `same-site`, `none` and
+  neither-header are each `403`; signed out is `401`.
+- **Status.** `[x]`
+
+**F-8 · P1 · Correctness** — *A duplicate key answered `500`, and told the caller
+whether any UUID existed.*
+
+- **Problem.** No `23505` handling anywhere, so a unique-violation fell through
+  to `500 internal-error`. Three ordinary situations looked like a broken
+  server: retrying a create with the same client-supplied id (which is the
+  journey's own recovery path), a double-click on a support request (whose
+  idempotency key exists precisely so the second one is safe — six concurrent
+  calls with one key produced four `201`s and two `500`s), and probing another
+  tenant's property id, where **`500` versus `201` was a clean oracle for
+  whether that id exists anywhere in the system.** RLS does not help: the
+  primary-key index is global.
+- **Fix.** `errorResponse` maps `23505` to `409 already-exists` with one message
+  for every case, so the answer carries no more than the status. The browser
+  already handles `409` on these routes by re-reading its own list.
+- **Verification.** Re-run: first create `201`, same id again `409`, a fresh id
+  `201`, an id already in use `409`; six concurrent support requests sharing one
+  retry key produced **one row** and no `500`.
+- **Residual.** `409`-versus-`201` still distinguishes "this UUID is in use",
+  which for an unguessable v4 id is not usefully exploitable but is not nothing.
+  The complete fix is an owner-scoped idempotency key rather than a
+  client-chosen primary key — the shape support requests already use. That needs
+  a migration and client changes on two resources. **Recorded, not done.**
+- **Status.** `[x]` for the `500`; `[ ]` for the residual.
+
+**F-9 · P1 · Layout** — *954px of sideways scroll on the primary Landlord
+screen, and an overflow check that was blind to it.*
+
+- **Problem.** A property name of 160 unbroken characters — exactly what the
+  server accepts, `201` — pushed `/landlord/bookings` to
+  `documentElement.scrollWidth 1344` at `innerWidth 390`, and 2358 at 1440. The
+  card heading had no `overflow-wrap`.
+- **The worse half.** My overflow metric compared `scrollWidth` to
+  `innerWidth` **under mobile emulation**, and Chrome *expands the layout
+  viewport* to fit overflowing content — so `innerWidth` became 1344 too and the
+  check reported "no overflow" precisely when overflow was worst. The audit's
+  "zero horizontal overflow on any route at any viewport" was measured with an
+  instrument that cannot see this class of defect. The reviewer caught it only
+  because they measured at `mobile: false`.
+- **Fix.** `overflow-wrap: anywhere` and `min-width: 0` on the heading —
+  `anywhere` rather than `break-word` so the wrap is counted in the intrinsic
+  minimum width, which is what stops the grid track widening in the first place.
+- **Verification.** Same 160-character name, measured at `mobile: false`:
+  390px → 380, 834px → 824, 1440px → 1430. No page overflow at any width.
+- **Status.** `[x]`
+
 ### P1 — broken important functionality
 
 **F-1 · P1 · Design / navigation** — *The Updates page was not in the workspace.*
@@ -449,6 +530,84 @@ does nothing until the gate opens — worse for a screen-reader user than no lin
 at all. Fixing it properly means revealing the link with the shell, which is a
 change to the journey's bootstrap rather than a markup addition.
 **Status `[~]` — four fixed, two recorded.**
+
+**Q-1 · P2 · Data protection** — *A published retention promise the code does
+not implement.* `public/privacy.html:35` states an incomplete cleaning request
+keeps its property scope, timing, access and contact entries in the tab *"for up
+to 30 minutes"* and is removed on *"expiry"*; the same copy appears on the
+landing page and the dashboard. `landlord-journey.js`'s `saveDraft` writes **no
+timestamp** and `restoreDraft` reads none, so the draft lives for the life of the
+tab. Ten sibling modules do implement the expiry (`account-intent.js`,
+`brief-draft.js`, `cleaner-application-draft.js`, `customer-request-draft.js`,
+`landlord-request-draft.js`, `room-note-draft.js`, …); the journey — which holds
+the most, including the address, the access notes and the dictated transcript —
+was the outlier.
+
+- **Fix.** The journey stamps `savedAt`/`expiresAt` from the **shared**
+  `landlordRequestDraftLifetimeMs`, so there is one number rather than a second
+  copy of the promise, and refuses on read anything it cannot show to be inside
+  the window: unstamped, expired, claiming a longer window than the product
+  offers, or stamped in the future so a clock change cannot extend it. Every
+  refusal discards the draft rather than merely declining to show it.
+- **Verification.** `tests/journey-draft-retention.mjs` asserts the promise is
+  still stated on all three pages that make it, that the shared lifetime matches
+  it, and that each of those four refusals happens — confirmed by removing the
+  expiry check and watching it fail. If the promise ever changes, the test fails
+  until the constant changes with it.
+- **Status.** `[x]`
+
+**Q-2 · P2 · Access** — *Dual-role accounts are locked out of the Landlord
+dashboard with no way back.* An account holding both roles with
+`selectedRole: "cleaner"` gets a gate on `/landlord/dashboard` whose only action
+is "Open Cleaner dashboard" — while `GET /landlord/bootstrap` returns **200 with
+their Landlord data**, and `/landlord/book` opens in full and offers them their
+own properties. So the dashboard refuses what the booking journey allows, and
+there is no "switch to Landlord" control anywhere in the Cleaner shell (the
+mirror gate does offer one). Related: `intent` on
+`POST /api/marketplace/auth/login` is accepted and ignored — it is read only for
+signup and verification resend — so signing in with `intent: "book"` still lands
+a dual-role account in the Cleaner workspace. **Status `[ ]`.**
+
+**Q-3 · P2 · Concurrency** — *The five-open-support-request cap leaks under
+concurrency.* Measured sequentially it holds (five, then `409`). Eight
+concurrent posts against an account with one open request produced **five
+accepted where four slots remained**. The cap is a `SELECT count(*) … >= 5`
+inside plpgsql with no row or advisory lock, at READ COMMITTED, with no database
+constraint behind it — a check-then-insert race. The correct fix serialises it
+in SQL. **Status `[ ]`.**
+
+**Q-4 · P2 · Empty states** — *Escape hatches send a signed-in user to
+`/login`.* On `/bookings/<uuid>` and `…/tracking` with an unknown booking, a
+signed-in Landlord is offered "My workspace", "Account" and "Sign in", all
+pointing at `/login`, which renders a full sign-in form with no indication they
+are already signed in. This is the D-7 defect, fixed on the Updates page and
+still present on the shared job routes. `/landlord/messages` separately renders
+its empty-state sentence **twice**, in two panels. **Status `[ ]`.**
+
+**Q-5 · P3 · Accessibility** — *Touch targets under 24×24 CSS px at 390px*, on
+routes whose A11y cell reads PASS: "Sign out" on `/landlord/account` (214×23),
+the 404's only link (113×16), a checkbox on `/landlord/help` (18×18), and three
+links on `/landlord/book`. The audit's method claims touch-target sizes were
+recorded per page and per viewport; they were recorded and not acted on.
+`/landlord/book` also has **no visible `<h1>`** — its only one is the loading
+placeholder, hidden once the journey renders. **Status `[ ]`.**
+
+**Q-6 · P3 · Navigation** — *The six-step booking journey creates no history
+entries*, so the browser Back button exits the whole flow from step 2 rather
+than stepping back. No work is lost — the draft restores and no record is
+duplicated — but on a phone Back is the primary affordance on the product's
+longest flow. **Status `[ ]`.**
+
+**Q-7 · P3 · Evidence** — *`/cleaner/jobs-map` cannot be verified by this
+harness.* `localPreview` is gated on `location.hostname` being loopback, and the
+entire audit ran on `127.0.0.1`, so `loadRealJobs()`, the `createCleanerPage`
+gate and the matching API were **never executed**; on loopback the page renders
+in full to a Landlord-only account and to a signed-out visitor. A PASS on a
+branch the harness cannot reach is not evidence, and the matrix has been
+corrected to BLOCKED. Separately, the page ships a per-route CSP admitting
+`tile.openstreetmap.org` and `api.postcodes.io`, and **neither processor appears
+in the privacy notice's provider list**, which that notice itself requires before
+launch. **Status `[ ]`.**
 
 **S-2 · P3 · Security** — *The legacy `/api/admin/*` surface authorises on shape,
 not on a key.* `isAdminAuthorised()` (`server.mjs:2314`) returns true with no

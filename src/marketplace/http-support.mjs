@@ -60,6 +60,22 @@ export function errorResponse(error) {
   if (error instanceof SyntaxError) return { statusCode: 400, code: error.code || "invalid-request", message: error.message };
   if (error instanceof TypeError || error instanceof RangeError) return { statusCode: 422, code: "validation-failed", message: error.message };
   if ([400, 403, 404, 409, 413, 422, 429, 503].includes(error?.statusCode)) return { statusCode: error.statusCode, code: error.code || ({ 400: "invalid-request", 403: "forbidden", 404: "not-found", 409: "conflict", 413: "request-too-large", 422: "validation-failed", 429: "rate-limited", 503: "temporarily-unavailable" }[error.statusCode]), message: error.message };
+  // A unique-constraint violation is the caller asking for something that
+  // already exists. It is a conflict, not a fault, and answering 500 made three
+  // ordinary situations look like a broken server:
+  //
+  //   * Retrying a create with the same client-supplied id — which is the
+  //     journey's own recovery path, and which the browser already handles as a
+  //     409 by re-reading its list.
+  //   * A double-click or a retry-after-timeout on a support request, where the
+  //     idempotency key exists precisely so the second one is safe. Six
+  //     concurrent calls with one key produced four 201s and two 500s.
+  //   * Probing another tenant's id, where 500-versus-201 told the caller
+  //     whether that id exists anywhere in the system.
+  //
+  // One message for every case, so the answer carries no more than the status.
+  // PostgreSQL 23505 is unique_violation.
+  if (error?.code === "23505") return { statusCode: 409, code: "already-exists", message: "That record already exists. Reload before trying again." };
   return { statusCode: 500, code: "internal-error", message: "Something went wrong. Please try again." };
 }
 

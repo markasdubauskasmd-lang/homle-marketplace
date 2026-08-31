@@ -84,14 +84,17 @@ assert.match(
 
 /* ── Routes that write nothing must not spend a write budget ── */
 
-// Each carries `mutation: true` for the CSRF and origin checks and already
-// spends a read allowance of its own. Charging them twice let one scan review —
-// which re-previews on every object correction — burn a third of the write
-// budget without writing anything.
+// Each carries `mutation: true` for the CSRF and origin checks and writes
+// nothing. Three are compute-only routes that already spend a read allowance of
+// their own — charging them twice let one scan review, which re-previews on
+// every object correction, burn a third of the write budget without writing
+// anything. The fourth is the Landlord notification stream, which a browser
+// opens on every page load and reopens on every reconnect; spending a write
+// from a customer's budget to receive notifications is not a write at all.
 const marketplace = read("src/marketplace/marketplace-http.mjs");
 assert.equal(
   (marketplace.match(/mutation:\s*true,\s*allowance:\s*false/g) || []).length,
-  3,
+  4,
   "The number of compute-only marketplace routes opting out of the write allowance changed. If a route was added, confirm it stores nothing and carries its own read allowance; if one was removed, confirm it now genuinely writes."
 );
 
@@ -114,4 +117,4 @@ assert.ok(
   `The request_count CHECK ceiling (${ceiling}) is below the largest rate-limit policy plus one (${largest + 1}). The counter clamps to maximum+1, so every request past ${ceiling} would fail the CHECK and answer 503 instead of being allowed or cleanly refused.`
 );
 
-console.log(`Mutation allowance tests passed: \`allowance: false\` genuinely opts out and only \`false\` does; the runtime supplies the allowance keyed by account under scope marketplace:mutation; sign-out and the three compute-only routes are exempt; and the request_count ceiling (${ceiling}) covers the largest of the ${maximums.length} policies (${largest}).`);
+console.log(`Mutation allowance tests passed: \`allowance: false\` genuinely opts out and only \`false\` does; the runtime supplies the allowance keyed by account under scope marketplace:mutation; sign-out and the four non-writing routes are exempt; and the request_count ceiling (${ceiling}) covers the largest of the ${maximums.length} policies (${largest}).`);

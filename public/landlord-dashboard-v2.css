@@ -1148,6 +1148,16 @@ body.landlord-dashboard-page [data-places-section] .landlord-property-card-headi
   font-size: 16px;
   line-height: 1.15;
   letter-spacing: -.02em;
+  /* A property name is free text the owner chose, and the server accepts 160
+     characters with no requirement that any of them be a space. One such name
+     pushed the card to 1328px inside a 348px column and gave the whole page
+     954px of sideways scroll at 390px wide — on the primary Landlord screen.
+     A grid track of minmax(0, 1fr) bounds the BOX; nothing bounds the word
+     inside it. `anywhere` rather than `break-word` so the wrap is also taken
+     into account when the intrinsic minimum width is computed, which is what
+     stops the track being widened in the first place. */
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 body.landlord-dashboard-page [data-places-section] .ld-prop-summary {
   margin-top: 4px;

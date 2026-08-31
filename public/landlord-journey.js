@@ -33,6 +33,7 @@ import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
 import { requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
+import { landlordRequestDraftLifetimeMs } from "./landlord-request-draft.js?v=20260830-1";
 import { isUkPostcode } from "./contact-validation.js";
 
 const $ = (selector) => document.querySelector(selector);
@@ -218,13 +219,39 @@ async function recoverCsrf() {
 
 // The journey is long enough that losing it to a refresh or a phone call would
 // be a real cost, so every answered step is kept locally until it is submitted.
+//
+// It is kept for THIRTY MINUTES, not for the life of the tab. The privacy
+// notice tells the customer that an incomplete request keeps its property
+// scope, timing, access and contact entries "for up to 30 minutes" and is
+// removed on "expiry", and the same promise appears on the landing page and the
+// dashboard. Ten sibling draft modules implement it; this one did not, so the
+// product stated a retention limit it did not keep. The lifetime is imported
+// rather than restated so there is one number to change.
 function saveDraft() {
-  try { sessionStorage.setItem(draftKey, JSON.stringify({ step: state.step, draft: state.draft })); } catch {}
+  try {
+    const savedAt = Date.now();
+    sessionStorage.setItem(draftKey, JSON.stringify({ step: state.step, draft: state.draft, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs }));
+  } catch {}
+}
+
+function discardDraft() {
+  try { sessionStorage.removeItem(draftKey); } catch {}
 }
 
 function restoreDraft() {
   try {
     const stored = JSON.parse(sessionStorage.getItem(draftKey) || "null");
+    const savedAt = Number(stored?.savedAt);
+    const expiresAt = Number(stored?.expiresAt);
+    // A draft with no stamp predates this and cannot be shown to be inside the
+    // promised window, so it is discarded rather than trusted. Clock changes cut
+    // both ways, so a stamp from the future is refused too.
+    const live = Number.isFinite(savedAt)
+      && Number.isFinite(expiresAt)
+      && expiresAt === savedAt + landlordRequestDraftLifetimeMs
+      && Date.now() >= savedAt - 5 * 60 * 1000
+      && Date.now() < expiresAt;
+    if (stored && !live) return discardDraft();
     if (stored?.draft && typeof stored.draft === "object") Object.assign(state.draft, stored.draft);
     if (typeof stored?.step === "string" && stepIndex(stored.step) >= 0) state.step = stored.step;
     if (!durationChoices.includes(Number(state.draft.durationMinutes))) state.draft.durationMinutes = 120;
@@ -1656,7 +1683,7 @@ async function confirmJourney() {
       catch (error) { invitation.reason = cleanerInvitationRecovery(error); }
     }
 
-    try { sessionStorage.removeItem(draftKey); } catch {}
+    discardDraft();
     state.draft.requestId = "";
     state.draft.propertyDraftId = "";
     state.scanPhotos = [];

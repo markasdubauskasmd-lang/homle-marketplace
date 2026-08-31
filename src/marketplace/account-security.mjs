@@ -64,6 +64,38 @@ export function createAccountSecurity(repository, options) {
     if (header(request, "origin") !== appOrigin) throw new AccountHttpError(403, "origin-rejected", "The request origin was rejected.");
   }
 
+  /**
+   * Same-origin proof for a request a browser will not let carry `Origin`.
+   *
+   * Chrome sends NO `Origin` on a same-origin `EventSource` GET. Measured, not
+   * assumed: a same-origin EventSource arrives with `accept: text/event-stream`,
+   * `sec-fetch-site: same-origin`, `sec-fetch-mode: cors`, `sec-fetch-dest:
+   * empty`, and no `Origin` at all. So `requireOrigin` refused every one of
+   * them, and the Cleaner notification stream — which nineteen pages open —
+   * answered 403 in Chrome and delivered nothing. The Landlord client had been
+   * moved to a streamed POST to work around this; the Cleaner client had not.
+   *
+   * `Sec-Fetch-*` are forbidden header names: page script cannot set or
+   * override them, and a browser sets `sec-fetch-site: cross-site` on a
+   * cross-site request. That makes it a genuine same-origin proof against the
+   * threat CSRF exists for — a browser being driven from another site. It is
+   * not a defence against a non-browser client, but such a client already holds
+   * the session cookie and needs no cross-site trick.
+   *
+   * Fails closed: a browser old enough to send neither header is refused, and
+   * the badge falls back to the polling it already does on visibilitychange.
+   */
+  function requireBrowserSameOrigin(request) {
+    const origin = header(request, "origin");
+    if (origin) {
+      if (origin !== appOrigin) throw new AccountHttpError(403, "origin-rejected", "The request origin was rejected.");
+      return;
+    }
+    if (header(request, "sec-fetch-site").toLowerCase() !== "same-origin") {
+      throw new AccountHttpError(403, "origin-rejected", "The request origin was rejected.");
+    }
+  }
+
   function requireCsrf(request, context) {
     if (!csrfMatches(header(request, "x-csrf-token"), context.csrfHash, sessionSecret)) throw new AccountHttpError(403, "csrf-rejected", "The security token is missing or expired.");
   }
@@ -104,6 +136,7 @@ export function createAccountSecurity(repository, options) {
     },
     authenticate,
     requireOrigin,
+    requireBrowserSameOrigin,
     requireCsrf,
     requireRole
   };
