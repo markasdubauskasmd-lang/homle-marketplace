@@ -75,7 +75,7 @@ a defect; the page degrades without layout shift.
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `/settings` | ? | Security & login, privacy requests | PASS | PASS | PASS | shell | PASS | auth, privacy | PASS | PASS | PASS | Provider linking requires a step-up; a password change needs the current password | PASS | was legacy — P2-1/2/4 |
 | `/notifications` | L | Updates inbox | PASS | PASS | PASS | shell | PASS | notifications | PASS | PASS | PASS | Refused another account's rows under test | PASS | was legacy — P1-1, P2-3/4/5/6 |
-| *(any unmatched path)* | P | Designed 404 | PASS | PASS | PASS | shell | PASS | N/A | PASS | PASS | PASS | No route or account disclosure | PASS | was raw JSON — P1-3; still renders no shell chrome or skip link |
+| *(any unmatched path)* | P | Designed 404 | PASS | PASS | PASS | ws tokens | PASS | account | PASS | PASS | PASS | No route or account disclosure | PASS | was raw JSON — P1-3. Re-rendered as each role: the way back now resolves to `/admin` for staff with the help line hidden, `/landlord/home` for a Landlord, `/` for a visitor — D-4, Q-7 area |
 
 ## Landlord workspace
 
@@ -85,7 +85,7 @@ a defect; the page degrades without layout shift.
 | `/landlord/bookings` | L | Bookings panel | PASS | PASS | PASS | v2 | PASS | bookings | PASS | PASS | PASS | Own bookings only | PASS | was 954px of sideways scroll on a long property name — F-9 |
 | `/landlord/requests` | L | Requests panel | PASS | PASS | PASS | v2 | PASS | requests | PASS | PASS | PASS | Own requests only | PASS | deep link only, intentional |
 | `/landlord/properties` | L | Properties panel | PASS | PASS | PASS | v2 | PASS | properties | PASS | PASS | PASS | Own properties only | PASS | deep link only, intentional |
-| `/landlord/messages` | L | Conversations | PASS | PASS | PASS | v2 | PARTIAL | messages, realtime | PASS | PASS | PASS | Participants only — a non-participant gets `404` | PARTIAL | Empty and gated states only: **no booking exists in this database**, so no real conversation was ever exercised. Renders its empty-state sentence twice — Q-4 |
+| `/landlord/messages` | L | Conversations | PASS | PASS | PASS | v2 | PARTIAL | messages, realtime | PASS | PASS | PASS | Participants only — a non-participant gets `404` | PARTIAL | Empty and gated states only: **no booking exists in this database**, so no real conversation was ever exercised. Empty-state sentence de-duplicated — Q-4. The panel also announced itself ready while the thread was still loading — Q-8, fixed |
 | `/landlord/account` | L | Account panel | PASS | PASS | PASS | v2 | PASS | account | PASS | PASS | PASS | — | PASS | — |
 | `/landlord/payments` | L | Payments panel | PASS | PASS | PASS | v2 | BLOCKED | payments | PASS | PASS | PASS | Amounts are server-derived; the browser never sends one | BLOCKED | Stripe not configured here |
 | `/landlord/book` | L | Scan / manual request builder | PASS | PASS | PASS | v2-adjacent | PASS² | scan, requests, pricing | PASS³ | PASS | PASS | Price recomputed server-side from the published rate list | PASS | 4 page-specific sheets |
@@ -107,7 +107,7 @@ Nineteen routes, all on `homle-cleaner.css`, all now rendering one sidebar from
 | Route | Role | Purpose | Desktop | Tablet | Mobile | Design | Functionality | API/data | Console | Network | A11y | Security relevance | Status | Issues |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `/cleaner/dashboard` | C | Activity | PASS | PASS | PASS | hc | PASS | bootstrap | PASS | PASS | PASS | Cleaner-only. The chrome is removed, not just hidden, for an account without the workspace — see F-2 and F-6; this route was where the second bypass showed | PASS | — |
-| `/cleaner/jobs-map` | C | Jobs map | PASS | PASS | PASS | hc | **BLOCKED** | **BLOCKED** | PASS | PASS | PASS | On loopback the page renders in full to a Landlord-only account **and to a signed-out visitor** | **BLOCKED** | Q-7 — `localPreview` is gated on the hostname being loopback, and this whole audit ran on `127.0.0.1`, so the real job load, the access gate and the matching API were never executed. Also ships an undisclosed CSP allowance for `tile.openstreetmap.org` and `api.postcodes.io` |
+| `/cleaner/jobs-map` | C | Jobs map | PASS | PASS | PASS | hc | PASS | PASS | PASS | **PARTIAL** | PASS | Gate refuses a signed-out visitor and a Landlord-only account; opens for a Cleaner | PASS | Q-7 — the loopback branch is removed, so the real gate and job load now run and were exercised for all three roles. **Map tiles and the outcode lookup remain UNVERIFIED**: this sandbox's egress policy rejects CONNECT to `tile.openstreetmap.org` and `api.postcodes.io`, so all 9/6 tile requests failed with `ERR_TUNNEL_CONNECTION_FAILED`. Both processors *are* disclosed in the privacy notice — my earlier claim that they were not was wrong |
 | `/cleaner/schedule` | C | Availability | PASS | PASS | PASS | hc | PASS | availability | PASS | PASS | PASS | Own availability only | PASS | — |
 | `/cleaner/messages` | C | Conversations | PASS | PASS | PASS | hc | PASS | messages, realtime | PASS | PASS | PASS | Participants only | PASS | — |
 | `/cleaner/notifications` | C | Cleaner inbox | PASS | PASS | PASS | hc | PASS | notifications | PASS | PASS | PASS | Own rows only | PASS | bell now points here — P2-15 |
@@ -119,7 +119,7 @@ Nineteen routes, all on `homle-cleaner.css`, all now rendering one sidebar from
 | `/cleaner/help-centre` `/cleaner/support-tickets` `/cleaner/report-incident` `/cleaner/disputes` | C | Support | PASS | PASS | PASS | hc | PASS | support, disputes | PASS | PASS | PASS | Own tickets only | PASS | — |
 | `/cleaner/onboarding` + 14 registration step routes | C | Registration | PASS | PASS | PASS | hc + redesign | PASS | onboarding | PASS | PASS | PASS | Identity and right-to-work handling | PASS | brand mark now a link on all — P2-14 |
 | `/cleaner/jobs/:uuid` | C | Job offer detail | PASS | PASS | PASS | hc | PASS | matching | PASS | PASS | PASS | Invited Cleaner only | PASS | — |
-| `/cleaner/reviews` | C | *(redirects to `/cleaner/performance`)* | N/A | N/A | N/A | N/A | PASS | N/A | N/A | N/A | N/A | — | PASS | `public/cleaner-reviews.html` is an orphan — see audit |
+| `/cleaner/reviews` | C | *(redirects to `/cleaner/performance`)* | N/A | N/A | N/A | N/A | PASS | N/A | N/A | N/A | N/A | — | PASS | the orphan `public/cleaner-reviews.{html,js}` are now removed — D-17 |
 
 ## Shared job routes
 
@@ -132,16 +132,16 @@ Nineteen routes, all on `homle-cleaner.css`, all now rendering one sidebar from
 
 | Route | Role | Purpose | Desktop | Tablet | Mobile | Design | Functionality | API/data | Console | Network | A11y | Security relevance | Status | Issues |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `/admin` | A | Control desk | PASS | PASS | PASS | base + `admin-launch.css` | PASS | admin | PASS | PASS | PASS | Administrator role required; not self-assignable | PASS | own palette, no shared shell |
-| `/admin/cases` | A | Case queue | PASS | PASS | PASS | base | PASS | admin | PASS | PASS | PASS | As above | PASS | — |
-| `/admin/support` | A | Support desk | PASS | PASS | PASS | **retired `landlord-help.css`** | PASS | admin | PASS | PASS | PASS | As above | PASS | oldest-looking page in the product |
-| `/admin/coverage` | A | Coverage report | PASS | PASS | PASS | base + own palette | PASS | admin | PASS | PASS | PASS | As above | PASS | four unrelated reds |
-| `/admin/funnel` | A | Marketplace funnel | PASS | PASS | PASS | base + own palette | PASS | admin | PASS | PASS | PASS | As above | PASS | own palette |
-| `/admin/payments` | A | Payment operations | PASS | PASS | PASS | base | BLOCKED | payments | PASS | PASS | PASS | As above | BLOCKED | Stripe not configured |
-| `/admin/pricing` `/admin/scan-pricing` | A | Rate lists | PASS | PASS | PASS | base + `admin-pricing.css` | PASS | pricing | PASS | PASS | PASS | Server-side rate list is authoritative | PASS | — |
-| `/admin/scan-operations` | A | Scan operations | PASS | PASS | PASS | base | PASS | scan telemetry | PASS | PASS | PASS | As above | PASS | **linked from nowhere** |
-| `/admin/bookings` | A | Booking operations | PASS | PASS | PASS | base | PASS | admin | PASS | PASS | PASS | As above | PASS | — |
-| `/admin/verifications` | A | Cleaner verification | PASS | PASS | PASS | base | PASS | admin | PASS | PASS | PASS | Handles identity documents | PASS | — |
+| `/admin` | A | Control desk | PASS | PASS | PASS | + `admin-desk.css` | PASS | admin | PASS | PASS | PASS | Administrator role required; not self-assignable | PASS | D-1 — one canvas, 11/11 shared nav, `aria-current` correct |
+| `/admin/cases` | A | Case queue | PASS | PASS | PASS | + `admin-desk.css` | PASS | admin | PASS | PASS | PASS | As above | PASS | — |
+| `/admin/support` | A | Support desk | PASS | PASS | PASS | + `admin-desk.css` | PASS | admin | PASS | PASS | PASS | As above | PASS | D-1 — `landlord-help.css` is live here (19 of 27 classes), not retired; the canvas is overridden rather than the sheet removed |
+| `/admin/coverage` | A | Coverage report | PASS | PASS | PASS | + `admin-desk.css` | PASS | admin | PASS | PASS | PASS | As above | PASS | D-1 — canvas unified; its four reds remain inside the report's own tables |
+| `/admin/funnel` | A | Marketplace funnel | PASS | PASS | PASS | + `admin-desk.css` | PASS | admin | PASS | PASS | PASS | As above | PASS | D-1 — was a transparent body; now on the workspace canvas |
+| `/admin/payments` | A | Payment operations | PASS | PASS | PASS | + `admin-desk.css` | BLOCKED | payments | PASS | PASS | PASS | As above | BLOCKED | Stripe not configured. D-1 — the desk's data still 404s, but the navigation now stays, so an operator is no longer stranded here |
+| `/admin/pricing` `/admin/scan-pricing` | A | Rate lists | PASS | PASS | PASS | + `admin-desk.css` | PASS | pricing | PASS | PASS | PASS | Server-side rate list is authoritative | PASS | — |
+| `/admin/scan-operations` | A | Scan operations | PASS | PASS | PASS | + `admin-desk.css` | PASS | scan telemetry | PASS | PASS | PASS | As above | PASS | D-18 — now linked from all eleven desks |
+| `/admin/bookings` | A | Booking operations | PASS | PASS | PASS | + `admin-desk.css` | PASS | admin | PASS | PASS | PASS | As above | PASS | — |
+| `/admin/verifications` | A | Cleaner verification | PASS | PASS | PASS | + `admin-desk.css` | PASS | admin | PASS | PASS | PASS | Handles identity documents | PASS | — |
 
 Every admin desk overflowed horizontally at 390px before this audit (P2-9); none
 does now.

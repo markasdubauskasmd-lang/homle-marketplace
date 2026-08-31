@@ -29,7 +29,7 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // deletion removed a duplicate of a live screen, not a feature. The shared
 // backend digest below was verified byte-identical across that change.
 const expectedFileCount = 88;
-const expectedDigest = "a1b6ff1d834138772d5ddcc33585e8db8ca9107a21eb58b186efc2d66dd45fb9";
+const expectedDigest = "164a72b3a903d5deffb9e885889114ac62f64fb93349d39f817e9a71ff2bdf03";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",

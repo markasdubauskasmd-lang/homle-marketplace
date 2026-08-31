@@ -2559,13 +2559,6 @@ a.hc-contract-title:focus-visible { outline: 2px solid rgba(198, 42, 26, .32); o
 
 .hc-jobs-map-heading { margin-bottom: 14px; }
 .hc-jobs-map-heading .hc-page-sub { max-width: 650px; }
-.hc-jobs-preview-note {
-  margin-bottom: 16px;
-  color: #6b4a13;
-  border-color: #ead49f;
-  background: #fff4d5;
-}
-.hc-jobs-preview-note strong { margin-right: 4px; }
 .hc-jobs-map-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

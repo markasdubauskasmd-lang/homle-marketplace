@@ -434,27 +434,96 @@ system.*
   navigation differs on **every** page, from three links to seven, and
   `/admin/support` still loads the **retired** `landlord-help.css`, making it the
   oldest-looking page in the product.
-- **Why not fixed.** Migrating eleven operator desks onto the workspace shell is
-  a comparable piece of work to everything above it, and they are internal
-  tooling seen by staff, not customers. Doing it half-way would leave exactly the
-  half-migrated state this audit exists to remove.
-- **Status.** `[ ]`
+- **Measured again, signed in as a real administrator** (provisioned with
+  `tools/bootstrap-administrator.mjs`), at 1440px and 390px. They rendered on
+  **four canvases at once**: `oklch(0.975 0.015 95)` on eight desks,
+  `rgb(247,242,233)` on `/admin/support` from `landlord-help.css`,
+  `rgb(247,241,232)` on `/admin/coverage`, and `rgba(0,0,0,0)` on
+  `/admin/funnel` — a transparent body, so whatever the browser painted behind
+  it showed through.
+- **Fix.** `public/admin-navigation.js` owns one list of all eleven desks and
+  renders it into whatever container each page provides;
+  `public/admin-desk.css` settles the canvas, the ink and that navigation strip
+  and is loaded last on all eleven. It deliberately does **not** restyle the
+  desks: they are internal tooling with dense tables that work, and rewriting
+  them wholesale is how you break an operator's day. The eleven hand-copied
+  link lists are now empty containers — they were replaced at runtime, so
+  editing one looked like it worked and changed nothing.
+- **Correction to the evidence above.** `landlord-help.css` is called "retired"
+  in the paragraph above. **It is not.** 19 of its 27 classes are live on
+  `/admin/support` and it is also the live sheet for `/landlord/help`; only 2
+  of its classes are unreferenced. Removing it would have broken the support
+  desk. `admin-desk.css` overrides its canvas instead.
+- **A second defect, found by rendering.** The navigation strip mirrored
+  `[data-admin-private-workspace]`'s `hidden`, which conflated "you are not an
+  administrator" with "this desk's data did not load". Signed in as an
+  administrator, `/admin/payments` (404, payments unconfigured) and
+  `/admin/pricing` (403 on its preview call) hid the whole strip — so the one
+  screen an operator most needs to leave was the one screen with no way out but
+  the URL bar. It now asks `/api/marketplace/account` directly, through the same
+  three-answer verdict the Cleaner shell uses (`reveal` / `remove` / `leave`
+  when the answer is unknown), in `public/admin-navigation-decision.js`.
+- **Verification.** All eleven desks measure one canvas (`rgb(247,246,245)`)
+  and one font (DM Sans) at 1440px and 390px, with correct `aria-current` and
+  no sideways scroll — including the two that cannot load their data. In a
+  browser: **11 links for an administrator on every desk; 0 links and nothing
+  left in the DOM for a signed-out visitor, a Landlord, and a dual-role
+  Cleaner.** `tests/noncleaner-link-integrity.mjs` executes the real verdict
+  against 12 outcomes.
+- **Status.** `[x]`
 
 **D-4 · P3 · Design** — *The 404 page carries `body.homle-workspace` but never
-renders the shell,* so it has no sidebar, no top bar and no skip link, unlike the
-four other pages on that class. `not-found.js` imports only the shell *model*.
-Deliberate for a signed-out reader; wrong for a signed-in one. **Status `[ ]`.**
+renders the shell.*
+
+- **Partly withdrawn.** A centred card is the right pattern for an error page,
+  and rendering a full workspace sidebar on a 404 a signed-out visitor may hit
+  is wrong, not missing. The skip link was added earlier in this work; the page
+  is on the shared tokens and workspace sheet, carries a brand mark home, and
+  resolves its primary action from the account.
+- **What was actually wrong, found by rendering it as each role.** A signed-in
+  **administrator** was sent to the marketing site and offered
+  `/landlord/help` — a page that refuses them for holding no Landlord
+  workspace. An error page whose only two exits are the wrong site and a second
+  error is not a recovery.
+- **Fix.** `public/not-found-destination.js` decides the way back from the
+  account alone, and the help sentence is dropped entirely when there is no
+  support page the reader may open.
+- **Verification.** Rendered at 1440px and 390px signed out, as a Landlord and
+  as an administrator: administrator now goes to `/admin` with the help line
+  hidden; Landlord to `/landlord/home`; visitor to `/`. The page had **no test
+  at all** before this; `tests/not-found-page.mjs` now runs the real decision
+  over nine account shapes.
+- **Status.** `[x]`
 
 **D-17 · P3 · Dead code** — *`public/cleaner-reviews.html` and
 `cleaner-reviews.js` are orphaned.* The only route pointing at them
 (`server.mjs:5568`) is shadowed by a 308 redirect to `/cleaner/performance`
 earlier in the request path, so the route entry is unreachable — but the file is
 still served at its own filename by the `public/` fallback. A complete page from
-the previous Cleaner generation. **Status `[ ]`.**
+the previous Cleaner generation.
+
+**Fixed.** Both files removed. `cleaner-performance.html` had already superseded
+them — it reads the same `/api/marketplace/cleaners/{id}/reviews` and carries the
+same `data-reviews-*` sockets — so the deletion removed a duplicate of a live
+screen, not a feature. The Cleaner freeze's **shared-backend digest was verified
+byte-identical** across the change; only the front-end count (90 → 88) and digest
+moved. **Status `[x]`.**
+
+*Noted in passing, not fixed:* every page in `public/` is also reachable at its
+raw `.html` filename through the static fallback, so each clean URL has a
+duplicate address. That is a canonicalisation matter across all 47 pages, not
+specific to this orphan, and is recorded rather than churned.
 
 **D-18 · P3 · Navigation** — *`/admin/scan-operations` is linked from nowhere.*
 Zero `href` to it anywhere in `public/`. Reachable only by typing the URL.
-**Status `[ ]`.**
+
+**Fixed by D-1.** It is one of the eleven entries in `adminDestinations`, so it
+now appears on every admin desk. Verified in a browser on all eleven.
+`tests/noncleaner-link-integrity.mjs` asserts all eleven desks are present by
+name, and the four per-desk suites that used to assert reachability against the
+control desk's hand-copied markup now assert it against the shared list — a
+stronger property, since it means reachable from all eleven rather than from one.
+**Status `[x]`.**
 
 **D-19 · P2 · Design** — *`landlord-dashboard.css` is not retired, and parts of
 the dashboard were still on the landing palette.*
@@ -488,10 +557,29 @@ the dashboard were still on the landing palette.*
   changed properties across its 760-element sample — the payment row's border
   moving from the translucent landing ink to the workspace border — and nothing
   else moved. The baseline was regenerated deliberately and the diff read.
-- **Status.** `[x]` for the palette. **`[ ]`** for the 68 dead selectors and for
-  `landlord-help.css`, which `/landlord/help` and `/admin/support` both still
-  load; those are bytes every reader downloads and a trap for the next editor,
-  but nothing renders from them incorrectly.
+- **The dead-selector half, measured properly and partly withdrawn.** I swept
+  every stylesheet against the markup and scripts of the pages that actually
+  load it. `landlord-help.css` is **not** dead weight: only **2** of its 27
+  classes are unreferenced, and 19 are live on `/admin/support` alone. Naming
+  it here alongside the dead selectors was wrong, and D-1 above corrects the
+  matching claim that it is "retired". The real counts are
+  `landlord-dashboard.css` 65 of 211 unreferenced, `landlord-dashboard-v2.css`
+  46 of 332, `styles.css` 352 of 1151, `homle-cleaner.css` 75 of 803.
+- **Not fixed, deliberately.** Deleting several hundred CSS rules is a
+  visual-regression risk with no user-visible gain, and the sweep has known
+  false-positive modes — a class composed at runtime from a template string is
+  reported unreferenced when it is not. The measured facts are recorded here so
+  the next editor can act on them with a screenshot harness, which is the tool
+  this actually needs.
+- **Also recorded, not changed.** `landlord-help.html` loads both
+  `landlord-help.css` and `landlord-help-v2.css`; `landlord-dashboard.html`
+  loads both `landlord-dashboard.css` and `landlord-dashboard-v2.css`. That
+  reads like a half-migration and is not one — the v1 sheets are live and the
+  pair together produces one look, as the computed-style baseline confirms. It
+  is a naming problem, not a design problem.
+- **Status.** `[x]` for the palette. **`[ ]`** for the unreferenced selectors,
+  which are bytes every reader downloads and a trap for the next editor, but
+  from which nothing renders incorrectly.
 
 **D-21 · P2 · Design** — *The "no Cleaner matched" dialog rendered on the
 retired green palette.*
@@ -665,16 +753,73 @@ product's longest flow.
   `/landlord/home`.
 - **Status.** `[x]`
 
+**Q-8 · P2 · Concurrency** — *The Landlord Messages panel announced itself
+ready while its thread was still loading.*
+
+- **Found by** a 1-in-3 flake in `tests/landlord-computed-styles.mjs`: the
+  failed-conversation banner rendered in some runs and not others, on whichever
+  viewport lost the race. Three identical runs disagreed, so it was neither my
+  change nor a stylesheet regression.
+- **Root cause.** `selectConversation` began `if (!selected ||
+  state.loadingBookingId || state.sending) return;`. `landlord-dashboard.js`
+  clears the panel's `aria-busy` when `openLandlordMessages` resolves, and
+  `loadWorkspace` refreshes the bookings while a first open is still fetching —
+  so two opens overlap routinely, not exceptionally. The second returned
+  **instantly** and the panel announced a settled Messages view whose thread had
+  not arrived: `aria-busy` came off, the reader and assistive technology were
+  told the view was ready, and the content then changed underneath.
+- **Fix.** The in-flight load is held in `state.pendingLoad`; an overlapping
+  open for the same conversation awaits it rather than returning, and
+  `openLandlordMessages` now always awaits `selectConversation`. No duplicate
+  request is issued.
+- **Verification.** `tests/landlord-messages-concurrency.mjs` executes the real
+  module against a controlled network — the defect is entirely in the timing, so
+  no source-text assertion could see it. **The test was confirmed to fail
+  against the old code and pass against the fix.** Five consecutive
+  computed-style baseline runs are clean where one in three failed before.
+- **Status.** `[x]`
+
 **Q-7 · P3 · Evidence** — *`/cleaner/jobs-map` cannot be verified by this
-harness.* `localPreview` is gated on `location.hostname` being loopback, and the
-entire audit ran on `127.0.0.1`, so `loadRealJobs()`, the `createCleanerPage`
-gate and the matching API were **never executed**; on loopback the page renders
+harness.* `localPreview` was gated on `location.hostname` being loopback, and
+the entire audit ran on `127.0.0.1`, so `loadRealJobs()`, the
+`createCleanerPage` gate and the matching API were **never executed**; on
+loopback the page hid its access gate, revealed the map, rendered three
+fabricated offers and never called `createCleanerPage` at all — so it rendered
 in full to a Landlord-only account and to a signed-out visitor. A PASS on a
-branch the harness cannot reach is not evidence, and the matrix has been
-corrected to BLOCKED. Separately, the page ships a per-route CSP admitting
-`tile.openstreetmap.org` and `api.postcodes.io`, and **neither processor appears
-in the privacy notice's provider list**, which that notice itself requires before
-launch. **Status `[ ]`.**
+branch the harness cannot reach is not evidence, and the matrix was corrected
+to BLOCKED.
+
+- **Fix.** The hostname branch, `previewJobs()`, the three fabricated offers,
+  the `booking.preview` rendering paths, the "Preview examples — not live
+  offers" banner and its stylesheet rule are all removed. The page now always
+  runs `createCleanerPage("map", loadRealJobs)`. This costs a designer's local
+  preview that was never a product feature; it buys a route that can actually
+  be tested and a role gate that cannot be skipped by the address you type.
+- **Verification.** Rendered at 1440px and 390px: a signed-out visitor and a
+  Landlord-only account are both refused by the gate with no map and no cards;
+  a Cleaner (workspace activated through `POST /api/marketplace/auth/workspace`,
+  the same call the sign-in page makes) gets the gate closed, the map revealed,
+  the real empty state, a count of 0, no fabricated content, no page errors and
+  no sideways scroll. `tests/booking-dashboard-ui.mjs` now asserts the inverse
+  of what it used to: no hostname branch, an unconditional gate, and no
+  fabricated offers.
+- **Still UNVERIFIED, and an environment limit rather than a code fault.** Map
+  tiles and the postcode lookup could not be exercised: this sandbox's egress
+  policy rejects `CONNECT` to both `tile.openstreetmap.org` and
+  `api.postcodes.io`. The page requested 9 tiles at 1440px and 6 at 390px and
+  each failed with `net::ERR_TUNNEL_CONNECTION_FAILED`. **Tile rendering and
+  outcode centring remain unverified here and must be checked on an environment
+  with outbound access.**
+- **The disclosure half of this finding was WRONG when I wrote it.** I recorded
+  that neither processor appears in the privacy notice. Both do:
+  `public/privacy.html` has a dedicated paragraph under "Sharing and storage"
+  naming OpenStreetMap for map tiles and Postcodes.io for the nearest-postcode
+  lookup, and describing exactly what each receives. `git log -S` dates it to
+  commit `03ece3b` on **16 August 2026**, two weeks before this audit began. I
+  did not read the notice carefully enough before recording the finding. No
+  change was needed and none was made.
+- **Status.** `[x]` for the code path; the tile/outcode rendering is
+  **UNVERIFIED** pending an environment with outbound access.
 
 **S-2 · P3 · Security** — *The legacy `/api/admin/*` surface authorises on shape,
 not on a key.* `isAdminAuthorised()` (`server.mjs:2314`) returns true with no

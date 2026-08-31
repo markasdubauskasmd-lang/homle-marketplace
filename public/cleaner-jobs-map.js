@@ -13,7 +13,6 @@ import {
   worldPixelFromCoordinate
 } from "./postcode-map-core.js?v=20260805-1";
 
-const localPreview = ["127.0.0.1", "localhost"].includes(location.hostname);
 const mapHost = document.querySelector("[data-area-map]");
 const tileHost = document.querySelector("[data-map-tiles]");
 const pinHost = document.querySelector("[data-map-pins]");
@@ -21,73 +20,6 @@ const listHost = document.querySelector("[data-map-list]");
 const mapState = { latitude: 51.372, longitude: -0.102, zoom: 12 };
 let mappedJobs = [];
 let pointer = null;
-
-function previewDate(daysAhead, hour, durationHours) {
-  const start = new Date();
-  start.setDate(start.getDate() + daysAhead);
-  start.setHours(hour, 0, 0, 0);
-  const end = new Date(start.getTime() + durationHours * 60 * 60_000);
-  return { scheduledStartAt: start.toISOString(), scheduledEndAt: end.toISOString() };
-}
-
-function previewJobs() {
-  return [
-    {
-      bookingId: "preview-cr0-deep-clean",
-      preview: true,
-      participantRole: "cleaner",
-      status: "pending-cleaner-acceptance",
-      cleaningType: "Deep clean",
-      locationLabel: "Central Croydon, CR0",
-      propertyArea: "CR0",
-      mapDistrict: "Croydon",
-      latitude: 51.372,
-      longitude: -0.101,
-      propertyType: "2-bedroom flat",
-      pricePence: 6800,
-      distanceMiles: 2.4,
-      taskCount: 8,
-      imageLabels: ["Kitchen", "Living room", "Bathroom"],
-      ...previewDate(2, 9, 4)
-    },
-    {
-      bookingId: "preview-cr2-regular-clean",
-      preview: true,
-      participantRole: "cleaner",
-      status: "pending-cleaner-acceptance",
-      cleaningType: "Regular home clean",
-      locationLabel: "South Croydon, CR2",
-      propertyArea: "CR2",
-      mapDistrict: "Croydon",
-      latitude: 51.349,
-      longitude: -0.091,
-      propertyType: "3-bedroom house",
-      pricePence: 4800,
-      distanceMiles: 3.8,
-      taskCount: 6,
-      imageLabels: ["Kitchen", "Bedroom", "Hallway"],
-      ...previewDate(4, 12, 3)
-    },
-    {
-      bookingId: "preview-cr7-end-tenancy",
-      preview: true,
-      participantRole: "cleaner",
-      status: "pending-cleaner-acceptance",
-      cleaningType: "End of tenancy",
-      locationLabel: "Thornton Heath, CR7",
-      propertyArea: "CR7",
-      mapDistrict: "Croydon",
-      latitude: 51.398,
-      longitude: -0.101,
-      propertyType: "1-bedroom flat",
-      pricePence: 9200,
-      distanceMiles: 5.1,
-      taskCount: 11,
-      imageLabels: ["Kitchen", "Bedroom", "Bathroom"],
-      ...previewDate(6, 10, 5)
-    }
-  ];
-}
 
 function bookingPhotoUrls(booking) {
   return [booking.images, booking.photos, booking.propertyPhotos]
@@ -129,7 +61,7 @@ function renderImages(booking) {
   const gallery = element("div", "hc-jobs-map-gallery");
   const urls = bookingPhotoUrls(booking);
   const labels = Array.isArray(booking.imageLabels) && booking.imageLabels.length ? booking.imageLabels : ["Property", "Room", "Clean details"];
-  if (!urls.length && !booking.preview) {
+  if (!urls.length) {
     gallery.append(element("p", "hc-jobs-map-no-images", "No property images were supplied with this offer."));
     return gallery;
   }
@@ -287,7 +219,7 @@ function renderCard(booking, index) {
   const heading = element("div", "hc-jobs-map-card-heading");
   const copy = element("div", "hc-jobs-map-card-copy");
   copy.append(
-    element("span", "hc-jobs-map-card-status", booking.preview ? "Example available job" : bookingSummaryStatusLabels[booking.status] || "Available job"),
+    element("span", "hc-jobs-map-card-status", bookingSummaryStatusLabels[booking.status] || "Available job"),
     element("h3", "", booking.cleaningType || "Cleaning job"),
     element("p", "", booking.locationLabel || booking.propertyArea || "Approximate area shared with the offer")
   );
@@ -304,17 +236,10 @@ function renderCard(booking, index) {
   );
 
   const footer = element("div", "hc-jobs-map-card-footer");
-  const privacy = element("span", "", booking.preview ? "Preview only — no action will be sent" : "The exact address opens only after confirmation");
-  if (booking.preview) {
-    const button = element("button", "hc-btn", "Preview details");
-    button.type = "button";
-    button.disabled = true;
-    footer.append(privacy, button);
-  } else {
-    const link = element("a", "hc-btn", "Review job");
-    link.href = `/cleaner/jobs/${encodeURIComponent(booking.bookingId)}`;
-    footer.append(privacy, link);
-  }
+  const privacy = element("span", "", "The exact address opens only after confirmation");
+  const link = element("a", "hc-btn", "Review job");
+  link.href = `/cleaner/jobs/${encodeURIComponent(booking.bookingId)}`;
+  footer.append(privacy, link);
   card.append(heading, renderImages(booking), details, footer);
   card.addEventListener("click", () => selectJob(booking.bookingId));
   return card;
@@ -342,11 +267,10 @@ function renderMapPins() {
   if (selected) selectJob(selected);
 }
 
-function renderJobs(bookings, { preview = false } = {}) {
+function renderJobs(bookings) {
   const jobs = Array.isArray(bookings) ? bookings : [];
   const areas = new Set(jobs.map((booking) => String(booking.propertyArea || "").trim()).filter(Boolean));
   const highest = jobs.reduce((value, booking) => Math.max(value, Number(booking.pricePence) || 0), 0);
-  document.querySelector("[data-map-preview]").hidden = !preview;
   document.querySelector("[data-map-empty]").hidden = jobs.length > 0;
   document.querySelector("[data-map-count]").textContent = String(jobs.length);
   document.querySelector("[data-map-area-count]").textContent = String(areas.size);
@@ -410,13 +334,11 @@ async function loadRealJobs({ showFeedback }) {
   }
 }
 
-if (localPreview) {
-  const gate = document.querySelector("[data-map-gate]");
-  const view = document.querySelector("[data-map]");
-  if (gate) gate.hidden = true;
-  if (view) view.hidden = false;
-  document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
-  renderJobs(previewJobs(), { preview: true });
-} else {
-  createCleanerPage("map", loadRealJobs);
-}
+// One path, always. This used to branch on `location.hostname` being loopback:
+// on 127.0.0.1 it hid the access gate, revealed the map, rendered three
+// fabricated offers and NEVER called createCleanerPage — so the Cleaner role
+// check did not run, a signed-out visitor and a Landlord-only account both saw
+// the full page, and every local or CI run exercised the fake branch instead of
+// this one. The route was BLOCKED in the route matrix for exactly that reason:
+// a PASS on a branch the harness cannot reach is not evidence.
+createCleanerPage("map", loadRealJobs);
