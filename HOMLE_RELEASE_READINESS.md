@@ -13,9 +13,10 @@ Three independent reviewers — QA, code and security — were each asked to
 reflects what survived that, and the rows they moved are marked.
 
 > **This is not a statement that Homle is production-ready.** Six areas are
-> BLOCKED on unconfigured integrations, two are UNVERIFIED, and seven findings
-> in the audit are open. What it is: an honest account of what was run, what
-> happened, and what nobody has checked.
+> BLOCKED on unconfigured integrations, three are UNVERIFIED, and three audit
+> findings remain open — two of them deliberate decisions rather than defects,
+> and one a policy question for the product owner. What this is: an honest
+> account of what was run, what happened, and what nobody has checked.
 
 | # | Area | Verdict | Evidence / reason |
 |---|---|---|---|
@@ -37,35 +38,61 @@ reflects what survived that, and the rows they moved are marked.
 | 16 | Payouts | BLOCKED | Same |
 | 17 | Matching | BLOCKED | No geocoding provider; every candidate is unpriceable without a distance |
 | 18 | Automatic dispatch | PARTIALLY VERIFIED | Two-worker lease covered by the PostgreSQL integration suite; not exercised in a browser |
-| 19 | Messaging | **PARTIALLY VERIFIED** | Non-participant refused `404`. **No booking exists in this database**, so no real conversation was ever exercised — only empty and gated states. A QA reviewer moved this row |
+| 19 | Messaging | **PARTIALLY VERIFIED** | Non-participant refused `404`. **No booking exists in this database**, so no real conversation was ever exercised — only empty and gated states. A QA reviewer moved this row. The panel also announced itself ready while its thread was still loading (Q-8), found through the 1-in-3 flake it caused and now fixed and tested |
 | 20 | Notifications | VERIFIED | Seeded, rendered, grouped; another account's rows refused. **Live delivery was dead in Chrome on all nineteen Cleaner pages** until F-7 — measured `403`, now `[]` |
 | 21 | Cross-tenant isolation | VERIFIED | RLS at the database plus actor scoping; cross-tenant reads and writes attempted and refused |
 | 22 | CSRF / origin | VERIFIED | Missing token, wrong origin and absent origin all refused `403` |
 | 23 | Authenticated write abuse | VERIFIED | 400-write flood: 300 allowed, 100 refused `429`. **Sign-out was blocked at the allowance** until S-4 — re-measured `200` |
 | 24 | Secrets | VERIFIED | No real credentials in the tree or its history |
-| 25 | Design consistency | VERIFIED | One canvas and one font across the signed-in workspace; landing palette guarded out |
-| 26 | Accessibility | **PARTIALLY VERIFIED** | Contrast, focus and naming checked. **Touch targets under 24×24px remain on four routes and `/landlord/book` has no visible `h1`** (Q-5) — recorded, not fixed. No assistive-technology trial, no device trial |
+| 25 | Design consistency | VERIFIED | One canvas and one font across the signed-in workspace; landing palette guarded out. **The eleven administrator desks were on four canvases at once** until D-1 — re-measured signed in as a real administrator at 1440px and 390px: one canvas, one font, 11/11 shared navigation, no sideways scroll |
+| 26 | Accessibility | **PARTIALLY VERIFIED** | Contrast, focus and naming checked. Three of the four reported touch targets did not survive re-measurement of their *effective* hit area; the one real case was fixed, and `/landlord/book` now carries a visually-hidden `h1` (verified rendering 1×1 and clipped). No assistive-technology trial, no device trial |
 | 27 | Console / network cleanliness | VERIFIED | Zero page errors, zero console errors, zero unexpected 4xx — **after F-7. The first measurement was wrong**: it swept Cleaner routes with a Landlord session, which the role gate refuses before the badge runs |
 | 28 | Responsive layout | VERIFIED | Zero horizontal overflow at 1440 / 834 / 390 — **after F-9, and after correcting the instrument.** Under mobile emulation Chrome expands the layout viewport to fit overflow, so the original check reported zero exactly when overflow was worst |
 | 29 | Physical devices | UNVERIFIED | Desktop Chromium emulating sizes is not a device trial |
 | 30 | Load and concurrency | UNVERIFIED | No load testing performed |
-| 31 | Test gate integrity | VERIFIED | All 196 files reached; guarded against recurrence |
+| 31 | Test gate integrity | VERIFIED | All 202 files reached; guarded against recurrence by `tools/check-test-gate.mjs` |
+| 32 | `/cleaner/jobs-map` | **PARTIALLY VERIFIED** | Was BLOCKED: a `location.hostname` branch meant every local and CI run exercised a fake path and the role gate never ran. Branch removed; gate now refuses a signed-out visitor and a Landlord-only account and opens for a Cleaner, measured at both viewports. **Map tiles and the outcode lookup stay UNVERIFIED** — this sandbox's egress policy rejects CONNECT to `tile.openstreetmap.org` and `api.postcodes.io` |
+| 33 | Third-party processor disclosure | VERIFIED | `public/privacy.html` names OpenStreetMap and Postcodes.io and what each receives. **My audit claimed it did not; that claim was wrong** — the paragraph dates to 16 August 2026 |
 
 ## Open findings
 
-Seven, recorded with evidence in `HOMLE_MASTER_AUDIT.md` rather than fixed:
-the support-cap concurrency race (Q-3), a dual-role account locked out of the
-Landlord dashboard while the booking journey still admits it (Q-2), empty states
-sending a signed-in user to `/login` (Q-4), sub-24px touch targets and a missing
-`h1` (Q-5), no browser-history entries in the six-step journey (Q-6),
-`/cleaner/jobs-map` being unverifiable by a loopback harness plus two
-undisclosed third-party processors (Q-7), and the residual "this UUID is in use"
-oracle behind F-8. Plus the administrator desks belonging to no design system
-(D-1) and two `[ ]` security observations (S-2, S-3).
+Three remain open in `HOMLE_MASTER_AUDIT.md`, and none of them is an unfixed
+defect sitting where a fix was simply not attempted:
+
+- **Unreferenced CSS selectors** (D-19) — measured per sheet against the pages
+  that load it: `landlord-dashboard.css` 65 of 211, `landlord-dashboard-v2.css`
+  46 of 332, `styles.css` 352 of 1151, `homle-cleaner.css` 75 of 803. Not
+  deleted, deliberately: a visual-regression risk with no user-visible gain, and
+  the sweep has known false positives for classes composed at runtime. The
+  measurements are recorded for whoever does it with a screenshot harness.
+- **The legacy `/api/admin/*` local exemption** (S-2) — a documented
+  development convenience behind a flag that production refuses to boot without.
+  Left in place; its four conditions are now pinned by
+  `tests/admin-key-exemption.mjs`, confirmed to fail when one is removed.
+- **Unbounded concurrent sessions** — 30-day sessions, no idle timeout, no
+  per-account cap, no per-session revocation. A product decision, recorded so it
+  is a decision rather than an accident.
+
+Two more are marked `[!]` because they need an answer this work cannot supply:
+
+- **S-6** — every IP-keyed limit rests on an assumption about the platform that
+  needs one measurement against the real deployment.
+- **S-7** — the matching recommender gates on `is_public`, profile completion,
+  availability and an active account, **not on identity verification**, which is
+  a `+5` score bonus and a displayed badge. So an unverified self-listed Cleaner
+  can be automatically dispatched a job. Not changed: that would alter who gets
+  offered work, which is the surface the Cleaner freeze protects. It is a
+  marketplace-policy question and **needs an explicit answer before launch**.
+
+Everything else recorded during this work has been fixed with named evidence.
 
 ## What would change these verdicts
 
 Configure Stripe test keys, a geocoding provider and the vision model, and rows
 11, 15, 16, 17 become testable. Run the room-photo chain against real S3 and row
 12 stops resting on a double I wrote. Put the application on physical handsets
-and row 29 stops being UNVERIFIED. Nothing else here substitutes for those.
+and row 29 stops being UNVERIFIED. Allow outbound access to
+`tile.openstreetmap.org` and `api.postcodes.io` and row 32's remaining half
+becomes measurable. Create one confirmed booking and row 19 stops being about
+empty states. Answer the S-7 verification-gate question and it stops being a
+policy unknown. Nothing else here substitutes for those.

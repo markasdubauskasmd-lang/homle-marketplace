@@ -833,7 +833,33 @@ rather than trusting: `deployment-readiness.mjs:90` requires
 `server.mjs:37` refuses to boot if that preflight fails. The bypass also
 requires the server to be *bound* to loopback, in which case only local
 processes can reach it at all. So the threat model is an untrusted process on
-the application host. Recorded, not changed. **Status `[ ]`.**
+the application host.
+
+- **Not changed, and the reason is a trade rather than an oversight.** The
+  exemption's other four conditions mean only a process on this machine can
+  reach it. Making the key mandatory by default would break every local admin
+  workflow to close a hole that requires an attacker already running code on the
+  application host — where they could read `ADMIN_KEY` from the environment
+  anyway.
+- **What WAS missing: nothing tested the conditions themselves.**
+  `tests/pilot-security-http.mjs` proved the flag ON denies loopback, and
+  `tests/deployment-readiness.mjs` proved production rejects the flag OFF, but
+  no test covered the four conditions that keep the exemption local. Widening
+  any one of them would have turned a local convenience into a remote bypass
+  with every existing test still green.
+- **`tests/admin-key-exemption.mjs`** now boots a server with the flag off,
+  first asserts the exemption is genuinely live (so the denials below are not
+  vacuous), then checks that a public Host, a lookalike Host
+  (`localhost.attacker.example`), a private-address Host, an
+  `x-forwarded-for`, an `x-forwarded-host`, both together, and a wrong key each
+  deny. **Confirmed to fail when the proxy-header condition is removed** —
+  `200` where it must deny.
+- **A note for whoever writes the next one of these.** The first version used
+  `fetch`, whose Host cases passed while asserting nothing: `Host` is a
+  forbidden header name and `fetch` silently drops an attempt to set it. It uses
+  `node:http` for exactly that reason.
+- **Status.** `[x]` for the boundary being pinned; the exemption itself is
+  **recorded and deliberately unchanged**.
 
 **S-6 · P1 · Security** — *Every IP-keyed limit rests on an unverified assumption
 about the platform.*
@@ -893,9 +919,43 @@ worth a decision rather than an assumption: it unlocks
 `GET /api/marketplace/maps/config`, which hands out the Google Maps browser key,
 and `cleaner/address-lookup`, a metered provider call; and a self-listed Cleaner
 can set `is_public` on their own profile, with `verified` reported as a field
-rather than enforced as a gate. Whether an unverified self-listed Cleaner can be
-dispatched a job could not be closed out here — no bookings exist in this
-database. **Status `[ ]`.**
+rather than enforced as a gate.
+
+- **The open question is now closed, from the code rather than from a booking.**
+  *Yes — an unverified self-listed Cleaner can be recommended and automatically
+  dispatched.* The eligibility predicate is in
+  `db/migrations/010_request_cleaner_matching.sql:119`: `profile.is_public AND
+  profile.profile_completion_percent = 100 AND
+  profile.current_availability_status <> 'unavailable'`, joined to
+  `users.account_status = 'active'`, plus property-type, service and area
+  matching. **Identity verification appears nowhere in it.**
+  `profile.identity_check_status = 'verified'` only adds `+5` to the match score
+  (line 84) and is *reported* as the `identity_verified` column (line 72).
+  `recommend_cleaners_for_request_v2` adds only landlord self-exclusion, `_v3`
+  adds only an optional Stripe payout-readiness filter, and
+  `get_automatic_dispatch_candidates` draws from that same `_v3` — so automatic
+  dispatch invites from exactly this unverified-inclusive pool.
+- **The sharp edge is automatic dispatch, not manual choice.** When a Landlord
+  picks a Cleaner themselves they can see the badge and decide. When they
+  authorise automatic dispatch, Homle chooses for them, and may invite a Cleaner
+  whose identity check has never passed.
+- **Not changed, deliberately, and this is a decision for the product owner
+  rather than a defect I should settle.** Adding a verification gate to the
+  recommender changes *who gets offered work* — the exact surface the Cleaner
+  freeze protects as `sharedCleanerOutcomeDependencies`, and a change no test in
+  this repository could tell me was correct rather than merely green. It is a
+  marketplace-policy question: whether unverified Cleaners may be matched at
+  all, only manually, or not until verified. **This needs an explicit answer
+  before launch.**
+- **The Google Maps half, measured.** With `MAP_PROVIDER=none`,
+  `GET /api/marketplace/maps/config` answers `503 maps-not-configured` to a
+  self-granted Cleaner and hands out nothing — it fails closed. The concern
+  applies only once Maps is configured, and the value at risk is a *browser*
+  key, which is meant to be public and should be referrer-restricted at the
+  provider. `cleaner/address-lookup` is POST-only (`405` on GET), so it is not
+  reachable by a bare navigation.
+- **Status.** `[x]` for the investigation; **`[!]` for the verification-gate
+  policy, which is now a stated decision rather than an unknown.**
 
 **S-8 · P2 · Security** — *A Cleaner kept photo access indefinitely after the
 job ended.*
@@ -925,7 +985,21 @@ job ended.*
 `403 email-verification-required`, distinct from `401 invalid-credentials`.* It
 fires only after a correct password, so it is not a bare enumeration oracle, but
 it does confirm "this account exists and this password is right" in one step.
-**Status `[ ]`.**
+
+- **Assessed and closed as acceptable, with the reasoning stated rather than
+  assumed.** The marginal disclosure is close to nothing: the response is
+  reachable only by someone who already holds the correct password, and anyone
+  holding it learns the account exists from a successful sign-in anyway. What
+  they additionally learn is that the address is unverified — which is not a
+  secret about the account holder.
+- **Guessing is bounded, measured.** Ten wrong passwords against a real address
+  each returned `401 invalid-credentials`; the **eleventh returned `429
+  rate-limited`**. So the distinct `403` cannot be reached by spraying.
+- **The alternative is worse for a real person.** Collapsing it into `401`
+  leaves a user with correct credentials unable to learn why they cannot sign
+  in, and pushes them toward password reset for a problem a reset does not fix.
+  That is a real, frequent harm traded against a negligible informational one.
+- **Status.** `[x]` — investigated, judged acceptable, not changed.
 
 ---
 
