@@ -6,6 +6,13 @@ const paymentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const bookingId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const record = { paymentId, bookingId, paymentStatus: "captured", bookingStatus: "completed", scheduledStartAt: "2026-07-20T09:00:00.000Z", scheduledEndAt: "2026-07-20T12:00:00.000Z", amountPence: 12_000, currency: "gbp", amountCapturedPence: 12_000, amountRefundedPence: 0, cleanerPayPence: 7_200, payoutReady: true, canCapture: false, canCancel: false, canRefund: true, canTransfer: true, awaitingProvider: false, updatedAt: "2026-07-20T12:10:00.000Z" };
 const queue = adminPaymentQueue({ ok: true, payments: [record], limit: 50, offset: 0, testMode: true });
+// Reachability now comes from the one shared list in admin-navigation.js, not
+// from markup copied into each desk. Asserting it there is stronger: it means
+// this desk is reachable from ALL ELEVEN desks rather than from the control
+// desk alone, which is the fault that left /admin/scan-operations linked from
+// exactly one page and reachable nowhere else.
+const adminNavigation = await readFile(new URL("../public/admin-navigation.js", import.meta.url), "utf8");
+
 assert(queue.testMode && queue.payments[0].canTransfer && queue.payments[0].canRefund && queue.payments[0].amountPence === 12_000 && Object.isFrozen(queue.payments), "The Administrator queue lost exact economics, actionability or test-mode proof.");
 assert.equal(adminPaymentFilter(""), "actionable");
 assert.equal(adminPaymentFilter("AUTHORIZED"), "authorized");
@@ -57,7 +64,7 @@ assert(script.includes("adminPaymentBookingFilter") && script.includes("bookingI
 assert(script.includes("amountCapturedPence - actionRecord.amountRefundedPence") && script.includes("amountPence > maximumRefund") && script.includes("paymentActionPayload") && script.includes("textContent"), "Refunds lost the remaining-capture boundary or the page stopped using validated/safe rendering.");
 assert(script.includes("paymentNextAction(record)") && script.includes('actionButton(record, "refund", true)') && styles.includes(".admin-payment-next-payout-wait") && styles.includes(".admin-payment-next-refund-review"), "Routine settlement can still present refund as the normal primary action while Cleaner payout setup is incomplete.");
 assert(styles.includes(".admin-payment-confirmation-facts") && styles.includes(".admin-payment-warning") && styles.includes("@media (max-width: 680px)") && styles.includes("min-height: 3rem"), "Payment operations lost mobile, uncertainty or one-hand action styling.");
-assert(server.includes('"/admin/payments": "admin-payments.html"') && admin.includes('href="/admin/payments"'), "The protected settlement route is not served or linked from the control desk.");
+assert(server.includes('"/admin/payments": "admin-payments.html"') && adminNavigation.includes('{ href: "/admin/payments", label: ') && admin.includes("/admin-navigation.js?v="), "The protected settlement route is not served or linked from the control desk.");
 assert(packageJson.includes('"check:admin-payments"') && packageJson.includes('"test:admin-payments"') && packageJson.includes("tests/admin-payments-ui.mjs"), "Payment-operation UI checks are absent from repository quality gates.");
 assert(router.includes("adminPaymentCommandPath") && router.includes('pathname === "/api/marketplace/admin/payments"') && router.includes('roles: ["administrator"]') && router.includes("await payments[kind]") && router.includes("amountPence: input.amountPence"), "Administrator payment HTTP routes lost strict role, command or refund-amount routing.");
 assert(service.includes("listForAdministrator") && service.includes("requireRole(actor, \"administrator\")") && service.includes("testMode: true") && repository.includes("list_administrator_payment_operations"), "Payment operations lost service-level Administrator enforcement, test-mode proof or the narrow repository projection.");

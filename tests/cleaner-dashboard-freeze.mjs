@@ -20,8 +20,16 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // shared backend below: which Cleaner is offered a job, on what terms, what
 // they earn and whether it is dispatched automatically. That digest has not
 // moved and must not be refreshed without the same explicit instruction.
-const expectedFileCount = 90;
-const expectedDigest = "688978ca9571dc85d241891fad1a419def6f7e8ce92fc560bf123fc1012c03d7";
+//
+// The count dropped from 90 to 88 when public/cleaner-reviews.{html,js} were
+// removed. They were an orphan: no server route mapped to them, nothing in the
+// product linked them, and cleaner-performance.html had already superseded them
+// — it reads the same /api/marketplace/cleaners/{id}/reviews and carries the
+// same data-reviews-* sockets, and /cleaner/reviews already routes there. The
+// deletion removed a duplicate of a live screen, not a feature. The shared
+// backend digest below was verified byte-identical across that change.
+const expectedFileCount = 88;
+const expectedDigest = "a1b6ff1d834138772d5ddcc33585e8db8ca9107a21eb58b186efc2d66dd45fb9";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",

@@ -105,7 +105,6 @@ const cleanerWorkspace = new Set([
   "cleaner-payouts",
   "cleaner-public-profile",
   "cleaner-registration",
-  "cleaner-reviews",
   "cleaner-schedule",
   "cleaner-settings",
   "cleaner-training"

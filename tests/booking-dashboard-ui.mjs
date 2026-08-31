@@ -140,8 +140,7 @@ const [
   cleanerScheduleScript,
   cleanerJobPage,
   cleanerJobScript,
-  cleanerReviewsPage,
-  cleanerReviewsScript,
+
   cleanerDocumentsPage,
   cleanerDocumentsScript,
   cleanerTrainingPage,
@@ -174,8 +173,7 @@ const [
   readFile(new URL("../public/cleaner-schedule.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-job.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-job.js", import.meta.url), "utf8"),
-  readFile(new URL("../public/cleaner-reviews.html", import.meta.url), "utf8"),
-  readFile(new URL("../public/cleaner-reviews.js", import.meta.url), "utf8"),
+
   readFile(new URL("../public/cleaner-documents.html", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-documents.js", import.meta.url), "utf8"),
   readFile(new URL("../public/cleaner-training.html", import.meta.url), "utf8"),
@@ -207,8 +205,8 @@ const [
 
 const clientConversationNamesMigration = await readFile(new URL("../db/migrations/090_booking_client_conversation_names.sql", import.meta.url), "utf8");
 
-const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerReviewsPage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage, cleanerIncidentReportsPage, cleanerDisputesPage, cleanerSettingsPage];
-const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerReviewsScript, cleanerPublicProfileScript];
+const cleanerWorkspacePages = [cleanerPage, cleanerRegistrationPage, cleanerSchedulePage, cleanerJobPage, cleanerJobsMapPage, cleanerPerformancePage, cleanerDocumentsPage, cleanerTrainingPage, cleanerContractsPage, cleanerPublicProfilePage, cleanerMessagesPage, cleanerNotificationsPage, cleanerHelpCentrePage, cleanerSupportTicketsPage, cleanerIncidentReportsPage, cleanerDisputesPage, cleanerSettingsPage];
+const cleanerWorkspaceScripts = [cleanerScheduleScript, cleanerJobScript, cleanerPublicProfileScript];
 assert(cleanerJobsMapPage.includes("Jobs near you") && cleanerJobsMapPage.includes("data-map-tiles") && cleanerJobsMapPage.includes("data-map-pins") && cleanerJobsMapPage.includes("data-map-list") && cleanerJobsMapPage.includes("data-map-zoom-in") && cleanerJobsMapPage.includes("data-map-zoom-out") && cleanerJobsMapPage.includes("OpenStreetMap contributors") && cleanerJobsMapPage.includes("Exact addresses remain private"), "The Cleaner Jobs Map is missing its postcode-centred street map, full available-job list, zoom controls, attribution or privacy boundary.");
 for (const detail of ["Date & time", "Duration", "Property", "Work", "Distance", "Location"]) assert(cleanerJobsMapScript.includes(`detailItem("${detail}"`), `The available-job list does not display ${detail.toLowerCase()}.`);
 assert(cleanerJobsMapScript.includes('requestJson("/api/marketplace/bookings?limit=50")') && cleanerJobsMapScript.includes('bookingSummaryBuckets(bookings, "cleaner").pending') && cleanerJobsMapScript.includes("bookingPhotoUrls") && cleanerJobsMapScript.includes("formatBookingMoney") && cleanerJobsMapScript.includes("formatBookingWindow"), "The Jobs Map is not backed by private Cleaner offers or has lost price, timing and image details.");
@@ -453,8 +451,12 @@ assert(cleanerStyles.includes("@media (max-width: 900px)") && cleanerStyles.incl
 for (const copy of ["Cleaner dashboard", "Pending requests", "Active and upcoming jobs"]) assert(cleanerPage.includes(copy), `The Cleaner dashboard omitted ${copy}.`);
 for (const field of ["profile-progress", "availability-count", "rating", "completed-jobs", "completed-value", "committed-value", "payout-state"]) assert(cleanerPage.includes(`data-cleaner-${field}`), `The complete Cleaner dashboard omitted its ${field} account summary.`);
 assert((cleanerPage.match(/data-account-avatar/g) || []).length >= 1 && (landlordPage.match(/data-account-avatar/g) || []).length >= 2 && cleanerPage.includes("Signed in as Cleaner") && cleanerSidebar.includes("cleaner-site-header") && landlordPage.includes("Signed in as Landlord") && landlordPage.includes("landlord-dashboard-identity") && cleanerScript.includes("renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl)") && landlordScript.includes("renderAccountAvatar(account)") && accountAvatar.includes('url.protocol === "https:"') && accountAvatar.includes('referrerPolicy = "no-referrer"'), "Cleaner and Landlord dashboards are not visually separate or cannot show the verified account photo prominently with a safe fallback.");
-assert(cleanerPage.includes("data-cleaner-workspace-link") && landlordPage.includes("data-landlord-workspace-link") && cleanerScript.includes('dashboardWorkspaceAccess(account, "cleaner")') && landlordScript.includes('dashboardWorkspaceAccess(account, "landlord")') && cleanerScript.includes("Cleaner jobs and professional controls remain in a separate private dashboard") && landlordScript.includes("Properties, room scans and cleaning requests remain in a separate private Landlord dashboard"), "The dashboard shell can still combine role controls or strand an account in the wrong workspace.");
+assert(cleanerPage.includes("data-cleaner-workspace-link") && landlordPage.includes("data-landlord-workspace-link") && cleanerScript.includes('dashboardWorkspaceAccess(account, "cleaner")') && landlordScript.includes('dashboardWorkspaceAccess(account, "landlord")') && cleanerScript.includes("Cleaner jobs and professional controls remain in a separate private dashboard") && landlordScript.includes("Properties, room scans and cleaning requests are in your Landlord workspace"), "The dashboard shell can still combine role controls or strand an account in the wrong workspace.");
+// Both directions, and both must offer the way back. A refusal that only names
+// the wrong workspace is the lockout: the account holds both roles and the only
+// escape was the URL bar.
 assert(cleanerScript.includes('workspaceDestination: "/onboarding?intent=work"') && cleanerScript.includes('workspaceActionLabel: "Switch to Cleaner workspace"'), "A verified multi-workspace account cannot recover from a Landlord-selected Cleaner dashboard.");
+assert(landlordScript.includes('workspaceDestination: "/onboarding?intent=book"') && landlordScript.includes('workspaceActionLabel: "Switch to Landlord workspace"'), "A verified multi-workspace account cannot recover from a Cleaner-selected Landlord dashboard.");
 assert(server.includes("https://*.googleusercontent.com") && server.includes("https://*.fbcdn.net") && server.includes("https://platform-lookaside.fbsbx.com") && accountAvatar.includes("trustedAvatarHosts") && accountAvatar.includes("hostname.endsWith"), "The browser security policy still blocks trusted provider photos or the client accepts arbitrary remote avatar hosts.");
 assert(cleanerScript.indexOf('const accountResult = await requestJson("/api/marketplace/account")') < cleanerScript.indexOf("Promise.allSettled") && cleanerScript.indexOf("renderAccountAvatar(account)") < cleanerScript.indexOf("Promise.allSettled") && landlordScript.includes('requestJson("/api/marketplace/landlord/bootstrap")') && landlordScript.indexOf("renderAccountAvatar(account)") < landlordScript.indexOf("void refreshFavouriteCleaners()"), "A slow secondary dashboard service can still hide the signed-in user's role identity or profile picture.");
 assert(landlordPage.includes("data-landlord-load-status") && landlordPage.includes("data-landlord-load-retry") && cleanerScript.includes("Your Cleaner account is open, but some job or profile details could not be refreshed") && landlordPage.includes("Your Landlord account is open, but some information could not be refreshed") && styles.includes(".dashboard-partial-status"), "A partial dashboard failure still presents an empty or mixed workspace without a truthful retry state.");

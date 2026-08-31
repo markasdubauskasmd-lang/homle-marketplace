@@ -67,6 +67,13 @@ const [landlordPage, landlordScript, workspaceShell, workspaceShellModel, adminP
   readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8"),
   readFile(new URL("../public/admin.html", import.meta.url), "utf8")
 ]);
+// Reachability now comes from the one shared list in admin-navigation.js, not
+// from markup copied into each desk. Asserting it there is stronger: it means
+// this desk is reachable from ALL ELEVEN desks rather than from the control
+// desk alone, which is the fault that left /admin/scan-operations linked from
+// exactly one page and reachable nowhere else.
+const adminNavigation = await readFile(new URL("../public/admin-navigation.js", import.meta.url), "utf8");
+
 assert(landlordPage.includes("data-support-workspace hidden") && landlordPage.includes("Do not include door or alarm codes") && landlordPage.includes('name="confirmNoSensitiveData"') && landlordPage.includes('value="booking-change"') && landlordPage.includes("payment stay unchanged"), "The Landlord help screen lost its fail-closed gate, booking-change boundary or privacy warning.");
 assert(landlordScript.includes('roles?.includes("landlord")') && landlordScript.includes("/api/marketplace/landlord/support-requests") && landlordScript.includes('"X-CSRF-Token": csrf'), "The Landlord help screen lost authenticated role or CSRF binding.");
 // The page used to carry its own header with the private navigation inside it,
@@ -85,6 +92,6 @@ assert(adminPage.includes("Recording a response never changes a booking or payme
 assert(adminScript.includes('roles?.includes("administrator")') && adminScript.includes("/api/marketplace/admin/support-requests") && adminScript.includes('method: "PATCH"') && !adminScript.includes("innerHTML"), "The Administrator support queue lost role, API or safe-rendering boundaries.");
 assert(adminPage.includes("data-admin-support-private-navigation hidden") && adminPage.includes('<a class="brand" href="/">') && adminScript.includes('const privateNavigation = document.querySelector("[data-admin-support-private-navigation]")') && adminScript.includes("privateNavigation.hidden = true") && adminScript.includes("privateNavigation.hidden = false") && adminScript.indexOf("privateNavigation.hidden = false") > adminScript.indexOf('roles?.includes("administrator")'), "Signed-out, loading or wrong-role visitors can see private Administrator Support navigation, or the Homle brand no longer returns to the public home page.");
 assert(styles.includes("@media(max-width:760px)") && styles.includes(".support-layout") && styles.includes(".support-feedback"), "The support journey lacks mobile, loading or feedback styling.");
-assert(server.includes('"/landlord/help": "landlord-help.html"') && server.includes('"/admin/support": "admin-support.html"') && dashboard.includes('href="/landlord/help"') && admin.includes('href="/admin/support"'), "The private support pages are not served or reachable from the correct role workspaces.");
+assert(server.includes('"/landlord/help": "landlord-help.html"') && server.includes('"/admin/support": "admin-support.html"') && dashboard.includes('href="/landlord/help"') && adminNavigation.includes('{ href: "/admin/support", label: ') && admin.includes("/admin-navigation.js?v="), "The private support pages are not served or reachable from the correct role workspaces.");
 
 console.log("Support-request UI checks passed: Landlord-only intake, Administrator-only queue, safe retries, explicit privacy/no-action confirmations, safe rendering and mobile navigation.");
