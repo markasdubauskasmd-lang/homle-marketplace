@@ -119,6 +119,7 @@ Nineteen routes, all on `homle-cleaner.css`, all now rendering one sidebar from
 | `/cleaner/help-centre` `/cleaner/support-tickets` `/cleaner/report-incident` `/cleaner/disputes` | C | Support | PASS | PASS | PASS | hc | PASS | support, disputes | PASS | PASS | PASS | Own tickets only | PASS | — |
 | `/cleaner/onboarding` + 14 registration step routes | C | Registration | PASS | PASS | PASS | hc + redesign | PASS | onboarding | PASS | PASS | PASS | Identity and right-to-work handling | PASS | brand mark now a link on all — P2-14 |
 | `/cleaner/jobs/:uuid` | C | Job offer detail | PASS | PASS | PASS | hc | PASS | matching | PASS | PASS | PASS | Invited Cleaner only | PASS | — |
+| *(second QA pass)* | — | 70 rendered states, 3 roles × 2 viewports | PASS | — | PASS | one canvas per workspace | PASS | PASS | PASS | PASS | PASS | — | PASS | 9 findings on the first run, 0 product defects on the last. The 4 remaining entries are proven environment/harness artifacts: the sandbox rejects CONNECT to `tile.openstreetmap.org`, and the harness injects a session cookie without the CSRF token a real sign-in stores (`/admin/pricing/preview` answers 200 with it, 403 without) |
 | `/cleaner/reviews` | C | *(redirects to `/cleaner/performance`)* | N/A | N/A | N/A | N/A | PASS | N/A | N/A | N/A | N/A | — | PASS | the orphan `public/cleaner-reviews.{html,js}` are now removed — D-17 |
 
 ## Shared job routes

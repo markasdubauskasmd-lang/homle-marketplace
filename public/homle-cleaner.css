@@ -2878,9 +2878,16 @@ a.hc-contract-title:focus-visible { outline: 2px solid rgba(198, 42, 26, .32); o
 }
 .hc-ladder-name { font-size: 11.5px; font-weight: 600; color: var(--hc-muted-2); }
 
-.hc-criteria { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
-.hc-criterion { background: var(--hc-panel); border-radius: 18px; padding: 18px 20px; box-shadow: 0 10px 26px rgba(180, 150, 110, .11); }
-.hc-criterion-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+/* `1fr 1fr` was a hard two-column grid with no floor. On a 390px phone each
+   card's own content — a label beside a status chip, above a 26px display
+   number — could not shrink to the track, so the second column ran 33px past
+   the edge, "Approved rating" was clipped mid-word and the page carried a
+   horizontal scrollbar. auto-fit drops it to one column when two will not fit,
+   the same idiom the photo and registration grids in this sheet already use. */
+.hc-criteria { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.hc-criterion { background: var(--hc-panel); border-radius: 18px; padding: 18px 20px; box-shadow: 0 10px 26px rgba(180, 150, 110, .11); min-width: 0; }
+/* The label and its chip wrap rather than forcing the card wider than its track. */
+.hc-criterion-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .hc-criterion-label { font-size: 11px; letter-spacing: 1px; color: var(--hc-muted-2); font-weight: 600; }
 .hc-criterion-chip { background: var(--hc-green-soft); color: var(--hc-green-ink); border-radius: 999px; padding: 4px 10px; font-size: 10px; font-weight: 700; }
 .hc-criterion-chip-off { background: var(--hc-cream); color: var(--hc-muted); }

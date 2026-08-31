@@ -844,6 +844,15 @@ picker off the phone.*
   panels — a false positive it took a clipping-ancestor trace and a screenshot
   to separate from the real defect. The measurement that settles it is whether
   anything is *visible* past the edge, not the document width.
+- **A second instance, same class, found by the same sweep.**
+  `/cleaner/performance` at 390px: `.hc-criteria` was a hard `1fr 1fr` grid with
+  no floor and no breakpoint, so the second column ran **33px past the edge**,
+  "Approved rating" was clipped mid-word and the page carried a horizontal
+  scrollbar. Now `repeat(auto-fit, minmax(168px, 1fr))` with `min-width: 0` on
+  the card and `flex-wrap` on its head — the same idiom the photo and
+  registration grids in that sheet already used. Re-measured: document width
+  **375px inside a 390px viewport**, zero unclipped offenders, and the
+  screenshot shows the cards stacked in one column.
 - **Status.** `[x]`
 
 **Q-7 · P3 · Evidence** — *`/cleaner/jobs-map` cannot be verified by this

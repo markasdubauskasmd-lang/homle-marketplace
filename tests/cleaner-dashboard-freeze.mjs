@@ -36,7 +36,7 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // before: 1571 characters and no visible h1. After: 4002 and "Welcome, …". The
 // shared backend digest was verified byte-identical across that change too.
 const expectedFileCount = 88;
-const expectedDigest = "e97a1ab2e93911095a2a39b2cfb46ea18c0e36a42c80250e62dbcdfaf635e0d3";
+const expectedDigest = "a76c83c4dbd9a3d7e09bcfc3d221f2501183f4ea4745d2e9275fb85f0f8da707";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
