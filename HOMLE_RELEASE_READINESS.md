@@ -53,6 +53,8 @@ reflects what survived that, and the rows they moved are marked.
 | 31 | Test gate integrity | VERIFIED | All 202 files reached; guarded against recurrence by `tools/check-test-gate.mjs` |
 | 32 | `/cleaner/jobs-map` | **PARTIALLY VERIFIED** | Was BLOCKED: a `location.hostname` branch meant every local and CI run exercised a fake path and the role gate never ran. Branch removed; gate now refuses a signed-out visitor and a Landlord-only account and opens for a Cleaner, measured at both viewports. **Map tiles and the outcode lookup stay UNVERIFIED** — this sandbox's egress policy rejects CONNECT to `tile.openstreetmap.org` and `api.postcodes.io` |
 | 33 | Third-party processor disclosure | VERIFIED | `public/privacy.html` names OpenStreetMap and Postcodes.io and what each receives. **My audit claimed it did not; that claim was wrong** — the paragraph dates to 16 August 2026 |
+| 34 | Second full QA pass | VERIFIED | 70 rendered states, 3 roles × 2 viewports. **9 findings on the first run, 0 product defects on the last.** The 4 entries that remain are proven artifacts, not assumed: the sandbox rejects CONNECT to `tile.openstreetmap.org`, and the harness injects a session cookie without the CSRF token a real sign-in stores — `/admin/pricing/preview` answers 200 with it and 403 without |
+| 35 | `/cleaner/dashboard` | VERIFIED | Was **crashing on every load** and the error was hidden by a stylesheet — the route matrix had it as PASS because it renders a calendar (F-10, a regression from my own sidebar consolidation). Re-rendered as each reader: signed out 273 chars with a sign-in route, Landlord-only 300 with its own refusal, Cleaner 4002 with the workspace open. Was 142 / 157 / 1571 |
 
 ## Open findings
 
