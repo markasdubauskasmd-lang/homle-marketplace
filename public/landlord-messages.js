@@ -125,8 +125,14 @@ function renderThread({ forceBottom = false } = {}) {
   if (form) form.hidden = !conversation;
 
   if (!conversation) {
+    // Two panes, two different questions. The list answers "do you have any
+    // conversations"; the reading pane answers "which one are you reading". It
+    // used to answer the first as well, so an empty Messages view printed the
+    // same sentence twice — once in the list and once, stranded, in the middle
+    // of a 300px-tall blank card on a phone.
     const empty = element("div", "ld-messages-empty");
-    empty.append(element("p", "", state.loaded ? MESSAGES_EMPTY_COPY : "Loading…"));
+    if (!state.loaded) empty.append(element("p", "", "Loading…"));
+    else if (state.conversations.length) empty.append(element("p", "", "Choose a conversation to read it."));
     body.replaceChildren(empty);
     return;
   }

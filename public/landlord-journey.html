@@ -12,7 +12,7 @@
 <link rel="icon" href="/homle-logo-128-4f82ebad.png" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
-<link rel="stylesheet" href="/homle-tokens.css?v=20260830-1"><link rel="stylesheet" href="/styles.css?v=20260830-1"><link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1"><link rel="stylesheet" href="/pricing.css?v=20260808-1"><link rel="stylesheet" href="/landlord-journey-property.css?v=20260814-1"><link rel="stylesheet" href="/landlord-journey-v2.css?v=20260813-3"><link rel="stylesheet" href="/landlord-supply-recovery.css?v=20260821-1">
+<link rel="stylesheet" href="/homle-tokens.css?v=20260830-1"><link rel="stylesheet" href="/styles.css?v=20260830-1"><link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1"><link rel="stylesheet" href="/pricing.css?v=20260808-1"><link rel="stylesheet" href="/landlord-journey-property.css?v=20260814-1"><link rel="stylesheet" href="/landlord-journey-v2.css?v=20260831-1"><link rel="stylesheet" href="/landlord-supply-recovery.css?v=20260821-1">
 </head>
 <body class="journey-page">
 
@@ -50,6 +50,13 @@
 </header>
 
 <main class="journey-main" data-journey-shell hidden>
+
+  <!-- The journey's only h1 used to be the access gate's "Checking your secure
+       account…", which is hidden the moment the shell renders — so the whole
+       six-step flow had NO visible h1 and its heading tree started at h2. This
+       one names the page for a screen reader without competing with the step
+       heading a sighted reader is looking at. -->
+  <h1 class="journey-page-title">Book a clean</h1>
 
   <!-- ══ 1. PROPERTY ══ -->
   <section class="jstep" data-step="postcode">
@@ -340,6 +347,6 @@
 
 <div class="jtoast" data-toast role="status" aria-live="polite" hidden></div>
 
-<script type="module" src="/landlord-journey.js?v=journey11"></script>
+<script type="module" src="/landlord-journey.js?v=journey12"></script>
 </body>
 </html>

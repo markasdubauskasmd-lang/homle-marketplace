@@ -556,7 +556,7 @@ was the outlier.
   until the constant changes with it.
 - **Status.** `[x]`
 
-**Q-2 · P2 · Access** — *Dual-role accounts are locked out of the Landlord
+**Q-2 · P2 · Access** — *Dual-role accounts were locked out of the Landlord
 dashboard with no way back.* An account holding both roles with
 `selectedRole: "cleaner"` gets a gate on `/landlord/dashboard` whose only action
 is "Open Cleaner dashboard" — while `GET /landlord/bootstrap` returns **200 with
@@ -566,7 +566,17 @@ there is no "switch to Landlord" control anywhere in the Cleaner shell (the
 mirror gate does offer one). Related: `intent` on
 `POST /api/marketplace/auth/login` is accepted and ignored — it is read only for
 signup and verification resend — so signing in with `intent: "book"` still lands
-a dual-role account in the Cleaner workspace. **Status `[ ]`.**
+a dual-role account in the Cleaner workspace.
+
+- **Fix.** The Landlord gate now mirrors the Cleaner one, which already offered
+  the switch: "Switch to Landlord workspace" → `/onboarding?intent=book`.
+  `showState` gained the `workspaceActionLabel` its counterpart already had.
+- **Verification.** Browser, dual-role account with `selectedRole: "cleaner"`:
+  the gate offers **"Switch to Landlord workspace"**; following it sets
+  `selectedRole` to `landlord`, and `/landlord/dashboard` then opens on
+  **"Hello, QA Landlord"**. The ignored `intent` on login is unchanged and
+  remains recorded.
+- **Status.** `[x]` for the lockout; `[ ]` for the ignored login `intent`.
 
 **Q-3 · P2 · Concurrency** — *The five-open-support-request cap leaked under
 concurrency.*
@@ -597,27 +607,63 @@ concurrency.*
   no `500` and no spurious `409`.
 - **Status.** `[x]`
 
-**Q-4 · P2 · Empty states** — *Escape hatches send a signed-in user to
+**Q-4 · P2 · Empty states** — *Escape hatches sent a signed-in user to
 `/login`.* On `/bookings/<uuid>` and `…/tracking` with an unknown booking, a
 signed-in Landlord is offered "My workspace", "Account" and "Sign in", all
 pointing at `/login`, which renders a full sign-in form with no indication they
 are already signed in. This is the D-7 defect, fixed on the Updates page and
 still present on the shared job routes. `/landlord/messages` separately renders
-its empty-state sentence **twice**, in two panels. **Status `[ ]`.**
+its empty-state sentence **twice**, in two panels.
 
-**Q-5 · P3 · Accessibility** — *Touch targets under 24×24 CSS px at 390px*, on
-routes whose A11y cell reads PASS: "Sign out" on `/landlord/account` (214×23),
-the 404's only link (113×16), a checkbox on `/landlord/help` (18×18), and three
-links on `/landlord/book`. The audit's method claims touch-target sizes were
-recorded per page and per viewport; they were recorded and not acted on.
-`/landlord/book` also has **no visible `<h1>`** — its only one is the loading
-placeholder, hidden once the journey renders. **Status `[ ]`.**
+- **Root cause.** The job page's header links ship pointing at `/login`, because
+  a signed-out visitor may legitimately land there, and were only rewritten in
+  the **success** path — so every refusal, which is the common case since the
+  booking may simply be somebody else's, left all three pointing at sign-in. And
+  Messages printed one sentence from two panes that answer different questions.
+- **Fix.** The job page resolves its links from the account as soon as the role
+  is known, whatever happens to the booking, and only offers "Sign in" when
+  there is genuinely no workspace; the refusal now reads "This booking is not on
+  your account". The Messages list answers *do you have any conversations*; the
+  reading pane answers *which one are you reading* and says nothing when there
+  are none.
+- **Status.** `[x]`
 
-**Q-6 · P3 · Navigation** — *The six-step booking journey creates no history
-entries*, so the browser Back button exits the whole flow from step 2 rather
-than stepping back. No work is lost — the draft restores and no record is
-duplicated — but on a phone Back is the primary affordance on the product's
-longest flow. **Status `[ ]`.**
+**Q-5 · P3 · Accessibility** — *One real touch target, and a missing `h1`.*
+
+Re-measured at 390px against the **effective** hit area rather than each
+element's own box, which corrects three of the four reported:
+
+| Reported | Re-measured | |
+|---|---|---|
+| "Sign out" 214×23 | **not under 24px** | `::after { inset: 0 }` genuinely stretches it over its whole row |
+| 404 link 113×16 | **not applicable** | an inline link inside a sentence, which WCAG 2.5.8 explicitly excepts |
+| `/landlord/book` links | **not under 24px** | those are on the access gate, which a signed-in Landlord never sees |
+| `/landlord/help` checkbox 18×18 | **confirmed** | the consent box a Landlord must tick before Homle accepts the request |
+
+- **Fix.** The checkbox is drawn at 18 and padded to 24 with `content-box`, so
+  the tick stays the size the composition expects while the finger gets the area
+  the guideline asks for. `/landlord/book` gets a persistent visually-hidden
+  `h1` — its only one was the access gate's, hidden the moment the shell
+  renders, so the whole six-step flow started its heading tree at `h2`.
+- **Verification.** The probe reports **0 controls under 24px** on
+  `/landlord/account`, `/landlord/help` and `/landlord/book` at 390px.
+- **Status.** `[x]`
+
+**Q-6 · P3 · Navigation** — *The six-step booking journey created no history
+entries*, so the browser Back button exited the whole flow from step 2 rather
+than stepping back — and on a phone Back is the primary affordance on the
+product's longest flow.
+
+- **Fix.** Each step change syncs `history`, in one of three modes so that no
+  path can strand the reader: a forward move **pushes**, the in-app back control
+  and the first render **replace** (so Back never lands on the step it started
+  from, and going back in the app leaves no forward entry to the step just
+  left), and a `popstate` touches history not at all. The step being left is
+  read first, so Back is not a way to lose an answer.
+- **Verification.** Browser at 390px: **step 2 → Back → step 1 → Back →
+  `/landlord/home`, and Forward → step 1.** Before, step 2 → Back →
+  `/landlord/home`.
+- **Status.** `[x]`
 
 **Q-7 · P3 · Evidence** — *`/cleaner/jobs-map` cannot be verified by this
 harness.* `localPreview` is gated on `location.hostname` being loopback, and the

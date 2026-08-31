@@ -392,18 +392,25 @@ body.homle-workspace label.checkbox,
 body.homle-workspace label:has(> input[type="checkbox"]),
 body.homle-workspace label:has(> input[type="radio"]) {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr);
   gap: 10px;
   align-items: start;
   font-weight: 500;
   line-height: 1.5;
 }
+/* 24×24 is the WCAG 2.5.8 minimum, and the consent box on the support form —
+   the one a Landlord must tick before Homle will accept the request — measured
+   18×18 at 390px. The box is drawn at 18 and padded to 24 rather than scaled,
+   so the tick stays the size the rest of the composition expects while the
+   finger gets the area the guideline asks for. */
 body.homle-workspace input[type="checkbox"],
 body.homle-workspace input[type="radio"] {
   width: 18px;
   height: 18px;
   min-height: 0;
-  margin: 1px 0 0;
+  box-sizing: content-box;
+  padding: 3px;
+  margin: 0;
   accent-color: var(--homle-ws-accent, #e11b22);
 }
 body.homle-workspace .hw-field { display: block; margin-top: 14px; }

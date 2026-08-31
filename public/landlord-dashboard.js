@@ -333,7 +333,7 @@ function beginManualCleanFromChooser() {
   requestForm.elements.requestedDate.focus({ preventScroll: true });
 }
 
-function showState(title, copy, { kind = "info", allowSignIn = false, allowRetry = false, workspaceDestination = "", workspaceLabel = "" } = {}) {
+function showState(title, copy, { kind = "info", allowSignIn = false, allowRetry = false, workspaceDestination = "", workspaceLabel = "", workspaceActionLabel = "" } = {}) {
   state.dataset.kind = kind;
   state.hidden = false;
   stateTitle.textContent = title;
@@ -343,7 +343,7 @@ function showState(title, copy, { kind = "info", allowSignIn = false, allowRetry
   workspaceLink.hidden = !workspaceDestination;
   if (workspaceDestination) {
     workspaceLink.href = workspaceDestination;
-    workspaceLink.textContent = `Open ${workspaceLabel} dashboard`;
+    workspaceLink.textContent = workspaceActionLabel || `Open ${workspaceLabel} dashboard`;
   }
   notificationLink.hidden = true;
   for (const item of privateNavigation) item.hidden = true;
@@ -3969,8 +3969,13 @@ async function loadWorkspace() {
     const bootstrap = bootstrapResult.value;
     const account = bootstrap.account;
     const access = dashboardWorkspaceAccess(account, "landlord");
+    // A dual-role account was offered exactly one action here — the OTHER
+    // workspace — so there was no way back to this one from inside the product,
+    // while /landlord/book admitted the same account in full and offered it its
+    // own properties. The dashboard refused what the booking journey allowed.
+    // The Cleaner gate already offers the switch; this now mirrors it.
     if (!access.ready) return access.reason === "different-workspace"
-      ? showState(`Your ${access.label} workspace is active.`, "Properties, room scans and cleaning requests remain in a separate private Landlord dashboard.", { kind: "authentication", workspaceDestination: access.destination, workspaceLabel: access.label })
+      ? showState(`Your ${access.label} workspace is active.`, "Properties, room scans and cleaning requests are in your Landlord workspace. Switch this verified account back to it to continue.", { kind: "authentication", workspaceDestination: "/onboarding?intent=book", workspaceLabel: "Landlord", workspaceActionLabel: "Switch to Landlord workspace" })
       : showState("This account has no Landlord workspace.", "Sign in through Book a clean to create the separate property workspace.", { kind: "authentication", allowSignIn: true });
     setLandlordDisplayName(account.displayName || "Landlord");
     renderAccountAvatar(account);

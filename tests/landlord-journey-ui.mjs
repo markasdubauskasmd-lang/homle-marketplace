@@ -145,12 +145,29 @@ assert(page.includes("exact address stays private") && page.includes("Private ac
 assert(!page.includes("Enhanced DBS") && !page.includes("Insured incl. theft") && !page.includes("Free cancellation 24h") && !page.includes("cancel free up to"), "The booking journey invents unverified screening, insurance or cancellation claims.");
 assert(page.includes("data-rail") && page.includes("data-step-label") && page.includes("data-back"), "The progress rail is missing.");
 assert(styles.includes(".rail-seg") && styles.includes(".rail-lbl") && styles.includes(".jstep"), "The journey presentation is missing.");
-assert(page.includes("/styles.css?v=20260830-1") && page.includes("/noncleaner-scroll.css?v=20260814-1") && page.includes("/landlord-journey-property.css?v=20260814-1") && page.includes("/landlord-supply-recovery.css?v=20260821-1") && page.includes("/landlord-journey.js?v=journey11") && script.includes("./landlord-journey-model.js?v=journey8"), "The property-first journey, page styling, zero-supply recovery, isolated non-Cleaner scrolling or matching model can remain stuck behind previous cached assets.");
+assert(page.includes("/styles.css?v=20260830-1") && page.includes("/noncleaner-scroll.css?v=20260814-1") && page.includes("/landlord-journey-property.css?v=20260814-1") && page.includes("/landlord-supply-recovery.css?v=20260821-1") && page.includes("/landlord-journey.js?v=journey12") && script.includes("./landlord-journey-model.js?v=journey8"), "The property-first journey, page styling, zero-supply recovery, isolated non-Cleaner scrolling or matching model can remain stuck behind previous cached assets.");
 assert(script.includes("selectScanProperty(property)") && script.includes("state.draft.propertyId = property.propertyId") && script.includes("checkSupply(parsed.outward)"), "Selecting a saved property does not bind its private postcode to coverage and the rest of the journey.");
 assert(script.includes("Drafts created before the property-first journey") && script.includes('if (stepIndex(state.step) > 0) state.step = "postcode"'), "An old postcode-only draft can bypass the new first-step property choice.");
 assert(page.includes("data-access-gate") && page.includes("data-journey-shell hidden") && page.includes('href="/signup?intent=book" data-access-sign-in'), "A copied or installed-app booking link can expose the scanner before secure Landlord access is checked.");
 assert(script.includes('location.replace("/signup?intent=book")') && script.includes('location.replace("/onboarding?intent=book")') && script.includes("openAuthenticatedJourney") && script.includes('access.status !== "ready"'), "The booking journey does not recover account-first entry, add the separate Landlord role, or fail closed before opening the scanner.");
-assert(script.indexOf("await openAuthenticatedJourney()") < script.lastIndexOf("show(state.step)"), "The room-scan journey is rendered before the signed-in Landlord workspace is verified.");
+// Matched without the closing paren: `show` now takes a history mode, so the
+// first render reads `show(state.step, "replace")`. The property under test is
+// the ORDER — the workspace check before anything is rendered — not the
+// argument list.
+assert(script.indexOf("await openAuthenticatedJourney()") < script.lastIndexOf("show(state.step"), "The room-scan journey is rendered before the signed-in Landlord workspace is verified.");
+
+// The six steps are one document, so without history entries the browser Back
+// button left the journey entirely from step 2 — and on a phone Back is the
+// primary way people go back. Measured before: step 2 -> /landlord/home. After:
+// step 2 -> step 1 -> /landlord/home, with Forward returning.
+assert(script.includes("function syncJourneyHistory"), "The booking journey no longer records its steps in browser history, so Back leaves the whole flow instead of stepping back through it.");
+assert(script.includes('window.addEventListener("popstate"'), "The booking journey does not listen for popstate, so a Back press would change the URL without changing the step.");
+assert(script.includes('show(stepId, "none")'), "The popstate handler pushes or replaces history while responding to history, which fights the browser.");
+assert(/el\.back\.addEventListener[\s\S]{0,420}show\(previous, "replace"\)/.test(script), "The in-app back control pushes a history entry, so browser Forward would return to the step just left.");
+assert(script.includes('show(state.step, "replace")') && !/[^,]\bshow\(state\.step\)/.test(script), "The first render pushes a history entry, so the first Back press lands on the step it started from.");
+// Back must not be a way to lose an answer: the step being left is read first,
+// exactly as the in-app control does.
+assert(/popstate[\s\S]{0,320}readCurrentStep\(\)/.test(script), "A Back press abandons whatever was typed on the step being left.");
 
 // The scan is an interstitial in the journey, not a dead end.
 assert(page.includes("data-scan-link") && script.includes("openRoomScan"), "The journey never offers the room scan.");

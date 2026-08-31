@@ -292,7 +292,31 @@ function adoptScan() {
 }
 
 /* ── Navigation ─────────────────────────────────────── */
-function show(stepId) {
+
+// The six steps are one document, so without this the browser Back button
+// leaves the journey entirely from step 2 rather than stepping back through it
+// — and on a phone Back is the primary way people go back. No work was ever
+// lost, because the draft restores, but the control did the wrong thing on the
+// product's longest flow.
+//
+// Three modes, because the wrong one strands somebody:
+//   "push"    a forward move. Adds an entry, so Back returns here.
+//   "replace" a move that should not be re-enterable by going forward: the
+//             in-app back control, and the first render.
+//   "none"    we are already responding to a popstate; touching history again
+//             would fight the browser.
+function syncJourneyHistory(stepId, mode) {
+  if (mode === "none") return;
+  const entry = { journeyStep: stepId };
+  try {
+    // Nothing to go back to yet on the first render, so replace rather than
+    // push: otherwise Back lands on the same step it started from.
+    if (mode === "push" && typeof window.history.state?.journeyStep === "string") window.history.pushState(entry, "");
+    else window.history.replaceState(entry, "");
+  } catch { /* A sandboxed or file: context can refuse history. The journey still works. */ }
+}
+
+function show(stepId, historyMode = "push") {
   state.step = stepId;
   for (const section of $$(".jstep")) section.hidden = section.dataset.step !== stepId;
   const rail = railState(stepId);
@@ -320,6 +344,7 @@ function show(stepId) {
   if (stepId === "when") renderWhen();
   if (stepId === "cleaner") loadCleaners();
   if (stepId === "checkout") renderCheckout();
+  syncJourneyHistory(stepId, historyMode);
 }
 
 function goNext() {
@@ -1803,12 +1828,23 @@ el.propertyNewToggle.addEventListener("click", () => {
   el.propertyType.focus();
 });
 el.accessRetry.addEventListener("click", async () => {
-  if (await openAuthenticatedJourney()) show(state.step);
+  if (await openAuthenticatedJourney()) show(state.step, "replace");
 });
 el.back.addEventListener("click", () => {
   readCurrentStep();
   const previous = previousStep(state.step);
-  if (previous) show(previous);
+  // Replace rather than push: going back in the app should not leave a forward
+  // entry that returns to the step just left.
+  if (previous) show(previous, "replace");
+});
+
+window.addEventListener("popstate", (event) => {
+  const stepId = event.state?.journeyStep;
+  if (typeof stepId !== "string" || stepIndex(stepId) < 0 || stepId === state.step) return;
+  // Keep whatever was typed on the step being left, exactly as the in-app
+  // control does, so Back is not a way to lose an answer.
+  readCurrentStep();
+  show(stepId, "none");
 });
 
 restoreDraft();
@@ -1839,7 +1875,8 @@ if (state.draft.postcode) {
 const capabilitiesReady = loadCapabilities();
 const journeyOpened = await openAuthenticatedJourney();
 if (journeyOpened) {
-  show(state.step);
+  // The first render: replace, so Back does not land on the step it started on.
+  show(state.step, "replace");
   if (cameFromScan) toast("Your scan is here. Check the checklist before continuing.");
 }
 await capabilitiesReady;

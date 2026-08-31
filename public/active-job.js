@@ -70,6 +70,20 @@ document.querySelector("[data-year]").textContent = String(new Date().getFullYea
 document.querySelector("[data-booking-reference]").textContent = bookingId ? bookingId.slice(0, 8).toUpperCase() : "Invalid";
 
 
+// The header's "My workspace" and "Account" links ship pointing at /login,
+// because a signed-out visitor may legitimately land here. They were only
+// rewritten once a booking resolved, so every refusal — the common case, since
+// the booking may simply belong to somebody else — offered a SIGNED-IN reader a
+// sign-in form as their only way out, on all three of them. Resolve them from
+// the account as soon as it is known, whatever happens to the booking.
+function resolveWorkspaceLinks() {
+  const destination = state.role === "cleaner" ? "/cleaner/dashboard" : state.role === "landlord" ? "/landlord/dashboard" : "";
+  if (!destination) return;
+  for (const link of document.querySelectorAll("[data-workspace-link], [data-review-workspace]")) link.href = destination;
+  const account = document.querySelector('.active-job-header a[href="/login"]');
+  if (account) account.href = state.role === "cleaner" ? "/cleaner/settings" : "/landlord/account";
+}
+
 function showGate(title, copy, { kind = "info", allowSignIn = false, allowRetry = false } = {}) {
   stopLocationSharing();
   stopJourneyTicks();
@@ -1242,7 +1256,7 @@ async function refreshBooking() {
     showFeedback("Booking refreshed from Homle. No booking action, payment or location update was sent.", "success");
   } catch (error) {
     if (error.statusCode === 401) showGate("Sign in to refresh this booking", "Your session expired. No booking action, payment or location update was sent.", { kind: "authentication", allowSignIn: true });
-    else if (error.statusCode === 403 || error.statusCode === 404) showGate("This account cannot refresh the booking", "Use the assigned Cleaner or owning Landlord account. Homle has not revealed any new booking details.", { kind: "authentication", allowSignIn: true });
+    else if (error.statusCode === 403 || error.statusCode === 404) showGate("This booking is not on your account", "It belongs to a different Cleaner or Landlord. Homle has not revealed any new booking details.", { kind: "authentication", allowSignIn: !state.role });
     else setConnection("offline", "Refresh interrupted", "The last verified booking state remains visible. Check the connection and try again.");
   } finally {
     state.refreshInFlight = false;
@@ -1262,6 +1276,7 @@ async function load() {
       throw error;
     }
     state.role = activeJobRole(state.account);
+    resolveWorkspaceLinks();
     if (!state.role) return showGate("Choose a Cleaner or Landlord workspace", "This account has not completed role onboarding for active bookings.", { kind: "authentication", allowSignIn: true });
     await refreshParticipantSnapshot();
     showFeedback("");
@@ -1269,7 +1284,10 @@ async function load() {
     openLiveStream();
   } catch (error) {
     if (error.statusCode === 401) showGate("Sign in to open this booking", "Live journey and cleaning updates are private to the confirmed booking participants.", { kind: "authentication", allowSignIn: true });
-    else if (error.statusCode === 403 || error.statusCode === 404) showGate("This account cannot open the booking", "Use the assigned Cleaner or owning Landlord account. Homle has not revealed any booking details.", { kind: "authentication", allowSignIn: true });
+    // Signed in, but not on this booking. Offering "Sign in" to somebody who
+    // already is says the wrong thing; the header now points at their own
+    // workspace instead.
+    else if (error.statusCode === 403 || error.statusCode === 404) showGate("This booking is not on your account", "It belongs to a different Cleaner or Landlord. Homle has not revealed any booking details. Your own bookings are in your workspace.", { kind: "authentication", allowSignIn: !state.role });
     else if (error.statusCode === 503) showGate("Secure marketplace accounts are temporarily unavailable", "No location sharing started and no booking update was attempted. Try again when the protected runtime is healthy.", { kind: "unavailable", allowRetry: true });
     else showGate("The booking could not be opened", "No location sharing started. Check your connection and try again.", { kind: "error", allowRetry: true });
   }
