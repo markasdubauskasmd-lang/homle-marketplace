@@ -779,6 +779,73 @@ ready while its thread was still loading.*
   computed-style baseline runs are clean where one in three failed before.
 - **Status.** `[x]`
 
+**F-10 · P1 · Broken feature** — *The Cleaner's own dashboard crashed on every
+load, and the error that said so was hidden by a stylesheet.*
+
+- **Found by the second QA pass**, not by reading: the route matrix had
+  `/cleaner/dashboard` as PASS, and it renders a calendar, so it looks like a
+  working page.
+- **Root cause, and it is mine.** `cleaner-dashboard.js` ran
+  `document.querySelector("[data-cleaner-profile-link]").textContent = …`
+  unguarded, in the middle of the dashboard's render. Commit `f54b2f3` — *my*
+  commit, consolidating nineteen hand-copied Cleaner navigations into
+  `cleaner-sidebar.js` — removed that hook from every page, and nothing
+  recreates it. So the line threw a `TypeError` on every load. The four other
+  pages that touch the same family of hooks all guard with `if (link)`; the
+  dashboard was the one that did not.
+- **What the reader saw.** The `catch` turned the crash into
+  "The Cleaner dashboard is temporarily unavailable" — and a second defect hid
+  that message (below), so the page showed its calendar, no welcome, no
+  heading, no pending offers, no bookings and no explanation. Everything after
+  that line had never run. **Measured: 1571 characters and no visible `h1`;
+  after the fix, 4002 and "Welcome, …".**
+- **Second defect, same screen.**
+  `homle-cleaner.css` suppressed the gate whenever the activity schedule was
+  ready: `.hc-main-inner[data-activity-schedule-ready="true"] >
+  [data-cleaner-dashboard-gate] { display: none }`. The intent was right —
+  `cleaner-schedule.js` lifts the calendar out of the guarded payload so a
+  connection failure does not take it down, and an error panel should not sit
+  above a working calendar. The flaw was that it hid **every** gate state,
+  including the two that are not about a connection at all. **Measured: a
+  signed-out visitor got 142 characters and an account with no Cleaner
+  workspace 157 — no heading, no message, no way to sign in — while the gate
+  was faithfully setting "Sign in as a Cleaner to open this dashboard." into an
+  element the rule had already given `display: none`.** Now
+  `:not([data-kind="authentication"])`: a refusal is always visible, a
+  transient failure may still hide behind a useful calendar.
+- **Verification.** Re-rendered as each reader. Signed out: gate visible, h1
+  "Sign in as a Cleaner to open this dashboard.", 273 characters. Landlord-only:
+  "This account has no Cleaner workspace.", 300. Cleaner: workspace revealed,
+  h1 "Welcome, …", 4002.
+- **`tests/cleaner-dashboard-hooks.mjs`** checks the join that no test covered:
+  for every unguarded `querySelector("[data-…]")` dereference in the Cleaner
+  scripts, something in `public/` must actually create that attribute (1518 do).
+  It also pins the `:not()` on the gate rule and that at least four gate states
+  carry `kind: "authentication"`. **Confirmed to fail against both original
+  defects.**
+- **Status.** `[x]`
+
+**F-11 · P2 · Layout** — *One long property name blew the booking journey's
+picker off the phone.*
+
+- **Evidence.** At 390px, `.journey-property-options` measured **1383px wide
+  inside a 324px column**, every property card ran past the right edge and the
+  page carried a horizontal scrollbar. A saved property whose name is a long
+  unbroken string is enough; a grid item's default `min-width: auto` refuses to
+  shrink below its content.
+- **Fix.** `min-width: 0` and `overflow-wrap: anywhere` on the picker and its
+  options — the same pair the Landlord dashboard's property card already
+  carried and the journey never got.
+- **Verification.** Re-measured: the grid is 286px inside its 324px column,
+  document overflow is **−10px** at both 1440px and 390px (was +375 and +1040),
+  and the screenshot shows the long name wrapping inside its card.
+- **A note on the instrument.** The sweep flagged this as
+  `scrollWidth - innerWidth`, which also fires on the journey's off-canvas step
+  panels — a false positive it took a clipping-ancestor trace and a screenshot
+  to separate from the real defect. The measurement that settles it is whether
+  anything is *visible* past the edge, not the document width.
+- **Status.** `[x]`
+
 **Q-7 · P3 · Evidence** — *`/cleaner/jobs-map` cannot be verified by this
 harness.* `localPreview` was gated on `location.hostname` being loopback, and
 the entire audit ran on `127.0.0.1`, so `loadRealJobs()`, the

@@ -773,8 +773,23 @@ async function loadDashboard() {
       pricingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.matchingReady === true,
       geocodingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.geocodingReady === true
     });
-    document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
-    document.querySelector("[data-cleaner-profile-link]").textContent = cleanerProfile?.profileCompletionPercent === 100 ? "Edit profile" : "Complete your profile";
+    // Guarded, like the four other pages that touch this link.
+    //
+    // Both of these used to dereference the result of querySelector directly,
+    // and the second one referred to `[data-cleaner-profile-link]`, which
+    // consolidating the hand-copied Cleaner navigation into cleaner-sidebar.js
+    // removed from every page — nothing in the product creates it now. So this
+    // line threw a TypeError on EVERY load, the catch below turned it into
+    // "The Cleaner dashboard is temporarily unavailable", and a CSS rule then
+    // hid that message: the Cleaner's own dashboard rendered no welcome, no
+    // heading, no pending offers and no explanation, on a page that still
+    // showed its calendar. Nothing after this point had ever run.
+    //
+    // The profile-completion label it set is not reinstated because the shared
+    // sidebar already carries completion marks; a per-page label would be the
+    // navigation drift that consolidation existed to end.
+    const payoutLink = document.querySelector("[data-cleaner-payout-link]");
+    if (payoutLink) payoutLink.hidden = payoutStatus == null;
     renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl);
     renderBookings();
     showFeedback(failures.length ? "Your Cleaner account is open, but some job or profile details could not be refreshed. Nothing was accepted, declined or changed. Try again to load the complete dashboard." : "", failures.length ? "error" : "info");

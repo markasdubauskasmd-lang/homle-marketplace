@@ -1066,8 +1066,20 @@
 }
 
 /* Activity remains useful while the live job feed is being connected. The
-   independent schedule script owns the connection note and calendar preview. */
-.hc-main-inner[data-activity-schedule-ready="true"] > [data-cleaner-dashboard-gate] {
+   independent schedule script owns the connection note and calendar preview.
+   cleaner-schedule.js lifts the schedule out of the guarded dashboard payload
+   so a connection error does not take the calendar down with it, and this rule
+   suppresses the error panel that would otherwise sit above a working calendar.
+
+   `:not([data-kind="authentication"])` is the whole point of the selector.
+   Without it this hid EVERY gate state, including the two that are not about a
+   connection at all: a signed-out visitor and an account with no Cleaner
+   workspace. Measured — both got a page of 142 and 157 characters with no
+   heading, no message and no way to sign in, because the gate was setting
+   "Sign in as a Cleaner to open this dashboard." into an element this rule had
+   already given `display: none`. An access refusal must always be visible; a
+   transient connection failure is what may hide behind a useful calendar. */
+.hc-main-inner[data-activity-schedule-ready="true"] > [data-cleaner-dashboard-gate]:not([data-kind="authentication"]) {
   display: none;
 }
 

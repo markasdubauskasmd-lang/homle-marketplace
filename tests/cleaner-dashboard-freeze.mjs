@@ -28,8 +28,15 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // same data-reviews-* sockets, and /cleaner/reviews already routes there. The
 // deletion removed a duplicate of a live screen, not a feature. The shared
 // backend digest below was verified byte-identical across that change.
+//
+// The digest moved again when a crash on the Cleaner's own dashboard was fixed:
+// cleaner-dashboard.js dereferenced [data-cleaner-profile-link], a hook that
+// consolidating the Cleaner navigation had removed and nothing recreates, so
+// every load threw mid-render and a CSS rule hid the resulting error. Measured
+// before: 1571 characters and no visible h1. After: 4002 and "Welcome, …". The
+// shared backend digest was verified byte-identical across that change too.
 const expectedFileCount = 88;
-const expectedDigest = "164a72b3a903d5deffb9e885889114ac62f64fb93349d39f817e9a71ff2bdf03";
+const expectedDigest = "e97a1ab2e93911095a2a39b2cfb46ea18c0e36a42c80250e62dbcdfaf635e0d3";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",

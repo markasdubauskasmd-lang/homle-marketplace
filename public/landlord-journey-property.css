@@ -8,6 +8,21 @@
   border: 1px solid var(--j-line);
   border-radius: 18px;
   background: rgba(255, 255, 255, .78);
+  /* A grid item's default `min-width: auto` refuses to shrink below its
+     content, so one long unbroken property name pushes the whole column wider
+     than the phone. Measured on a 390px viewport: a saved property with a long
+     name blew this grid out to 1383px inside a 324px column, ran every card off
+     the right edge and gave the page a horizontal scrollbar. The Landlord
+     dashboard's property card already carries this pair; the journey's picker
+     never did. */
+  min-width: 0;
+}
+
+.journey-property-options,
+.journey-property-option {
+  min-width: 0;
+  /* A property name is user-supplied text with no guaranteed spaces in it. */
+  overflow-wrap: anywhere;
 }
 
 .journey-scan-property-state {
