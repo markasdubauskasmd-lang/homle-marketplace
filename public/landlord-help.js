@@ -20,6 +20,14 @@ const submit = document.querySelector("[data-support-submit]");
 const feedback = document.querySelector("[data-support-form-feedback]");
 const list = document.querySelector("[data-support-list]");
 const empty = document.querySelector("[data-support-empty]");
+const refreshHistory = document.querySelector("[data-support-refresh]");
+const moreHistory = document.querySelector("[data-support-more]");
+const historyStatus = document.querySelector("[data-support-history-status]");
+const historyFeedback = document.querySelector("[data-support-history-feedback]");
+const historyPageSize = 25;
+let historyOffset = 0;
+let historyRecords = [];
+let historyPending = null;
 let retryId = crypto.randomUUID();
 let busy = false;
 
@@ -90,12 +98,41 @@ function supportCard(record) {
   return card;
 }
 
-async function loadRequests() {
+function loadRequests({ append = false } = {}) {
+  if (historyPending) return historyPending;
   list.setAttribute("aria-busy", "true");
-  const result = supportRequestPage(await requestJson("/api/marketplace/landlord/support-requests?limit=25&offset=0"));
-  list.replaceChildren(...result.supportRequests.map(supportCard));
-  list.hidden = result.supportRequests.length === 0; empty.hidden = result.supportRequests.length > 0;
-  list.setAttribute("aria-busy", "false");
+  refreshHistory.disabled = true; moreHistory.disabled = true;
+  historyFeedback.hidden = true;
+  historyStatus.textContent = append ? "Loading older requests…" : "Refreshing your requests…";
+  historyPending = (async () => {
+    try {
+      const offset = append ? historyOffset : 0;
+      const result = supportRequestPage(await requestJson(`/api/marketplace/landlord/support-requests?limit=${historyPageSize}&offset=${offset}`, {}, 20_000));
+      // Offset pages can overlap when another tab sends a new request. Keep
+      // each ID once while advancing by the number returned by the server.
+      const records = new Map((append ? historyRecords : []).map((record) => [record.supportRequestId, record]));
+      for (const record of result.supportRequests) records.set(record.supportRequestId, record);
+      const nextRecords = [...records.values()];
+      const cards = nextRecords.map(supportCard);
+      list.replaceChildren(...cards);
+      historyRecords = nextRecords;
+      historyOffset = offset + result.supportRequests.length;
+      list.hidden = historyRecords.length === 0; empty.hidden = historyRecords.length > 0;
+      moreHistory.hidden = result.supportRequests.length < historyPageSize || historyOffset > 10000;
+      const endMessage = historyOffset > 10000 ? " History limit reached. Ask Homle for an older record." : moreHistory.hidden ? " All available requests loaded." : "";
+      historyStatus.textContent = `${historyRecords.length} request${historyRecords.length === 1 ? "" : "s"} shown.${endMessage}`;
+    } catch (error) {
+      historyStatus.textContent = "";
+      historyFeedback.textContent = `${error.message || "Request history could not load."} Your form and previously loaded requests are unchanged. Try again.`;
+      historyFeedback.hidden = false;
+      throw error;
+    } finally {
+      list.setAttribute("aria-busy", "false");
+      refreshHistory.disabled = false; moreHistory.disabled = false;
+      historyPending = null;
+    }
+  })();
+  return historyPending;
 }
 
 function bookingLabel(booking) {
@@ -164,7 +201,11 @@ form.addEventListener("submit", async (event) => {
     values.proposedStartAt = values.proposedStartLocal || null;
     const payload = supportRequestPayload(values, retryId);
     await requestJson("/api/marketplace/landlord/support-requests", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(payload) });
-    sent = true; form.reset(); syncSupportKind(); retryId = crypto.randomUUID(); await loadRequests();
+    sent = true; form.reset(); syncSupportKind(); retryId = crypto.randomUUID();
+    // A page read already in flight may predate the successful submission.
+    // Let it settle, then fetch the newest page containing the sent request.
+    if (historyPending) await historyPending.catch(() => {});
+    await loadRequests();
     showFeedback("Your request was sent securely. Its status now appears in your request history.", "success");
   } catch (error) {
     showFeedback(sent ? "Your request was sent, but the history could not refresh. Refresh before sending it again." : error.message);
@@ -174,7 +215,8 @@ form.addEventListener("submit", async (event) => {
 });
 
 document.querySelector("[data-support-retry]").addEventListener("click", load);
-document.querySelector("[data-support-refresh]").addEventListener("click", async () => { try { await loadRequests(); } catch (error) { showFeedback(error.message); } });
+refreshHistory.addEventListener("click", () => { void loadRequests().catch(() => {}); });
+moreHistory.addEventListener("click", () => { void loadRequests({ append: true }).catch(() => {}); });
 form.elements.category.addEventListener("change", syncSupportKind);
 form.elements.bookingChangeKind.addEventListener("change", syncSupportKind);
 load();
