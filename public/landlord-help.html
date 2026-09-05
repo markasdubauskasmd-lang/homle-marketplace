@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="/landlord-help-v2.css?v=20260830-1">
   <!-- The shared workspace shell, last so it wins without !important. -->
   <link rel="stylesheet" href="/homle-workspace.css?v=20260831-1">
-  <script type="module" src="/landlord-help.js?v=20260830-1"></script>
+  <script type="module" src="/landlord-help.js?v=20260905-1"></script>
 </head>
 <!-- Support is reached from the workspace and used when something has already
      gone wrong, which makes it the worst possible place to also change shell.
@@ -62,6 +62,9 @@
           <div class="support-card-heading"><div><h2 id="support-history-title">Your requests</h2><p>Answers stay private in this Landlord account.</p></div><button class="text-button" type="button" data-support-refresh>Refresh</button></div>
           <div class="support-list" data-support-list aria-live="polite" aria-busy="true"></div>
           <div class="support-empty" data-support-empty hidden><strong>No support requests yet.</strong><p>When you send one, its status and Homle’s answer will appear here.</p></div>
+          <p data-support-history-status role="status"></p>
+          <div class="support-feedback" data-support-history-feedback role="alert" hidden></div>
+          <button class="button button-outline" type="button" data-support-more hidden>Load older requests</button>
         </section>
       </div>
     </div>

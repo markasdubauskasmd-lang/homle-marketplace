@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
 import { activeBookingChangeRequestFor, supportCategoryLabels, supportRequestPage, supportRequestPayload, supportStatusLabels } from "../public/landlord-help-model.js";
 import { supportQueueFilter, supportReviewPayload } from "../public/admin-support-model.js";
 
@@ -95,3 +96,98 @@ assert(styles.includes("@media(max-width:760px)") && styles.includes(".support-l
 assert(server.includes('"/landlord/help": "landlord-help.html"') && server.includes('"/admin/support": "admin-support.html"') && dashboard.includes('href="/landlord/help"') && adminNavigation.includes('{ href: "/admin/support", label: ') && admin.includes("/admin-navigation.js?v="), "The private support pages are not served or reachable from the correct role workspaces.");
 
 console.log("Support-request UI checks passed: Landlord-only intake, Administrator-only queue, safe retries, explicit privacy/no-action confirmations, safe rendering and mobile navigation.");
+
+if (resolveChromiumPath()) {
+  const records = Array.from({ length: 26 }, (_, index) => ({
+    supportRequestId: `abababab-abab-4bab-8bab-${String(index).padStart(12, "0")}`,
+    category: "property", subject: `Saved request ${index + 1}`, description: "Please help with this saved property request.",
+    status: "resolved", resolutionSummary: `Answer for request ${index + 1}`,
+    createdAt: "2026-08-01T10:00:00Z", updatedAt: "2026-08-01T11:00:00Z"
+  }));
+  let failOlder = true;
+  let olderReads = 0;
+  let writes = 0;
+  const server = await serveStatic({ extraFiles: {
+    "/api/marketplace/account": () => ({ body: { ok: true, account: { roles: ["landlord"], selectedRole: "landlord" } } }),
+    "/api/marketplace/bookings": () => ({ body: { ok: true, bookings: [] } }),
+    "/api/marketplace/auth/session": () => ({ body: { ok: true, csrfToken: "support-test-token" } }),
+    "/api/marketplace/landlord/support-requests": async ({ method, url, body }) => {
+      if (method === "POST") {
+        writes += 1;
+        const payload = JSON.parse(body);
+        records.unshift({ ...records[0], ...payload, supportRequestId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", status: "open", resolutionSummary: null });
+        return { body: { ok: true, supportRequest: records[0] } };
+      }
+      const offset = Number(url.searchParams.get("offset") || 0);
+      if (offset) {
+        olderReads += 1;
+        await new Promise(resolve => setTimeout(resolve, 250));
+        if (failOlder) return { status: 503, body: { error: "History temporarily unavailable" } };
+      }
+      // Include a duplicate at the page boundary to model another tab inserting
+      // a request between offset reads. The last original answer must survive.
+      return { body: { ok: true, supportRequests: offset ? records.slice(24) : records.slice(0, 25), limit: 25, offset } };
+    }
+  } });
+  const browser = await launchBrowser();
+  const waitFor = async (condition) => browser.evaluate(`
+    const deadline = Date.now() + 5000;
+    while (!(${condition})) {
+      if (Date.now() > deadline) throw new Error('Support state did not settle: ' + ${JSON.stringify(condition)});
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    return null;
+  `);
+  try {
+    for (const width of [390, 1280]) {
+      failOlder = true;
+      await browser.setViewport({ width, height: 844, mobile: width === 390 });
+      await browser.goto(`${server.origin}/landlord-help.html`);
+      await waitFor(`document.querySelectorAll('.support-request-card').length === 25 && !document.querySelector('[data-support-more]').hidden`);
+      await browser.evaluate(`
+        document.querySelector('[name="subject"]').value = 'Unsent property question';
+        document.querySelector('[name="description"]').value = 'Please preserve this unsent detailed support question.';
+        const more = document.querySelector('[data-support-more]'); more.click(); more.click(); more.click();
+        return null;
+      `);
+      await waitFor(`!document.querySelector('[data-support-history-feedback]').hidden && !document.querySelector('[data-support-more]').disabled`);
+      const failed = await browser.evaluate(`return {
+        count: document.querySelectorAll('.support-request-card').length,
+        busy: document.querySelector('[data-support-list]').getAttribute('aria-busy'),
+        draft: document.querySelector('[name="description"]').value,
+        feedback: document.querySelector('[data-support-history-feedback]').checkVisibility()
+      };`);
+      assert.equal(failed.count, 25); assert.equal(failed.busy, "false"); assert(failed.feedback);
+      assert.equal(failed.draft, "Please preserve this unsent detailed support question.");
+      failOlder = false;
+      await browser.evaluate(`document.querySelector('[data-support-more]').click(); return null;`);
+      await waitFor(`document.querySelectorAll('.support-request-card').length === 26 && document.querySelector('[data-support-more]').hidden`);
+      assert.equal(olderReads, width === 390 ? 2 : 4, "Repeated clicks launched overlapping history reads");
+      const history = await browser.evaluate(`return {
+        answer: document.querySelector('[data-support-list]').textContent.includes('Answer for request 26'),
+        subject: document.querySelector('[name="subject"]').value,
+        overflow: document.documentElement.scrollWidth > innerWidth
+      };`);
+      assert(history.answer, "The older answer stayed unreachable");
+      assert.equal(history.subject, "Unsent property question");
+      assert.equal(history.overflow, false, `${width}px history overflowed the viewport`);
+      await browser.evaluate(`document.querySelector('[data-support-refresh]').click(); return null;`);
+      await waitFor(`document.querySelectorAll('.support-request-card').length === 25 && !document.querySelector('[data-support-more]').hidden`);
+      assert.equal(await browser.evaluate(`document.querySelector('[name="subject"]').value`), "Unsent property question");
+    }
+    assert.equal(writes, 0, "Reading history created a support request");
+    await browser.evaluate(`
+      const form = document.querySelector('[data-support-form]');
+      form.elements.category.value = 'property';
+      form.elements.confirmNoSensitiveData.checked = true;
+      document.querySelector('[data-support-more]').click();
+      form.requestSubmit();
+      return null;
+    `);
+    await waitFor(`document.querySelector('[data-support-form-feedback]').dataset.kind === 'success'`);
+    assert.equal(writes, 1, "Submission while history was loading was lost or duplicated");
+    assert(await browser.evaluate(`document.querySelector('.support-request-card').textContent.includes('Unsent property question')`), "History after sending omitted the newly created request");
+    assert.deepEqual(browser.pageErrors, []);
+  } finally { await browser.close(); await server.close(); }
+  console.log("Support history browser journey passed at 390px and 1280px: older answers, failure/retry, duplicate prevention, draft preservation, refresh and submission during a pending read.");
+} else console.log("Support history browser journey SKIPPED: Chromium unavailable.");
