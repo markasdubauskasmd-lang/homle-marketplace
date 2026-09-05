@@ -30,6 +30,7 @@ const state = {
   // The in-flight thread load, so a second caller can wait for it instead of
   // returning as though it had already settled. See selectConversation.
   pendingLoad: null,
+  pendingSends: new Map(),
   sending: false,
   loaded: false
 };
@@ -126,6 +127,12 @@ function renderThread({ forceBottom = false } = {}) {
   const conversation = state.conversations.find((entry) => entry.bookingId === state.selectedBookingId) || null;
   if (head) head.hidden = !conversation;
   if (form) form.hidden = !conversation;
+  const submit = form?.querySelector('button[type="submit"]');
+  if (submit) {
+    submit.disabled = state.sending;
+    if (state.sending) submit.setAttribute("aria-busy", "true");
+    else submit.removeAttribute("aria-busy");
+  }
 
   if (!conversation) {
     // Two panes, two different questions. The list answers "do you have any
@@ -281,21 +288,27 @@ async function send(event) {
   showFeedback("");
   render();
   try {
+    let attempt = state.pendingSends.get(bookingId);
+    if (!attempt || attempt.body !== body) {
+      attempt = { body, clientMessageId: createClientMessageId() };
+      state.pendingSends.set(bookingId, attempt);
+    }
     const message = await deps.requestJson(`/api/marketplace/bookings/${encodeURIComponent(bookingId)}/messages`, {
       method: "POST",
       body: JSON.stringify({
         body,
         // Idempotent: a retried send after a flaky connection returns the
         // original message rather than posting it twice.
-        clientMessageId: createClientMessageId()
+        clientMessageId: attempt.clientMessageId
       })
     });
     state.messages.set(bookingId, mergeBookingMessages(state.messages.get(bookingId) || [], [message.message || message]));
+    state.pendingSends.delete(bookingId);
     // Only cleared once the server has it. A composer that empties on submit
     // and then fails has thrown away what the customer wrote.
-    if (input) input.value = "";
+    if (input && String(input.value || "").trim() === body) input.value = "";
   } catch (error) {
-    showFeedback(error.message || "The message was not sent. Your text is still here to retry.");
+    showFeedback(`${error.message || "Message delivery could not be confirmed."} Your text is still here. Retrying unchanged text uses the same message reference.`);
   } finally {
     state.sending = false;
     render({ forceBottom: true });
