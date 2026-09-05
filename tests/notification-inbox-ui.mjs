@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
 import { notificationActionPath, notificationBookingPath, notificationPresentation, notificationUnreadBadge, notificationWorkspace, notificationWorkspacePath } from "../public/notification-inbox-model.js";
 import { notificationDayGroup, notificationGroups, notificationTone } from "../public/notification-inbox-view-model.js";
 
@@ -123,3 +124,94 @@ assert(script.includes('shell?.shell.role === "cleaner"') && script.includes('lo
 
 
 console.log("Notification inbox UI tests passed: private role return, safe event copy, pagination, read controls, mobile states and booking actions.");
+
+if (resolveChromiumPath()) {
+  let failSession = false;
+  let failRefresh = false;
+  let markCalls = 0;
+  let sessionCalls = 0;
+  let marked = false;
+  let cutoff = null;
+  const oldTime = "2026-08-01T10:00:00Z";
+  const notification = (id, readAt, createdAt) => ({ notificationId: id, eventType: "booking-confirmed", bookingId, payload: {}, createdAt, readAt });
+  const server = await serveStatic({ extraFiles: {
+    "/api/marketplace/account": () => ({ body: { ok: true, account: { roles: ["landlord"], selectedRole: "landlord" } } }),
+    "/api/marketplace/auth/session": async () => {
+      sessionCalls += 1;
+      await new Promise(resolve => setTimeout(resolve, 200));
+      return failSession ? { status: 503, body: { error: "Session unavailable" } } : { body: { ok: true, csrfToken: "updates-test-token" } };
+    },
+    "/api/marketplace/notifications": () => {
+      if (marked && failRefresh) return { status: 503, body: { error: "Refresh unavailable" } };
+      return { body: { ok: true, notifications: [notification("old-update", marked ? new Date().toISOString() : null, oldTime), ...(marked ? [notification("new-update", null, new Date().toISOString())] : [])], unreadCount: 1, hasMore: false, nextCursor: null } };
+    },
+    "/api/marketplace/notifications/read-all": ({ body, headers }) => {
+      assert(headers["x-csrf-token"] === "updates-test-token", "Mark-all omitted the recovered session token");
+      markCalls += 1; marked = true; cutoff = JSON.parse(body).cutoffCreatedAt;
+      return { body: { ok: true, markedRead: 1, cutoffCreatedAt: cutoff } };
+    }
+  } });
+  const browser = await launchBrowser();
+  const waitFor = async (condition) => browser.evaluate(`
+    const deadline = Date.now() + 5000;
+    while (!(${condition})) {
+      if (Date.now() > deadline) throw new Error('Updates did not reach expected state');
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    return null;
+  `);
+  try {
+    for (const width of [390, 1280]) {
+      marked = false; failRefresh = false; failSession = true;
+      await browser.setViewport({ width, height: 844, mobile: width === 390 });
+      await browser.goto(`${server.origin}/notifications.html`);
+      await waitFor(`!document.querySelector('[data-notification-content]').hidden`);
+      const initialTime = Date.now();
+      const beforeSessions = sessionCalls;
+      const beforeMarks = markCalls;
+      const clickRepeatedly = async () => browser.evaluate(`
+        sessionStorage.removeItem('tideway_csrf');
+        const button = document.querySelector('[data-mark-all-read]');
+        button.click(); button.click(); button.click();
+        return button.disabled;
+      `);
+      assert(await clickRepeatedly(), "Mark all did not lock during session recovery");
+      await waitFor(`!document.querySelector('[data-mark-all-read]').disabled`);
+      assert(sessionCalls === beforeSessions + 1 && markCalls === beforeMarks, "Failed session recovery was duplicated or still marked updates read");
+      assert(await browser.evaluate(`document.querySelector('[data-notification-feedback]').checkVisibility()`), "Session failure is invisible");
+      failSession = false;
+      await clickRepeatedly();
+      await waitFor(`document.querySelector('[data-notification-feedback]').dataset.kind === 'success'`);
+      assert(sessionCalls === beforeSessions + 2 && markCalls === beforeMarks + 1, "Fresh-tab recovery did not send exactly one read action");
+      assert(Date.parse(cutoff) <= initialTime, "Session recovery advanced the cutoff and consumed newer unseen updates");
+      const result = await browser.evaluate(`return {
+        unread: document.querySelector('[data-unread-count]').textContent,
+        unreadCards: document.querySelectorAll('.notification-card-unread').length,
+        readCards: document.querySelectorAll('.notification-card:not(.notification-card-unread)').length,
+        message: document.querySelector('[data-notification-feedback]').textContent,
+        overflow: document.documentElement.scrollWidth > innerWidth
+      };`);
+      assert(result.unread === '1 unread' && !result.message.includes('All updates shown here'), "New arrivals were represented as already read");
+      assert(result.unreadCards === 1 && result.readCards === 1, "Read and unread cards do not reflect the refreshed server result");
+      assert(!result.overflow, `${width}px Updates overflowed the viewport`);
+    }
+    marked = false;
+    await browser.goto(`${server.origin}/notifications.html`);
+    await waitFor(`!document.querySelector('[data-notification-content]').hidden`);
+    failRefresh = true;
+    await browser.evaluate(`document.querySelector('[data-mark-all-read]').click(); return null;`);
+    await waitFor(`!document.querySelector('[data-notification-retry]').hidden`);
+    const failedRead = await browser.evaluate(`return {
+      gate: document.querySelector('[data-notification-gate-copy]').textContent,
+      success: document.querySelector('[data-notification-feedback]').dataset.kind === 'success'
+    };`);
+    assert(failedRead.gate.includes('read status was saved') && !failedRead.success, "A saved read action plus failed refresh claimed full success or lost the confirmed outcome");
+    const marksBeforeRetry = markCalls;
+    failRefresh = false;
+    await browser.evaluate(`document.querySelector('[data-notification-retry]').click(); return null;`);
+    await waitFor(`!document.querySelector('[data-notification-content]').hidden`);
+    assert(markCalls === marksBeforeRetry, "Retrying a failed read repeated the mutation");
+    assert(browser.pageErrors.length === 0, browser.pageErrors.join('\n'));
+  } finally { await browser.close(); await server.close(); }
+  console.log("Updates browser journey passed at 390px and 1280px: fresh-tab token recovery, repeated clicks, recovery failure, newer unread arrivals and post-mutation refresh failure/retry.");
+} else console.log("Updates browser journey SKIPPED: Chromium unavailable.");
