@@ -220,13 +220,15 @@ async function openPaymentForm(payment) {
 
 async function preparePayment() {
   if (loading) return;
-  const csrf = await recoverCsrf();
-  if (!csrf) return;
+  // Session recovery is part of the payment action: lock before its first
+  // await so repeated clicks cannot rotate tokens or prepare competing forms.
   loading = true;
   prepare.disabled = true;
   prepare.setAttribute("aria-busy", "true");
   showFeedback("");
   try {
+    const csrf = await recoverCsrf();
+    if (!csrf) return;
     const authorization = await requestJson(`/api/marketplace/bookings/${bookingId}/payment`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ idempotencyKey: retryKey() }) });
     await openPaymentForm(authorization.payment);
   } catch (error) {
