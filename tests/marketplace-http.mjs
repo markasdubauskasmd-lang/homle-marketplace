@@ -143,6 +143,7 @@ const progressService = {
   async finishCleaning(actor, bookingId) { calls.push({ kind: "progress-finish", actor, bookingId }); return { bookingId, status: "awaiting-review", overallPercentage: 100 }; }
 };
 const mediaService = {
+  async getPhotoContent(actor, bookingId, photoId, expiresAt) { calls.push({ kind: "job-media-content", actor, bookingId, photoId, expiresAt }); return { mimeType: "image/jpeg", bytes: Buffer.from("synthetic booking photo") }; },
   async createUploadIntent(actor, bookingId, input) { calls.push({ kind: "media-intent", actor, bookingId, input }); return { uploadId: "88888888-8888-4888-8888-888888888888", uploadUrl: "https://storage.example/write", method: "PUT" }; },
   async completeUpload(actor, bookingId, uploadId) { calls.push({ kind: "media-complete", actor, bookingId, uploadId }); return { bookingId, status: "cleaning-in-progress", eventVersion: 8 }; },
   async getPhotoAccess(actor, bookingId, photoId) { calls.push({ kind: "media-access", actor, bookingId, photoId }); return { photoId, url: "https://storage.example/read" }; }
@@ -963,3 +964,10 @@ assert(authenticatedPhoto.response.statusCode === 200 && Buffer.isBuffer(authent
 assert(authenticatedPhoto.response.headers["Cache-Control"].includes("no-store") && authenticatedPhoto.response.headers["Cross-Origin-Resource-Policy"] === "same-origin" && authenticatedPhoto.response.headers["X-Content-Type-Options"] === "nosniff", "Private photo response permits caching or cross-origin embedding.");
 const postPhoto = await dispatch(router, "POST", privatePhotoPath);
 assert(postPhoto.response.statusCode === 405, "Private photo content accepts mutation methods.");
+
+const jobPhotoPath = "/api/marketplace/bookings/55555555-5555-4555-8555-555555555555/cleaning-progress/photos/88888888-8888-4888-8888-888888888888/content?expiresAt=2026-07-16T12%3A05%3A00.000Z";
+const anonymousJobPhoto = await dispatch(router, "GET", jobPhotoPath);
+assert(anonymousJobPhoto.response.statusCode === 401, "Booking photo content skipped authentication.");
+const participantJobPhoto = await dispatch(router, "GET", jobPhotoPath, { headers: { cookie: `${developmentSessionCookieName}=${material.token}` } });
+assert(participantJobPhoto.response.statusCode === 200 && participantJobPhoto.body.toString() === "synthetic booking photo" && participantJobPhoto.response.headers["Cache-Control"].includes("no-store"), "Authenticated booking image delivery failed.");
+assert((await dispatch(router, "POST", jobPhotoPath)).response.statusCode === 405, "Booking image content accepts writes.");
