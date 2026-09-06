@@ -1,0 +1,72 @@
+/* Scanner forms inside the customer booking document. Camera controls retain
+   their dark viewfinder surface; these selectors cannot reach Cleaner pages. */
+body.journey-page .scan-overlay {
+  --scan-red: #e11b22;
+  --scan-red-hot: #e11b22;
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+}
+body.journey-page .scan-overlay :is(.hub, .scan-consent) {
+  --scan-bone: #1a1a1a;
+  --scan-dim: #666666;
+  --scan-ghost: #6b6b6b;
+  color: #1a1a1a;
+  background: #f7f6f5;
+}
+body.journey-page .scan-overlay :is(.scan-consent-in, .scan-discard-in, .scan-item-editor-in, .voice) {
+  --scan-bone: #1a1a1a;
+  --scan-dim: #666666;
+  --scan-ghost: #6b6b6b;
+  padding: 24px;
+  border: 1px solid #e7e4e0;
+  border-radius: 20px;
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
+}
+body.journey-page .scan-overlay :is(h2, h3) { font-family: inherit; font-weight: 700; letter-spacing: -.02em; }
+body.journey-page .scan-overlay :is(.hub-room, .hub-chip, .hub-progress) {
+  background: #fff; color: #1a1a1a; border: 1px solid #e7e4e0; border-radius: 12px;
+}
+body.journey-page .scan-overlay :is(.hub-room, .hub-chip):hover { background: #fdecec; border-color: #e11b22; }
+body.journey-page .scan-overlay :is(.hub-room-remove, .hub-close) { color: #e11b22; border-color: #e11b22; background: #fff; }
+body.journey-page .scan-overlay :is(.button, .voice-done) {
+  border-radius: 11px; background: #e11b22; border: 1px solid #e11b22; color: #fff;
+  font-family: inherit; font-weight: 600; box-shadow: none;
+}
+body.journey-page .scan-overlay :is(.button.ghost, .voice-delete) {
+  background: #fff; color: #e11b22; border: 1px solid #e11b22; border-radius: 11px;
+}
+body.journey-page .scan-overlay :is(.hub-other-input, .scan-item-editor-name, .voice-txt) {
+  color: #1a1a1a; background: #fff; border: 1px solid #e7e4e0; border-radius: 11px; font-family: inherit;
+}
+body.journey-page .scan-overlay :is(.hub-other-input, .voice-txt)::placeholder { color: #6b6b6b; }
+body.journey-page .scan-overlay .scan-consent-detail { background: #fdecec; border-color: #e7e4e0; color: #1a1a1a; border-radius: 11px; }
+body.journey-page .scan-overlay .scan-item-condition-options span { background: #fff; color: #1a1a1a; border-color: #e7e4e0; border-radius: 11px; }
+body.journey-page .scan-overlay .scan-item-condition-options input:checked + span { background: #fdecec; border-color: #e11b22; box-shadow: inset 0 0 0 1px #e11b22; }
+body.journey-page .scan-overlay .scan-item-condition-options input:focus-visible + span { outline: 3px solid #2456e6; outline-offset: 2px; }
+@media (max-width: 480px) {
+  body.journey-page .scan-overlay .scan-consent { padding: 16px; overflow-y: auto; }
+  body.journey-page .scan-overlay .scan-consent-in { padding: 20px; }
+}
+
+/* Reviewed scan results use the same cards and correction controls. */
+body.journey-page :is(.scan-review-level, .scan-review-estimate, .scan-review-questions, .scan-review-object, .scan-measure-in) {
+  border: 1px solid #e7e4e0;
+  border-radius: 20px;
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
+}
+body.journey-page :is(.scan-review-edit, .scan-review-remove, .scan-review-grade) {
+  border: 1px solid #e11b22;
+  border-radius: 11px;
+  background: #fff;
+  color: #e11b22;
+  font-family: inherit;
+}
+body.journey-page .scan-review-refusal { border: 1px solid #e11b22; background: #fdecec; }
+body.journey-page :is(.scan-review-edit, .scan-review-remove, .scan-review-grade):focus-visible { outline: 3px solid #2456e6; outline-offset: 2px; }
+body.journey-page .scan-overlay .scan-count {
+  min-height: 44px; padding: 8px 12px; border: 1px solid rgba(255,255,255,.3);
+  border-radius: 11px; background: #1a1a1a; color: #fff; font-family: inherit; font-size: 13px; font-weight: 600;
+}

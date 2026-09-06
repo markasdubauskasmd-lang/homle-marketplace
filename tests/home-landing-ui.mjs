@@ -5,7 +5,7 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 
 const [page, css, script, homeScript, server] = await Promise.all([
   readFile(new URL("../public/home.html", import.meta.url), "utf8"),
-  readFile(new URL("../public/landing-f56e7ce9.css", import.meta.url), "utf8"),
+  readFile(new URL("../public/landing-bacbb863.css", import.meta.url), "utf8"),
   readFile(new URL("../public/landing-0c783ae1.js", import.meta.url), "utf8"),
   readFile(new URL("../public/home.js", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8")
@@ -28,7 +28,8 @@ assert(!/https?:\/\//.test(script) && !script.includes("eval(") && !script.inclu
 assert(!/src="https?:\/\//.test(page) && !page.includes("unsplash"), "The landing page hotlinks an off-origin image, which img-src 'self' blocks.");
 
 // The display face is self-hosted under the immutable /vendor/ path with its OFL.
-assert(css.includes('url("/vendor/fonts/archivo-wght-latin.woff2")'), "The landing typography is not self-hosted from /vendor/fonts.");
+const fontTokens = await readFile(new URL("../public/homle-tokens.css", import.meta.url), "utf8");
+assert(page.includes('/homle-tokens.css') && css.includes('--ci-sans: "DM Sans"') && fontTokens.includes('url("/vendor/fonts/dm-sans-wght.woff2")'), "The landing must load the same self-hosted DM Sans as the approved landlord reference.");
 for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", "OFL.txt"]) {
   const info = await stat(new URL(`../public/vendor/fonts/${file}`, import.meta.url));
   assert(info.isFile() && info.size > 0, `Vendored font asset ${file} is missing.`);
@@ -36,7 +37,7 @@ for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", 
 
 /* ── The design is actually wired in ────────────────── */
 
-assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-f56e7ce9.css"') && page.includes('src="/landing-0c783ae1.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
+assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-bacbb863.css"') && page.includes('src="/landing-0c783ae1.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
 assert(page.includes('<link rel="sitemap" type="application/xml" href="/sitemap.xml">'), "The public landing page does not advertise Homlle's canonical sitemap.");
 assert(page.includes('<link rel="canonical" href="https://homlle.com/">') && page.includes('<meta property="og:url" content="https://homlle.com/">'), "The public landing page does not declare the exact canonical production URL.");
 for (const metadata of [
@@ -57,9 +58,9 @@ for (const metadata of [
 ]) assert(page.includes(metadata), `The public landing page is missing share metadata: ${metadata}`);
 assert(!page.includes("onrender.com"), "The public landing metadata exposes the infrastructure preview hostname.");
 assert(!page.includes('/landing.css?') && !page.includes('/landing.js?'), "The landing page regressed to stable code URLs that must be revalidated on every visit.");
-assert(createHash("sha256").update(css).digest("hex") === "f56e7ce9031f6e54f8400c52e524febafef7ffcac47a22821b1739dd62427b2b", "The landing stylesheet changed without receiving a new content-addressed filename.");
+assert(createHash("sha256").update(css).digest("hex") === "bacbb863dc73b2901bc431a3636dd8169b7e4849bcdc8c512e20a650ae8b89b1", "The landing stylesheet changed without receiving a new content-addressed filename.");
 assert(createHash("sha256").update(script).digest("hex") === "0c783ae170500a77710a3a13c419414ef2f3a81d5bd75b7e0d60934b08ea889f", "The landing animation script changed without receiving a new content-addressed filename.");
-assert(server.includes('"/landing-f56e7ce9.css"') && server.includes('"/landing-0c783ae1.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
+assert(server.includes('"/landing-bacbb863.css"') && server.includes('"/landing-0c783ae1.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
 assert(page.includes("data-phone-source") && script.includes("this.phoneSource") && script.includes("ANGLE_WEBP"), "The phone view cannot update its visible WebP source as the scan story changes angle.");
 assert(page.includes('src="/home.js?v=20260906-1"') && page.includes('src="/account-menu.js?v=20260729-1"'), "The landing page still advertises stale shared or account-menu assets, so browsers can miss the latest navigation.");
 

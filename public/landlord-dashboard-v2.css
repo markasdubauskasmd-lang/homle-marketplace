@@ -647,6 +647,20 @@ body.landlord-dashboard-page .ld-account-section .landlord-profile-form {
   background: #fbfaf9;
   box-shadow: none;
 }
+body.landlord-dashboard-page .ld-account-identity-card > .button {
+  border-radius: 11px;
+  border: 1px solid var(--ld-coral);
+  background: var(--ld-paper);
+  color: var(--ld-coral);
+  box-shadow: none;
+}
+body.landlord-dashboard-page .ld-account-section .landlord-profile-form .button {
+  border-radius: 11px;
+  border: 1px solid var(--ld-coral);
+  background: var(--ld-coral);
+  color: #fff;
+  box-shadow: none;
+}
 body.landlord-dashboard-page .ld-account-section .landlord-profile-form fieldset { display: grid; gap: 16px; }
 
 body.landlord-dashboard-page .ld-acct-rows {
@@ -2453,6 +2467,7 @@ body.landlord-dashboard-page .ld-past-grid {
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 body.landlord-dashboard-page .ld-builder-dialog {
+  --ld-display: var(--ld-body);
   width: min(1080px, calc(100vw - 32px));
   max-width: none;
   max-height: min(880px, calc(100dvh - 32px));
@@ -2465,6 +2480,11 @@ body.landlord-dashboard-page .ld-builder-dialog {
   box-shadow: 0 40px 90px rgba(26, 26, 26, .3);
   overflow: auto;
   overscroll-behavior: contain;
+}
+body.landlord-dashboard-page .ld-builder-dialog .landlord-request-form {
+  background: var(--ld-canvas);
+  border: 1px solid var(--ld-border);
+  border-radius: 20px;
 }
 body.landlord-dashboard-page .ld-builder-dialog[open] { animation: hub-book-in .42s cubic-bezier(.2, .9, .25, 1.02) both; }
 body.landlord-dashboard-page .ld-builder-dialog::backdrop {
@@ -2525,6 +2545,7 @@ body.landlord-dashboard-page .ld-property-dialog::backdrop {
   backdrop-filter: blur(7px);
 }
 body.landlord-dashboard-page .ld-property-dialog .landlord-record-form {
+  background: var(--ld-paper);
   margin: 0;
   padding: 0;
   border: 0;
@@ -2656,7 +2677,7 @@ body.landlord-dashboard-page .ld-property-form-actions span { color: var(--ld-mu
 body.landlord-dashboard-page .ld-property-dialog .ld-property-form-actions .button[type="submit"] {
   min-width: 205px;
   min-height: 48px;
-  border-radius: 999px;
+  border-radius: 11px;
   background: var(--ld-coral);
   box-shadow: 0 10px 24px rgba(225, 27, 34, .2);
 }
