@@ -74,7 +74,7 @@ const probe = `
       beat: document.querySelector('[data-beat-title]').textContent,
       items: Number(document.querySelector('[data-beat-items]').textContent),
       views: document.querySelector('[data-views]').textContent,
-      launchOn: document.querySelector('[data-launch]').classList.contains('is-on'),
+      launchOn: document.querySelector('.ci-launch').classList.contains('is-on'),
       joinOn: document.querySelector('[data-join]').classList.contains('is-on'),
       telsOn: [...document.querySelectorAll('[data-tel]')].filter((e) => e.classList.contains('is-on')).length,
       mstepsOn: [...document.querySelectorAll('[data-mstep]')].filter((e) => e.classList.contains('is-on')).length,
