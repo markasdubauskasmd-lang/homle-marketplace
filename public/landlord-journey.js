@@ -636,6 +636,8 @@ function renderRoomNotes() {
     input.addEventListener("input", () => {
       if (field.key === null) state.scanGeneralNote = input.value;
       else state.scanNoteEdits[field.key] = input.value;
+      // A refused extra needs fresh consent if the restriction is later removed.
+      state.scanPremiumSelected = eligiblePremiumSelections();
       invalidateScanRequest();
       el.tasks.setCustomValidity("");
       renderPremiumChoices();
