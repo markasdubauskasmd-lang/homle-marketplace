@@ -398,3 +398,24 @@ for (const restriction of ["Kitchen: Do not clean inside the oven", "Kitchen: Do
   }
   assert(!unselectedPremiumInTasks(restricted, [restriction], []), "A refusal required paid specialist consent.");
 }
+
+/* Reviewed notes must agree across request, scan and photo metadata. */
+{
+  const { reviewedScanNotes } = await import("../public/scan-premium-selection.js");
+  const rooms = [{ name: "Kitchen", note: "Deep clean the oven. Leave the locked cupboard alone." }, { name: "Bathroom", note: "Do not use bleach." }];
+  const original = JSON.stringify(rooms);
+  const revised = reviewedScanNotes(rooms, { kitchen: "Leave the locked cupboard alone." });
+  assert(revised.notes.kitchen === "Leave the locked cupboard alone." && !revised.transcript.includes("Deep clean the oven"), "A removed specialist instruction survived the reviewed handoff.");
+  assert(revised.transcript.includes("Bathroom: Do not use bleach."), "Reviewing one room lost another room's restriction.");
+  assert(JSON.stringify(rooms) === original, "Reviewing notes overwrote the original scan.");
+  assert(reviewedScanNotes([], {}, "Keep the keys in place.").transcript === "Keep the keys in place.", "A note-only fallback disappeared.");
+  for (const input of [
+    [{ name: "Kitchen", note: "x".repeat(1001) }],
+    [{ name: "Kitchen", note: "First" }, { name: "kitchen", note: "Second" }],
+    Array.from({ length: 6 }, (_, index) => ({ name: "Room " + index, note: "x".repeat(900) }))
+  ]) {
+    let refused = false;
+    try { reviewedScanNotes(input); } catch (error) { refused = error instanceof TypeError; }
+    assert(refused, "Ambiguous or over-limit notes were silently dropped or truncated.");
+  }
+}
