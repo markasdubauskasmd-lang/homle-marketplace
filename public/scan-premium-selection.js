@@ -100,3 +100,24 @@ export function selectedScanRooms(rooms, plan, selectedIds) {
     })
   }));
 }
+
+
+// A single reviewed note per room supplies the request, scan and photo handoffs.
+// Do not truncate refusals to satisfy a shorter media-note field.
+export function reviewedScanNotes(rooms = [], edits = {}, fallback = "") {
+  const notes = {};
+  const lines = [];
+  for (const room of rooms) {
+    const name = text(room.name || room.roomName);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (Object.hasOwn(notes, key)) throw new TypeError("Each room needs a distinct name before its instructions can be reviewed.");
+    const note = String(Object.hasOwn(edits, key) ? edits[key] : room.note || "").trim();
+    if (note.length > 1000) throw new TypeError(name + ": shorten the room instructions to 1,000 characters without removing safety restrictions.");
+    notes[key] = note;
+    if (note) lines.push(name + ": " + note);
+  }
+  const transcript = lines.length ? lines.join("\n") : String(fallback || "").trim();
+  if (transcript.length > 5000) throw new TypeError("Shorten the combined room instructions to 5,000 characters without removing safety restrictions.");
+  return { notes, transcript };
+}
