@@ -286,3 +286,6 @@ assert(homeScript.includes("applyEntryMode") && homeScript.includes("[data-book-
 assert(homeScript.includes('hasAttribute("data-entry-label-fixed")'), "Role-aware homepage updates can overwrite the fixed CTA labels.");
 
 console.log("Landing UI tests passed: CSP-safe, self-hosted media, all five acts wired to real routes.");
+
+assert(page.includes('class="ci-launch is-on"') && !page.includes('data-launch data-at'), "The first booking action waits for a scroll animation.");
+assert(page.includes('href="/landlord/requests">Book manually</a>') && page.includes('href="/landlord/help">Help</a>'), "The homepage first screen lacks direct manual entry or customer help.");

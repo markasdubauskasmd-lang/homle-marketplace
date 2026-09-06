@@ -1131,8 +1131,8 @@ function loadPrepareWizard() {
 const workspaceTabCopy = {
   home: { title: "Hello, {name}", subtitle: "Let’s keep your property spotless." },
   properties: { title: "Properties", subtitle: "The locations saved privately to your account." },
-  bookings: { title: "Bookings", subtitle: "Everything for every place you own." },
-  places: { title: "Bookings", subtitle: "Everything for every place you own." },
+  bookings: { title: "Bookings", subtitle: "Your homes and properties." },
+  places: { title: "Bookings", subtitle: "Your homes and properties." },
   messages: { title: "Messages", subtitle: "Talk to the Cleaner working on your property." },
   account: { title: "Your account", subtitle: "Details, security, payments and preferences — one place, opened as needed." },
   payments: { title: "Payments", subtitle: "What each booking costs, and where its authorisation has reached." },
@@ -1606,7 +1606,7 @@ function renderProperties() {
     const actions = element("div", "landlord-property-actions");
     const scanAgain = element("a", "button button-outline", taskCount ? "Scan" : "Scan rooms");
     scanAgain.href = "/landlord/book";
-    scanAgain.setAttribute("aria-label", `Scan ${property.name || "saved property"} again`);
+    scanAgain.setAttribute("aria-label", `Scan rooms at ${property.name || "saved property"}`);
     scanAgain.addEventListener("click", () => saveSelectedProperty(sessionStorage, property.propertyId));
     const book = element("button", "button", "Book clean");
     book.type = "button";
