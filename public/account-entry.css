@@ -441,7 +441,24 @@ body.account-entry .role-account-avatar {
   font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
   font-weight: 700;
 }
+body.account-entry .account-ready-panel h2 {
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-weight: 700;
+  font-size: 26px;
+  letter-spacing: -.02em;
+}
 body.account-entry .account-ready-panel .account-actions { display: grid; gap: 10px; }
+body.account-entry .account-ready-panel .account-actions .button {
+  border-radius: 11px;
+  border: 1px solid var(--customer-accent);
+  background: var(--customer-accent);
+  color: #fff;
+  box-shadow: none;
+}
+body.account-entry .account-ready-panel .account-actions .button-outline {
+  background: var(--customer-paper);
+  color: var(--customer-accent);
+}
 
 body.account-entry .ae-fine {
   margin: 26px 0 0;
@@ -485,8 +502,9 @@ body.account-entry .ae-crumbs li[aria-current] {
 
 body.account-entry .account-footer {
   padding: 26px 0;
-  background: var(--customer-ink);
-  color: oklch(0.86 0.01 60);
+  background: var(--customer-paper);
+  border-top: 1px solid var(--customer-line);
+  color: var(--customer-muted);
   font-size: 13.5px;
 }
 body.account-entry .account-footer .shell {
@@ -499,7 +517,7 @@ body.account-entry .account-footer .shell {
   margin: 0 auto;
   padding: 0 40px;
 }
-body.account-entry .account-footer a { color: #fff; }
+body.account-entry .account-footer a { color: var(--customer-ink); }
 
 /* ── Responsive ───────────────────────────────────────────────────────── */
 
