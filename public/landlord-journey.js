@@ -520,6 +520,7 @@ el.scanLink.addEventListener("click", async () => {
     state.scanPremiumPlan = createPremiumPlan(state.scanRooms, state.draft.tasks, pricingConfig);
     state.scanPremiumSelected = [];
     state.draft.tasks = state.scanPremiumPlan.baseTasks;
+    state.draft.guideTime = "";
     state.draft.requestId = "";
     state.scanSessionId = "";
     refreshScanReview();
@@ -563,8 +564,8 @@ function updateResultTotals() {
 // Same honesty as the scan: a range from the work listed, never a single
 // confident figure a checklist cannot support.
 function guideRange(taskCount) {
-  const minutes = Math.max(60, Math.round((taskCount * 12) / 5) * 5);
-  const low = Math.max(60, Math.round((minutes * 0.65) / 15) * 15);
+  const minutes = Math.max(120, Math.round((taskCount * 12) / 5) * 5);
+  const low = Math.max(120, Math.round((minutes * 0.65) / 15) * 15);
   const high = Math.round((minutes * 1.35) / 15) * 15;
   const clock = (value) => (value % 60 ? `${Math.floor(value / 60)}h ${value % 60}m` : `${Math.floor(value / 60)}h`);
   return low >= high ? clock(minutes) : `${clock(low)}–${clock(high)}`;
@@ -615,7 +616,7 @@ function renderPremiumChoices() {
   host.hidden = !state.scanPremiumPlan.options.length;
   if (host.hidden) return;
   host.append(textNode("h3", "", "Optional specialist tasks"),
-    textNode("p", "hint", "These tasks are not included unless you select them. Selected tasks are added to your checklist and estimate."));
+    textNode("p", "hint", "These tasks are not included unless you select them. Their prices are task components; the total also reflects the minimum visit charge."));
   const available = new Set(correctedScanRooms().flatMap((room) => (room.objects || [])
     .filter((object) => object.needsConfirmation !== true && object.selected !== false)
     .map((object) => premiumChoiceId(room.name || room.roomName, object.inventoryKey || object.code))));
@@ -628,7 +629,7 @@ function renderPremiumChoices() {
     input.checked = selected.has(option.id);
     input.disabled = !available.has(option.id);
     input.dataset.premiumChoice = option.id;
-    label.append(input, document.createTextNode(` ${option.roomName} · ${option.label} (+${formatPence(option.pence)})`));
+    label.append(input, document.createTextNode(` ${option.roomName} · ${option.label} (${formatPence(option.pence)})`));
     card.append(label);
     for (const group of state.scanPremiumPlan.groups.filter((group) => group.ids.includes(option.id))) {
       card.append(textNode("p", "hint", group.text + (group.ids.length > 1
@@ -645,10 +646,26 @@ function renderPremiumChoices() {
       state.draft.guideTime = "";
       updateResultTotals();
       saveDraft();
+      renderSelectedPremiumTasks();
       renderReview();
     });
     host.append(card);
   }
+  const selectedTasks = textNode("div", "");
+  selectedTasks.dataset.premiumSelectedTasks = "";
+  selectedTasks.setAttribute("aria-live", "polite");
+  host.append(selectedTasks);
+  renderSelectedPremiumTasks();
+}
+
+function renderSelectedPremiumTasks() {
+  const host = document.querySelector("[data-premium-selected-tasks]");
+  if (!host) return;
+  const tasks = premiumScope(state.scanPremiumPlan, [], eligiblePremiumSelections());
+  const list = textNode("ul", "");
+  for (const task of tasks) list.append(textNode("li", "", task));
+  host.replaceChildren(textNode("h4", "", "Selected specialist tasks"),
+    tasks.length ? list : textNode("p", "hint", "None selected."));
 }
 
 /* ── Step 4: when ───────────────────────────────────── */
