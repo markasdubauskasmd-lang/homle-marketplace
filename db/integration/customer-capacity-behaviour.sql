@@ -46,7 +46,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM cleaning_requests WHERE id='30000000-0000-4000-8000-000000000003' AND status='searching-for-cleaner') THEN
     RAISE EXCEPTION 'Expired invitation did not reopen customer matching';
   END IF;
-  IF (SELECT count(*) FROM notifications WHERE booking_id='4f000000-0000-4000-8000-000000000001' AND event_type='cleaner-invitation-expired')<>1 THEN
+  IF (SELECT count(*) FROM jsonb_array_elements(tideway_private.get_my_notifications(NULL,NULL,100)->'notifications') notice WHERE notice->>'bookingId'='4f000000-0000-4000-8000-000000000001' AND notice->>'eventType'='cleaner-invitation-expired')<>1 THEN
     RAISE EXCEPTION 'Expiry retry lost or duplicated the customer recovery notice';
   END IF;
 END $customer_recovery$;
