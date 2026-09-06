@@ -331,3 +331,5 @@ assert(!unselectedPremiumInTasks(plan, ["Kitchen: Wipe the oven exterior"], []),
   "Ordinary exterior wiping was mistaken for deep-clean consent.");
 assert(JSON.stringify({ detectedRooms, originalTasks }) === originalSnapshot,
   "Choosing work overwrote the detected evidence or original instructions.");
+
+assert(JSON.stringify(premiumBaseTasks(plan, selectedOnlyOven)) === JSON.stringify(plan.baseTasks), "Returning after a partial compound choice made its optional task permanent.");
