@@ -383,3 +383,18 @@ assert(JSON.stringify(premiumBaseTasks(plan, selectedOnlyOven)) === JSON.stringi
   assert(!sent[2].tasks.some((task) => /deep clean/i.test(task.description)) && quoteRooms(sent[2].pricingRequest, config).premiumPence === 0,
     "Removing an extra retained its task or charge in the actual request payload.");
 }
+
+/* A refusal must remain visible and must never become paid work. */
+for (const restriction of ["Kitchen: Do not clean inside the oven", "Kitchen: Don't clean the oven", "Kitchen: Skip cleaning the oven", "Kitchen: The oven does not need cleaning"]) {
+  const restricted = createPremiumPlan(detectedRooms, [restriction, "Kitchen: Wipe worktops"], config);
+  const choice = restricted.options.find((option) => option.roomName === "Kitchen" && option.code === "oven");
+  assert(choice.restricted, "Explicit refusal did not block conflicting specialist work.");
+  for (const selection of [[], [choice.id]]) {
+    const scope = premiumScope(restricted, restricted.baseTasks, selection);
+    assert(scope.includes(restriction) && scope.includes("Kitchen: Wipe worktops"), "A restriction or ordinary task disappeared.");
+    assert(!scope.some((line) => /— Oven deep clean/.test(line)), "Selecting an excluded extra invented conflicting work.");
+    const priced = quoteInputFromScan({ rooms: selectedScanRooms(detectedRooms, restricted, selection).map((room) => ({ ...room, roomName: room.name })) }, { config });
+    assert(quoteRooms(priced, config).premiumPence === 0, "Excluded specialist work was charged.");
+  }
+  assert(!unselectedPremiumInTasks(restricted, [restriction], []), "A refusal required paid specialist consent.");
+}
