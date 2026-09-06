@@ -201,7 +201,8 @@ assert(/data-review\b[^>]*hidden/.test(page), "The review panel is not hidden un
 assert(page.includes("data-review-question-list"), "The review panel cannot ask the customer anything.");
 assert(page.includes("data-review-breakdown"), "The review panel cannot show how the price was worked out.");
 // The word that stops an estimate being read as a quote.
-assert(/not a quote/i.test(page), "The review panel does not say the price is an estimate rather than a quote.");
+const priceNote = page.match(/<p class="hint" data-review-price-note>([^<]+)<\/p>/)?.[1] || "";
+assert(priceNote.includes("Estimate") && priceNote.includes("approve the exact total before a Cleaner is invited") && priceNote.includes("authorization opens after acceptance") && priceNote.includes("Nothing is charged here"), "The visible estimate note must distinguish estimate, invitation approval and later payment authorization.");
 assert(/nothing is charged/i.test(page), "The review panel does not say nothing is charged yet.");
 assert(script.includes("/api/marketplace/landlord/scan-preview"), "The journey never asks for an assessment.");
 assert(script.includes("applyCorrection"), "The journey cannot apply a customer correction.");
