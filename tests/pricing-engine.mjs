@@ -292,3 +292,42 @@ for (const path of ["../public/pricing-config.js", "../public/pricing-engine.js"
 }
 
 console.log("Pricing engine tests passed: the eight brief scenarios, breakdowns that reconcile to the penny, room-independent included items, premium tasks priced away from the £3 rule, market-ordered service types, reversible add/remove, validated operator edits, and no quote sold below its margin or cleaner-pay floor.");
+
+
+/* Specialist choice scope and quote stay coupled. */
+const { createPremiumPlan, premiumScope, premiumBaseTasks, selectedScanRooms, unselectedPremiumInTasks } =
+  await import("../public/scan-premium-selection.js");
+const detectedRooms = [{ name: "Kitchen", objects: [
+  { inventoryKey: "oven", label: "Oven" }, { inventoryKey: "fridge", label: "Fridge" },
+  { inventoryKey: "worktop", label: "Worktop" }
+] }, { name: "Utility", objects: [{ inventoryKey: "oven", label: "Oven" }] }];
+const originalTasks = ["Kitchen: Wipe worktops", "Kitchen: Deep clean oven and fridge",
+  "Kitchen: Wipe the oven exterior", "Utility: Clean oven"];
+const originalSnapshot = JSON.stringify({ detectedRooms, originalTasks });
+const plan = createPremiumPlan(detectedRooms, originalTasks, config);
+const oven = plan.options.find((option) => option.roomName === "Kitchen" && option.code === "oven");
+const fridge = plan.options.find((option) => option.code === "fridge");
+assert(plan.options.length === 3, "Same appliance in another room lost its independent choice.");
+assert(JSON.stringify(plan.baseTasks) === JSON.stringify(["Kitchen: Wipe worktops", "Kitchen: Wipe the oven exterior"]),
+  "Ordinary work was lost or a generated specialist task entered the default checklist.");
+assert(premiumScope(plan, plan.baseTasks, []).length === 2, "Unchecked generated extras stayed in the checklist.");
+const selectedOnlyOven = premiumScope(plan, plan.baseTasks, [oven.id]);
+assert(selectedOnlyOven.includes("Kitchen: Oven deep clean") && !selectedOnlyOven.includes(originalTasks[1]),
+  "Partial compound selection charged work absent from the checklist or included the unselected extra.");
+const bothSelected = premiumScope(plan, plan.baseTasks, [oven.id, fridge.id]);
+assert(bothSelected.includes(originalTasks[1]) && !bothSelected.includes("Utility: Clean oven"),
+  "Compound scope was rewritten or an extra in another room was selected.");
+assert(JSON.stringify(premiumBaseTasks(plan, bothSelected)) === JSON.stringify(plan.baseTasks),
+  "Revisiting the checklist copied optional work into the always-included text.");
+const reviewed = selectedScanRooms(detectedRooms, plan, [oven.id]);
+const selectedInput = quoteInputFromScan({ rooms: reviewed.map((room) => ({ ...room, roomName: room.name })) }, { config });
+assert(quoteRooms(selectedInput, config).premiumPence === 5500, "Independent extra selection did not reach pricing.");
+const clearedInput = quoteInputFromScan({ rooms: selectedScanRooms(detectedRooms, plan, []).map((room) => ({ ...room, roomName: room.name })) }, { config });
+assert(quoteRooms(clearedInput, config).premiumPence === 0 && premiumScope(plan, plan.baseTasks, []).length === 2,
+  "Removing extras did not remove both the price and the work.");
+assert(unselectedPremiumInTasks(plan, ["Kitchen: Deep clean oven"], [])?.id === oven.id,
+  "A typed specialist task bypassed the explicit choice.");
+assert(!unselectedPremiumInTasks(plan, ["Kitchen: Wipe the oven exterior"], []),
+  "Ordinary exterior wiping was mistaken for deep-clean consent.");
+assert(JSON.stringify({ detectedRooms, originalTasks }) === originalSnapshot,
+  "Choosing work overwrote the detected evidence or original instructions.");
