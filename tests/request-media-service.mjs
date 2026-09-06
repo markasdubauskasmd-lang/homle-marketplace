@@ -33,7 +33,7 @@ const storage = {
   async createUploadUrl(input) { calls.push({ kind: "upload-url", input }); return { url: "https://storage.example/private-request-write", requiredHeaders: { "Content-Type": input.mimeType, "X-Amz-Checksum-Sha256": checksumBase64, "X-Amz-Meta-Tideway-Sha256": checksum, "X-Amz-Server-Side-Encryption": "AES256" } }; },
   async headObject(input) { calls.push({ kind: "head", input }); return { mimeType: "image/jpeg", byteSize: 1234, checksumSha256: checksum }; },
   async inspectAndSanitizeImage(input) { calls.push({ kind: "sanitize", input }); return { safe: true, outputMimeType: "image/jpeg", outputByteSize: 987, outputChecksumSha256: processedChecksum, width: 1200, height: 900 }; },
-  async readRequestImage() { throw new Error("unused"); },
+  async readPrivateImage() { throw new Error("unused"); },
   async createReadUrl(input) { calls.push({ kind: "read-url", input }); return { url: "https://storage.example/private-request-read" }; },
   async deleteObject(input) { calls.push({ kind: "delete", input }); }
 };
@@ -101,7 +101,7 @@ const privateService = createRequestMediaService({
   }
 }, {
   appOrigin: "https://homlle.com", now: () => currentTime,
-  objectStorage: { async readRequestImage() { reads += 1; if (revokeDuringRead) allowed = false; return imageBytes; } }
+  objectStorage: { async readPrivateImage() { reads += 1; if (revokeDuringRead) allowed = false; return imageBytes; } }
 });
 const privateAccess = await privateService.getPhotoAccess(landlord, requestId, uploadId);
 const privateUrl = new URL(privateAccess.url);
@@ -118,6 +118,6 @@ currentTime = new Date(privateAccess.expiresAt);
 const beforeExpired = reads;
 assert(await rejects(() => privateService.getPhotoContent(landlord, requestId, uploadId, privateAccess.expiresAt), "expired") && reads === beforeExpired, "An expired link fetched private storage.");
 currentTime = new Date("2026-07-16T12:00:00.000Z");
-const corruptService = createRequestMediaService({ ...repository, async getPhotoObject() { return imageRecord; } }, { now: () => currentTime, objectStorage: { async readRequestImage() { return Buffer.alloc(imageBytes.length); } } });
+const corruptService = createRequestMediaService({ ...repository, async getPhotoObject() { return imageRecord; } }, { now: () => currentTime, objectStorage: { async readPrivateImage() { return Buffer.alloc(imageBytes.length); } } });
 assert(await rejects(() => corruptService.getPhotoContent(landlord, requestId, uploadId, privateAccess.expiresAt), "temporarily unavailable"), "Mismatched private bytes escaped integrity verification.");
 console.log("Request-photo revocation: copied account, expired link, withdrawn permission, in-flight withdrawal and byte integrity passed.");
