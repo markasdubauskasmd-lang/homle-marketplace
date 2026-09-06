@@ -599,7 +599,7 @@ body.ci-body {
   font-size: 16px;
   box-shadow: none;
 }
-.ci-btn-primary:hover { color: #fff; 
+.ci-btn-primary:hover { color: #fff;
   background: #c4151b;
 }
 .ci-btn-primary::after,
@@ -1367,7 +1367,7 @@ body.ci-body {
 
   box-shadow: none;
 }
-.ci-btn-lg:hover { color: #fff; 
+.ci-btn-lg:hover { color: #fff;
   background: #c4151b;
 }
 .ci-btn-ghost {
@@ -1810,7 +1810,7 @@ body.ci-body {
   text-decoration: none;
   box-shadow: none;
 }
-.ci-btn-join:hover { color: #fff; 
+.ci-btn-join:hover { color: #fff;
   background: #c4151b;
 }
 .ci-btn-join::after { content: "\2197"; font-size: 16px; }

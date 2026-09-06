@@ -506,7 +506,7 @@ try {
   const contactValidationAssetText = await contactValidationAsset.text();
   assert(contactValidationAsset.ok && contactValidationAssetText.includes("isUkPostcode") && contactValidationAssetText.includes("isPhone") && contactValidationAssetText.includes("isEmail"), "The shared browser/server contact validation rules were not publicly available to the guided forms.");
   const [landingCss, landingScript, retiredLandingCss, retiredLandingScript, retiredContentAddressedScript, compactLogo128, compactLogo192, originalLogo, cleanHero960, dirtyHero960, originalHero, scanAngleWebp, scanAnglePng, supportingWideWebp, supportingNarrowWebp, supportingJpeg, optimizedClip, retiredClip] = await Promise.all([
-    fetch(`${base}/landing-b7d93eb9.css`),
+    fetch(`${base}/landing-bacbb863.css`),
     fetch(`${base}/landing-0c783ae1.js`),
     fetch(`${base}/landing.css?v=20260731-1`),
     fetch(`${base}/landing.js?v=20260731-1`),
