@@ -585,7 +585,7 @@ function eligiblePremiumSelections() {
   const present = new Set(correctedScanRooms().flatMap((room) => (room.objects || [])
     .filter((object) => object.needsConfirmation !== true && object.selected !== false)
     .map((object) => premiumChoiceId(room.name || room.roomName, object.inventoryKey || object.code))));
-  return state.scanPremiumSelected.filter((id) => present.has(id));
+  return state.scanPremiumSelected.filter((id) => present.has(id) && !state.scanPremiumPlan.options.some((option) => option.id === id && option.restricted));
 }
 
 function invalidateScanRequest() {
@@ -627,7 +627,7 @@ function renderPremiumChoices() {
     const input = document.createElement("input");
     input.type = "checkbox";
     input.checked = selected.has(option.id);
-    input.disabled = !available.has(option.id);
+    input.disabled = option.restricted || !available.has(option.id);
     input.dataset.premiumChoice = option.id;
     label.append(input, document.createTextNode(` ${option.roomName} · ${option.label} (${formatPence(option.pence)})`));
     card.append(label);
@@ -635,7 +635,7 @@ function renderPremiumChoices() {
       card.append(textNode("p", "hint", group.text + (group.ids.length > 1
         ? " — select all related specialist tasks to include this combined instruction." : "")));
     }
-    if (input.disabled) card.append(textNode("p", "hint", "Confirm this item in the scan review before selecting it."));
+    if (input.disabled) card.append(textNode("p", "hint", option.restricted ? "Your scan instructions exclude this work. Rescan with corrected instructions if that restriction has changed." : "Confirm this item in the scan review before selecting it."));
     input.addEventListener("change", () => {
       const next = new Set(state.scanPremiumSelected);
       if (input.checked) next.add(option.id); else next.delete(option.id);
