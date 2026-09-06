@@ -12,21 +12,7 @@ import { quoteRooms } from "../../public/pricing-engine.js";
 import { defaultPricingEconomics, normalizedPricingEconomics, reviewedQuote } from "./pricing-economics.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
-const landlordRepeatPath = new RegExp(`^/api/marketplace/landlord/bookings/(${uuidPattern})/repeat-scopeimport { scanRates, scanReleaseRates } from "./scan-telemetry.mjs";
-import { measureFromReference, measurementLabel, referenceScale } from "./room-measurement.mjs";
-import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
-import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
-import { cleanerProfilePhotoMimeTypes, maximumCleanerProfilePhotoBytes } from "./cleaner-profile-photo.mjs";
-import { cleanerOnboardingDocumentMimeTypes, maximumCleanerOnboardingDocumentBytes } from "./cleaner-onboarding-document.mjs";
-// The customer price comes from the same module the browser runs, so the
-// scanner's number and the authorised number cannot drift. The economics that
-// decide whether Homle will sell at that number stay server-side.
-import { defaultPricingConfig, normalizedPricingConfig } from "../../public/pricing-config.js";
-import { quoteRooms } from "../../public/pricing-engine.js";
-import { defaultPricingEconomics, normalizedPricingEconomics, reviewedQuote } from "./pricing-economics.mjs";
-
-const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
-);
+const landlordRepeatPath = new RegExp(`^/api/marketplace/landlord/bookings/(${uuidPattern})/repeat-scope$`);
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
 const bookingResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/response$`);
 const requestInvitationPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitations$`);
