@@ -127,7 +127,7 @@ export function premiumRestrictions(plan, lines) {
 }
 
 export function scanNoteLines(rooms = [], edits = {}, general = "") {
-  const clauses = (note) => String(note || "").split(/[.!?;\n]+|\bbut\b/i).map(text).filter(Boolean);
+  const clauses = (note) => String(note || "").split(/[.!?;\n]+|\bbut\b|,\s*(?=(?:please\s+)?(?:do\s+not|don[’\x27]?t|deep\s+clean|clean|wipe|wash|scrub|leave|avoid|skip)\b)/i).map(text).filter(Boolean);
   return rooms.flatMap((room) => {
     const name = text(room.name || room.roomName);
     const key = name.toLowerCase();
