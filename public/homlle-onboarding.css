@@ -705,3 +705,10 @@ legend{display:block;width:100%;padding:0}
   --shadow-md: 0 3px 10px rgba(45,43,43,0.16);
   --shadow-lg: 0 12px 32px rgba(45,43,43,0.22);
 }
+
+/* input radius parity ----------------------------------------------------
+   The approved design sets .input { border-radius: 12px }. Checkboxes,
+   radios, ranges and file inputs keep their native shape. ------------- */
+.ho-screen input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+.ho-screen select,
+.ho-screen textarea { border-radius: 12px; }
