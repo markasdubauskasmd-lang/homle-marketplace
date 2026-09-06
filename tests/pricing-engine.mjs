@@ -338,7 +338,7 @@ assert(JSON.stringify(premiumBaseTasks(plan, selectedOnlyOven)) === JSON.stringi
 {
   const { default: vm } = await import("node:vm");
   const { requestTasksFromLines, requestedWindow } = await import("../public/landlord-dashboard-model.js");
-  const { premiumChoiceId } = await import("../public/scan-premium-selection.js");
+  const { premiumChoiceId, reviewedScanNotes, scanNoteLines, premiumRestrictions } = await import("../public/scan-premium-selection.js");
   const journeySource = await readFile(new URL("../public/landlord-journey.js", import.meta.url), "utf8");
   const section = (from, to) => journeySource.slice(journeySource.indexOf(from), journeySource.indexOf(to, journeySource.indexOf(from)));
   const sent = [];
@@ -350,7 +350,7 @@ assert(JSON.stringify(premiumBaseTasks(plan, selectedOnlyOven)) === JSON.stringi
     } };
   const el = { tasks: { value: plan.baseTasks.join("\n") } };
   const context = vm.createContext({
-    state, el, premiumScope, premiumChoiceId, selectedScanRooms, quoteInputFromScan,
+    state, el, premiumScope, premiumChoiceId, selectedScanRooms, quoteInputFromScan, reviewedScanNotes, scanNoteLines, premiumRestrictions,
     pricingConfig: config, defaultPricingConfig, pricingServiceTypeByCode: { "regular-domestic": "standard" },
     requestedWindow: (date, time, duration) => requestedWindow(date, time, duration, new Date("2099-08-19T12:00:00Z")), requestTasksFromLines, saveDraft() {},
     correctedScanRooms() { return state.scanRooms; },
