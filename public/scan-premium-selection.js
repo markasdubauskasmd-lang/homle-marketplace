@@ -30,7 +30,7 @@ export function createPremiumPlan(rooms = [], taskLines = [], config = {}) {
       if (code === "fridge") names.push("refrigerator");
       if (code === "oven") names.push("ovens");
       options.push({ id, code, roomName, label: premium.label, pence: premium.pence,
-        names: [...new Set(names)], task: roomName + ": " + premium.label });
+        names: [...new Set(names)], task: roomName + ": Clean the " + text(object.label || premium.label).toLowerCase() + " — " + premium.label });
     }
   }
   const groups = [];
