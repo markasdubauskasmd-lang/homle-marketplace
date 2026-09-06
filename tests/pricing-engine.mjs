@@ -399,6 +399,45 @@ for (const restriction of ["Kitchen: Do not clean inside the oven", "Kitchen: Do
   assert(!unselectedPremiumInTasks(restricted, [restriction], []), "A refusal required paid specialist consent.");
 }
 
+
+/* Capture all three actual write boundaries; no provider requests run. */
+{
+  const { default: vm } = await import("node:vm");
+  const { reviewedScanNotes } = await import("../public/scan-premium-selection.js");
+  const { requestTasksFromLines } = await import("../public/landlord-dashboard-model.js");
+  const source = await readFile(new URL("../public/landlord-journey.js", import.meta.url), "utf8");
+  const section = (from, to) => source.slice(source.indexOf(from), source.indexOf(to, source.indexOf(from)));
+  const rooms = [{ name: "Kitchen", note: "Deep clean the oven. Leave the keys alone.", objects: [] }];
+  const state = { scanRooms: rooms, scanPhotos: [{ roomName: "Kitchen", note: rooms[0].note }],
+    scanNoteEdits: { kitchen: "Leave the keys alone." }, scanGeneralNote: "", scanSessionId: "", scanDeviceClass: "synthetic",
+    draft: { tasks: ["Kitchen: Wipe worktops"], transcript: "Kitchen: " + rooms[0].note } };
+  const writes = [];
+  const stop = new Error("Stop before storage upload");
+  const context = vm.createContext({
+    state, reviewedScanNotes, requestTasksFromLines, el: { checkoutState: {} }, console,
+    randomId: () => "11111111-1111-4111-8111-111111111111",
+    replayScanCorrections: async () => {}, saveVoiceInstructions: async () => {}, saveScanMeasurements: async () => {},
+    dataUrlFile: () => ({ type: "image/jpeg", size: 10 }), sha256: async () => "synthetic",
+    requestJson: async (url, options) => {
+      if (!options) return { scan: { photos: [] } };
+      writes.push({ url, payload: JSON.parse(options.body) });
+      if (url.endsWith("/photos/intents")) throw stop;
+      return { scan: { rooms: [] } };
+    }
+  });
+  vm.runInContext(section("function currentReviewedNotes()", "function renderRoomNotes()")
+    + section("async function saveStructuredScan(", "// Retries a failed save")
+    + section("async function uploadRoomPhotos(", "function exactPriceLabel("), context);
+  assert(await context.saveStructuredScan("synthetic", "request"), "Reviewed scan metadata could not be saved.");
+  try { await context.uploadRoomPhotos("synthetic", "request"); } catch (error) { assert(error === stop, "Photo test failed before reaching the metadata boundary."); }
+  assert(writes.length === 2 && writes[0].payload.rooms[0].note === "Leave the keys alone." && writes[1].payload.note === "Leave the keys alone.",
+    "A stale original note leaked through the actual scan or photo writer.");
+  assert(context.currentReviewedNotes().transcript === "Kitchen: Leave the keys alone.", "The request note disagrees with scan/photo metadata.");
+  state.scanNoteEdits.kitchen = "";
+  assert(context.currentReviewedNotes().transcript === "", "Clearing all reviewed notes restored the original request.");
+  assert(rooms[0].note.startsWith("Deep clean the oven"), "Saving reviewed notes overwrote original scan evidence.");
+}
+
 /* Reviewed notes must agree across request, scan and photo metadata. */
 {
   const { reviewedScanNotes } = await import("../public/scan-premium-selection.js");
