@@ -1282,7 +1282,7 @@ async function openMessages() {
   panel?.setAttribute("aria-busy", "true");
   try {
     if (!landlordMessagesLoad) {
-      landlordMessagesLoad = import("./landlord-messages.js?v=20260831-1").catch((error) => {
+      landlordMessagesLoad = import("./landlord-messages.js?v=20260905-1").catch((error) => {
         console.warn("The Messages view could not be loaded.", error);
         return null;
       });

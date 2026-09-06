@@ -5,6 +5,7 @@ import {
 } from "./notification-inbox-model.js?v=20260729-1";
 import { notificationDayGroup, notificationGroups, notificationTone } from "./notification-inbox-view-model.js?v=20260830-1";
 import { createRequestJson } from "./request-json.js";
+import { saveCsrf } from "./session-csrf.js";
 import { renderWorkspaceShell } from "./workspace-shell.js?v=20260830-1";
 
 // The old Cleaner Messages tab pointed at this generic Updates page with a query
@@ -32,6 +33,7 @@ let notifications = [];
 let unreadCount = 0;
 let nextCursor = null;
 let loading = false;
+let markingRead = false;
 let inboxCutoff = new Date().toISOString();
 
 function csrfToken() {
@@ -39,6 +41,14 @@ function csrfToken() {
 }
 
 const requestJson = createRequestJson({ failureMessage: "Your updates could not be loaded." });
+
+async function recoverCsrf() {
+  const current = csrfToken();
+  if (current) return current;
+  const result = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }, 20_000);
+  if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("Your secure session could not be saved. Allow session storage and try again.");
+  return result.csrfToken;
+}
 
 function showGate(title, message, options = {}) {
   gate.hidden = false;
@@ -186,10 +196,10 @@ function render() {
   const now = new Date();
   list.replaceChildren(...notificationGroups(notifications, now).map((group) => renderGroup(group, now)));
   unread.textContent = unreadCount === 1 ? "1 unread" : `${unreadCount} unread`;
-  markAll.disabled = unreadCount === 0;
+  markAll.disabled = unreadCount === 0 || loading || markingRead;
   empty.hidden = notifications.length !== 0;
   loadMore.hidden = !nextCursor;
-  loadMore.disabled = loading;
+  loadMore.disabled = loading || markingRead;
 }
 
 function appendPage(result) {
@@ -201,9 +211,10 @@ function appendPage(result) {
 }
 
 async function load(initial = true) {
-  if (loading) return;
+  if (loading) return false;
   loading = true;
   retry.disabled = true;
+  markAll.disabled = true;
   if (initial) {
     inboxCutoff = new Date().toISOString();
     showGate("Checking your private updates…", "Only updates for your signed-in account can appear here.", { loading: true });
@@ -217,13 +228,14 @@ async function load(initial = true) {
       query.set("beforeCreatedAt", nextCursor.beforeCreatedAt);
       query.set("beforeNotificationId", nextCursor.beforeNotificationId);
     }
-    const notificationResult = await requestJson(`/api/marketplace/notifications?${query}`);
+    const notificationResult = await requestJson(`/api/marketplace/notifications?${query}`, {}, 20_000);
     if (initial) notifications = [];
     appendPage(notificationResult);
     gate.hidden = true;
     skeleton.hidden = true;
     content.hidden = false;
     showFeedback("");
+    return true;
   } catch (error) {
     if (initial) {
       const unauthenticated = error.status === 401 || error.status === 403;
@@ -234,6 +246,7 @@ async function load(initial = true) {
         { signIn: unauthenticated, retry: !unauthenticated }
       );
     } else showFeedback("Earlier updates could not be loaded. Check your connection and try again.");
+    return false;
   } finally {
     loading = false;
     retry.disabled = false;
@@ -243,19 +256,30 @@ async function load(initial = true) {
 }
 
 markAll.addEventListener("click", async () => {
-  const csrf = csrfToken();
-  if (!csrf) return showFeedback("Your secure editing token is missing. Sign in again before changing updates.");
+  if (markingRead || loading) return;
+  if (navigator.onLine === false) return showFeedback("You are offline. Reconnect before marking updates as read.");
+  // Lock before session recovery. Keep this inbox's original cutoff so a
+  // notification arriving during recovery is not silently marked read.
+  markingRead = true;
+  const cutoffCreatedAt = inboxCutoff;
   markAll.disabled = true;
+  loadMore.disabled = true;
+  markAll.setAttribute("aria-busy", "true");
   markAll.textContent = "Marking read…";
+  showFeedback("");
   try {
-    await requestJson("/api/marketplace/notifications/read-all", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ cutoffCreatedAt: inboxCutoff }) });
-    await load(true);
-    showFeedback("All updates shown here are marked as read.", "success");
+    const csrf = await recoverCsrf();
+    await requestJson("/api/marketplace/notifications/read-all", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify({ cutoffCreatedAt }) }, 30_000);
+    if (await load(true)) showFeedback("Updates received before you opened this inbox are marked as read. Newer updates stay unread.", "success");
+    else gateCopy.textContent += " Your read status was saved, but the refreshed inbox could not be loaded.";
   } catch (error) {
     showFeedback(error.status === 401 || error.status === 403 ? "Your session expired. Sign in again to continue." : "Updates could not be marked as read. Please try again.");
   } finally {
+    markingRead = false;
+    markAll.removeAttribute("aria-busy");
     markAll.textContent = "Mark all read";
     markAll.disabled = unreadCount === 0;
+    loadMore.disabled = loading;
   }
 });
 
