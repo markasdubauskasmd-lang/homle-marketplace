@@ -128,7 +128,7 @@ export function createRequestMediaService(repository, options = {}) {
     },
     async getPhotoAccess(actor, cleaningRequestId, photoId) {
       if (!actor?.userId) throw new TypeError("An authenticated marketplace account is required to view a room photo.");
-      if (!appOrigin || typeof storage?.readRequestImage !== "function") throw unavailable();
+      if (!appOrigin || typeof storage?.readPrivateImage !== "function") throw unavailable();
       const requestId = uuid(cleaningRequestId, "cleaning request id");
       const id = uuid(photoId, "room photo id");
       const photo = await repository.getPhotoObject(actor, requestId, id);
@@ -147,9 +147,9 @@ export function createRequestMediaService(repository, options = {}) {
       // Authorize before fetching, then again after the storage read so a
       // permission withdrawn during that read cannot release new bytes.
       const photo = await repository.getPhotoObject(actor, requestId, id);
-      if (typeof storage?.readRequestImage !== "function") throw unavailable();
+      if (typeof storage?.readPrivateImage !== "function") throw unavailable();
       let bytes;
-      try { bytes = await storage.readRequestImage({ storageKey: photo.storageKey, byteSize: photo.byteSize }); } catch { throw unavailable(); }
+      try { bytes = await storage.readPrivateImage({ storageKey: photo.storageKey, byteSize: photo.byteSize }); } catch { throw unavailable(); }
       if (!Buffer.isBuffer(bytes) || bytes.length !== photo.byteSize || bytes.length > 15_000_000 || photo.mimeType !== "image/jpeg" || createHash("sha256").update(bytes).digest("hex") !== photo.checksumSha256) throw unavailable();
       const current = await repository.getPhotoObject(actor, requestId, id);
       if (current.storageKey !== photo.storageKey || current.checksumSha256 !== photo.checksumSha256 || expiry.getTime() <= now().getTime()) throw Object.assign(new Error("The private photo is no longer available. Open the photo again."), { statusCode: 410, code: "request-photo-link-expired" });
