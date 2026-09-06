@@ -29,7 +29,7 @@ import {
   checkoutMode,
   checkoutCopy
 } from "./landlord-journey-model.js?v=journey9";
-import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInTasks, selectedScanRooms, premiumChoiceId } from "./scan-premium-selection.js?v=20260906-1";
+import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInTasks, selectedScanRooms, premiumChoiceId, reviewedScanNotes, scanNoteLines, premiumRestrictions } from "./scan-premium-selection.js?v=20260906-1";
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
@@ -126,6 +126,8 @@ const state = {
   scanCorrections: [],
   scanReview: null,
   scanInstructions: [],
+  scanNoteEdits: {},
+  scanGeneralNote: "",
   // Measurements taken from the room photos at review time. Held in memory like
   // the photos they were measured from, and stored against the saved scan at
   // confirm — the same deferred-persist pattern as corrections and instructions.
@@ -512,6 +514,13 @@ el.scanLink.addEventListener("click", async () => {
     state.draft.guideTime = typeof result.guideTime === "string" ? result.guideTime : "";
     state.scanPhotos = Array.isArray(result.photos) ? result.photos : [];
     state.scanRooms = Array.isArray(result.rooms) ? result.rooms : [];
+    state.scanNoteEdits = {};
+    const sourceNotes = state.scanRooms.filter((room) => String(room.note || "").trim())
+      .map((room) => room.name + ": " + String(room.note).trim()).join("\n");
+    // Preserve unmatched legacy speech separately; the overlay aggregate can
+    // be a truncated prefix of the complete room notes.
+    state.scanGeneralNote = sourceNotes && sourceNotes.startsWith(state.draft.transcript.trim())
+      ? "" : state.draft.transcript;
     state.scanDeviceClass = typeof result.deviceClass === "string" ? result.deviceClass : "unknown";
     state.scanCorrections = [];
     state.scanMeasurements = [];
@@ -550,6 +559,7 @@ function renderResults() {
     : "Written by you";
   el.tasks.value = premiumBaseTasks(state.scanPremiumPlan, state.draft.tasks).join("\n");
   renderPremiumChoices();
+  renderRoomNotes();
   updateResultTotals();
 }
 
@@ -585,7 +595,8 @@ function eligiblePremiumSelections() {
   const present = new Set(correctedScanRooms().flatMap((room) => (room.objects || [])
     .filter((object) => object.needsConfirmation !== true && object.selected !== false)
     .map((object) => premiumChoiceId(room.name || room.roomName, object.inventoryKey || object.code))));
-  return state.scanPremiumSelected.filter((id) => present.has(id) && !state.scanPremiumPlan.options.some((option) => option.id === id && option.restricted));
+  const restricted = new Set(premiumRestrictions(state.scanPremiumPlan, currentNoteLines()));
+  return state.scanPremiumSelected.filter((id) => present.has(id) && !restricted.has(id) && !state.scanPremiumPlan.options.some((option) => option.id === id && option.restricted));
 }
 
 function invalidateScanRequest() {
@@ -593,7 +604,60 @@ function invalidateScanRequest() {
   state.scanSessionId = "";
 }
 
+function currentNoteLines() {
+  return scanNoteLines(state.scanRooms, state.scanNoteEdits || {}, state.scanGeneralNote ?? state.draft.transcript);
+}
+
+function currentReviewedNotes() {
+  return reviewedScanNotes(state.scanRooms, state.scanNoteEdits || {}, state.scanGeneralNote ?? state.draft.transcript);
+}
+
+function renderRoomNotes() {
+  let host = document.querySelector("[data-reviewed-room-notes]");
+  if (!host) {
+    host = textNode("section", "scan-review-room");
+    host.dataset.reviewedRoomNotes = "";
+    document.querySelector("[data-scan-premium-choices]").after(host);
+  }
+  host.replaceChildren();
+  host.hidden = !state.scanRooms.length && !state.scanGeneralNote;
+  if (host.hidden) return;
+  host.append(textNode("h3", "", "Room instructions"),
+    textNode("p", "hint", "Check your spoken notes against the checklist and optional tasks. Keep safety restrictions. These reviewed instructions are saved with your request and room photos."));
+  const fields = state.scanRooms.map((room) => ({ name: room.name || room.roomName, key: String(room.name || room.roomName).trim().toLowerCase(), note: room.note || "" }));
+  if (state.scanGeneralNote) fields.push({ name: "Other scan instructions", key: null, note: state.scanGeneralNote });
+  for (const [index, field] of fields.entries()) {
+    const label = textNode("label", "hint", field.name);
+    const input = document.createElement("textarea");
+    input.id = "reviewed-room-note-" + index;
+    label.htmlFor = input.id;
+    input.rows = 3;
+    input.value = field.key === null ? state.scanGeneralNote : state.scanNoteEdits[field.key] ?? field.note;
+    input.addEventListener("input", () => {
+      if (field.key === null) state.scanGeneralNote = input.value;
+      else state.scanNoteEdits[field.key] = input.value;
+      invalidateScanRequest();
+      el.tasks.setCustomValidity("");
+      renderPremiumChoices();
+      updateResultTotals();
+      renderReview();
+    });
+    host.append(label, input);
+  }
+}
+
 function validatePremiumChecklist() {
+  try { currentReviewedNotes(); } catch (error) {
+    el.tasks.setCustomValidity(error.message);
+    el.tasks.reportValidity();
+    return false;
+  }
+  const noteConflict = unselectedPremiumInTasks(state.scanPremiumPlan, currentNoteLines(), eligiblePremiumSelections());
+  if (noteConflict) {
+    el.tasks.setCustomValidity("Your room instructions request " + noteConflict.label + ". Select that optional task or edit the room instructions below.");
+    el.tasks.reportValidity();
+    return false;
+  }
   const conflict = unselectedPremiumInTasks(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
   const tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
   const message = conflict
@@ -627,7 +691,7 @@ function renderPremiumChoices() {
     const input = document.createElement("input");
     input.type = "checkbox";
     input.checked = selected.has(option.id);
-    input.disabled = option.restricted || !available.has(option.id);
+    input.disabled = option.restricted || premiumRestrictions(state.scanPremiumPlan, currentNoteLines()).includes(option.id) || !available.has(option.id);
     input.dataset.premiumChoice = option.id;
     label.append(input, document.createTextNode(` ${option.roomName} · ${option.label} (${formatPence(option.pence)})`));
     card.append(label);
@@ -635,7 +699,7 @@ function renderPremiumChoices() {
       card.append(textNode("p", "hint", group.text + (group.ids.length > 1
         ? " — select all related specialist tasks to include this combined instruction." : "")));
     }
-    if (input.disabled) card.append(textNode("p", "hint", option.restricted ? "Your scan instructions exclude this work. Rescan with corrected instructions if that restriction has changed." : "Confirm this item in the scan review before selecting it."));
+    if (input.disabled) card.append(textNode("p", "hint", (option.restricted || premiumRestrictions(state.scanPremiumPlan, currentNoteLines()).includes(option.id)) ? "Your scan instructions exclude this work. Rescan with corrected instructions if that restriction has changed." : "Confirm this item in the scan review before selecting it."));
     input.addEventListener("change", () => {
       const next = new Set(state.scanPremiumSelected);
       if (input.checked) next.add(option.id); else next.delete(option.id);
@@ -974,7 +1038,7 @@ async function createOrRecoverRequest(csrf, propertyId) {
     ...window,
     cleaningType: state.draft.serviceCode,
     requiredServices: [state.draft.serviceCode],
-    specialInstructions: state.draft.transcript,
+    specialInstructions: state.scanRooms.length ? currentReviewedNotes().transcript : state.draft.transcript,
     budgetPence: null,
     frequency: state.draft.frequency,
     tasks,
@@ -1630,12 +1694,13 @@ async function saveScanMeasurements(csrf, requestId, savedScan) {
 }
 
 async function saveStructuredScan(csrf, requestId) {
+  const reviewedNotes = currentReviewedNotes();
   const rooms = state.scanRooms
     .filter((room) => room && String(room.name || "").trim())
     .map((room) => ({
       roomName: room.name,
       condition: room.condition || "",
-      note: room.note || "",
+      note: reviewedNotes.notes[String(room.name).trim().toLowerCase()] || "",
       objects: Array.isArray(room.objects) ? room.objects : []
     }));
   if (!rooms.length) return false;
@@ -1688,6 +1753,7 @@ async function saveStructuredScanWithRetry(csrf, requestId, attempts = 3) {
 }
 
 async function uploadRoomPhotos(csrf, requestId) {
+  const reviewedNotes = currentReviewedNotes();
   const existing = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/scan`);
   const attachedRooms = new Set((existing.scan?.photos || []).map((photo) => String(photo.roomName || "").trim().toLowerCase()));
   const reviewedRooms = new Set(requestTasksFromLines(state.draft.tasks.join("\n")).map((task) => task.roomName.toLowerCase()));
@@ -1703,7 +1769,7 @@ async function uploadRoomPhotos(csrf, requestId) {
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
       body: JSON.stringify({
         roomName: photo.roomName,
-        note: photo.note || "",
+        note: reviewedNotes.notes[String(photo.roomName).trim().toLowerCase()] || "",
         mimeType: file.type,
         byteSize: file.size,
         checksumSha256: await sha256(file)
