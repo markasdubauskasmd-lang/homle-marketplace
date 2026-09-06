@@ -28,7 +28,8 @@ assert(!/https?:\/\//.test(script) && !script.includes("eval(") && !script.inclu
 assert(!/src="https?:\/\//.test(page) && !page.includes("unsplash"), "The landing page hotlinks an off-origin image, which img-src 'self' blocks.");
 
 // The display face is self-hosted under the immutable /vendor/ path with its OFL.
-assert(css.includes('url("/vendor/fonts/archivo-wght-latin.woff2")'), "The landing typography is not self-hosted from /vendor/fonts.");
+const fontTokens = await readFile(new URL("../public/homle-tokens.css", import.meta.url), "utf8");
+assert(page.includes('/homle-tokens.css') && css.includes('--ci-sans: "DM Sans"') && fontTokens.includes('url("/vendor/fonts/dm-sans-wght.woff2")'), "The landing must load the same self-hosted DM Sans as the approved landlord reference.");
 for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", "OFL.txt"]) {
   const info = await stat(new URL(`../public/vendor/fonts/${file}`, import.meta.url));
   assert(info.isFile() && info.size > 0, `Vendored font asset ${file} is missing.`);
