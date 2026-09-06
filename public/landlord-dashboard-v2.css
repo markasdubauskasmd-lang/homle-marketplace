@@ -2453,6 +2453,7 @@ body.landlord-dashboard-page .ld-past-grid {
    â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 body.landlord-dashboard-page .ld-builder-dialog {
+  --ld-display: var(--ld-body);
   width: min(1080px, calc(100vw - 32px));
   max-width: none;
   max-height: min(880px, calc(100dvh - 32px));
@@ -2465,6 +2466,11 @@ body.landlord-dashboard-page .ld-builder-dialog {
   box-shadow: 0 40px 90px rgba(26, 26, 26, .3);
   overflow: auto;
   overscroll-behavior: contain;
+}
+body.landlord-dashboard-page .ld-builder-dialog .landlord-request-form {
+  background: var(--ld-canvas);
+  border: 1px solid var(--ld-border);
+  border-radius: 20px;
 }
 body.landlord-dashboard-page .ld-builder-dialog[open] { animation: hub-book-in .42s cubic-bezier(.2, .9, .25, 1.02) both; }
 body.landlord-dashboard-page .ld-builder-dialog::backdrop {

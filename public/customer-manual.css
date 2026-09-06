@@ -1,0 +1,18 @@
+/* Manual request dialog only. Reuse the Home palette without changing the
+   approved Home composition or any shared Cleaner dependency. */
+body.landlord-dashboard-page .ld-builder-dialog { --ld-display: var(--ld-body); }
+body.landlord-dashboard-page .ld-builder-dialog .landlord-request-form {
+  background: var(--ld-canvas);
+  border: 1px solid var(--ld-border);
+  border-radius: 20px;
+}
+body.landlord-dashboard-page .ld-builder-dialog .pac-basket {
+  background: var(--ld-paper);
+  border: 1px solid var(--ld-border);
+  border-radius: 20px;
+  box-shadow: var(--ld-card-shadow);
+}
+body.landlord-dashboard-page .ld-builder-dialog .pac-card-option.is-selected {
+  background: var(--ld-coral-tint);
+  box-shadow: inset 0 0 0 1px var(--ld-coral);
+}
