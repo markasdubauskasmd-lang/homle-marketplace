@@ -159,3 +159,37 @@ const failedRetry = await failedRetryService.beginAuthorization(landlord, { book
 assert(failedRetry.status === "requires-customer-action" && failedRetry.clientSecret === "pi_secret_private", "A failed authorization could not reopen the same provider payment safely.");
 
 console.log("Payment service tests passed: server-frozen and resumable authorization, role-bound capture/cancel/refund/transfer, private idempotency, server-owned payout destination and verified webhook reconciliation.");
+
+/* Owner authorization completes before any receipt-provider read. */
+{
+  const receiptReads = [];
+  let receiptRecord = { paymentId, bookingId, providerPaymentId: "pi_test_receipt", amountCapturedPence: 12000, currency: "gbp" };
+  let denied = false;
+  let providerFailure = false;
+  const service = createPaymentService({ ...repository, async getForReceipt(actor, id) {
+    receiptReads.push("owner");
+    if (denied) throw Object.assign(new Error("The booking was not found."), { statusCode: 404 });
+    return receiptRecord;
+  } }, { ...provider, async retrieveReceipt(record) {
+    receiptReads.push("provider");
+    assert.equal(record.providerPaymentId, "pi_test_receipt");
+    if (providerFailure) throw new Error("private provider diagnostic");
+    return { url: "https://pay.stripe.com/receipts/payment/synthetic", testMode: true };
+  } }, { publishableKey });
+  assert.equal((await service.getReceiptForBooking(landlord, bookingId)).available, true);
+  assert.deepEqual(receiptReads, ["owner", "provider"]);
+  receiptReads.length = 0; denied = true;
+  await assert.rejects(service.getReceiptForBooking(landlord, bookingId), { statusCode: 404 });
+  assert.deepEqual(receiptReads, ["owner"]);
+  receiptReads.length = 0;
+  await assert.rejects(service.getReceiptForBooking(cleaner, bookingId), { statusCode: 403 });
+  await assert.rejects(service.getReceiptForBooking(administrator, bookingId), { statusCode: 403 });
+  assert.deepEqual(receiptReads, []);
+  denied = false; receiptRecord = null;
+  assert.equal((await service.getReceiptForBooking(landlord, bookingId)).reason, "not-captured");
+  receiptRecord = { paymentId, bookingId, providerPaymentId: "pi_test_receipt", amountCapturedPence: 0, currency: "gbp" };
+  assert.equal((await service.getReceiptForBooking(landlord, bookingId)).available, false);
+  assert.equal(receiptReads.includes("provider"), false);
+  receiptRecord.amountCapturedPence = 12000; providerFailure = true;
+  await assert.rejects(service.getReceiptForBooking(landlord, bookingId), error => error.statusCode === 503 && error.code === "receipt-unavailable" && !error.message.includes("private"));
+}
