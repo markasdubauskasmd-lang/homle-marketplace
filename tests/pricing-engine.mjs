@@ -333,3 +333,53 @@ assert(JSON.stringify({ detectedRooms, originalTasks }) === originalSnapshot,
   "Choosing work overwrote the detected evidence or original instructions.");
 
 assert(JSON.stringify(premiumBaseTasks(plan, selectedOnlyOven)) === JSON.stringify(plan.baseTasks), "Returning after a partial compound choice made its optional task permanent.");
+
+/* Exercise the actual request writer: selected scope and price arrive together. */
+{
+  const { default: vm } = await import("node:vm");
+  const { requestTasksFromLines, requestedWindow } = await import("../public/landlord-dashboard-model.js");
+  const { premiumChoiceId } = await import("../public/scan-premium-selection.js");
+  const journeySource = await readFile(new URL("../public/landlord-journey.js", import.meta.url), "utf8");
+  const section = (from, to) => journeySource.slice(journeySource.indexOf(from), journeySource.indexOf(to, journeySource.indexOf(from)));
+  const sent = [];
+  let sequence = 0;
+  const state = { step: "results", scanRooms: detectedRooms, scanPremiumPlan: plan,
+    scanPremiumSelected: [oven.id], scanSessionId: "old-scan", draft: {
+      tasks: [], requestId: "", date: "2099-08-20", time: "10:00", durationMinutes: 120,
+      serviceCode: "regular-domestic", frequency: "one-time", transcript: "Leave the locked cupboard alone."
+    } };
+  const el = { tasks: { value: plan.baseTasks.join("\n") } };
+  const context = vm.createContext({
+    state, el, premiumScope, premiumChoiceId, selectedScanRooms, quoteInputFromScan,
+    pricingConfig: config, defaultPricingConfig, pricingServiceTypeByCode: { "regular-domestic": "standard" },
+    requestedWindow, requestTasksFromLines, saveDraft() {},
+    correctedScanRooms() { return state.scanRooms; },
+    randomId() { return "77777777-7777-4777-8777-" + String(++sequence).padStart(12, "0"); },
+    requestJson: async (url, options) => {
+      const payload = JSON.parse(options.body);
+      sent.push(payload);
+      return { cleaningRequest: { requestId: payload.id } };
+    }
+  });
+  vm.runInContext(
+    section("function editableTaskLines()", "function validatePremiumChecklist()")
+    + section("function readCurrentStep()", "/* ── Step 1:")
+    + section("function currentPricingRequest()", "async function loadPricingConfig()")
+    + section("async function createOrRecoverRequest(", "// Saves what the scan actually saw"),
+    context);
+  context.readCurrentStep();
+  await context.createOrRecoverRequest("synthetic", "11111111-1111-4111-8111-111111111111");
+  assert(sent[0].tasks.some((task) => task.description === "Oven deep clean"), "Selected premium price reached the server without its task.");
+  assert(!sent[0].tasks.some((task) => /fridge/i.test(task.description)), "Unchecked extra reached the persisted scope.");
+  assert(quoteRooms(sent[0].pricingRequest, config).premiumPence === 5500, "Saved scope and specialist price diverged.");
+  assert(sent[0].specialInstructions === state.draft.transcript, "Optional choices overwrote the customer's restrictions.");
+  await context.createOrRecoverRequest("synthetic", "11111111-1111-4111-8111-111111111111");
+  assert(sent[1].id === sent[0].id, "An unchanged retry lost its request identity.");
+  state.scanPremiumSelected = [];
+  context.invalidateScanRequest();
+  context.readCurrentStep();
+  await context.createOrRecoverRequest("synthetic", "11111111-1111-4111-8111-111111111111");
+  assert(sent[2].id !== sent[0].id && state.scanSessionId === "", "A changed choice reused the previously quoted request or scan identity.");
+  assert(!sent[2].tasks.some((task) => /deep clean/i.test(task.description)) && quoteRooms(sent[2].pricingRequest, config).premiumPence === 0,
+    "Removing an extra retained its task or charge in the actual request payload.");
+}
