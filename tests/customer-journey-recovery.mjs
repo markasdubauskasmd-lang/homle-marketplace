@@ -22,7 +22,7 @@ function harness() {
   const el = Object.fromEntries(["propertyNext", "supply", "supplyHead", "supplyDetail", "cleaners", "cleanerState", "cleanerLede", "resultsEyebrow", "resultsTitle", "resultsIntro", "resultsSource", "tasks"].map(key => [key, element()]));
   const context = vm.createContext({
     state, el, URLSearchParams, premiumBaseTasks,
-    renderPremiumChoices() {},
+    renderPremiumChoices() {}, renderRoomNotes() {},
     DIRECTORY_REQUEST_TIMEOUT_MS: 8000,
     requestJson(url) { return new Promise((resolve, reject) => requests.push({ url, resolve, reject })); },
     supplyMessage(count, outward) { return { headline: count + " near " + outward, detail: "Checked", available: count > 0 }; },
