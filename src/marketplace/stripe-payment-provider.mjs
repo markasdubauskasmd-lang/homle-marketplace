@@ -220,6 +220,34 @@ export async function createStripePaymentProvider(configuration = {}, options = 
       }, { idempotencyKey: selected.idempotencyKey });
       return authorizationResult(intent);
     },
+    async retrieveReceipt(input) {
+      if (!uuidPattern.test(input?.paymentId || "") || !uuidPattern.test(input?.bookingId || "")
+        || !/^pi_[A-Za-z0-9_]{3,250}$/.test(input?.providerPaymentId || "")
+        || !Number.isInteger(input?.amountCapturedPence) || input.amountCapturedPence < 1
+        || input.currency !== "gbp") throw new TypeError("A captured Homle payment is required for a receipt.");
+      const intent = await stripe.paymentIntents.retrieve(input.providerPaymentId, { expand: ["latest_charge"] });
+      if (intent?.id !== input.providerPaymentId || intent.livemode !== false || intent.currency !== input.currency
+        || intent.metadata?.tideway_payment_id !== input.paymentId || intent.metadata?.tideway_booking_id !== input.bookingId) {
+        throw new TypeError("The receipt payment could not be verified.");
+      }
+      if (intent.status !== "succeeded" || !intent.latest_charge) return null;
+      if (intent.amount_received !== input.amountCapturedPence) throw new TypeError("The receipt amount could not be verified.");
+      const chargeId = objectReference(intent.latest_charge);
+      if (!/^ch_[A-Za-z0-9_]{3,250}$/.test(chargeId || "")) throw new TypeError("The receipt charge could not be verified.");
+      const charge = typeof intent.latest_charge === "object" ? intent.latest_charge : await stripe.charges.retrieve(chargeId);
+      if (charge?.id !== chargeId || objectReference(charge.payment_intent) !== intent.id || charge.livemode !== false
+        || charge.currency !== input.currency || charge.amount_captured !== input.amountCapturedPence
+        || charge.paid !== true || charge.captured !== true || charge.status !== "succeeded"
+        || !Number.isInteger(charge.amount_refunded) || charge.amount_refunded < 0 || charge.amount_refunded > charge.amount_captured) {
+        throw new TypeError("The receipt charge could not be verified.");
+      }
+      if (!charge.receipt_url) return null;
+      const url = new URL(charge.receipt_url);
+      if (url.protocol !== "https:" || url.hostname !== "pay.stripe.com" || url.port || url.username || url.password
+        || url.hash || !url.pathname.startsWith("/receipts/")) throw new TypeError("The receipt link could not be verified.");
+      return Object.freeze({ url: url.toString(), amountCapturedPence: charge.amount_captured,
+        amountRefundedPence: charge.amount_refunded, currency: charge.currency, testMode: true });
+    },
     async retrieveAuthorization(input) {
       const intent = await stripe.paymentIntents.retrieve(reference(input?.providerPaymentId, "PaymentIntent id"));
       return authorizationResult(intent);
