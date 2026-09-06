@@ -23,6 +23,9 @@ const scripts = Object.freeze({
   administratorFunnelSetup: "administrator-funnel-owner-setup.sql",
   administratorFunnel: "administrator-funnel-behaviour.sql",
   administratorFunnelCleanup: "administrator-funnel-owner-cleanup.sql",
+  capacitySetup: "customer-capacity-setup.sql",
+  capacity: "customer-capacity-behaviour.sql",
+  capacityCleanup: "customer-capacity-cleanup.sql",
   propertyArchive: "property-archive-behaviour.sql",
   landlordRepeatSetup: "landlord-repeat-setup.sql",
   landlordRepeat: "landlord-repeat-behaviour.sql",
@@ -243,6 +246,12 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
       runPsqlSync({ label: "Administrator funnel privacy and cohort test", file: scripts.administratorFunnel, environment: appEnvironment, command, execute });
     } finally {
       runPsqlSync({ label: "Administrator funnel fixture cleanup", file: scripts.administratorFunnelCleanup, environment: ownerEnvironment, command, execute });
+    }
+    runPsqlSync({ label: "Customer capacity fixture preparation", file: scripts.capacitySetup, environment: ownerEnvironment, command, execute });
+    try {
+      runPsqlSync({ label: "Customer capacity withdrawal and deadline acceptance checks", file: scripts.capacity, environment: appEnvironment, command, execute });
+    } finally {
+      runPsqlSync({ label: "Customer capacity fixture cleanup", file: scripts.capacityCleanup, environment: ownerEnvironment, command, execute });
     }
     runPsqlSync({ label: "Owner property archive lifecycle test", file: scripts.propertyArchive, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Repeat scope fixture preparation", file: scripts.landlordRepeatSetup, environment: ownerEnvironment, command, execute });
