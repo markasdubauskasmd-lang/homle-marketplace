@@ -357,8 +357,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (!payments) return false;
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { mutation: false, roles: ["landlord"] });
-          response.setHeader("Cache-Control", "private, no-store");
-          sendJson(response, 200, { ok: true, receipt: await payments.getReceiptForBooking(context.actor, selectedBookingReceipt[1]) });
+          sendJson(response, 200, { ok: true, receipt: await payments.getReceiptForBooking(context.actor, selectedBookingReceipt[1]) }, { "Cache-Control": "private, no-store" });
           return true;
         }
         const selectedBookingPayment = pathname.match(bookingPaymentPath);
