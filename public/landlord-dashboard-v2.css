@@ -647,6 +647,20 @@ body.landlord-dashboard-page .ld-account-section .landlord-profile-form {
   background: #fbfaf9;
   box-shadow: none;
 }
+body.landlord-dashboard-page .ld-account-identity-card > .button {
+  border-radius: 11px;
+  border: 1px solid var(--ld-coral);
+  background: var(--ld-paper);
+  color: var(--ld-coral);
+  box-shadow: none;
+}
+body.landlord-dashboard-page .ld-account-section .landlord-profile-form .button {
+  border-radius: 11px;
+  border: 1px solid var(--ld-coral);
+  background: var(--ld-coral);
+  color: #fff;
+  box-shadow: none;
+}
 body.landlord-dashboard-page .ld-account-section .landlord-profile-form fieldset { display: grid; gap: 16px; }
 
 body.landlord-dashboard-page .ld-acct-rows {
