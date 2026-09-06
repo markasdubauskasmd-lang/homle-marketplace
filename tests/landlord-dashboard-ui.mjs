@@ -538,3 +538,5 @@ calendarFocusInside = false;
 calendarSyncContext.syncers[0]();
 assert(calendarFocusRestored === 1, "Calendar reflection steals focus from another field.");
 console.log("Calendar reflection preserves day focus and leaves other controls alone.");
+
+assert(page.includes('data-request-recovery-status role="status" tabindex="-1"'), "Draft failure recovery cannot receive keyboard focus.");
