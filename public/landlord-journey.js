@@ -28,7 +28,7 @@ import {
   blockedReason,
   checkoutMode,
   checkoutCopy
-} from "./landlord-journey-model.js?v=journey8";
+} from "./landlord-journey-model.js?v=journey9";
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
