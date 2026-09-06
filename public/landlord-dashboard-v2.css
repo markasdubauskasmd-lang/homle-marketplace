@@ -2531,6 +2531,7 @@ body.landlord-dashboard-page .ld-property-dialog::backdrop {
   backdrop-filter: blur(7px);
 }
 body.landlord-dashboard-page .ld-property-dialog .landlord-record-form {
+  background: var(--ld-paper);
   margin: 0;
   padding: 0;
   border: 0;
@@ -2662,7 +2663,7 @@ body.landlord-dashboard-page .ld-property-form-actions span { color: var(--ld-mu
 body.landlord-dashboard-page .ld-property-dialog .ld-property-form-actions .button[type="submit"] {
   min-width: 205px;
   min-height: 48px;
-  border-radius: 999px;
+  border-radius: 11px;
   background: var(--ld-coral);
   box-shadow: 0 10px 24px rgba(225, 27, 34, .2);
 }
