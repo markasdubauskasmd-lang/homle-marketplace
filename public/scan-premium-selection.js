@@ -56,6 +56,12 @@ export function premiumScope(plan, baseTasks, selectedIds) {
   for (const group of plan.groups) {
     if (group.ids.every((id) => selected.has(id))) tasks.push(group.text);
   }
+  // A compound generated line is kept whole. Choosing just one of its extras
+  // still needs an explicit task in the saved scope, not a charge without work.
+  for (const option of plan.options) {
+    if (selected.has(option.id) && !plan.groups.some((group) =>
+      group.ids.includes(option.id) && group.ids.every((id) => selected.has(id)))) tasks.push(option.task);
+  }
   const seen = new Set();
   return tasks.map(text).filter((line) => {
     const key = words(line);
