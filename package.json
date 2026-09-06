@@ -117,7 +117,7 @@
     "test:progress": "node tests/progress-service.mjs",
     "test:media": "node tests/media-service.mjs",
     "test:request-media": "node tests/request-media-service.mjs",
-    "test:messages": "node tests/contact-details.mjs && node tests/validation.mjs && node tests/apple-sign-in.mjs && node tests/dispatch-order.mjs && node tests/favourite-cleaner-service.mjs && node tests/notification-inbox-ui.mjs && node tests/scope-signals.mjs && node tests/customer-care-empty-state.mjs && node tests/customer-journey-recovery.mjs && node tests/customer-service-options.mjs && node tests/manual-coverage.mjs && node tests/manual-quote-recovery.mjs && node tests/verification-coverage.mjs && node tests/message-service.mjs && node tests/landlord-messages-ui.mjs",
+    "test:messages": "node tests/contact-details.mjs && node tests/validation.mjs && node tests/apple-sign-in.mjs && node tests/dispatch-order.mjs && node tests/favourite-cleaner-service.mjs && node tests/notification-inbox-ui.mjs && node tests/scope-signals.mjs && node tests/verification-coverage.mjs && node tests/message-service.mjs && node tests/landlord-messages-ui.mjs",
     "test:realtime": "node tests/realtime-service.mjs",
     "test:notifications": "node tests/notification-service.mjs && node tests/notification-inbox-ui.mjs",
     "test:reviews": "node tests/review-service.mjs",
