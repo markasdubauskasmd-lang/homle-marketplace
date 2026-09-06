@@ -22,6 +22,7 @@ class S3Client {
   constructor(configuration) { this.configuration = configuration; S3Client.instance = this; }
   async send(command) {
     commands.push(command);
+    if (command instanceof GetObjectCommand && command.input.Key === requestFinalKey) return { ContentType: "image/jpeg", ContentLength: outputBytes.length, Body: (async function* () { yield outputBytes; })() };
     if (command instanceof HeadObjectCommand) return { ContentType: "image/png", ContentLength: 21, ChecksumSHA256: Buffer.from(checksum, "hex").toString("base64"), Metadata: { "tideway-sha256": checksum } };
     if (command instanceof GetObjectCommand && command.input.Key === quarantineKey) return { ContentLength: sourceBytes.length, Body: (async function* () { yield sourceBytes.subarray(0, 4); yield sourceBytes.subarray(4); })() };
     return {};
@@ -94,6 +95,12 @@ assert.equal(signed[1].command.input.ResponseCacheControl, "private, no-store, m
 const requestUpload = await storage.createUploadUrl({ storageKey: requestQuarantineKey, mimeType: "image/png", byteSize: sourceBytes.length, checksumSha256: checksum, expiresAt: "2026-07-16T12:10:00.000Z" });
 const requestRead = await storage.createReadUrl({ storageKey: requestFinalKey, expiresAt: "2026-07-16T12:05:00.000Z" });
 assert(requestUpload.uploadUrl === undefined && requestUpload.url.endsWith("/3") && requestRead.url.endsWith("/4") && signed[2].command.input.Key === requestQuarantineKey && signed[3].command.input.Key === requestFinalKey, "Private request-photo prefixes were not signed through the same bounded object-storage contract.");
+const signCount = signed.length;
+assert.deepEqual(await storage.readRequestImage({ storageKey: requestFinalKey, byteSize: outputBytes.length }), outputBytes);
+assert.equal(signed.length, signCount, "Authenticated delivery must not create another bearer URL.");
+await assert.rejects(() => storage.readRequestImage({ storageKey: finalKey, byteSize: outputBytes.length }), /outside/);
+await assert.rejects(() => storage.readRequestImage({ storageKey: requestQuarantineKey, byteSize: outputBytes.length }), /outside/);
+await assert.rejects(() => storage.readRequestImage({ storageKey: requestFinalKey, byteSize: outputBytes.length + 1 }), /operation-failed/);
 await storage.deleteObject({ storageKey: quarantineKey });
 assert(commands.at(-1) instanceof DeleteObjectCommand);
 storage.close();
