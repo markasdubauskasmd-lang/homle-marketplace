@@ -1162,7 +1162,14 @@ function objectControls(roomName, object) {
   // The action the finding leads to — "Descale the tap" — so the review answers
   // "what will be done about it", not only "what was seen". Comes from the
   // deterministic mapping in scan-review-render, never from the model.
-  if (object.recommendation) row.append(textNode("p", "scan-review-action", object.recommendation));
+  const optional = state.scanPremiumPlan.options.find((option) =>
+    option.id === premiumChoiceId(roomName, object.inventoryKey));
+  const recommendation = optional
+    ? optional.restricted ? "Excluded by your scan instructions."
+      : eligiblePremiumSelections().includes(optional.id) ? "Specialist task selected in your checklist."
+      : "Optional specialist work — select it below to include it."
+    : object.recommendation;
+  if (recommendation) row.append(textNode("p", "scan-review-action", recommendation));
 
   const actions = textNode("div", "scan-review-object-actions");
 
