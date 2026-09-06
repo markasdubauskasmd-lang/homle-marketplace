@@ -497,3 +497,5 @@ console.log("Landlord dashboard UI tests passed: simplified navigation, selected
 await import("./customer-care-empty-state.mjs");
 
 await import("./manual-coverage.mjs");
+
+await import("./manual-quote-recovery.mjs");

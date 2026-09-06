@@ -642,9 +642,14 @@ async function refreshManualQuote(generation, pricingRequest, signature) {
   manualQuotePrice.textContent = "Calculating…";
   manualQuoteDuration.textContent = "Calculating…";
   manualQuoteStatus.textContent = "Checking the current Homle price for these confirmed rooms and tasks…";
-  const csrf = await recoverCsrf(manualQuoteStatus, "calculating this estimate");
-  if (!csrf || generation !== manualQuoteGeneration) return;
   try {
+    const csrf = await recoverCsrf(manualQuoteStatus, "calculating this estimate");
+    if (generation !== manualQuoteGeneration) return;
+    if (!csrf) {
+      manualQuote.hidden = true;
+      manualQuoteSignature = "";
+      return;
+    }
     const result = await requestJson("/api/marketplace/pricing/quote", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
@@ -1907,7 +1912,11 @@ function applySuggestedCleaningType() {
   cleaningTypeSelect.value = suggestion;
   cleaningTypeSelect.dataset.selectionSource = "suggested";
   cleaningTypeHint.textContent = `Suggested from the saved ${String(property.propertyType).replace(/-/g, " ")} type. Change it if needed.`;
-  } finally { void checkManualCoverage(); }
+  } finally {
+    void checkManualCoverage();
+    requestForm.dispatchEvent(new Event("homle:request-values-changed"));
+    scheduleManualQuote();
+  }
 }
 
 function propertyFact(label, value) {

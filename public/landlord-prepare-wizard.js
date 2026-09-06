@@ -340,7 +340,7 @@
   }
 
   const cleaningMeta = {
-    "regular-domestic": { emoji: "🧴", desc: "Everyday tidy and reset", popular: true },
+    "regular-domestic": { emoji: "🧴", desc: "Everyday tidy and reset" },
     "rental-turnovers": { emoji: "🔑", desc: "Guest or tenant turnaround" },
     "end-of-tenancy": { emoji: "📦", desc: "Move-out deep clean" },
     "workplaces": { emoji: "🏢", desc: "Offices and workplaces" },
@@ -570,6 +570,7 @@
   // Recovery of an in-progress draft can populate native fields around load;
   // resync once after the current tick so the widgets reflect restored values.
   Promise.resolve().then(syncWidgets);
+  form.addEventListener("homle:request-values-changed", function () { syncWidgets(); updateBasket(); });
 
   render();
 })();
