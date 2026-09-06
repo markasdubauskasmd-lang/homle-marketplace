@@ -380,6 +380,24 @@ assert(JSON.stringify(premiumBaseTasks(plan, selectedOnlyOven)) === JSON.stringi
   context.readCurrentStep();
   await context.createOrRecoverRequest("synthetic", "11111111-1111-4111-8111-111111111111");
   assert(sent[2].id !== sent[0].id && state.scanSessionId === "", "A changed choice reused the previously quoted request or scan identity.");
+  state.scanNoteEdits = {};
+  state.scanGeneralNote = "";
+  state.scanPremiumSelected = [oven.id];
+  context.field = { key: "kitchen" };
+  context.input = { value: "Do not clean inside the oven." };
+  context.el.tasks.setCustomValidity = () => {};
+  context.renderPremiumChoices = () => {};
+  context.updateResultTotals = () => {};
+  context.renderReview = () => {};
+  const noteRender = section("function renderRoomNotes()", "function validatePremiumChecklist()");
+  const start = noteRender.indexOf('input.addEventListener("input", () => {') + 'input.addEventListener("input", () => {'.length;
+  const handler = noteRender.slice(start, noteRender.indexOf("\n    });", start));
+  vm.runInContext(handler, context);
+  assert(state.scanPremiumSelected.length === 0, "A refused extra retained hidden consent.");
+  context.input.value = "Leave the keys alone.";
+  vm.runInContext(handler, context);
+  assert(context.eligiblePremiumSelections().length === 0, "Removing a restriction silently opted the customer back into paid work.");
+
   assert(!sent[2].tasks.some((task) => /deep clean/i.test(task.description)) && quoteRooms(sent[2].pricingRequest, config).premiumPence === 0,
     "Removing an extra retained its task or charge in the actual request payload.");
 }
