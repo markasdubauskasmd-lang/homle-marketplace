@@ -117,7 +117,21 @@ export function reviewedScanNotes(rooms = [], edits = {}, fallback = "") {
     notes[key] = note;
     if (note) lines.push(name + ": " + note);
   }
-  const transcript = lines.length ? lines.join("\n") : Object.keys(edits).length ? "" : String(fallback || "").trim();
+  const transcript = [...lines, String(fallback || "").trim()].filter(Boolean).join("\n");
   if (transcript.length > 5000) throw new TypeError("Shorten the combined room instructions to 5,000 characters without removing safety restrictions.");
   return { notes, transcript };
+}
+
+export function premiumRestrictions(plan, lines) {
+  return plan.options.filter((option) => lines.some((line) => isRestriction(text(line)) && refersTo(text(line), option))).map((option) => option.id);
+}
+
+export function scanNoteLines(rooms = [], edits = {}, general = "") {
+  const clauses = (note) => String(note || "").split(/[.!?;\n]+|\bbut\b/i).map(text).filter(Boolean);
+  return rooms.flatMap((room) => {
+    const name = text(room.name || room.roomName);
+    const key = name.toLowerCase();
+    const note = Object.hasOwn(edits, key) ? edits[key] : room.note;
+    return clauses(note).map((line) => name + ": " + line);
+  }).concat(clauses(general));
 }
