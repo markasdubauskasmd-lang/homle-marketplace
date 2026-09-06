@@ -48,3 +48,25 @@ body.journey-page .scan-overlay .scan-item-condition-options input:focus-visible
   body.journey-page .scan-overlay .scan-consent { padding: 16px; overflow-y: auto; }
   body.journey-page .scan-overlay .scan-consent-in { padding: 20px; }
 }
+
+/* Reviewed scan results use the same cards and correction controls. */
+body.journey-page :is(.scan-review-level, .scan-review-estimate, .scan-review-questions, .scan-review-object, .scan-measure-in) {
+  border: 1px solid #e7e4e0;
+  border-radius: 20px;
+  background: #fff;
+  color: #1a1a1a;
+  box-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
+}
+body.journey-page :is(.scan-review-edit, .scan-review-remove, .scan-review-grade) {
+  border: 1px solid #e11b22;
+  border-radius: 11px;
+  background: #fff;
+  color: #e11b22;
+  font-family: inherit;
+}
+body.journey-page .scan-review-refusal { border: 1px solid #e11b22; background: #fdecec; }
+body.journey-page :is(.scan-review-edit, .scan-review-remove, .scan-review-grade):focus-visible { outline: 3px solid #2456e6; outline-offset: 2px; }
+body.journey-page .scan-overlay .scan-count {
+  min-height: 44px; padding: 8px 12px; border: 1px solid rgba(255,255,255,.3);
+  border-radius: 11px; background: #1a1a1a; color: #fff; font: 600 13px inherit;
+}
