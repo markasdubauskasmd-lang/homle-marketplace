@@ -1303,8 +1303,14 @@ body.landlord-dashboard-page .pac-nav {
   gap: 14px;
   margin-top: 26px;
 }
-body.landlord-dashboard-page .pac-nav .pac-back { min-height: 44px; }
-body.landlord-dashboard-page .pac-nav .pac-next { min-height: 44px; margin-left: auto; }
+body.landlord-dashboard-page .pac-nav .pac-back {
+  min-height: 44px; border-radius: 11px; border: 1px solid var(--ld-coral);
+  background: var(--ld-paper); color: var(--ld-coral); box-shadow: none;
+}
+body.landlord-dashboard-page .pac-nav .pac-next {
+  min-height: 44px; margin-left: auto; border-radius: 11px;
+  border: 1px solid var(--ld-coral); background: var(--ld-coral); color: #fff; box-shadow: none;
+}
 body.landlord-dashboard-page .pac-nav .pac-back:disabled { opacity: 0.4; cursor: default; }
 
 /* Live draft summary (the design's "My basket", without an invented price). */
