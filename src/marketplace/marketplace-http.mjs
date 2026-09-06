@@ -51,6 +51,7 @@ const cleaningTaskTermsConfirmationPath = new RegExp(`^/api/marketplace/bookings
 const jobPhotoIntentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/intents$`);
 const jobPhotoCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/(${uuidPattern})/complete$`);
 const jobPhotoAccessPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/(${uuidPattern})/access$`);
+const jobPhotoContentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cleaning-progress/photos/(${uuidPattern})/content$`);
 const bookingMessagesPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/messages$`);
 const bookingEventsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/events$`);
 const requestEventsPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/events$`);
@@ -1417,6 +1418,23 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
           const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
           sendJson(response, 200, { ok: true, progress: await media.completeUpload(context.actor, selectedPhotoCompletion[1], selectedPhotoCompletion[2]) });
+          return true;
+        }
+        const selectedJobPhotoContent = pathname.match(jobPhotoContentPath);
+        if (selectedJobPhotoContent) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          const photo = await media.getPhotoContent(context.actor, selectedJobPhotoContent[1], selectedJobPhotoContent[2], url.searchParams.get("expiresAt"));
+          response.writeHead(200, {
+            "Content-Type": photo.mimeType,
+            "Content-Length": String(photo.bytes.length),
+            "Cache-Control": "private, no-store, max-age=0",
+            "X-Content-Type-Options": "nosniff",
+            "Cross-Origin-Resource-Policy": "same-origin",
+            "Referrer-Policy": "no-referrer",
+            "Content-Disposition": "inline"
+          });
+          response.end(photo.bytes);
           return true;
         }
         const selectedPhotoAccess = pathname.match(jobPhotoAccessPath);
