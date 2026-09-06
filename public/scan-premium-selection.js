@@ -117,7 +117,7 @@ export function reviewedScanNotes(rooms = [], edits = {}, fallback = "") {
     notes[key] = note;
     if (note) lines.push(name + ": " + note);
   }
-  const transcript = lines.length ? lines.join("\n") : String(fallback || "").trim();
+  const transcript = lines.length ? lines.join("\n") : Object.keys(edits).length ? "" : String(fallback || "").trim();
   if (transcript.length > 5000) throw new TypeError("Shorten the combined room instructions to 5,000 characters without removing safety restrictions.");
   return { notes, transcript };
 }
