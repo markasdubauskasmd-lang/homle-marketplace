@@ -312,7 +312,7 @@ assert(JSON.stringify(plan.baseTasks) === JSON.stringify(["Kitchen: Wipe worktop
   "Ordinary work was lost or a generated specialist task entered the default checklist.");
 assert(premiumScope(plan, plan.baseTasks, []).length === 2, "Unchecked generated extras stayed in the checklist.");
 const selectedOnlyOven = premiumScope(plan, plan.baseTasks, [oven.id]);
-assert(selectedOnlyOven.includes("Kitchen: Oven deep clean") && !selectedOnlyOven.includes(originalTasks[1]),
+assert(selectedOnlyOven.includes("Kitchen: Clean the oven — Oven deep clean") && !selectedOnlyOven.includes(originalTasks[1]),
   "Partial compound selection charged work absent from the checklist or included the unselected extra.");
 const bothSelected = premiumScope(plan, plan.baseTasks, [oven.id, fridge.id]);
 assert(bothSelected.includes(originalTasks[1]) && !bothSelected.includes("Utility: Clean oven"),
@@ -369,7 +369,7 @@ assert(JSON.stringify(premiumBaseTasks(plan, selectedOnlyOven)) === JSON.stringi
     context);
   context.readCurrentStep();
   await context.createOrRecoverRequest("synthetic", "11111111-1111-4111-8111-111111111111");
-  assert(sent[0].tasks.some((task) => task.description === "Oven deep clean"), "Selected premium price reached the server without its task.");
+  assert(sent[0].tasks.some((task) => task.description === "Clean the oven — Oven deep clean"), "Selected premium price reached the server without its task.");
   assert(!sent[0].tasks.some((task) => /fridge/i.test(task.description)), "Unchecked extra reached the persisted scope.");
   assert(quoteRooms(sent[0].pricingRequest, config).premiumPence === 5500, "Saved scope and specialist price diverged.");
   assert(sent[0].specialInstructions === state.draft.transcript, "Optional choices overwrote the customer's restrictions.");
