@@ -215,7 +215,7 @@ try {
   assert(closing.cleanerHref === "/cleaner/onboarding", `Cleaners cannot open dedicated onboarding from the landing page: ${closing.cleanerHref}.`);
   assert(closing.login.href === "/login" && closing.login.height >= 44,
     `The closing Log in link is missing or too small to tap: ${JSON.stringify(closing.login)}.`);
-  assert(closing.footerLinks.length === 5 && closing.footerLinks.every((link) => link.height >= 44),
+  assert(closing.footerLinks.length === 6 && closing.footerLinks.some((link) => link.href === "/landlord/help") && closing.footerLinks.every((link) => link.height >= 44),
     `The mobile footer links are missing or too small to tap: ${JSON.stringify(closing.footerLinks)}.`);
 
   assert(browser.pageErrors.length === 0,
