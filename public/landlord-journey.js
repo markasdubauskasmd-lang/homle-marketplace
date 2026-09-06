@@ -63,6 +63,8 @@ const el = {
   scanPrereq: $("[data-scan-prereq]"),
   skipScan: $("[data-skip-scan]"),
   resultsEyebrow: $("[data-results-eyebrow]"),
+  resultsTitle: $("[data-results-title]"),
+  resultsIntro: $("[data-results-intro]"),
   resultsSource: $("[data-results-source]"),
   resultsTime: $("[data-results-time]"),
   resultsRooms: $("[data-results-rooms]"),
@@ -135,7 +137,7 @@ const state = {
     guideTime: "",
     date: "",
     time: "",
-    frequency: "fortnightly",
+    frequency: "one-time",
     durationMinutes: 120,
     propertyId: "",
     propertyDraftId: "",
@@ -143,6 +145,8 @@ const state = {
     cleanerId: "marketplace",
     cleanerName: "Best available Cleaner"
   },
+  supplyPending: false,
+  cleanersPending: false,
   confirming: false
 };
 
@@ -349,6 +353,8 @@ function show(stepId, historyMode = "push") {
 
 function goNext() {
   readCurrentStep();
+  if (state.step === "postcode" && state.supplyPending) return toast("Checking coverage for this property…");
+  if (state.step === "cleaner" && state.cleanersPending) return toast("Checking cleaner profiles…");
   if (!canLeaveStep(state.step, state.draft)) return toast(blockedReason(state.step, state.draft));
   const index = stepIndex(state.step);
   const next = journeySteps[index + 1];
@@ -421,23 +427,39 @@ function renderScanPropertyChoice() {
     state.draft.outward = parsed?.outward || "";
     el.postcode.value = state.draft.postcode;
   }
-  el.propertyNext.disabled = !selected;
+  el.propertyNext.disabled = !selected || state.supplyPending;
 }
 
-// Real coverage from the live Cleaner directory. If the lookup fails the step
-// stays usable and simply says nothing, rather than inventing a count.
+// Directory reads are bounded. Only the newest property's result can update the UI.
+let supplyLookup = 0;
 async function checkSupply(outward) {
+  const lookup = ++supplyLookup;
+  state.supplyPending = true;
+  el.propertyNext.disabled = true;
+  el.supply.hidden = false;
+  el.supply.classList.remove("none");
+  el.supplyHead.textContent = `Checking coverage in ${outward}…`;
+  el.supplyDetail.textContent = "Availability for your requested time is checked before an invitation.";
   try {
     const payload = await requestJson(`/api/marketplace/cleaners?outwardPostcode=${encodeURIComponent(outward)}&limit=50`, {
       timeoutMs: DIRECTORY_REQUEST_TIMEOUT_MS
     });
-    const count = Array.isArray(payload?.cleaners) ? payload.cleaners.length : 0;
-    const message = supplyMessage(count, outward);
+    if (lookup !== supplyLookup || outward !== state.draft.outward) return;
+    if (!Array.isArray(payload?.cleaners)) throw new Error("Invalid directory response");
+    const message = supplyMessage(payload.cleaners.length, outward);
     el.supplyHead.textContent = message.headline;
     el.supplyDetail.textContent = message.detail;
     el.supply.classList.toggle("none", !message.available);
-    el.supply.hidden = false;
-  } catch {}
+  } catch {
+    if (lookup !== supplyLookup || outward !== state.draft.outward) return;
+    el.supplyHead.textContent = "Coverage could not be checked";
+    el.supplyDetail.textContent = "You can continue preparing your request. Homle will check eligibility and availability before any invitation; nothing is booked yet.";
+  } finally {
+    if (lookup === supplyLookup) {
+      state.supplyPending = false;
+      renderScanPropertyChoice();
+    }
+  }
 }
 
 /* ── Step 2: service ────────────────────────────────── */
@@ -510,6 +532,8 @@ el.skipScan.addEventListener("click", () => {
 function renderResults() {
   const scanned = Boolean(state.draft.rooms.length || state.draft.transcript);
   el.resultsEyebrow.textContent = scanned ? "Scan complete" : "Your checklist";
+  el.resultsTitle.innerHTML = scanned ? "Here’s what<br>we found." : "What needs<br>cleaning?";
+  el.resultsIntro.textContent = scanned ? "Check and edit the checklist below. Nothing is booked yet." : "Write one task per line, starting with the room name. Nothing is booked yet.";
   el.resultsSource.textContent = scanned
     ? `Scoped from your ${state.draft.rooms.length || "room"} scan${state.draft.transcript ? " + voice note" : ""}`
     : "Written by you";
@@ -540,7 +564,7 @@ el.tasks.addEventListener("input", updateResultTotals);
 /* ── Step 4: when ───────────────────────────────────── */
 function renderWhen() {
   const days = bookableDays(new Date());
-  if (!state.draft.date) state.draft.date = days[0].iso;
+  if (!days.some((day) => day.iso === state.draft.date)) state.draft.date = days[0].iso;
   el.days.innerHTML = "";
   for (const day of days) {
     const option = document.createElement("button");
@@ -581,7 +605,11 @@ function renderChips(container, items, field) {
 }
 
 /* ── Step 5: cleaner ────────────────────────────────── */
+let cleanerLookup = 0;
 async function loadCleaners() {
+  const lookup = ++cleanerLookup;
+  state.cleanersPending = true;
+  el.cleanerLede.textContent = "Profiles in your area. Eligibility, availability and the exact total are checked before you approve an invitation.";
   el.cleaners.innerHTML = "";
   renderCleaner({ cleanerId: "marketplace", displayName: "Find the best available Cleaner", marketplaceChoice: true });
   el.cleanerState.hidden = false;
@@ -594,18 +622,27 @@ async function loadCleaners() {
     const payload = await requestJson(`/api/marketplace/cleaners?${params}`, {
       timeoutMs: DIRECTORY_REQUEST_TIMEOUT_MS
     });
-    const cleaners = Array.isArray(payload?.cleaners) ? payload.cleaners : [];
+    if (lookup !== cleanerLookup) return;
+    if (!Array.isArray(payload?.cleaners)) throw new Error("Invalid directory response");
+    const cleaners = payload.cleaners;
+    if (!cleaners.some((cleaner) => cleaner.cleanerId === state.draft.cleanerId)) {
+      state.draft.cleanerId = "marketplace";
+      state.draft.cleanerName = "Best available Cleaner";
+      saveDraft();
+    }
+    el.cleaners.innerHTML = "";
+    renderCleaner({ cleanerId: "marketplace", displayName: "Find the best available Cleaner", marketplaceChoice: true });
     if (!cleaners.length) {
       const heading = document.createElement("strong");
       heading.textContent = `No Cleaner profiles are live in ${state.draft.outward || "your area"} yet.`;
       const detail = document.createElement("span");
       detail.textContent = "Continue to save this exact request for Homle review. No Cleaner is contacted and no payment is taken.";
       const supplyLink = document.createElement("a");
-      supplyLink.href = "/cleaner/onboarding";
+      supplyLink.href = "/landlord/help";
       supplyLink.target = "_blank";
       supplyLink.rel = "noopener";
-      supplyLink.textContent = "Apply to work with Homle";
-      supplyLink.setAttribute("aria-label", "Apply to work with Homle as a Cleaner (opens in a new tab)");
+      supplyLink.textContent = "Get help with this request";
+      supplyLink.setAttribute("aria-label", "Get help with this request (opens in a new tab)");
       el.cleanerState.replaceChildren(heading, detail, supplyLink);
       el.cleanerState.classList.add("empty-supply");
       return;
@@ -613,8 +650,22 @@ async function loadCleaners() {
     el.cleanerState.hidden = true;
     for (const cleaner of cleaners) renderCleaner(cleaner);
   } catch {
+    if (lookup !== cleanerLookup) return;
+    state.draft.cleanerId = "marketplace";
+    state.draft.cleanerName = "Best available Cleaner";
+    saveDraft();
+    el.cleaners.innerHTML = "";
+    renderCleaner({ cleanerId: "marketplace", displayName: "Find the best available Cleaner", marketplaceChoice: true });
     el.cleanerState.classList.remove("empty-supply");
-    el.cleanerState.textContent = "We couldn't load cleaners just now. Your answers are saved — try again in a moment.";
+    el.cleanerState.textContent = "We couldn't load profiles. You can continue preparing your request; Homle checks availability before any invitation.";
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "btn-ghost";
+    retry.textContent = "Try again";
+    retry.addEventListener("click", loadCleaners);
+    el.cleanerState.append(retry);
+  } finally {
+    if (lookup === cleanerLookup) state.cleanersPending = false;
   }
 }
 
@@ -622,6 +673,7 @@ function renderCleaner(cleaner) {
   const card = document.createElement("button");
   card.type = "button";
   card.className = "cleaner";
+  card.dataset.cleanerId = cleaner.cleanerId;
   card.setAttribute("role", "radio");
   const selected = state.draft.cleanerId === cleaner.cleanerId;
   card.setAttribute("aria-checked", String(selected));
@@ -649,7 +701,11 @@ function renderCleaner(cleaner) {
     state.draft.cleanerId = cleaner.cleanerId;
     state.draft.cleanerName = cleaner.displayName || "";
     saveDraft();
-    loadCleaners();
+    for (const option of el.cleaners.children) {
+      const selected = option.dataset.cleanerId === state.draft.cleanerId;
+      option.classList.toggle("on", selected);
+      option.setAttribute("aria-checked", String(selected));
+    }
   });
   el.cleaners.appendChild(card);
 }

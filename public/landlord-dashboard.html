@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260831-1">
   <!-- The v2 composition, last so it wins without !important. -->
   <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260831-1">
-  <script src="/landlord-dashboard.js?v=20260905-1" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260906-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/landlord-notification-badge.js?v=20260821-3" type="module"></script>
 </head>
@@ -289,7 +289,7 @@
           </section>
           </div>
 
-          <p class="ld-care-note">Every figure comes from records the API already returns — completed bookings, scan results and booking timestamps. Nothing resets on a schedule, and no cleaner rating, photo or per-room progress appears here, because the API does not return them.</p>
+          <p class="ld-care-note">Your care summary updates as you add scans and complete bookings. New accounts may not have enough history to show trends yet.</p>
         </section>
 
         <!-- Indicative guide prices only — now the closing block of Home, as the
@@ -303,7 +303,7 @@
             <h3 id="ld-plans-title">Recommended for you</h3>
             <span class="ld-plans-flag">Indicative</span>
           </div>
-          <p class="ld-plans-sub">Typical guide prices — not a quote. Your exact total is confirmed when a Cleaner accepts.</p>
+          <p class="ld-plans-sub">Typical guide prices — not a quote. You approve the exact total before a Cleaner is invited. The booking is confirmed after acceptance.</p>
           <!-- The row icons live here as templates and are cloned into place.
                landlord-dashboard.js is held to "no innerHTML anywhere in this
                file" — the rule that keeps private account records out of parsed
@@ -315,7 +315,7 @@
           <div class="ld-plan-list" data-ld-plans></div>
           <p class="ld-plans-note">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l7 2.6v5.4c0 4-2.9 7.4-7 8.5-4.1-1.1-7-4.5-7-8.5V6.1z"></path><path d="m9 12 2 2 4-4"></path></svg>
-            All cleans include vetted professionals and a satisfaction guarantee.
+            Review the Cleaner’s profile and your exact checklist before approving an invitation.
           </p>
         </section>
       </section>
@@ -733,7 +733,7 @@
                 <div><span>Current estimate</span><strong data-manual-quote-price>Calculating…</strong></div>
                 <div><span>Estimated cleaning time</span><strong data-manual-quote-duration>Calculating…</strong></div>
               </div>
-              <p class="pac-basket-quote-status" data-manual-quote-status role="status" aria-live="polite">Review and confirm the room checklist to see a server-calculated estimate before submission.</p>
+              <p class="pac-basket-quote-status" data-manual-quote-status role="status" aria-live="polite">Review and confirm the room checklist to see an estimate before submission.</p>
               <p class="pac-basket-note">The final total is frozen when you approve a Cleaner. Secure Stripe checkout opens after that Cleaner accepts.</p>
             </aside>
             </div>

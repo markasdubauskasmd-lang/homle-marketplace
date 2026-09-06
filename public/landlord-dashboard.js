@@ -565,7 +565,7 @@ function formatQuotedDuration(minutes) {
   return `${hours} ${hours === 1 ? "hour" : "hours"} ${remainingMinutes} ${remainingMinutes === 1 ? "minute" : "minutes"}`;
 }
 
-function clearManualQuote(message = "Review and confirm the room checklist to see a server-calculated estimate before submission.") {
+function clearManualQuote(message = "Review and confirm the room checklist to see an estimate before submission.") {
   manualQuoteGeneration += 1;
   manualQuoteSignature = "";
   window.clearTimeout(manualQuoteTimer);
@@ -611,7 +611,7 @@ async function refreshManualQuote(generation, pricingRequest, signature) {
     manualQuoteSignature = signature;
     manualQuotePrice.textContent = formatBookingMoney(totalPence);
     manualQuoteDuration.textContent = duration;
-    manualQuoteStatus.textContent = "Server-calculated estimate. The final total is frozen when you approve a Cleaner.";
+    manualQuoteStatus.textContent = "Estimate for your checklist. You approve the exact total before a Cleaner is invited.";
   } catch (error) {
     if (generation !== manualQuoteGeneration) return;
     manualQuote.hidden = true;

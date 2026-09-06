@@ -119,8 +119,8 @@
   <section class="jstep" data-step="results" hidden>
     <div class="wrap-n">
       <p class="eyebrow" data-results-eyebrow>Scan complete</p>
-      <h2 class="pg">Here's what<br>we found.</h2>
-      <p class="pgs">Change anything below if we've read it wrong. Nothing is booked yet.</p>
+      <h2 class="pg" data-results-title>Here's what<br>we found.</h2>
+      <p class="pgs" data-results-intro>Check and edit the checklist below. Nothing is booked yet.</p>
 
       <div class="res-hero">
         <div class="res-hero-top">
@@ -236,7 +236,7 @@
     <div class="wrap-n">
       <p class="eyebrow">When suits you</p>
       <h2 class="pg">Pick a day<br>and a time.</h2>
-      <p class="pgs">Choose the arrival window you want to request. It becomes confirmed only after an eligible Cleaner accepts the exact work, time and price.</p>
+      <p class="pgs">Choose the start time you want to request. It becomes confirmed only after an eligible Cleaner accepts the exact work, time and price.</p>
 
       <div class="field">
         <label>Day</label>
@@ -244,14 +244,14 @@
       </div>
 
       <div class="field">
-        <label>Arrival window</label>
-        <div class="chips" data-times role="radiogroup" aria-label="Arrival window"></div>
+        <label>Requested start time</label>
+        <div class="chips" data-times role="radiogroup" aria-label="Requested start time"></div>
       </div>
 
       <div class="field">
         <label>How often?</label>
         <div class="chips" data-frequencies role="radiogroup" aria-label="How often"></div>
-        <p class="hint">This is still a request. Recurring terms are not confirmed until a Cleaner accepts the exact booking.</p>
+        <p class="hint">This request is for one visit. Your frequency preference does not create repeat bookings or recurring payments.</p>
       </div>
 
       <div class="field">
@@ -276,7 +276,7 @@
     <div class="wrap-n">
       <p class="eyebrow">Who's cleaning</p>
       <h2 class="pg">Choose your<br>cleaner.</h2>
-      <p class="pgs" data-cleaner-lede>These cleaners cover your area and are free at the time you picked.</p>
+      <p class="pgs" data-cleaner-lede>Profiles in your area. Availability is checked before you approve an invitation.</p>
 
       <div class="cleaner-list" data-cleaners role="radiogroup" aria-label="Cleaner"></div>
       <div class="jstate landlord-supply-recovery" data-cleaner-state role="status" hidden></div>
@@ -347,6 +347,6 @@
 
 <div class="jtoast" data-toast role="status" aria-live="polite" hidden></div>
 
-<script type="module" src="/landlord-journey.js?v=journey12"></script>
+<script type="module" src="/landlord-journey.js?v=journey13"></script>
 </body>
 </html>
