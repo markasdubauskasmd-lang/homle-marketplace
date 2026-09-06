@@ -24,6 +24,9 @@ const scripts = Object.freeze({
   administratorFunnel: "administrator-funnel-behaviour.sql",
   administratorFunnelCleanup: "administrator-funnel-owner-cleanup.sql",
   propertyArchive: "property-archive-behaviour.sql",
+  landlordRepeatSetup: "landlord-repeat-setup.sql",
+  landlordRepeat: "landlord-repeat-behaviour.sql",
+  landlordRepeatCleanup: "landlord-repeat-cleanup.sql",
   automaticDispatchSetup: "automatic-dispatch-rehearsal-setup.sql",
   automaticDispatchClaimA: "automatic-dispatch-claim-a.sql",
   automaticDispatchClaimB: "automatic-dispatch-claim-b.sql",
@@ -242,6 +245,12 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
       runPsqlSync({ label: "Administrator funnel fixture cleanup", file: scripts.administratorFunnelCleanup, environment: ownerEnvironment, command, execute });
     }
     runPsqlSync({ label: "Owner property archive lifecycle test", file: scripts.propertyArchive, environment: ownerEnvironment, command, execute });
+    runPsqlSync({ label: "Repeat scope fixture preparation", file: scripts.landlordRepeatSetup, environment: ownerEnvironment, command, execute });
+    try {
+      runPsqlSync({ label: "Repeat scope owner and archive boundary", file: scripts.landlordRepeat, environment: appEnvironment, command, execute });
+    } finally {
+      runPsqlSync({ label: "Repeat scope fixture cleanup", file: scripts.landlordRepeatCleanup, environment: ownerEnvironment, command, execute });
+    }
     runPsqlSync({ label: "Automatic-dispatch rehearsal setup", file: scripts.automaticDispatchSetup, environment: ownerEnvironment, command, execute });
     const dispatchClaims = await executeConcurrent([
       { file: scripts.automaticDispatchClaimA, environment: workerEnvironment },
