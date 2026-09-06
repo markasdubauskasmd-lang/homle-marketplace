@@ -516,3 +516,25 @@ assert(propertySummaryContext.propertyCleaningDates(propertySummaryContext.prope
 propertySummaryContext.properties[1].name = "Home";
 assert(!propertySummaryContext.propertyCleaningDates(propertySummaryContext.properties[0]).booked, "An ambiguous legacy label claimed a booking without property identity.");
 console.log("Property summary integrity passed: saved rooms, exact IDs, renamed properties and ambiguous legacy labels.");
+
+const calendarSource = await readFile(new URL("../public/landlord-prepare-wizard.js", import.meta.url), "utf8");
+const calendarSyncStart = calendarSource.indexOf("    syncers.push(function () {");
+const calendarSyncEnd = calendarSource.indexOf("\n    draw();", calendarSyncStart);
+let calendarFocusRestored = 0;
+let calendarFocusInside = true;
+const calendarSyncContext = vm.createContext({
+  syncers: [],
+  document: { activeElement: { getAttribute: () => "Monday, 7 September 2026" } },
+  grid: {
+    contains: () => calendarFocusInside,
+    querySelectorAll: () => [{ disabled: false, getAttribute: () => "Monday, 7 September 2026", focus: () => { calendarFocusRestored += 1; } }]
+  },
+  draw: () => {}
+});
+vm.runInContext(calendarSource.slice(calendarSyncStart, calendarSyncEnd), calendarSyncContext);
+calendarSyncContext.syncers[0]();
+assert(calendarFocusRestored === 1, "Deferred calendar reflection loses the selected day keyboard focus.");
+calendarFocusInside = false;
+calendarSyncContext.syncers[0]();
+assert(calendarFocusRestored === 1, "Calendar reflection steals focus from another field.");
+console.log("Calendar reflection preserves day focus and leaves other controls alone.");

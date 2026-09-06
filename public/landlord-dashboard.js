@@ -1167,7 +1167,7 @@ function setRequestBuilderExpanded(expanded) {
 let prepareWizardLoad = null;
 function loadPrepareWizard() {
   if (prepareWizardLoad) return prepareWizardLoad;
-  prepareWizardLoad = import("./landlord-prepare-wizard.js?v=20260906-1").catch((error) => {
+  prepareWizardLoad = import("./landlord-prepare-wizard.js?v=20260906-2").catch((error) => {
     // Deliberately quiet: the panel below is a working form without this.
     console.warn("The stepped wizard could not load; the request form remains usable.", error);
   });
