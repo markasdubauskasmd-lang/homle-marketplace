@@ -123,6 +123,8 @@ const files = {
     error: "The private booking conversation could not be verified."
   },
   "/api/marketplace/landlord/favourite-cleaners": { ok: true, cleaners: [] },
+  // Measure a settled history error, never the transient loading controls.
+  "/api/marketplace/landlord/care-summary": { ok: false, error: "Synthetic history unavailable" },
   // The journey's access gate calls this through recoverCsrf; without it the
   // gate never opens and only the locked state would be measured.
   "/api/marketplace/auth/session": { ok: true, csrfToken: "measurement-token" },
@@ -261,6 +263,18 @@ try {
         }
       `);
       assert(ready, `${view} at ${viewport.label}: the workspace never finished loading, so nothing could be measured.`);
+      if (view === "home") {
+        const historyReady = await browser.evaluate(`
+          const deadline = Date.now() + 15000;
+          for (;;) {
+            const retry = document.querySelector("[data-ld-care-retry]");
+            if (retry && !retry.hidden && !retry.disabled) return true;
+            if (Date.now() > deadline) return false;
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+        `);
+        assert(historyReady, `${view} at ${viewport.label}: history recovery never settled, so transient controls would be measured.`);
+      }
       if (view === "messages") {
         const messagesReady = await browser.evaluate(`
           const deadline = Date.now() + 15000;

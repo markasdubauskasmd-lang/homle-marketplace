@@ -1,0 +1,3 @@
+\set ON_ERROR_STOP on
+DELETE FROM bookings WHERE id='4f000000-0000-4000-8000-000000000001';
+UPDATE cleaning_requests SET status='searching-for-cleaner' WHERE id='30000000-0000-4000-8000-000000000003';
