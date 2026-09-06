@@ -476,3 +476,17 @@ for (const restriction of ["Kitchen: Do not clean inside the oven", "Kitchen: Do
     assert(refused, "Ambiguous or over-limit notes were silently dropped or truncated.");
   }
 }
+
+/* A nearby refusal does not hide a separate specialist request. */
+{
+  const { scanNoteLines, premiumRestrictions } = await import("../public/scan-premium-selection.js");
+  for (const separator of [". ", " but ", ", "]) {
+    const lines = scanNoteLines(detectedRooms, { kitchen: "Do not clean inside the oven" + separator + "deep clean the fridge." });
+    assert(premiumRestrictions(plan, lines).includes(oven.id) && !premiumRestrictions(plan, lines).includes(fridge.id),
+      "An oven refusal incorrectly excluded separately requested fridge work.");
+    assert(unselectedPremiumInTasks(plan, lines, [])?.id === fridge.id, "A nearby refusal hid unchecked specialist work.");
+  }
+  const list = scanNoteLines(detectedRooms, { kitchen: "Do not clean the oven, fridge or freezer." });
+  assert(premiumRestrictions(plan, list).includes(oven.id) && premiumRestrictions(plan, list).includes(fridge.id),
+    "An exclusion list lost the customer's refusal for a later appliance.");
+}
