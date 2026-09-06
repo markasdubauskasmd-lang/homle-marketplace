@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260831-1">
   <!-- The v2 composition, last so it wins without !important. -->
   <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260831-1">
-  <script src="/landlord-dashboard.js?v=20260906-1" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260906-7" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/landlord-notification-badge.js?v=20260821-3" type="module"></script>
 </head>
@@ -245,31 +245,26 @@
           <span class="ld-care-sheen" aria-hidden="true"></span>
           <div class="ld-care-hero-main">
             <p class="ld-care-eyebrow"><span class="ld-care-eyebrow-wide">Your care profile · from your own booking timestamps</span><span class="ld-care-eyebrow-narrow">Your care profile</span></p>
-            <h3 id="ld-care-title" data-ld-care-title>Your care record</h3>
-            <p class="ld-care-lead" data-ld-care-lead>Your first booked clean starts this record — real figures only, never an estimate.</p>
+            <h3 id="ld-care-title" data-ld-care-title>Your cleaning history</h3>
+            <p class="ld-care-lead" data-ld-care-lead>Loading your saved cleaning history…</p>
           </div>
-          <div class="ld-care-figures" data-ld-care-figures></div>
-          <div class="ld-care-share-wrap">
+          <div class="ld-care-figures" data-ld-care-figures hidden></div>
+          <div class="ld-care-share-wrap" data-ld-care-actions>
+            <a class="ld-care-share" href="/landlord/bookings#your-places" data-open-landlord-section="places">Your properties</a>
+            <a class="ld-care-share" href="/landlord/bookings">View bookings</a>
+            <button class="ld-care-share" type="button" data-ld-care-retry hidden>Try again</button>
+          </div>
+          <div class="ld-care-share-wrap" data-ld-care-share-wrap hidden>
             <button class="ld-care-share" type="button" data-ld-care-share>Share card</button>
             <small class="ld-care-share-status" data-ld-care-share-status role="status" aria-live="polite" hidden></small>
           </div>
           </section>
 
-          <div class="ld-care-grid">
-          <section class="ld-care-card ld-care-streak" aria-labelledby="ld-care-streak-title">
-            <div class="ld-care-streak-head">
-              <div>
-                <p class="ld-care-label" id="ld-care-streak-title">Ready streak</p>
-                <strong class="ld-care-streak-count" data-ld-care-streak-count>0 turnarounds</strong>
-                <p class="ld-care-streak-sub">in a row, booked inside 24 hours</p>
-              </div>
-              <span class="ld-care-freeze-pill" data-ld-care-freeze-pill hidden></span>
-            </div>
-            <div class="ld-care-cells" data-ld-care-cells aria-hidden="true"></div>
-            <div class="ld-care-freeze">
-              <span class="ld-care-freeze-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 4v16M4.5 8l15 8M19.5 8l-15 8"></path></svg></span>
-              <span class="ld-care-freeze-copy"><strong data-ld-care-freeze-count>No freeze earned yet</strong><small>Earned by using Homle, never sold</small></span>
-            </div>
+          <div class="ld-care-grid" data-ld-care-grid hidden>
+          <section class="ld-care-card ld-care-streak" aria-labelledby="ld-care-next-title">
+            <h3 id="ld-care-next-title">Your next step</h3>
+            <p class="ld-care-card-sub" data-ld-care-next>Open your bookings to review progress.</p>
+            <a class="ld-care-callout-btn" href="/landlord/bookings">View bookings</a>
           </section>
 
           <section class="ld-care-card ld-care-scan" aria-labelledby="ld-care-scan-title">
@@ -278,14 +273,10 @@
             <div class="ld-care-finds" data-ld-care-finds></div>
           </section>
 
-          <section class="ld-care-card ld-care-bench" aria-labelledby="ld-care-bench-title">
-            <h3 id="ld-care-bench-title">Against landlords near you</h3>
-            <p class="ld-care-card-sub" data-ld-care-bench-sub>Anonymised — the benchmark unlocks as more portfolios join.</p>
-            <div class="ld-care-meters" data-ld-care-meters></div>
-            <div class="ld-care-callout">
-              <span class="ld-care-callout-copy" data-ld-care-callout-copy>Scanning every room before you book gives the Cleaner a complete brief.</span>
-              <a class="ld-care-callout-btn" href="/landlord/book">Scan</a>
-            </div>
+          <section class="ld-care-card ld-care-bench" aria-labelledby="ld-care-help-title">
+            <h3 id="ld-care-help-title">Need help with a clean?</h3>
+            <p class="ld-care-card-sub">Get support before booking or ask for help with an existing request. Cleaner messages open after acceptance.</p>
+            <a class="ld-care-callout-btn" href="/landlord/help">Help &amp; support</a>
           </section>
           </div>
 
@@ -301,9 +292,9 @@
         <section class="ld-plans" aria-labelledby="ld-plans-title">
           <div class="ld-plans-head">
             <h3 id="ld-plans-title">Recommended for you</h3>
-            <span class="ld-plans-flag">Indicative</span>
+            <span class="ld-plans-flag">Priced from your scope</span>
           </div>
-          <p class="ld-plans-sub">Typical guide prices — not a quote. You approve the exact total before a Cleaner is invited. The booking is confirmed after acceptance.</p>
+          <p class="ld-plans-sub">Your estimate depends on your rooms, tasks and requested duration. Review the exact total before a Cleaner is invited; the booking is confirmed after acceptance.</p>
           <!-- The row icons live here as templates and are cloned into place.
                landlord-dashboard.js is held to "no innerHTML anywhere in this
                file" — the rule that keeps private account records out of parsed
@@ -679,7 +670,10 @@
             </section>
             <div class="landlord-sole-property" data-sole-property hidden><span>Cleaning property</span><strong data-sole-property-name></strong><small>Your only saved property is selected automatically.</small></div>
             <label data-property-select-label>Property<select name="propertyId" required data-property-select><option value="">Add a property first</option></select></label>
-            <label data-cleaning-type-field>Primary cleaning type<select name="cleaningType" required><option value="">Choose one</option><option value="regular-domestic">Regular domestic</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select><small data-cleaning-type-hint>Choose a property to receive a sensible default.</small></label>
+            <label data-cleaning-type-field>Primary cleaning type<select name="cleaningType" required><option value="">Choose one</option><option value="regular-domestic">Regular clean</option><option value="rental-turnovers">Rental turnover</option><option value="end-of-tenancy">End of tenancy</option><option value="workplaces">Workplace clean</option><option value="communal-areas">Communal areas</option><option value="deep-cleans">Deep clean</option></select><small data-cleaning-type-hint>Choose a property to receive a sensible default.</small></label>
+            <p class="hint" data-manual-coverage role="status" tabindex="-1">Choose a property and cleaning type to check local profiles.</p>
+            <button class="button button-outline" type="button" data-manual-coverage-retry hidden>Retry coverage check</button>
+            <a href="/landlord/help">Help with coverage</a>
             </div>
             <div class="pac-step" data-wizard-step data-step-title="How long will it take?">
             <label data-duration-field>Estimated duration<select name="durationMinutes" required><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="300">5 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></label>

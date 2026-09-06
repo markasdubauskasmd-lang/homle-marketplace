@@ -319,6 +319,17 @@ for (const group of groups) {
   }
 }
 
+if (differences.length) {
+  const changes = {};
+  for (const group of groups) {
+    for (const key of new Set([...Object.keys(baseline[group] || {}), ...Object.keys(captured[group] || {})])) {
+      if (JSON.stringify(baseline[group]?.[key]) !== JSON.stringify(captured[group]?.[key])) {
+        (changes[group] ||= {})[key] = captured[group]?.[key] ?? null;
+      }
+    }
+  }
+  console.log("STYLE_BASELINE_CHANGES=" + JSON.stringify(changes));
+}
 assert(differences.length === 0, `The Landlord design system resolves differently than the committed baseline in ${differences.length} place${differences.length === 1 ? "" : "s"}. If the change was intended, rerun with --update and review the diff; if it was not, this is a cascade regression a source-text assertion could not have seen.\n\n${differences.slice(0, 40).join("\n")}${differences.length > 40 ? `\n… and ${differences.length - 40} more` : ""}`);
 
 console.log(`Landlord computed-style tests passed: ${measuredElements} styled elements resolve exactly as the committed baseline across ${VIEWS.length} dashboard views, the scan journey, checkout and ${VIEWPORTS.length} viewports, so a specificity, load-order or token change cannot land unseen on any of the three surfaces a shared component sheet would touch.`);

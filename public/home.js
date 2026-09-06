@@ -80,8 +80,8 @@ function applySignedInLanding(workspace) {
   }
   if (manualLede) {
     manualLede.textContent = isLandlord
-      ? "Continue in your Landlord workspace, choose a property and add the cleaning details in five short steps. Review the live estimate before matching starts."
-      : "Prefer typing? Sign in, then add the property, cleaning type, timing and room details in six short steps. Review the scope and price before matching starts.";
+      ? "Choose your property, describe the cleaning and request a time. Review your checklist and estimate, then approve an exact total before a Cleaner is invited."
+      : "Prefer typing? Choose your property, describe the cleaning and request a time. Review your checklist and estimate, then approve an exact total before a Cleaner is invited.";
   }
   if (workspaceEntry) {
     workspaceEntry.href = signedIn ? dashboardHref : "/signup?intent=book";

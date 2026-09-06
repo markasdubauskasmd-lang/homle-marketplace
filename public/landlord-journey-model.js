@@ -75,7 +75,9 @@ export const services = Object.freeze([
   Object.freeze({ code: "regular-domestic", name: "Regular clean", detail: "Kitchen, bathrooms, floors and surfaces throughout." }),
   Object.freeze({ code: "deep-cleans", name: "Deep clean", detail: "Everything in a regular clean, plus agreed detailed work." }),
   Object.freeze({ code: "end-of-tenancy", name: "End of tenancy", detail: "A full property reset to handover standard." }),
-  Object.freeze({ code: "workplaces", name: "Workplace clean", detail: "Offices, clinics and customer-facing workspaces." })
+  Object.freeze({ code: "workplaces", name: "Workplace clean", detail: "Offices, clinics and customer-facing workspaces." }),
+  Object.freeze({ code: "rental-turnovers", name: "Rental turnover", detail: "Prepare a property between guests or tenancies." }),
+  Object.freeze({ code: "communal-areas", name: "Communal areas", detail: "Shared halls, stairs and agreed common spaces." })
 ]);
 
 export function isKnownService(code) {
@@ -109,7 +111,11 @@ export function bookableDays(from = new Date(), count = 14) {
   return Object.freeze(days);
 }
 
-export const arrivalWindows = Object.freeze(["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]);
+// Same requested-start choices as the manual builder: 08:00–18:00 in half-hour steps.
+export const arrivalWindows = Object.freeze(Array.from({ length: 21 }, (_, index) => {
+  const minutes = 8 * 60 + index * 30;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}));
 
 export const frequencies = Object.freeze([
   Object.freeze({ code: "weekly", label: "Weekly" }),
@@ -216,7 +222,7 @@ export function blockedReason(id, draft = {}) {
   if (id === "postcode") return "Choose a saved property before continuing.";
   if (id === "service") return "Choose the kind of clean you need.";
   if (id === "results") return "Add at least one room task before continuing.";
-  if (id === "when") return "Pick a day, an arrival window and how often.";
+  if (id === "when") return "Pick a day, a requested start time, duration and frequency preference.";
   if (id === "cleaner") return "Choose the cleaner you'd like.";
   return "";
 }

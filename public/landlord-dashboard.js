@@ -124,6 +124,54 @@ const checklistChangesBody = document.querySelector("[data-checklist-changes-bod
 const checklistRestore = document.querySelector("[data-checklist-restore]");
 const cleaningTypeSelect = requestForm.elements.cleaningType;
 const cleaningTypeHint = document.querySelector("[data-cleaning-type-hint]");
+const manualCoverage = document.querySelector("[data-manual-coverage]");
+const manualCoverageRetry = document.querySelector("[data-manual-coverage-retry]");
+let manualCoverageKey = "";
+let manualCoverageLookup = 0;
+let manualCoverageCheckedAt = 0;
+
+function setManualCoverage(status, message) {
+  requestForm.dataset.coveragePending = String(status === "loading");
+  if (manualCoverage) manualCoverage.textContent = message;
+  if (manualCoverageRetry) manualCoverageRetry.hidden = status !== "error";
+}
+
+async function checkManualCoverage({ force = false } = {}) {
+  if (!manualCoverage) return;
+  const property = properties.find((item) => item.propertyId === propertySelect.value);
+  const serviceCode = cleaningTypeSelect.value;
+  const fullPostcode = String(property?.exactAddress?.postcode || "");
+  const outward = isUkPostcode(fullPostcode) ? fullPostcode.replace(/\s+/g, "").slice(0, -3).toUpperCase() : "";
+  const key = JSON.stringify([property?.propertyId || "", outward, serviceCode]);
+  if (!force && key === manualCoverageKey && (requestForm.dataset.coveragePending === "true" || Date.now() - manualCoverageCheckedAt < 60_000)) return;
+  manualCoverageCheckedAt = Date.now();
+  manualCoverageKey = key;
+  const lookup = ++manualCoverageLookup;
+  if (!property || !serviceCode) {
+    setManualCoverage("idle", "Choose a property and cleaning type to check local profiles.");
+    return;
+  }
+  if (!outward) {
+    setManualCoverage("error", "This property needs a valid postcode to check coverage. Update it in Your properties before requesting a clean.");
+    return;
+  }
+  setManualCoverage("loading", `Checking ${outward} for this cleaning type…`);
+  try {
+    const query = new URLSearchParams({ outwardPostcode: outward, serviceCode, limit: "50" });
+    const result = await requestJson(`/api/marketplace/cleaners?${query}`, { timeoutMs: 8_000 });
+    if (lookup !== manualCoverageLookup) return;
+    if (!Array.isArray(result?.cleaners)) throw new Error("Invalid coverage response");
+    const count = result.cleaners.length;
+    setManualCoverage(count ? "ready" : "empty", count
+      ? `${count} ${count === 1 ? "profile covers" : "profiles cover"} ${outward} for this cleaning type. Availability and the exact total are checked before you approve an invitation.`
+      : `No profiles for this cleaning type are listed in ${outward} yet. You can prepare your request or choose another property or service. No Cleaner is contacted and nothing is booked here.`);
+  } catch {
+    if (lookup !== manualCoverageLookup) return;
+    setManualCoverage("error", "Coverage could not be checked. Retry, or continue preparing your request. Availability is checked before any invitation; nothing is booked here.");
+  }
+}
+
+
 const mediaReadiness = document.querySelector("[data-landlord-media-readiness]");
 const capabilityTitle = document.querySelector("[data-landlord-capability-title]");
 const capabilityCopy = document.querySelector("[data-landlord-capability-copy]");
@@ -594,9 +642,14 @@ async function refreshManualQuote(generation, pricingRequest, signature) {
   manualQuotePrice.textContent = "Calculating…";
   manualQuoteDuration.textContent = "Calculating…";
   manualQuoteStatus.textContent = "Checking the current Homle price for these confirmed rooms and tasks…";
-  const csrf = await recoverCsrf(manualQuoteStatus, "calculating this estimate");
-  if (!csrf || generation !== manualQuoteGeneration) return;
   try {
+    const csrf = await recoverCsrf(manualQuoteStatus, "calculating this estimate");
+    if (generation !== manualQuoteGeneration) return;
+    if (!csrf) {
+      manualQuote.hidden = true;
+      manualQuoteSignature = "";
+      return;
+    }
     const result = await requestJson("/api/marketplace/pricing/quote", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
@@ -1114,7 +1167,7 @@ function setRequestBuilderExpanded(expanded) {
 let prepareWizardLoad = null;
 function loadPrepareWizard() {
   if (prepareWizardLoad) return prepareWizardLoad;
-  prepareWizardLoad = import("./landlord-prepare-wizard.js?v=20260723-2").catch((error) => {
+  prepareWizardLoad = import("./landlord-prepare-wizard.js?v=20260906-1").catch((error) => {
     // Deliberately quiet: the panel below is a working form without this.
     console.warn("The stepped wizard could not load; the request form remains usable.", error);
   });
@@ -1131,8 +1184,8 @@ function loadPrepareWizard() {
 const workspaceTabCopy = {
   home: { title: "Hello, {name}", subtitle: "Let’s keep your property spotless." },
   properties: { title: "Properties", subtitle: "The locations saved privately to your account." },
-  bookings: { title: "Bookings", subtitle: "Everything for every place you own." },
-  places: { title: "Bookings", subtitle: "Everything for every place you own." },
+  bookings: { title: "Bookings", subtitle: "Your homes and properties." },
+  places: { title: "Bookings", subtitle: "Your homes and properties." },
   messages: { title: "Messages", subtitle: "Talk to the Cleaner working on your property." },
   account: { title: "Your account", subtitle: "Details, security, payments and preferences — one place, opened as needed." },
   payments: { title: "Payments", subtitle: "What each booking costs, and where its authorisation has reached." },
@@ -1606,7 +1659,7 @@ function renderProperties() {
     const actions = element("div", "landlord-property-actions");
     const scanAgain = element("a", "button button-outline", taskCount ? "Scan" : "Scan rooms");
     scanAgain.href = "/landlord/book";
-    scanAgain.setAttribute("aria-label", `Scan ${property.name || "saved property"} again`);
+    scanAgain.setAttribute("aria-label", `Scan rooms at ${property.name || "saved property"}`);
     scanAgain.addEventListener("click", () => saveSelectedProperty(sessionStorage, property.propertyId));
     const book = element("button", "button", "Book clean");
     book.type = "button";
@@ -1841,6 +1894,7 @@ async function archiveProperty(event) {
 }
 
 function applySuggestedCleaningType() {
+  try {
   const property = properties.find((item) => item.propertyId === propertySelect.value);
   const suggestion = suggestedCleaningType(property?.propertyType);
   const source = cleaningTypeSelect.dataset.selectionSource;
@@ -1858,6 +1912,11 @@ function applySuggestedCleaningType() {
   cleaningTypeSelect.value = suggestion;
   cleaningTypeSelect.dataset.selectionSource = "suggested";
   cleaningTypeHint.textContent = `Suggested from the saved ${String(property.propertyType).replace(/-/g, " ")} type. Change it if needed.`;
+  } finally {
+    void checkManualCoverage();
+    requestForm.dispatchEvent(new Event("homle:request-values-changed"));
+    scheduleManualQuote();
+  }
 }
 
 function propertyFact(label, value) {
@@ -3050,9 +3109,9 @@ function updateLandlordWaitingDeadlines() {
 // again two steps later. The codes are the ones landlord-journey-model.js
 // already prices; the journey ignores anything it does not recognise.
 const LD_INDICATIVE_PLANS = Object.freeze([
-  Object.freeze({ name: "Standard clean", desc: "Living room, kitchen, bathroom", from: "£68", tone: "standard", code: "regular-domestic" }),
-  Object.freeze({ name: "Deep clean", desc: "Detailed kitchen and bathroom refresh", from: "£112", tone: "deep", code: "deep-cleans" }),
-  Object.freeze({ name: "End of tenancy", desc: "Full property clean", from: "£185", tone: "tenancy", code: "end-of-tenancy" })
+  Object.freeze({ name: "Regular clean", desc: "Living room, kitchen, bathroom", tone: "standard", code: "regular-domestic" }),
+  Object.freeze({ name: "Deep clean", desc: "Detailed kitchen and bathroom refresh", tone: "deep", code: "deep-cleans" }),
+  Object.freeze({ name: "End of tenancy", desc: "Full property clean", tone: "tenancy", code: "end-of-tenancy" })
 ]);
 
 /* Cloned from the <template>s in the markup — see the note beside them. */
@@ -3075,12 +3134,12 @@ function renderIndicativePlans() {
     const copy = element("span", "ld-plan-copy");
     copy.append(element("strong", "", plan.name), element("small", "", plan.desc));
     const price = element("span", "ld-plan-price");
-    price.append(element("small", "", "From"), element("strong", "", plan.from));
+    price.append(element("small", "", "Your scope"), element("strong", "", "Get estimate"));
     const chev = element("span", "ld-plan-chev", "›");
     chev.setAttribute("aria-hidden", "true");
     row.append(icon, copy, price, chev);
     // Screen readers get the caveat the badge makes visual, and the destination.
-    row.setAttribute("aria-label", `${plan.name}. Guide price from ${plan.from}, not a quote. Scan your property for an exact price.`);
+    row.setAttribute("aria-label", `${plan.name}. Build your checklist to get an estimate, then approve the exact total before a Cleaner is invited.`);
     return row;
   }));
   indicativePlansRendered = true;
@@ -3096,6 +3155,16 @@ function renderIndicativePlans() {
  * inventing a label.
  */
 let careSummary = null;
+let careSummaryState = "loading";
+let careSummaryLookup = 0;
+
+function careRecordView(summary, status) {
+  if (status === "loading") return { history: false, title: "Your cleaning history", lead: "Loading your saved cleaning history…" };
+  if (status !== "ready" || !summary?.totals) return { history: false, title: "History is temporarily unavailable", lead: "We couldn’t load your history. Your saved properties and bookings are still available below." };
+  const totals = summary.totals;
+  const history = totals.bookingCount > 0 || totals.completedCleanCount > 0 || totals.roomsScannedCount > 0 || Boolean(summary.lastScan);
+  return { history, title: "Plan your first clean", lead: "Choose a saved property or add a new one, then build your checklist. Nothing is booked until a Cleaner accepts your approved request." };
+}
 
 const careWholePounds = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
 const careMonth = new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: bookingZone });
@@ -3171,52 +3240,46 @@ function renderCareRecord() {
   const figures = document.querySelector("[data-ld-care-figures]");
   const totals = careSummary?.totals || null;
   const medianLag = Number.isFinite(careSummary?.medianLagHours) ? careSummary.medianLagHours : null;
-
-  // The identity card. "The Fast Turnaround" is the one archetype the
-  // retention concept defines, earned at the same 24-hour boundary the streak
-  // announces. Anything else states the record without inventing a label.
-  if (medianLag != null && medianLag <= 24) {
-    title.textContent = "The Fast Turnaround";
-    lead.textContent = `You book a clean a median ${careLagSentence(medianLag)} after a tenancy ends — your places spend more days ready and fewer days empty.`;
-  } else if (medianLag != null) {
-    title.textContent = "Your turnaround record";
-    lead.textContent = `You book a clean a median ${careLagSentence(medianLag)} after a tenancy ends. Bring that inside 24 hours and your places spend more days ready.`;
-  } else {
-    title.textContent = "Your care record";
-    lead.textContent = "Your first booked cleans start this record — real figures only, never an estimate.";
+  const presentation = careRecordView(careSummary, careSummaryState);
+  if (figures) figures.hidden = !presentation.history;
+  const grid = document.querySelector("[data-ld-care-grid]");
+  const share = document.querySelector("[data-ld-care-share-wrap]");
+  const actions = document.querySelector("[data-ld-care-actions]");
+  const retry = document.querySelector("[data-ld-care-retry]");
+  if (grid) grid.hidden = !presentation.history;
+  if (share) share.hidden = !presentation.history;
+  if (actions) actions.hidden = presentation.history;
+  if (retry) {
+    retry.hidden = careSummaryState !== "error";
+    retry.disabled = careSummaryState === "loading";
   }
+  if (!presentation.history) {
+    title.textContent = presentation.title;
+    lead.textContent = presentation.lead;
+    if (figures) figures.replaceChildren();
+    return;
+  }
+
+  title.textContent = "Your cleaning history";
+  lead.textContent = "Your saved scans and booked cleans. Open a booking to review its current status.";
 
   if (figures) {
     figures.replaceChildren(
       careFigure(String(totals?.completedCleanCount ?? 0), "Cleans completed"),
       careFigure(String(totals?.roomsScannedCount ?? 0), "Rooms scanned"),
-      careFigure(careWholePounds.format((totals?.bookedValuePence ?? 0) / 100), "Booked to date"),
-      careFigure(careLagShort(medianLag), "Median lag")
+      careFigure(careWholePounds.format((totals?.bookedValuePence ?? 0) / 100), "Booked to date")
     );
   }
 
-  const streak = careSummary?.streak || null;
-  const streakCount = document.querySelector("[data-ld-care-streak-count]");
-  if (streakCount) {
-    const turnarounds = streak?.turnaroundCount ?? 0;
-    streakCount.textContent = `${turnarounds} ${turnarounds === 1 ? "turnaround" : "turnarounds"}`;
-  }
-  const cellsHost = document.querySelector("[data-ld-care-cells]");
-  if (cellsHost) {
-    const cells = streak?.cells?.length ? streak.cells : Array.from({ length: 8 }, () => "empty");
-    cellsHost.replaceChildren(...cells.map((kind, index) => {
-      const cell = element("span", `ld-care-cell is-${kind}`);
-      cell.style.animationDelay = `${(0.12 + index * 0.05).toFixed(2)}s`;
-      return cell;
-    }));
-  }
-  const freezesEarned = streak?.freezesEarned ?? 0;
-  const freezeCount = document.querySelector("[data-ld-care-freeze-count]");
-  if (freezeCount) freezeCount.textContent = freezesEarned > 0 ? `${freezesEarned} ${freezesEarned === 1 ? "freeze" : "freezes"} earned` : "No freeze earned yet";
-  const freezePill = document.querySelector("[data-ld-care-freeze-pill]");
-  if (freezePill) {
-    freezePill.hidden = freezesEarned < 1;
-    freezePill.textContent = freezesEarned > 0 ? `${freezesEarned} ${freezesEarned === 1 ? "freeze" : "freezes"}` : "";
+  const next = document.querySelector("[data-ld-care-next]");
+  if (next) {
+    const activeBooking = bookings.find((booking) => !["completed", "cancelled"].includes(booking.status));
+    const openRequest = requests.find((request) => !["completed", "cancelled", "matched"].includes(request.status));
+    next.textContent = activeBooking
+      ? `${bookingSummaryStatusLabels[activeBooking.status] || "Booking update"} · ${formatBookingMoment(activeBooking.scheduledStartAt)}`
+      : openRequest
+        ? `${requestStatusLabel(openRequest.status)}. Open Bookings to continue your request.`
+        : "Ready for another clean? Open Bookings to choose a property and prepare a new request.";
   }
 
   // Discovery — the honest variable reward. The rows are what the latest scan
@@ -3250,48 +3313,30 @@ function renderCareRecord() {
     }
   }
 
-  // The anonymised local benchmark: a percentile you can only move by doing
-  // the work — never a named leaderboard.
-  const benchSub = document.querySelector("[data-ld-care-bench-sub]");
-  const meters = document.querySelector("[data-ld-care-meters]");
-  const calloutCopy = document.querySelector("[data-ld-care-callout-copy]");
-  const bench = careSummary?.benchmark || null;
-  if (benchSub && meters) {
-    if (bench && bench.lagTopPercent != null) {
-      benchSub.textContent = `Anonymised · near you · ${bench.cohortSize} portfolios`;
-      const built = [careMeter("Booking lag after tenancy ends", "Booking lag near you", bench.lagTopPercent, "lag")];
-      if (bench.coverageTopPercent != null) built.push(careMeter("Rooms scanned before booking", "Rooms scanned", bench.coverageTopPercent, "coverage"));
-      meters.replaceChildren(...built);
-    } else {
-      benchSub.textContent = "Anonymised — the benchmark unlocks as more portfolios join.";
-      meters.replaceChildren();
-    }
-  }
-  if (calloutCopy) {
-    const scanned = bench?.latestScannedRooms;
-    const planned = bench?.latestPlannedRooms;
-    const gap = Number.isFinite(planned) && Number.isFinite(scanned) ? planned - scanned : 0;
-    if (gap > 0 && bench?.closingGapReachesTopQuarter === true) {
-      calloutCopy.textContent = `Scanning the last ${gap} ${gap === 1 ? "room" : "rooms"} moves you into the top quarter.`;
-    } else if (gap > 0) {
-      calloutCopy.textContent = `Scanning the last ${gap} ${gap === 1 ? "room" : "rooms"} gives the Cleaner a complete brief.`;
-    } else {
-      calloutCopy.textContent = "Scanning every room before you book gives the Cleaner a complete brief.";
-    }
-  }
+
 }
 
 async function loadCareSummary() {
+  const lookup = ++careSummaryLookup;
+  careSummaryState = "loading";
+  renderCareRecord();
   try {
     const result = await requestJson("/api/marketplace/landlord/care-summary");
-    careSummary = result?.careSummary && typeof result.careSummary === "object" ? result.careSummary : null;
+    if (lookup !== careSummaryLookup) return;
+    const summary = result?.careSummary;
+    if (!summary?.totals || !["bookingCount", "completedCleanCount", "roomsScannedCount", "bookedValuePence"].every((key) => Number.isInteger(summary.totals[key]) && summary.totals[key] >= 0)) {
+      throw new Error("Cleaning history is unavailable.");
+    }
+    careSummary = summary;
+    careSummaryState = "ready";
   } catch {
-    // The section keeps its honest starting copy; the partial-load banner
-    // already tells the Landlord when a refresh did not complete.
+    if (lookup !== careSummaryLookup) return;
     careSummary = null;
+    careSummaryState = "error";
   }
   renderCareRecord();
 }
+document.querySelector("[data-ld-care-retry]")?.addEventListener("click", loadCareSummary);
 
 /* The flex-card rule from the reviewed concept: no addresses, tenant names or
    prices — a landlord's share has to be safe to post. */
@@ -4671,9 +4716,12 @@ document.querySelector("[data-use-saved-checklist]").addEventListener("click", u
 checklistRestore?.addEventListener("click", restoreGeneratedChecklist);
 document.querySelector("[data-summarise-speech]").addEventListener("click", summariseSpeech);
 propertySelect.addEventListener("change", applySuggestedCleaningType);
+requestForm.addEventListener("homle:check-coverage", () => { void checkManualCoverage(); });
+manualCoverageRetry?.addEventListener("click", () => { void checkManualCoverage({ force: true }); });
 cleaningTypeSelect.addEventListener("change", () => {
   cleaningTypeSelect.dataset.selectionSource = "user";
   cleaningTypeHint.textContent = "Selected by you. Change it if the requested clean is different.";
+  void checkManualCoverage();
 });
 speechButton.addEventListener("click", () => { if (!recognition) return; if (listening) recognition.stop(); else { try { recognition.start(); } catch { speechStatus.textContent = "Speech is already starting. Try again in a moment."; } } });
 requestForm.elements.transcript.addEventListener("input", () => { invalidateScopeReview("The walkthrough changed. Summarise again or manually reconcile every room task before confirming."); scheduleLiveSummarise(); });

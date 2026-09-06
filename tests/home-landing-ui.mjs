@@ -61,7 +61,7 @@ assert(createHash("sha256").update(css).digest("hex") === "f56e7ce9031f6e54f8400
 assert(createHash("sha256").update(script).digest("hex") === "0c783ae170500a77710a3a13c419414ef2f3a81d5bd75b7e0d60934b08ea889f", "The landing animation script changed without receiving a new content-addressed filename.");
 assert(server.includes('"/landing-f56e7ce9.css"') && server.includes('"/landing-0c783ae1.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
 assert(page.includes("data-phone-source") && script.includes("this.phoneSource") && script.includes("ANGLE_WEBP"), "The phone view cannot update its visible WebP source as the scan story changes angle.");
-assert(page.includes('src="/home.js?v=20260821-1"') && page.includes('src="/account-menu.js?v=20260729-1"'), "The landing page still advertises stale shared or account-menu assets, so browsers can miss the latest navigation.");
+assert(page.includes('src="/home.js?v=20260906-1"') && page.includes('src="/account-menu.js?v=20260729-1"'), "The landing page still advertises stale shared or account-menu assets, so browsers can miss the latest navigation.");
 
 // All five acts of the design, each one a scroll stage the script drives.
 //
@@ -286,3 +286,6 @@ assert(homeScript.includes("applyEntryMode") && homeScript.includes("[data-book-
 assert(homeScript.includes('hasAttribute("data-entry-label-fixed")'), "Role-aware homepage updates can overwrite the fixed CTA labels.");
 
 console.log("Landing UI tests passed: CSP-safe, self-hosted media, all five acts wired to real routes.");
+
+assert(page.includes('class="ci-launch is-on"') && !page.includes('data-launch data-at'), "The first booking action waits for a scroll animation.");
+assert(page.includes('href="/landlord/requests">Book manually</a>') && page.includes('href="/landlord/help">Help</a>'), "The homepage first screen lacks direct manual entry or customer help.");

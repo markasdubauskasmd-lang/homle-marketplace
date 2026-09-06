@@ -154,7 +154,7 @@ assert(page.includes('data-landlord-panel="account"') && page.includes('data-lan
 // and "Cleaning preferences" both resolved to the same view already reachable
 // from the sidebar and the tab bar. Two Bookings entries — sidebar and tab bar;
 // the third lived on Home's Upcoming card, which the Home + Care design removed.
-assert([...page.matchAll(/data-open-landlord-section="bookings"/g)].length === 2 && [...page.matchAll(/data-open-landlord-section="places"/g)].length === 1 && !page.includes('data-open-landlord-section="properties"') && page.includes('href="/landlord/bookings"') && page.includes('href="/landlord/account"') && script.includes('document.querySelectorAll("[data-open-landlord-section]")') && script.includes("event.preventDefault()") && script.includes('historyMode: "push"') && script.includes('link.closest("[data-account-menu]")'), "Landlord header or account-menu links can target a hidden panel instead of activating the correct persistent hub section.");
+assert([...page.matchAll(/data-open-landlord-section="bookings"/g)].length === 2 && [...page.matchAll(/data-open-landlord-section="places"/g)].length === 2 && !page.includes('data-open-landlord-section="properties"') && page.includes('href="/landlord/bookings"') && page.includes('href="/landlord/account"') && script.includes('document.querySelectorAll("[data-open-landlord-section]")') && script.includes("event.preventDefault()") && script.includes('historyMode: "push"') && script.includes('link.closest("[data-account-menu]")'), "Landlord header or account-menu links can target a hidden panel instead of activating the correct persistent hub section.");
 assert(script.includes('/^#landlord-(properties|requests|account|bookings)$/') && !script.includes("clearLegacyRequestHash") && page.includes('data-open-request-tab') && page.includes('data-landlord-panel="requests"'), "The 'Manual request' builder is not reachable from the main dashboard actions, or a saved #landlord-requests link is stripped on load.");
 assert(page.includes("Favourite Cleaners") && page.includes("data-landlord-favourite-cleaners") && page.includes("Your saved Cleaner relationships appear here") && script.includes('requestJson("/api/marketplace/landlord/favourite-cleaners", { timeoutMs: optionalDashboardRequestTimeoutMs })') && script.includes("void refreshFavouriteCleaners()") && !script.includes("await refreshFavouriteCleaners();") && script.includes('/api/marketplace/landlord/favourite-cleaners/${encodeURIComponent(cleanerId)}') && script.includes('saveSelectedCleaner(localStorage, cleaner.cleanerId)') && script.includes('location.assign("/landlord/dashboard?start=booking")') && script.includes("No removal will be retried automatically") && script.includes("refreshFavouriteCleaners({ quiet: true })") && styles.includes(".landlord-favourite-cleaner"), "The Landlord dashboard cannot list, remove or start a request from private favourite Cleaners with safe mutation recovery, or its optional read can hold primary workspace startup busy.");
 const workspaceLoadStart = script.indexOf("async function loadWorkspace()");
@@ -304,8 +304,8 @@ assert(page.includes('id="landlord-panel-account"') && script.includes("Details,
   assert(!page.includes("data-ld-upcoming") && !page.includes("Upcoming cleaning") && !script.includes("renderUpcomingClean"), "The removed Upcoming cleaning card is still on Home.");
   assert(script.includes("/api/marketplace/landlord/care-summary") && script.includes("renderCareRecord"), "The care record is not fed by the account's own care-summary endpoint.");
   // The honesty rules from the reviewed retention concept, kept in the copy.
-  assert(page.includes("Earned by using Homle, never sold") && script.includes("inventing a label") && script.includes("never an estimate"), "The care record lost its earned-freeze or no-invented-figures guarantees.");
-  assert(page.includes("booked inside 24 hours") && script.includes('"The Fast Turnaround"'), "The Ready streak boundary and the earned archetype are missing.");
+  assert(page.includes("data-ld-care-next") && page.includes("Help &amp; support") && !page.includes(">Ready streak<"), "Cleaning history does not offer practical next steps or still promotes streaks.");
+  assert(script.includes("activeBooking.scheduledStartAt") && script.includes("requestStatusLabel(openRequest.status)"), "The Home next step ignores the actual booking/request state.");
   // The share card carries no address, tenant name or price.
   const shareBody = script.slice(script.indexOf("function careShareText"), script.indexOf("let careShareStatusTimer"));
   assert(page.includes("data-ld-care-share") && script.includes("navigator.share") && script.includes("navigator.clipboard") && shareBody.length > 0 && !shareBody.includes("bookedValuePence") && !shareBody.includes("propertyName"), "The care share card is missing, or it leaks money or property figures a public share must not carry.");
@@ -381,8 +381,8 @@ assert(page.includes('data-open-landlord-section="messages"') && page.includes('
 // composer must NOT be disabled, and the panel must not claim to be unbuilt.
 // tests/landlord-messages-ui.mjs covers the conversation behaviour itself.
 assert(!page.includes("Messaging is coming soon") && /data-messages-input/.test(page) && !/data-messages-input[^>]*\sdisabled/.test(page), "The Landlord Messages panel is still a placeholder, so a Cleaner can write to someone who cannot reply.");
-// The guide prices are not quotes and there is no pricing endpoint behind them.
-assert(script.includes("LD_INDICATIVE_PLANS") && page.includes("Indicative") && page.includes("not a quote"), "The recommended-plan prices are presented as real quotes.");
+// Service cards lead to scope-based estimates without advertising unsupported prices.
+assert(script.includes("LD_INDICATIVE_PLANS") && page.includes("Priced from your scope") && script.includes("Get estimate") && !script.includes("plan.from"), "The service cards advertise an unverified starting price.");
 assert(designStyles.includes("grid-template-columns: minmax(0, 1fr) 180px") && designStyles.includes("landlordPhoneScan") && designStyles.includes("@media (max-width: 700px)") && designStyles.includes("overflow-x: auto"), "The reference dashboard styling lost its desktop scan composition or mobile adaptation.");
 assert(designStyles.includes("grid-template-areas: none") && designStyles.includes(".landlord-dashboard-identity > .role-dashboard-welcome { grid-area: auto; }") && designStyles.includes("color: var(--ld-ink)") && designStyles.includes("background: none") && designStyles.includes(".landlord-dashboard-identity .role-dashboard-welcome > p:last-child { color: #755548; }"), "Older shared dashboard grid or colour rules can still displace or wash out the approved Landlord welcome header.");
 assert(script.includes('booking.status === "confirmed"') && script.includes('"Request a change"') && script.includes('/landlord/help?bookingId='), "A confirmed booking no longer offers the Landlord a direct, booking-bound change request.");
@@ -493,3 +493,9 @@ assert(script.includes("clearLandlordRequestDraft(window.sessionStorage)") && sc
   "The saved walkthrough is no longer cleared from this tab's storage after its draft is saved.");
 
 console.log("Landlord dashboard UI tests passed: simplified navigation, selected-Cleaner continuation, voice-first scope, grouped bullet review, accessible fallbacks, owner APIs, direct room-scan continuation, safe rendering, builder close-out, draft clearing and mobile accessibility.");
+
+await import("./customer-care-empty-state.mjs");
+
+await import("./manual-coverage.mjs");
+
+await import("./manual-quote-recovery.mjs");

@@ -98,6 +98,16 @@
   function goTo(index) {
     const target = Math.max(0, Math.min(total - 1, index));
     if (target === current) return;
+    if (target > current) {
+      form.dispatchEvent(new Event("homle:check-coverage"));
+      if (form.dataset.coveragePending === "true") {
+        panel.querySelector("[data-manual-coverage]")?.focus();
+        return;
+      }
+      for (let step = 0; step < target; step += 1) {
+        if (!validateStep(step)) return;
+      }
+    }
     current = target;
     render();
     if (card && typeof card.scrollIntoView === "function") {
@@ -114,6 +124,7 @@
       const control = controls[i];
       if (control.disabled || !control.willValidate) continue;
       if (!control.checkValidity()) {
+        if (current !== index) { current = index; render(); }
         const widget = enhanced.get(control);
         if (widget && typeof widget.showError === "function") widget.showError();
         else control.reportValidity();
@@ -329,7 +340,7 @@
   }
 
   const cleaningMeta = {
-    "regular-domestic": { emoji: "🧴", desc: "Everyday tidy and reset", popular: true },
+    "regular-domestic": { emoji: "🧴", desc: "Everyday tidy and reset" },
     "rental-turnovers": { emoji: "🔑", desc: "Guest or tenant turnaround" },
     "end-of-tenancy": { emoji: "📦", desc: "Move-out deep clean" },
     "workplaces": { emoji: "🏢", desc: "Offices and workplaces" },
@@ -559,6 +570,7 @@
   // Recovery of an in-progress draft can populate native fields around load;
   // resync once after the current tick so the widgets reflect restored values.
   Promise.resolve().then(syncWidgets);
+  form.addEventListener("homle:request-values-changed", function () { syncWidgets(); updateBasket(); });
 
   render();
 })();
