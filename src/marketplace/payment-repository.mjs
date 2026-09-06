@@ -67,6 +67,14 @@ function recordedCommand(row) {
 export function createPaymentRepository(database) {
   if (!database || typeof database.withUserTransaction !== "function" || typeof database.withAuthenticationTransaction !== "function") throw new TypeError("The marketplace database boundary is required.");
   return Object.freeze({
+    getForReceipt(actor, bookingId) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT * FROM tideway_private.read_my_booking_receipt_payment($1::uuid)", [bookingId]);
+          return paymentRecord(result.rows[0]);
+        } catch (error) { throw mapError(error); }
+      });
+    },
     getByBooking(actor, bookingId) {
       return database.withUserTransaction(actor, async (client) => {
         try {
