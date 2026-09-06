@@ -29,7 +29,7 @@ import {
   checkoutMode,
   checkoutCopy
 } from "./landlord-journey-model.js?v=journey9";
-import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInTasks, selectedScanRooms, premiumChoiceId, reviewedScanNotes, scanNoteLines, premiumRestrictions } from "./scan-premium-selection.js?v=20260906-1";
+import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInTasks, selectedScanRooms, premiumChoiceId, reviewedScanNotes, scanNoteLines, premiumRestrictions } from "./scan-premium-selection.js?v=20260906-2";
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
@@ -617,7 +617,7 @@ function renderRoomNotes() {
   if (!host) {
     host = textNode("section", "scan-review-room");
     host.dataset.reviewedRoomNotes = "";
-    document.querySelector("[data-scan-premium-choices]").after(host);
+    document.querySelector("[data-task-hint]").after(host);
   }
   host.replaceChildren();
   host.hidden = !state.scanRooms.length && !state.scanGeneralNote;
