@@ -1,7 +1,7 @@
 // Pricing. The same modules the server prices with, so the number the customer
 // watches move is the number the booking is made at.
 import { defaultPricingConfig, normalizedPricingConfig } from "./pricing-config.js?v=20260808-1";
-import { quoteInputFromScan, quoteRooms } from "./pricing-engine.js?v=20260808-1";
+import { quoteInputFromScan, quoteRooms } from "./pricing-engine.js?v=20260906-1";
 import { createPriceAnimator, formatPence, showPriceDelta } from "./price-animator.js?v=20260808-1";
 
 import {
@@ -29,6 +29,7 @@ import {
   checkoutMode,
   checkoutCopy
 } from "./landlord-journey-model.js?v=journey9";
+import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInTasks, selectedScanRooms, premiumChoiceId } from "./scan-premium-selection.js?v=20260906-1";
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
@@ -112,6 +113,8 @@ const state = {
   // of the inside of someone's home does not belong there before the
   // authenticated private draft exists to receive it.
   scanRooms: [],
+  scanPremiumPlan: { options: [], groups: [], baseTasks: [] },
+  scanPremiumSelected: [],
   scanDeviceClass: "unknown",
   // Stable across retries so a save that timed out and is tried again is
   // absorbed by the server rather than recorded twice.
@@ -352,6 +355,7 @@ function show(stepId, historyMode = "push") {
 }
 
 function goNext() {
+  if (state.step === "results" && !validatePremiumChecklist()) return;
   readCurrentStep();
   if (state.step === "postcode" && state.supplyPending) return toast("Checking coverage for this property…");
   if (state.step === "cleaner" && state.cleanersPending) return toast("Checking cleaner profiles…");
@@ -370,7 +374,7 @@ function readCurrentStep() {
     state.draft.outward = parsed?.outward || "";
   }
   if (state.step === "results") {
-    state.draft.tasks = el.tasks.value.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 40);
+    state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
   }
   if (state.step === "when") state.draft.durationMinutes = Number(el.duration.value);
   saveDraft();
@@ -512,6 +516,12 @@ el.scanLink.addEventListener("click", async () => {
     state.scanCorrections = [];
     state.scanMeasurements = [];
     state.scanReview = null;
+    await loadPricingConfig();
+    state.scanPremiumPlan = createPremiumPlan(state.scanRooms, state.draft.tasks, pricingConfig);
+    state.scanPremiumSelected = [];
+    state.draft.tasks = state.scanPremiumPlan.baseTasks;
+    state.draft.requestId = "";
+    state.scanSessionId = "";
     refreshScanReview();
     state.draft.durationMinutes = suggestedDurationMinutes(state.draft.tasks);
     saveDraft();
@@ -537,12 +547,13 @@ function renderResults() {
   el.resultsSource.textContent = scanned
     ? `Scoped from your ${state.draft.rooms.length || "room"} scan${state.draft.transcript ? " + voice note" : ""}`
     : "Written by you";
-  el.tasks.value = state.draft.tasks.join("\n");
+  el.tasks.value = premiumBaseTasks(state.scanPremiumPlan, state.draft.tasks).join("\n");
+  renderPremiumChoices();
   updateResultTotals();
 }
 
 function updateResultTotals() {
-  const tasks = el.tasks.value.split("\n").map((line) => line.trim()).filter(Boolean);
+  const tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
   const rooms = new Set(tasks.map((task) => (task.includes(":") ? task.split(":")[0].trim().toLowerCase() : "")).filter(Boolean));
   el.resultsTasks.textContent = String(tasks.length);
   el.resultsRooms.textContent = String(rooms.size || state.draft.rooms.length || 0);
@@ -559,7 +570,86 @@ function guideRange(taskCount) {
   return low >= high ? clock(minutes) : `${clock(low)}–${clock(high)}`;
 }
 
-el.tasks.addEventListener("input", updateResultTotals);
+el.tasks.addEventListener("input", () => {
+  invalidateScanRequest();
+  el.tasks.setCustomValidity("");
+  updateResultTotals();
+});
+
+function editableTaskLines() {
+  return el.tasks.value.split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+function eligiblePremiumSelections() {
+  const present = new Set(correctedScanRooms().flatMap((room) => (room.objects || [])
+    .filter((object) => object.needsConfirmation !== true && object.selected !== false)
+    .map((object) => premiumChoiceId(room.name || room.roomName, object.inventoryKey || object.code))));
+  return state.scanPremiumSelected.filter((id) => present.has(id));
+}
+
+function invalidateScanRequest() {
+  state.draft.requestId = "";
+  state.scanSessionId = "";
+}
+
+function validatePremiumChecklist() {
+  const conflict = unselectedPremiumInTasks(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+  const tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+  const message = conflict
+    ? `Choose the optional ${conflict.label} below, or remove that specialist task from the editable checklist.`
+    : tasks.length > 40 ? "Keep your checklist to 40 tasks, including optional tasks." : "";
+  el.tasks.setCustomValidity(message);
+  if (message) { el.tasks.reportValidity(); return false; }
+  return true;
+}
+
+function renderPremiumChoices() {
+  let host = document.querySelector("[data-scan-premium-choices]");
+  if (!host) {
+    host = textNode("section", "scan-review-room");
+    host.dataset.scanPremiumChoices = "";
+    host.setAttribute("aria-label", "Optional specialist tasks");
+    el.tasks.after(host);
+  }
+  host.replaceChildren();
+  host.hidden = !state.scanPremiumPlan.options.length;
+  if (host.hidden) return;
+  host.append(textNode("h3", "", "Optional specialist tasks"),
+    textNode("p", "hint", "These tasks are not included unless you select them. Selected tasks are added to your checklist and estimate."));
+  const available = new Set(correctedScanRooms().flatMap((room) => (room.objects || [])
+    .filter((object) => object.needsConfirmation !== true && object.selected !== false)
+    .map((object) => premiumChoiceId(room.name || room.roomName, object.inventoryKey || object.code))));
+  const selected = new Set(eligiblePremiumSelections());
+  for (const option of state.scanPremiumPlan.options) {
+    const card = textNode("div", "scan-review-object");
+    const label = textNode("label", "hint");
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = selected.has(option.id);
+    input.disabled = !available.has(option.id);
+    input.dataset.premiumChoice = option.id;
+    label.append(input, document.createTextNode(` ${option.roomName} · ${option.label} (+${formatPence(option.pence)})`));
+    card.append(label);
+    for (const group of state.scanPremiumPlan.groups.filter((group) => group.ids.includes(option.id))) {
+      card.append(textNode("p", "hint", group.text + (group.ids.length > 1
+        ? " — select all related specialist tasks to include this combined instruction." : "")));
+    }
+    if (input.disabled) card.append(textNode("p", "hint", "Confirm this item in the scan review before selecting it."));
+    input.addEventListener("change", () => {
+      const next = new Set(state.scanPremiumSelected);
+      if (input.checked) next.add(option.id); else next.delete(option.id);
+      state.scanPremiumSelected = [...next];
+      invalidateScanRequest();
+      el.tasks.setCustomValidity("");
+      state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+      state.draft.guideTime = "";
+      updateResultTotals();
+      saveDraft();
+      renderReview();
+    });
+    host.append(card);
+  }
+}
 
 /* ── Step 4: when ───────────────────────────────────── */
 function renderWhen() {
@@ -956,8 +1046,10 @@ const pricingServiceTypeByCode = Object.freeze({
 
 function currentPricingRequest() {
   return quoteInputFromScan({
-    rooms: correctedScanRooms().map((room) => ({ roomName: room.name, objects: room.objects }))
+    rooms: selectedScanRooms(correctedScanRooms(), state.scanPremiumPlan, eligiblePremiumSelections())
+      .map((room) => ({ roomName: room.name, objects: room.objects }))
   }, {
+    config: pricingConfig || defaultPricingConfig,
     serviceType: pricingServiceTypeByCode[state.draft.serviceCode] || "standard",
     frequency: state.draft.frequency || "one-time"
   });
@@ -1417,6 +1509,11 @@ function correctScanObject(roomName, inventoryKey, field, value) {
   const { corrections } = applyCorrection(correctedScanRooms(), { roomName, inventoryKey, field, value });
   if (!corrections.length) return;
   state.scanCorrections.push({ roomName, inventoryKey, field, value, originalValue: corrections[0].originalValue });
+  invalidateScanRequest();
+  if (field === "removed") state.scanPremiumSelected = state.scanPremiumSelected.filter((id) => id !== premiumChoiceId(roomName, inventoryKey));
+  renderPremiumChoices();
+  state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+  updateResultTotals();
   refreshScanReview();
 }
 
