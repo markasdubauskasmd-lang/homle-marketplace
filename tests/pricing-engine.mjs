@@ -352,7 +352,7 @@ assert(JSON.stringify(premiumBaseTasks(plan, selectedOnlyOven)) === JSON.stringi
   const context = vm.createContext({
     state, el, premiumScope, premiumChoiceId, selectedScanRooms, quoteInputFromScan,
     pricingConfig: config, defaultPricingConfig, pricingServiceTypeByCode: { "regular-domestic": "standard" },
-    requestedWindow, requestTasksFromLines, saveDraft() {},
+    requestedWindow: (date, time, duration) => requestedWindow(date, time, duration, new Date("2099-08-19T12:00:00Z")), requestTasksFromLines, saveDraft() {},
     correctedScanRooms() { return state.scanRooms; },
     randomId() { return "77777777-7777-4777-8777-" + String(++sequence).padStart(12, "0"); },
     requestJson: async (url, options) => {
