@@ -1,3 +1,4 @@
+import vm from "node:vm";
 import { readFile } from "node:fs/promises";
 import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, liveBookingForRequest, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, propertyCleaningBlocker, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "../public/landlord-dashboard-model.js";
 import "./landlord-request-draft.mjs";
@@ -499,3 +500,19 @@ await import("./customer-care-empty-state.mjs");
 await import("./manual-coverage.mjs");
 
 await import("./manual-quote-recovery.mjs");
+
+const propertySummaryContext = vm.createContext({
+  properties: [{ propertyId: "one", name: "Home" }, { propertyId: "two", name: "Home" }],
+  bookings: [{ propertyId: "two", propertyName: "Home", status: "completed", scheduledStartAt: "2026-09-01T09:00:00Z" }],
+  formatShortDate: value => value
+});
+vm.runInContext(script.slice(script.indexOf("function propertyRoomLabels("), script.indexOf("function propertyBlockerCopy(")), propertySummaryContext);
+assert(propertySummaryContext.propertyRoomLabels({ savedChecklist: [{ roomName: "Kitchen", description: "Wipe worktops" }] }).join() === "Kitchen", "Saved room names disappear from the property summary.");
+assert(propertySummaryContext.propertyCleaningDates(propertySummaryContext.properties[0]).last === "—", "A same-name property's booking leaked into another property's history.");
+propertySummaryContext.properties[1].name = "Renamed home";
+assert(propertySummaryContext.propertyCleaningDates(propertySummaryContext.properties[1]).last === "2026-09-01T09:00:00Z", "Renaming a property detached its ID-backed history.");
+propertySummaryContext.bookings = [{ propertyName: "Home", status: "confirmed", scheduledStartAt: "2099-09-01T09:00:00Z" }];
+assert(propertySummaryContext.propertyCleaningDates(propertySummaryContext.properties[0]).booked, "A unique legacy property label lost its existing booking.");
+propertySummaryContext.properties[1].name = "Home";
+assert(!propertySummaryContext.propertyCleaningDates(propertySummaryContext.properties[0]).booked, "An ambiguous legacy label claimed a booking without property identity.");
+console.log("Property summary integrity passed: saved rooms, exact IDs, renamed properties and ambiguous legacy labels.");

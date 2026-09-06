@@ -1497,7 +1497,7 @@ function propertySubtitle(property) {
  */
 function propertyRoomLabels(property) {
   const saved = Array.isArray(property.savedChecklist) ? property.savedChecklist : [];
-  const named = [...new Set(saved.map((task) => String(task?.room || "").trim()).filter(Boolean))];
+  const named = [...new Set(saved.map((task) => String(task?.roomName || "").trim()).filter(Boolean))];
   if (named.length) return named.slice(0, 6);
   const labels = [];
   const bedrooms = Number(property.bedrooms);
@@ -1510,13 +1510,17 @@ function propertyRoomLabels(property) {
 /**
  * When this property was last cleaned and what is next.
  *
- * Bookings carry propertyName rather than a property id for anything that is
- * not repeat-eligible, so they are matched by that name. An unmatched property
- * shows "—" instead of borrowing another property's dates.
+ * Prefer the owner-visible property id, including after a property is renamed.
+ * Older summaries without an id can match a unique property label only.
+ * Ambiguous names show "—" rather than borrowing another property's dates.
  */
 function propertyCleaningDates(property) {
   const name = String(property.name || "").trim();
-  const mine = name ? bookings.filter((booking) => String(booking.propertyName || "").trim() === name) : [];
+  const sameNameProperties = properties.filter((item) => String(item.name || "").trim() === name);
+  const uniqueName = Boolean(name) && sameNameProperties.length === 1;
+  const mine = bookings.filter((booking) => booking.propertyId
+    ? booking.propertyId === property.propertyId
+    : uniqueName && String(booking.propertyName || "").trim() === name);
   const done = mine
     .filter((booking) => ["completed", "awaiting-review"].includes(booking.status))
     .sort((a, b) => String(b.scheduledStartAt || "").localeCompare(String(a.scheduledStartAt || "")));
