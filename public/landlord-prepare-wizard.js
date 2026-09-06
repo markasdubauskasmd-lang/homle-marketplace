@@ -557,7 +557,16 @@
     prev.addEventListener("click", function () { view = new Date(view.getFullYear(), view.getMonth() - 1, 1); draw(); });
     next.addEventListener("click", function () { view = new Date(view.getFullYear(), view.getMonth() + 1, 1); draw(); });
     input.addEventListener("change", function () { const s = parse(input.value); if (s) view = new Date(s.getFullYear(), s.getMonth(), 1); draw(); });
-    syncers.push(draw);
+    syncers.push(function () {
+      const focusedLabel = grid.contains(document.activeElement) ? document.activeElement.getAttribute("aria-label") : null;
+      draw();
+      if (focusedLabel) {
+        const restored = Array.from(grid.querySelectorAll("button")).find(function (button) {
+          return !button.disabled && button.getAttribute("aria-label") === focusedLabel;
+        });
+        if (restored) restored.focus();
+      }
+    });
     draw();
     enhanced.set(input, { showError: function () { revealFieldError(err, wrap, grid.querySelector(".pac-cal-day:not(:disabled)") || wrap); } });
   }
