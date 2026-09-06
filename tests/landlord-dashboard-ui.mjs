@@ -381,8 +381,8 @@ assert(page.includes('data-open-landlord-section="messages"') && page.includes('
 // composer must NOT be disabled, and the panel must not claim to be unbuilt.
 // tests/landlord-messages-ui.mjs covers the conversation behaviour itself.
 assert(!page.includes("Messaging is coming soon") && /data-messages-input/.test(page) && !/data-messages-input[^>]*\sdisabled/.test(page), "The Landlord Messages panel is still a placeholder, so a Cleaner can write to someone who cannot reply.");
-// The guide prices are not quotes and there is no pricing endpoint behind them.
-assert(script.includes("LD_INDICATIVE_PLANS") && page.includes("Indicative") && page.includes("not a quote"), "The recommended-plan prices are presented as real quotes.");
+// Service cards lead to scope-based estimates without advertising unsupported prices.
+assert(script.includes("LD_INDICATIVE_PLANS") && page.includes("Priced from your scope") && script.includes("Get estimate") && !script.includes("plan.from"), "The service cards advertise an unverified starting price.");
 assert(designStyles.includes("grid-template-columns: minmax(0, 1fr) 180px") && designStyles.includes("landlordPhoneScan") && designStyles.includes("@media (max-width: 700px)") && designStyles.includes("overflow-x: auto"), "The reference dashboard styling lost its desktop scan composition or mobile adaptation.");
 assert(designStyles.includes("grid-template-areas: none") && designStyles.includes(".landlord-dashboard-identity > .role-dashboard-welcome { grid-area: auto; }") && designStyles.includes("color: var(--ld-ink)") && designStyles.includes("background: none") && designStyles.includes(".landlord-dashboard-identity .role-dashboard-welcome > p:last-child { color: #755548; }"), "Older shared dashboard grid or colour rules can still displace or wash out the approved Landlord welcome header.");
 assert(script.includes('booking.status === "confirmed"') && script.includes('"Request a change"') && script.includes('/landlord/help?bookingId='), "A confirmed booking no longer offers the Landlord a direct, booking-bound change request.");
