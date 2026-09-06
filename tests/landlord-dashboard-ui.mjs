@@ -304,8 +304,8 @@ assert(page.includes('id="landlord-panel-account"') && script.includes("Details,
   assert(!page.includes("data-ld-upcoming") && !page.includes("Upcoming cleaning") && !script.includes("renderUpcomingClean"), "The removed Upcoming cleaning card is still on Home.");
   assert(script.includes("/api/marketplace/landlord/care-summary") && script.includes("renderCareRecord"), "The care record is not fed by the account's own care-summary endpoint.");
   // The honesty rules from the reviewed retention concept, kept in the copy.
-  assert(page.includes("Earned by using Homle, never sold") && script.includes("inventing a label") && script.includes("never an estimate"), "The care record lost its earned-freeze or no-invented-figures guarantees.");
-  assert(page.includes("booked inside 24 hours") && script.includes('"The Fast Turnaround"'), "The Ready streak boundary and the earned archetype are missing.");
+  assert(page.includes("data-ld-care-next") && page.includes("Help &amp; support") && !page.includes(">Ready streak<"), "Cleaning history does not offer practical next steps or still promotes streaks.");
+  assert(script.includes("activeBooking.scheduledStartAt") && script.includes("requestStatusLabel(openRequest.status)"), "The Home next step ignores the actual booking/request state.");
   // The share card carries no address, tenant name or price.
   const shareBody = script.slice(script.indexOf("function careShareText"), script.indexOf("let careShareStatusTimer"));
   assert(page.includes("data-ld-care-share") && script.includes("navigator.share") && script.includes("navigator.clipboard") && shareBody.length > 0 && !shareBody.includes("bookedValuePence") && !shareBody.includes("propertyName"), "The care share card is missing, or it leaks money or property figures a public share must not carry.");

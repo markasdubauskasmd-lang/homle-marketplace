@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260831-1">
   <!-- The v2 composition, last so it wins without !important. -->
   <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260831-1">
-  <script src="/landlord-dashboard.js?v=20260906-4" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260906-5" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/landlord-notification-badge.js?v=20260821-3" type="module"></script>
 </head>
@@ -261,20 +261,10 @@
           </section>
 
           <div class="ld-care-grid" data-ld-care-grid hidden>
-          <section class="ld-care-card ld-care-streak" aria-labelledby="ld-care-streak-title">
-            <div class="ld-care-streak-head">
-              <div>
-                <p class="ld-care-label" id="ld-care-streak-title">Ready streak</p>
-                <strong class="ld-care-streak-count" data-ld-care-streak-count>0 turnarounds</strong>
-                <p class="ld-care-streak-sub">in a row, booked inside 24 hours</p>
-              </div>
-              <span class="ld-care-freeze-pill" data-ld-care-freeze-pill hidden></span>
-            </div>
-            <div class="ld-care-cells" data-ld-care-cells aria-hidden="true"></div>
-            <div class="ld-care-freeze">
-              <span class="ld-care-freeze-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 4v16M4.5 8l15 8M19.5 8l-15 8"></path></svg></span>
-              <span class="ld-care-freeze-copy"><strong data-ld-care-freeze-count>No freeze earned yet</strong><small>Earned by using Homle, never sold</small></span>
-            </div>
+          <section class="ld-care-card ld-care-streak" aria-labelledby="ld-care-next-title">
+            <h3 id="ld-care-next-title">Your next step</h3>
+            <p class="ld-care-card-sub" data-ld-care-next>Open your bookings to review progress.</p>
+            <a class="ld-care-callout-btn" href="/landlord/bookings">View bookings</a>
           </section>
 
           <section class="ld-care-card ld-care-scan" aria-labelledby="ld-care-scan-title">
@@ -283,14 +273,10 @@
             <div class="ld-care-finds" data-ld-care-finds></div>
           </section>
 
-          <section class="ld-care-card ld-care-bench" aria-labelledby="ld-care-bench-title">
-            <h3 id="ld-care-bench-title">Against landlords near you</h3>
-            <p class="ld-care-card-sub" data-ld-care-bench-sub>Anonymised — the benchmark unlocks as more portfolios join.</p>
-            <div class="ld-care-meters" data-ld-care-meters></div>
-            <div class="ld-care-callout">
-              <span class="ld-care-callout-copy" data-ld-care-callout-copy>Scanning every room before you book gives the Cleaner a complete brief.</span>
-              <a class="ld-care-callout-btn" href="/landlord/book">Scan</a>
-            </div>
+          <section class="ld-care-card ld-care-bench" aria-labelledby="ld-care-help-title">
+            <h3 id="ld-care-help-title">Need help with a clean?</h3>
+            <p class="ld-care-card-sub">Get support before booking or ask for help with an existing request. Cleaner messages open after acceptance.</p>
+            <a class="ld-care-callout-btn" href="/landlord/help">Help &amp; support</a>
           </section>
           </div>
 

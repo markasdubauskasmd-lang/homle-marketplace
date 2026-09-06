@@ -3201,51 +3201,26 @@ function renderCareRecord() {
     return;
   }
 
-  // The identity card. "The Fast Turnaround" is the one archetype the
-  // retention concept defines, earned at the same 24-hour boundary the streak
-  // announces. Anything else states the record without inventing a label.
-  if (medianLag != null && medianLag <= 24) {
-    title.textContent = "The Fast Turnaround";
-    lead.textContent = `You book a clean a median ${careLagSentence(medianLag)} after a tenancy ends — your places spend more days ready and fewer days empty.`;
-  } else if (medianLag != null) {
-    title.textContent = "Your turnaround record";
-    lead.textContent = `You book a clean a median ${careLagSentence(medianLag)} after a tenancy ends. Bring that inside 24 hours and your places spend more days ready.`;
-  } else {
-    title.textContent = "Your care record";
-    lead.textContent = "Your first booked cleans start this record — real figures only, never an estimate.";
-  }
+  title.textContent = "Your cleaning history";
+  lead.textContent = "Your saved scans and booked cleans. Open a booking to review its current status.";
 
   if (figures) {
     figures.replaceChildren(
       careFigure(String(totals?.completedCleanCount ?? 0), "Cleans completed"),
       careFigure(String(totals?.roomsScannedCount ?? 0), "Rooms scanned"),
-      careFigure(careWholePounds.format((totals?.bookedValuePence ?? 0) / 100), "Booked to date"),
-      careFigure(careLagShort(medianLag), "Median lag")
+      careFigure(careWholePounds.format((totals?.bookedValuePence ?? 0) / 100), "Booked to date")
     );
   }
 
-  const streak = careSummary?.streak || null;
-  const streakCount = document.querySelector("[data-ld-care-streak-count]");
-  if (streakCount) {
-    const turnarounds = streak?.turnaroundCount ?? 0;
-    streakCount.textContent = `${turnarounds} ${turnarounds === 1 ? "turnaround" : "turnarounds"}`;
-  }
-  const cellsHost = document.querySelector("[data-ld-care-cells]");
-  if (cellsHost) {
-    const cells = streak?.cells?.length ? streak.cells : Array.from({ length: 8 }, () => "empty");
-    cellsHost.replaceChildren(...cells.map((kind, index) => {
-      const cell = element("span", `ld-care-cell is-${kind}`);
-      cell.style.animationDelay = `${(0.12 + index * 0.05).toFixed(2)}s`;
-      return cell;
-    }));
-  }
-  const freezesEarned = streak?.freezesEarned ?? 0;
-  const freezeCount = document.querySelector("[data-ld-care-freeze-count]");
-  if (freezeCount) freezeCount.textContent = freezesEarned > 0 ? `${freezesEarned} ${freezesEarned === 1 ? "freeze" : "freezes"} earned` : "No freeze earned yet";
-  const freezePill = document.querySelector("[data-ld-care-freeze-pill]");
-  if (freezePill) {
-    freezePill.hidden = freezesEarned < 1;
-    freezePill.textContent = freezesEarned > 0 ? `${freezesEarned} ${freezesEarned === 1 ? "freeze" : "freezes"}` : "";
+  const next = document.querySelector("[data-ld-care-next]");
+  if (next) {
+    const activeBooking = bookings.find((booking) => !["completed", "cancelled"].includes(booking.status));
+    const openRequest = requests.find((request) => !["completed", "cancelled", "matched"].includes(request.status));
+    next.textContent = activeBooking
+      ? `${bookingSummaryStatusLabels[activeBooking.status] || "Booking update"} · ${formatBookingMoment(activeBooking.scheduledStartAt)}`
+      : openRequest
+        ? `${requestStatusLabel(openRequest.status)}. Open Bookings to continue your request.`
+        : "Ready for another clean? Open Bookings to choose a property and prepare a new request.";
   }
 
   // Discovery — the honest variable reward. The rows are what the latest scan
@@ -3279,35 +3254,7 @@ function renderCareRecord() {
     }
   }
 
-  // The anonymised local benchmark: a percentile you can only move by doing
-  // the work — never a named leaderboard.
-  const benchSub = document.querySelector("[data-ld-care-bench-sub]");
-  const meters = document.querySelector("[data-ld-care-meters]");
-  const calloutCopy = document.querySelector("[data-ld-care-callout-copy]");
-  const bench = careSummary?.benchmark || null;
-  if (benchSub && meters) {
-    if (bench && bench.lagTopPercent != null) {
-      benchSub.textContent = `Anonymised · near you · ${bench.cohortSize} portfolios`;
-      const built = [careMeter("Booking lag after tenancy ends", "Booking lag near you", bench.lagTopPercent, "lag")];
-      if (bench.coverageTopPercent != null) built.push(careMeter("Rooms scanned before booking", "Rooms scanned", bench.coverageTopPercent, "coverage"));
-      meters.replaceChildren(...built);
-    } else {
-      benchSub.textContent = "Anonymised — the benchmark unlocks as more portfolios join.";
-      meters.replaceChildren();
-    }
-  }
-  if (calloutCopy) {
-    const scanned = bench?.latestScannedRooms;
-    const planned = bench?.latestPlannedRooms;
-    const gap = Number.isFinite(planned) && Number.isFinite(scanned) ? planned - scanned : 0;
-    if (gap > 0 && bench?.closingGapReachesTopQuarter === true) {
-      calloutCopy.textContent = `Scanning the last ${gap} ${gap === 1 ? "room" : "rooms"} moves you into the top quarter.`;
-    } else if (gap > 0) {
-      calloutCopy.textContent = `Scanning the last ${gap} ${gap === 1 ? "room" : "rooms"} gives the Cleaner a complete brief.`;
-    } else {
-      calloutCopy.textContent = "Scanning every room before you book gives the Cleaner a complete brief.";
-    }
-  }
+
 }
 
 async function loadCareSummary() {
