@@ -199,8 +199,8 @@ export async function createS3ObjectStorage(env = process.env, options = {}) {
       await send(new sdk.PutObjectCommand({ Bucket: selected.bucket, Key: targetKey, Body: bytes, ContentType: "image/jpeg", ContentLength: bytes.length, ChecksumSHA256: base64Checksum(outputChecksumSha256), Metadata: { "tideway-sha256": outputChecksumSha256, "tideway-sanitized": "true" }, ServerSideEncryption: "AES256" }));
       return Object.freeze({ safe: true, outputMimeType: "image/jpeg", outputByteSize: bytes.length, outputChecksumSha256, width: Number(output.info.width), height: Number(output.info.height) });
     },
-    async readRequestImage(input) {
-      const key = storageKey(input?.storageKey, "request-photos/");
+    async readPrivateImage(input) {
+      const key = finalImageKey(input?.storageKey);
       const size = byteSize(input?.byteSize);
       if (closed) throw new TypeError("Private object storage is closed.");
       const controller = new AbortController();
