@@ -28,6 +28,7 @@ await assert.rejects(service.get(administrator, { windowDays: "365" }), /7, 30 o
 for (const unsafe of [
   { onboarding: { ...report.onboarding, propertyCount: 11 } },
   { requestJourney: { ...report.requestJourney, bookingCount: 7 } },
+  { requestJourney: { ...report.requestJourney, scanCount: 7 } },
   { payments: { ...report.payments, refundedCount: 2 } },
   { maturityHours: 0 },
   { cohortStartAt: report.cohortEndAt }
@@ -47,3 +48,12 @@ assert.deepEqual(await repository.get(administrator, { windowDays: 7 }), report)
 assert(queries[0].text.includes("get_administrator_funnel_report") && queries[0].values[0] === 7, "The repository did not bind the reviewed aggregate projection and exact window.");
 
 console.log("Administrator funnel service tests passed: cumulative cohorts, maturity boundary, stored-output integrity and role isolation.");
+
+for (const scanCount of [0, 1, 6]) {
+  const mixed = createAdministratorFunnelService({get:async()=>({...report,requestJourney:{...report.requestJourney,scanCount}})});
+  const actual = await mixed.get(administrator);
+  assert.equal(actual.requestJourney.submittedCount,4);
+  assert.equal(actual.requestJourney.reviewCount,1);
+  assert.equal(actual.requestJourney.scanCount,scanCount);
+}
+console.log("Manual and mixed request cohorts remain valid with optional scanning.");

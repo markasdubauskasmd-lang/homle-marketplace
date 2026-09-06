@@ -17,9 +17,9 @@ const laneDefinitions = Object.freeze([
   }),
   Object.freeze({
     title: "Request to completed clean",
-    copy: "Cleaning requests that have had at least 24 hours to progress.",
+    copy: "Manual and scanned cleaning requests that have had at least 24 hours to progress.",
     field: "requestJourney",
-    stages: Object.freeze([["requestCount", "Request started"], ["scanCount", "Room scan saved"], ["submittedCount", "Sent for matching"], ["bookingCount", "Booking created"], ["completedCount", "Clean completed"], ["reviewCount", "Review received"]])
+    stages: Object.freeze([["requestCount", "Request started"], ["submittedCount", "Sent for matching"], ["bookingCount", "Booking created"], ["completedCount", "Clean completed"], ["reviewCount", "Review received"]])
   }),
   Object.freeze({
     title: "Booking payment",
@@ -72,6 +72,11 @@ function laneCard(report, definition) {
     note.textContent = `${values.refundedCount} captured payment${values.refundedCount === 1 ? " has" : "s have"} been partly or fully refunded.`;
     card.append(title, copy, list, note);
   } else card.append(title, copy, list);
+  if (definition.field === "requestJourney") {
+    const note = document.createElement("aside");
+    note.textContent = `${values.scanCount} of ${values.requestCount} requests include a saved room scan. Scanning is optional; all requests count in the stages above.`;
+    card.append(note);
+  }
   return card;
 }
 

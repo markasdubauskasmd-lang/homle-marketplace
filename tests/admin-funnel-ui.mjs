@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import vm from "node:vm";
 import { readFile } from "node:fs/promises";
 import { funnelWindow, percentLabel, stagePercent } from "../public/admin-funnel-model.js";
 
@@ -34,3 +35,14 @@ assert(css.includes("@media(max-width:520px)") && css.includes("grid-template-co
 assert(server.includes('"/admin/funnel": "admin-funnel.html"') && adminNavigation.includes('{ href: "/admin/funnel", label: ') && admin.includes("/admin-navigation.js?v="), "The protected report is not served or reachable from the Administrator control desk.");
 
 console.log("Administrator funnel UI tests passed: truthful cohorts, privacy copy, role gate, safe rendering, navigation and mobile layout.");
+
+function fakeElement(tag) { return {tag,children:[],append(...items){this.children.push(...items);}}; }
+const context=vm.createContext({document:{createElement:fakeElement},stageRow:(label,value,cohort)=>({label,value,cohort})});
+vm.runInContext(script.slice(script.indexOf("const laneDefinitions"),script.indexOf("function showGate"))+"\n"+script.slice(script.indexOf("function laneCard"),script.indexOf("function render("))+"\nglobalThis.renderRequestLane=report=>laneCard(report,laneDefinitions[1]);",context);
+const rendered=context.renderRequestLane({requestJourney:{requestCount:6,scanCount:0,submittedCount:4,bookingCount:3,completedCount:2,reviewCount:1}});
+const stages=rendered.children.find(child=>child.tag==="ol").children;
+assert.equal(stages.length,5);
+assert.deepEqual(Array.from(stages,stage=>stage.value),[6,4,3,2,1]);
+assert.ok(stages.every(stage=>stage.cohort===6));
+assert.match(rendered.children.find(child=>child.tag==="aside").textContent,/0 of 6 requests.*Scanning is optional/);
+console.log("Request report rendering includes manual conversion and separates optional scan participation.");

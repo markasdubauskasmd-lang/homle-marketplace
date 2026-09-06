@@ -53,7 +53,8 @@ export function createAdministratorFunnelService(repository) {
       ], "Payment funnel");
 
       ensureDescending(Object.values(onboarding), "Onboarding funnel");
-      ensureDescending(Object.values(requestJourney), "Request funnel");
+      ensureDescending(["requestCount", "submittedCount", "bookingCount", "completedCount", "reviewCount"].map(field => requestJourney[field]), "Request funnel");
+      if (requestJourney.scanCount > requestJourney.requestCount) throw new Error("Scan participation totals are unavailable.");
       ensureDescending(Object.values(payments).slice(0, 4), "Payment funnel");
       if (payments.refundedCount > payments.capturedCount) throw new Error("Payment funnel totals are unavailable.");
 
