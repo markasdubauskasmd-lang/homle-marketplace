@@ -72,7 +72,7 @@ export function premiumScope(plan, baseTasks, selectedIds) {
 }
 
 export function premiumBaseTasks(plan, tasks) {
-  const managed = new Set(plan.groups.map((group) => words(group.text)));
+  const managed = new Set([...plan.groups.map((group) => words(group.text)), ...plan.options.map((option) => words(option.task))]);
   return tasks.filter((line) => !managed.has(words(line)));
 }
 
