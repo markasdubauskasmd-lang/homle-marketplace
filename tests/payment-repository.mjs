@@ -97,3 +97,10 @@ assert(runtime.includes("createPaymentRepository(database)") && runtime.includes
 assert(attachment.includes("payment_ledger_ready") && attachment.includes("payment_access_ready") && attachment.includes("begin_booking_payment_authorization(uuid,uuid,text,bytea)") && attachment.includes("read_booking_payment(uuid)") && attachment.includes("list_administrator_payment_operations(text,integer,integer)") && attachment.includes("get_administrator_booking_payment_operation(uuid)"), "Marketplace startup could attach against a database missing the locked payment ledger, Landlord status projection or Administrator settlement handoff.");
 
 console.log("Payment repository tests passed: frozen booking money, function-only mutations, server-owned payout terms, idempotent event ledger, safe error mapping and least-privilege grants.");
+
+rows.push({ id: paymentId, booking_id: bookingId, status: "captured", amount_pence: 12000, currency: "gbp", amount_captured_pence: 12000, amount_refunded_pence: 0, provider_payment_id: "pi_private_receipt" });
+const receiptPayment = await repository.getForReceipt(actor, bookingId);
+assert.equal(receiptPayment.providerPaymentId, "pi_private_receipt");
+assert.match(calls.at(-1).text, /read_my_booking_receipt_payment/);
+assert.deepEqual(calls.at(-1).values, [bookingId]);
+assert.equal(calls.at(-2).transaction, "user");
