@@ -924,3 +924,20 @@ assert(missingRuntime, "Marketplace runtime did not fail closed without its data
 }
 
 console.log("Marketplace HTTP tests passed: isolated routing, public search, session/role/origin/CSRF protection, owner-bound property mutations, bounded JSON, safe errors and fail-closed runtime composition.");
+
+const repeatReads = [];
+const repeatRouter = createMarketplaceHttpRouter({ ...dependencies, landlordRepeatService: {
+  async getScope(actor, bookingId) { repeatReads.push({actor,bookingId}); return { sourceBookingId: bookingId, tasks: [{roomName:"Kitchen",description:"Wipe worktops"}] }; }
+}}, {clientKey:()=>trustedClientKey});
+const repeatUrl = "/api/marketplace/landlord/bookings/55555555-5555-4555-8555-555555555555/repeat-scope";
+const repeatAllowed = await dispatch(repeatRouter, "GET", repeatUrl, {headers:authHeaders});
+assert(repeatAllowed.response.statusCode === 200 && repeatReads[0].actor.userId === sessions.landlord.user_id && /no-store/.test(repeatAllowed.response.headers["Cache-Control"]), "Repeat scope lost its private Landlord read boundary.");
+const repeatCleaner = await dispatch(repeatRouter, "GET", repeatUrl, {headers:cleanerAuthHeaders});
+assert(repeatCleaner.response.statusCode === 403 && repeatReads.length === 1, "Cleaner traffic reached the private Landlord repeat scope.");
+const repeatAnonymous = await dispatch(repeatRouter, "GET", repeatUrl);
+assert(repeatAnonymous.response.statusCode === 401 && repeatReads.length === 1, "Anonymous traffic reached repeat scope.");
+const repeatWrite = await dispatch(repeatRouter, "POST", repeatUrl, {headers:authHeaders,body:{}});
+assert(repeatWrite.response.statusCode === 405 && repeatReads.length === 1, "Repeat scope permits a mutation.");
+const repeatUnavailable = await dispatch(router, "GET", repeatUrl, {headers:authHeaders});
+assert(repeatUnavailable.response.statusCode === 503, "Unconfigured repeat scope did not fail clearly.");
+console.log("Repeat-scope HTTP checks passed: owner-role gate, no-store response, anonymous denial and GET-only boundary.");
