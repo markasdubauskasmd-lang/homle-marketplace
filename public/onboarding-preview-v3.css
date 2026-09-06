@@ -4,7 +4,6 @@
    @import and no remote fonts, so this satisfies style-src/font-src 'self'.
    ==================================================================== */
 /* Modernist — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
-600;800&display=swap');
 
 :root {
   --color-bg: #f3f2f2;
@@ -608,6 +607,15 @@ legend{display:block;width:100%;padding:0}
 
 /* ---- mobile: unpin the composition and stack it ---- */
 @media (max-width:900px){
+  .ho-screen{width:100%;max-width:100%;min-width:0}
+  #home .ho-main [data-screen-label]{position:relative;display:grid;gap:24px}
+  #home .ho-main section{position:relative;inset:auto;width:100%;min-width:0}
+  #home .hc,#home .hd,#home .he{display:none}
+  #home .ho-shell{background:linear-gradient(145deg,#ff1747,#d9002c)}
+  #home .h10{width:100%;padding:20px 16px}
+  #home .h14,#home .h1j,#home .h1e,#home .h1p{flex-wrap:wrap;gap:12px}
+  #home .h18{flex:1 1 180px;width:auto;min-width:0}
+  #home .h1a{width:100%}
   body{padding:0;display:block;background:#f3f2f2}
   .ho-backdrop{display:none}
   .ho-stage{width:100%!important;height:auto!important;padding:0!important;zoom:1}

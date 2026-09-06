@@ -83,7 +83,7 @@ const declaringFonts = stylesheets.filter((name) => /@font-face\s*\{/.test(strip
 // neither can read the app's font declarations.
 assert.deepEqual(
   declaringFonts.sort(),
-  ["homle-cleaner.css", "homle-tokens.css", "landing-f56e7ce9.css"],
+  ["homle-cleaner.css", "homle-tokens.css", "homlle-onboarding.css", "landing-f56e7ce9.css", "onboarding-preview-v3.css"],
   `@font-face is declared in ${declaringFonts.join(", ")}. The same two families were once repeated across three stylesheets; one owner means a font swap is one edit rather than a hunt.`
 );
 
@@ -113,7 +113,10 @@ const cleanerWorkspace = new Set([
 // styles.css nor the tokens, on purpose, so the app's palette and typography
 // cannot pull it around. public-brand.mjs holds the matching exemption and
 // asserts it stays off the shared sheet rather than merely drifting off it.
-const standaloneDesigns = new Set(["home"]);
+// Uploaded design previews intentionally keep their own Archivo-based system.
+// public-brand verifies the exact isolated assets and browser rendering; they
+// must not load the app tokens or replace the working registration route.
+const standaloneDesigns = new Set(["home", "homlle-onboarding", "onboarding-preview-v3"]);
 const exempt = (name) => cleanerWorkspace.has(name) || standaloneDesigns.has(name);
 
 const pages = readdirSync(new URL("../public", import.meta.url)).filter((name) => name.endsWith(".html"));

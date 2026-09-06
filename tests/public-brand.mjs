@@ -19,7 +19,15 @@ const visibleOldBrand = /(?<![A-Za-z0-9_-])Tideway(?![A-Za-z0-9_-])/;
 // loading styles.css on top of it would fight its typography and surface. The
 // version is therefore anchored on account.html, the first page every visitor
 // reaches after it, and home.html is exempted from the shared-sheet rule alone.
-const standaloneDesignPages = new Set(["home.html"]);
+// The owner-uploaded onboarding previews are design references, not the live
+// registration route. Like the landing page, each has its own isolated sheet.
+// They retain the favicon requirement and their assets/routing are verified
+// below in a real browser; adding styles.css would overwrite the supplied design.
+const onboardingPreviewSheets = new Map([
+  ["homlle-onboarding.html", "/homlle-onboarding.css?v=0906b"],
+  ["onboarding-preview-v3.html", "/onboarding-preview-v3.css?v=20260906-1"]
+]);
+const standaloneDesignPages = new Set(["home.html", ...onboardingPreviewSheets.keys()]);
 // Public and Landlord pages display the approved 1254 px artwork at no more than
 // 54 CSS pixels. Loading the 1.97 MB source there delayed the first useful paint
 // on mobile. These pages use a locked 128 px lossless derivative; Cleaner pages
@@ -104,3 +112,68 @@ assert(!visibleOldBrand.test(server) && !visibleOldBrand.test(emailWorker) && em
 assert(server.includes("TidewayScopeTimeBreakdown") && server.includes("tideway-marketplace"), "The visual rebrand renamed stable internal runtime contracts.");
 
 console.log("Public brand tests passed: Homle is visible across web, account and notification surfaces while stable internal contracts remain unchanged.");
+
+// The preview exception above is deliberately narrower than a blanket bypass:
+// exact isolated assets, no crawler indexing, no inline executable code, and no
+// replacement of the real registration route. Preview navigation is not proof
+// of real registration submission; the existing integration tests cover that.
+for (const [name, sheet] of onboardingPreviewSheets) {
+  const html = await readFile(new URL(name, publicRoot), "utf8");
+  const css = await readFile(new URL(sheet.split("?")[0].slice(1), publicRoot), "utf8");
+  assert(html.includes(`href="${sheet}"`), `${name} lost its exact isolated stylesheet.`);
+  assert(html.includes('<script src="/homlle-onboarding.js?v=0906b"></script>'), `${name} lost its root-relative screen router.`);
+  assert(html.includes('name="robots" content="noindex,nofollow,noarchive"'), `${name} is no longer excluded from indexing.`);
+  assert(!/<script\b(?![^>]*\bsrc=)[^>]*>/i.test(html) && !/\son(?:click|submit|change)=/i.test(html), `${name} needs unsafe inline scripts.`);
+  assert(!css.includes("600;800&display=swap"), `${name} retains a malformed import that discards its root design tokens.`);
+  assert(!server.includes(`": "${name}"`), `${name} replaced a working application route.`);
+}
+
+const { launchBrowser, resolveChromiumPath, serveStatic } = await import("../tools/browser-harness.mjs");
+if (resolveChromiumPath()) {
+  const previewServer = await serveStatic();
+  const browser = await launchBrowser();
+  try {
+    for (const name of onboardingPreviewSheets.keys()) {
+      for (const width of [390, 1280]) {
+        await browser.setViewport({ width, height: 844, mobile: width === 390 });
+        await browser.goto(`${previewServer.origin}/${name}`);
+        const initial = await browser.evaluate(`return {
+          screen: document.documentElement.dataset.screen,
+          rootColor: getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim(),
+          visible: [...document.querySelectorAll('.ho-screen')].filter(el => el.checkVisibility()).map(el => el.id),
+          brokenImages: [...document.images].filter(el => !el.complete || !el.naturalWidth).map(el => el.src),
+          sheets: [...document.styleSheets].map(sheet => sheet.cssRules.length),
+          viewport: innerWidth,
+          overflow: document.documentElement.scrollWidth > innerWidth
+        };`);
+        assert(initial.screen === "home" && initial.visible.join() === "home", `${name} ${width}px did not initialize one screen.`);
+        assert(initial.rootColor === "#f3f2f2", `${name} ${width}px did not load its design tokens.`);
+        assert(initial.sheets.length === 1 && initial.sheets[0] > 100, `${name} did not load its isolated design.`);
+        assert(initial.brokenImages.length === 0, `${name} has broken images: ${initial.brokenImages.join(', ')}`);
+        assert(initial.viewport === width && !initial.overflow, `${name} ${width}px widened or overflowed the viewport.`);
+        await browser.evaluate(`document.querySelector('a[href="#personal-details"]').click(); return null;`);
+        const details = await browser.evaluate(`
+          const deadline = Date.now() + 3000;
+          while (document.documentElement.dataset.screen !== 'personal-details') {
+            if (Date.now() > deadline) throw new Error('Preview navigation did not complete');
+            await new Promise(resolve => setTimeout(resolve, 20));
+          }
+          return [...document.querySelectorAll('.ho-screen')].filter(el => el.checkVisibility()).map(el => el.id);
+        `);
+        assert(details.join() === "personal-details", `${name} ${width}px did not navigate to personal details.`);
+        await browser.evaluate(`location.hash = '#missing-screen'; return null;`);
+        const fallback = await browser.evaluate(`
+          const deadline = Date.now() + 3000;
+          while (document.documentElement.dataset.screen !== 'home') {
+            if (Date.now() > deadline) throw new Error('Preview fallback did not complete');
+            await new Promise(resolve => setTimeout(resolve, 20));
+          }
+          return document.querySelector('#home').checkVisibility();
+        `);
+        assert(fallback, `${name} ${width}px left an invalid hash on a blank page.`);
+      }
+    }
+    assert(browser.pageErrors.length === 0, browser.pageErrors.join('\n'));
+  } finally { await browser.close(); await previewServer.close(); }
+  console.log("Onboarding preview browser checks passed at 390px and 1280px: isolated design tokens, images, screen navigation and invalid-hash recovery. Live registration remains separate.");
+} else console.log("Onboarding preview browser checks SKIPPED: Chromium unavailable.");
