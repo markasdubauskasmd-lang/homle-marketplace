@@ -3096,6 +3096,16 @@ function renderIndicativePlans() {
  * inventing a label.
  */
 let careSummary = null;
+let careSummaryState = "loading";
+let careSummaryLookup = 0;
+
+function careRecordView(summary, status) {
+  if (status === "loading") return { history: false, title: "Your cleaning history", lead: "Loading your saved cleaning history…" };
+  if (status !== "ready" || !summary?.totals) return { history: false, title: "History is temporarily unavailable", lead: "We couldn’t load your history. Your saved properties and bookings are still available below." };
+  const totals = summary.totals;
+  const history = totals.bookingCount > 0 || totals.completedCleanCount > 0 || totals.roomsScannedCount > 0 || Boolean(summary.lastScan);
+  return { history, title: "Plan your first clean", lead: "Choose a saved property or add a new one, then build your checklist. Nothing is booked until a Cleaner accepts your approved request." };
+}
 
 const careWholePounds = new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 });
 const careMonth = new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: bookingZone });
@@ -3171,6 +3181,25 @@ function renderCareRecord() {
   const figures = document.querySelector("[data-ld-care-figures]");
   const totals = careSummary?.totals || null;
   const medianLag = Number.isFinite(careSummary?.medianLagHours) ? careSummary.medianLagHours : null;
+  const presentation = careRecordView(careSummary, careSummaryState);
+  if (figures) figures.hidden = !presentation.history;
+  const grid = document.querySelector("[data-ld-care-grid]");
+  const share = document.querySelector("[data-ld-care-share-wrap]");
+  const actions = document.querySelector("[data-ld-care-actions]");
+  const retry = document.querySelector("[data-ld-care-retry]");
+  if (grid) grid.hidden = !presentation.history;
+  if (share) share.hidden = !presentation.history;
+  if (actions) actions.hidden = presentation.history;
+  if (retry) {
+    retry.hidden = careSummaryState !== "error";
+    retry.disabled = careSummaryState === "loading";
+  }
+  if (!presentation.history) {
+    title.textContent = presentation.title;
+    lead.textContent = presentation.lead;
+    if (figures) figures.replaceChildren();
+    return;
+  }
 
   // The identity card. "The Fast Turnaround" is the one archetype the
   // retention concept defines, earned at the same 24-hour boundary the streak
@@ -3282,16 +3311,26 @@ function renderCareRecord() {
 }
 
 async function loadCareSummary() {
+  const lookup = ++careSummaryLookup;
+  careSummaryState = "loading";
+  renderCareRecord();
   try {
     const result = await requestJson("/api/marketplace/landlord/care-summary");
-    careSummary = result?.careSummary && typeof result.careSummary === "object" ? result.careSummary : null;
+    if (lookup !== careSummaryLookup) return;
+    const summary = result?.careSummary;
+    if (!summary?.totals || !["bookingCount", "completedCleanCount", "roomsScannedCount", "bookedValuePence"].every((key) => Number.isInteger(summary.totals[key]) && summary.totals[key] >= 0)) {
+      throw new Error("Cleaning history is unavailable.");
+    }
+    careSummary = summary;
+    careSummaryState = "ready";
   } catch {
-    // The section keeps its honest starting copy; the partial-load banner
-    // already tells the Landlord when a refresh did not complete.
+    if (lookup !== careSummaryLookup) return;
     careSummary = null;
+    careSummaryState = "error";
   }
   renderCareRecord();
 }
+document.querySelector("[data-ld-care-retry]")?.addEventListener("click", loadCareSummary);
 
 /* The flex-card rule from the reviewed concept: no addresses, tenant names or
    prices — a landlord's share has to be safe to post. */

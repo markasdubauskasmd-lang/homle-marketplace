@@ -493,3 +493,5 @@ assert(script.includes("clearLandlordRequestDraft(window.sessionStorage)") && sc
   "The saved walkthrough is no longer cleared from this tab's storage after its draft is saved.");
 
 console.log("Landlord dashboard UI tests passed: simplified navigation, selected-Cleaner continuation, voice-first scope, grouped bullet review, accessible fallbacks, owner APIs, direct room-scan continuation, safe rendering, builder close-out, draft clearing and mobile accessibility.");
+
+await import("./customer-care-empty-state.mjs");

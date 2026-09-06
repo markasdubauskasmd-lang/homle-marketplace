@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260831-1">
   <!-- The v2 composition, last so it wins without !important. -->
   <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260831-1">
-  <script src="/landlord-dashboard.js?v=20260906-2" type="module"></script>
+  <script src="/landlord-dashboard.js?v=20260906-3" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/landlord-notification-badge.js?v=20260821-3" type="module"></script>
 </head>
@@ -245,17 +245,22 @@
           <span class="ld-care-sheen" aria-hidden="true"></span>
           <div class="ld-care-hero-main">
             <p class="ld-care-eyebrow"><span class="ld-care-eyebrow-wide">Your care profile · from your own booking timestamps</span><span class="ld-care-eyebrow-narrow">Your care profile</span></p>
-            <h3 id="ld-care-title" data-ld-care-title>Your care record</h3>
-            <p class="ld-care-lead" data-ld-care-lead>Your first booked clean starts this record — real figures only, never an estimate.</p>
+            <h3 id="ld-care-title" data-ld-care-title>Your cleaning history</h3>
+            <p class="ld-care-lead" data-ld-care-lead>Loading your saved cleaning history…</p>
           </div>
-          <div class="ld-care-figures" data-ld-care-figures></div>
-          <div class="ld-care-share-wrap">
+          <div class="ld-care-figures" data-ld-care-figures hidden></div>
+          <div class="ld-care-share-wrap" data-ld-care-actions>
+            <a class="ld-care-share" href="/landlord/properties">Your properties</a>
+            <a class="ld-care-share" href="/landlord/bookings">View bookings</a>
+            <button class="ld-care-share" type="button" data-ld-care-retry hidden>Try again</button>
+          </div>
+          <div class="ld-care-share-wrap" data-ld-care-share-wrap hidden>
             <button class="ld-care-share" type="button" data-ld-care-share>Share card</button>
             <small class="ld-care-share-status" data-ld-care-share-status role="status" aria-live="polite" hidden></small>
           </div>
           </section>
 
-          <div class="ld-care-grid">
+          <div class="ld-care-grid" data-ld-care-grid hidden>
           <section class="ld-care-card ld-care-streak" aria-labelledby="ld-care-streak-title">
             <div class="ld-care-streak-head">
               <div>
