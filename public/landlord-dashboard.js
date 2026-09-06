@@ -3050,9 +3050,9 @@ function updateLandlordWaitingDeadlines() {
 // again two steps later. The codes are the ones landlord-journey-model.js
 // already prices; the journey ignores anything it does not recognise.
 const LD_INDICATIVE_PLANS = Object.freeze([
-  Object.freeze({ name: "Standard clean", desc: "Living room, kitchen, bathroom", from: "£68", tone: "standard", code: "regular-domestic" }),
-  Object.freeze({ name: "Deep clean", desc: "Detailed kitchen and bathroom refresh", from: "£112", tone: "deep", code: "deep-cleans" }),
-  Object.freeze({ name: "End of tenancy", desc: "Full property clean", from: "£185", tone: "tenancy", code: "end-of-tenancy" })
+  Object.freeze({ name: "Regular clean", desc: "Living room, kitchen, bathroom", tone: "standard", code: "regular-domestic" }),
+  Object.freeze({ name: "Deep clean", desc: "Detailed kitchen and bathroom refresh", tone: "deep", code: "deep-cleans" }),
+  Object.freeze({ name: "End of tenancy", desc: "Full property clean", tone: "tenancy", code: "end-of-tenancy" })
 ]);
 
 /* Cloned from the <template>s in the markup — see the note beside them. */
@@ -3075,12 +3075,12 @@ function renderIndicativePlans() {
     const copy = element("span", "ld-plan-copy");
     copy.append(element("strong", "", plan.name), element("small", "", plan.desc));
     const price = element("span", "ld-plan-price");
-    price.append(element("small", "", "From"), element("strong", "", plan.from));
+    price.append(element("small", "", "Your scope"), element("strong", "", "Get estimate"));
     const chev = element("span", "ld-plan-chev", "›");
     chev.setAttribute("aria-hidden", "true");
     row.append(icon, copy, price, chev);
     // Screen readers get the caveat the badge makes visual, and the destination.
-    row.setAttribute("aria-label", `${plan.name}. Guide price from ${plan.from}, not a quote. Scan your property for an exact price.`);
+    row.setAttribute("aria-label", `${plan.name}. Build your checklist to get an estimate, then approve the exact total before a Cleaner is invited.`);
     return row;
   }));
   indicativePlansRendered = true;
