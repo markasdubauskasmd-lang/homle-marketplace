@@ -75,7 +75,7 @@ for (const step of ["postcode", "service", "results", "when", "cleaner"]) {
 const days = bookableDays(new Date("2026-07-20T09:00:00Z"));
 assert(days.length === 14 && days[0].iso === "2026-07-21", `Bookable days do not start tomorrow: ${days[0].iso}`);
 assert(isKnownService(services[0].code) && !isKnownService("anything"), "Service codes are not validated against what the marketplace can price.");
-assert(services.map((service) => service.code).join(",") === "regular-domestic,deep-cleans,end-of-tenancy,workplaces", "The booking journey offers a service code the marketplace request contract cannot accept.");
+assert(services.map((service) => service.code).join(",") === "regular-domestic,deep-cleans,end-of-tenancy,workplaces,rental-turnovers,communal-areas", "The booking journey offers a service code the marketplace request contract cannot accept.");
 assert(frequencies.map((frequency) => frequency.code).join(",") === "weekly,fortnightly,every-four-weeks,one-time", "The booking journey offers a recurrence code the marketplace request contract cannot accept.");
 assert(suggestedDurationMinutes(Array(8).fill("task")) === 120 && suggestedDurationMinutes(Array(16).fill("task")) === 180, "The checklist did not produce a bounded editable duration suggestion.");
 const savedProperties = [
