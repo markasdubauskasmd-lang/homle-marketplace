@@ -1,3 +1,4 @@
+import { createLandlordRepeatService } from "./landlord-repeat-service.mjs";
 import { createAccountSecurity } from "./account-security.mjs";
 import { createAccountSessionService } from "./account-session-service.mjs";
 import { createAuthenticationRepository } from "./auth-repository.mjs";
@@ -218,6 +219,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   // built from them — the collection point that turns real traffic into the
   // measured false-clean rate every phase has honestly reported as unknown.
   const scanGroundTruthService = createScanGroundTruthService(createScanGroundTruthRepository(database));
+  const landlordRepeatService = createLandlordRepeatService(database);
   const bookingRepository = createBookingRepository(database);
   const bookingPricingPolicy = options.bookingPricingPolicy || bookingPricingPolicyFromEnvironment(env);
   const paymentRepository = createPaymentRepository(database);
@@ -271,7 +273,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const landlordCareService = createLandlordCareService(landlordCareRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
+  const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
     clientKey: options.clientKey,
     onUnexpectedError: options.onUnexpectedError,
     pricingConfiguration: (actor) => pricingConfigurationRepository.activeConfig(actor),

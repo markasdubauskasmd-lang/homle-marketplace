@@ -3669,12 +3669,14 @@ function renderPastCleans(buckets) {
   const groups = new Map();
   past.forEach((booking) => {
     const propertyName = booking.propertyName || "Saved property";
-    if (!groups.has(propertyName)) groups.set(propertyName, []);
-    groups.get(propertyName).push(booking);
+    const groupKey = booking.propertyId || "legacy:" + propertyName;
+    if (!groups.has(groupKey)) groups.set(groupKey, []);
+    groups.get(groupKey).push(booking);
   });
 
   const rows = [];
-  groups.forEach((propertyBookings, propertyName) => {
+  groups.forEach((propertyBookings) => {
+    const propertyName = propertyBookings[0].propertyName || "Saved property";
     const heading = element("div", "ld-past-group-head");
     const headingCopy = element("div", "ld-past-group-copy");
     const completedValuePence = propertyBookings.reduce((total, booking) => total + (Number.isInteger(booking.pricePence) ? booking.pricePence : 0), 0);
@@ -3683,19 +3685,20 @@ function renderPastCleans(buckets) {
       element("strong", "ld-past-group-name", propertyName),
       element("span", "ld-past-group-summary", `${propertyBookings.length} ${propertyBookings.length === 1 ? "clean" : "cleans"}${valueLabel}`),
     );
-    const again = element("button", "ld-btn ld-btn-quiet", "Book again");
-    again.type = "button";
-    again.addEventListener("click", () => {
-      const match = properties.find((property) => property.name === propertyName);
-      if (match) {
-        bookCleanPropertyId = match.propertyId;
-        saveSelectedProperty(sessionStorage, match.propertyId);
-        selectedPropertyId = match.propertyId;
-      }
-      openBookCleanChooser();
-    });
-    heading.append(headingCopy, again);
+    heading.append(headingCopy);
     rows.push(heading);
+    const previous = propertyBookings.find(booking => booking.status === "completed" && booking.propertyId && booking.cleanerId);
+    if (previous) {
+      const again = element("button", "ld-btn ld-btn-quiet", "Book again");
+      again.type = "button";
+      const feedback = element("p", "landlord-form-feedback");
+      feedback.setAttribute("role", "status");
+      feedback.tabIndex = -1;
+      feedback.hidden = true;
+      again.addEventListener("click", () => { void prepareRepeatRequest(previous, again, feedback); });
+      heading.append(again);
+      rows.push(feedback);
+    }
 
     propertyBookings.forEach((booking) => {
       const row = element("article", "ld-past-row");
@@ -3851,6 +3854,66 @@ function renderLandlordPayments(allBookings) {
   }));
 }
 
+let repeatScopePending = false;
+async function prepareRepeatRequest(previous, button, feedback = document.querySelector("[data-repeat-feedback]")) {
+  if (repeatScopePending || requestDraftPending) return;
+  if ((requestDirty || currentRequestDraft) && !window.confirm("Replace the unfinished request in this tab with the previous clean's scope?")) return;
+  const before = JSON.stringify(requestDraftFields());
+  const priorDraft = currentRequestDraft;
+  repeatScopePending = true;
+  button.disabled = true;
+  showFeedback(feedback, "Loading the previous approved scope…", "info");
+  try {
+    const result = await requestJson(`/api/marketplace/landlord/bookings/${encodeURIComponent(previous.bookingId)}/repeat-scope`, { timeoutMs: 8000 });
+    const scope = result.scope;
+    if (!scope || scope.sourceBookingId !== previous.bookingId || scope.propertyId !== previous.propertyId || scope.cleanerId !== previous.cleanerId
+      || !properties.some(property => property.propertyId === scope.propertyId)) throw new Error("The previous property is no longer available. Start a new request.");
+    if (!Array.isArray(scope.requiredServices) || scope.requiredServices.length !== 1 || scope.requiredServices[0] !== scope.cleaningType
+      || !Array.from(cleaningTypeSelect.options).some(option => option.value === scope.cleaningType)) throw new Error("This previous service combination needs a new request. Your current draft has been kept.");
+    const taskLines = tasksToLines(scope.tasks);
+    if (!taskLines.trim()) throw new Error("The previous task list is unavailable. Your current draft has been kept.");
+    await loadPrepareWizard();
+    if (before !== JSON.stringify(requestDraftFields()) || priorDraft !== currentRequestDraft || requestDraftPending) throw new Error("Your draft changed while the previous scope loaded. Your current entries have been kept; choose Book again to retry.");
+    resetRequestContinuation();
+    requestForm.reset();
+    currentRequestDraft = null;
+    requestForm.elements.propertyId.value = scope.propertyId;
+    requestForm.elements.cleaningType.value = scope.cleaningType;
+    cleaningTypeSelect.dataset.selectionSource = "user";
+    requestForm.elements.frequency.value = "one-time";
+    requestForm.elements.requestedDate.value = "";
+    requestForm.elements.requestedTime.value = "";
+    requestForm.elements.budget.value = "";
+    requestForm.elements.specialInstructions.value = scope.specialInstructions || "";
+    requestForm.elements.tasks.value = taskLines;
+    requestForm.elements.transcript.value = "";
+    const minutes = String(scope.requestedMinutes);
+    requestForm.elements.durationMinutes.value = Array.from(requestForm.elements.durationMinutes.options).some(option => option.value === minutes) ? minutes : "";
+    requestForm.elements.scopeReviewed.checked = false;
+    tasksManuallyEdited = true;
+    selectedPropertyId = scope.propertyId;
+    selectedCleanerId = scope.cleanerId;
+    try { saveSelectedProperty(sessionStorage, scope.propertyId); saveSelectedCleaner(localStorage, scope.cleanerId); } catch {}
+    renderTaskPreview();
+    requestDirty = true;
+    rememberWorkingRequest();
+    selectWorkspaceTab("requests", { historyMode: "push" });
+    requestForm.dispatchEvent(new Event("homle:request-values-changed"));
+    void checkManualCoverage({ force: true });
+    void refreshSelectedCleanerProfile();
+    window.setTimeout(() => {
+      scheduleManualQuote();
+      showFeedback(requestFeedback, "Copied the previous agreed tasks and instructions. Review them, choose a new date and time, and approve a fresh price. Photos, payment approval and the old price were not copied.", "info");
+    }, 0);
+    feedback.hidden = true;
+  } catch (error) {
+    showFeedback(feedback, error.message || "The previous scope could not be loaded. Your current draft is unchanged.");
+  } finally {
+    repeatScopePending = false;
+    button.disabled = false;
+  }
+}
+
 function renderLandlordHistory(summary) {
   document.querySelector("[data-landlord-completed-count]").textContent = String(summary.completedCleanCount);
   document.querySelector("[data-landlord-awaiting-count]").textContent = String(summary.awaitingConfirmationCount);
@@ -3870,13 +3933,7 @@ function renderLandlordHistory(summary) {
     if (cleaner.cleanerId && cleaner.propertyId) {
       const repeat = element("button", "button", "Book again");
       repeat.type = "button";
-      repeat.addEventListener("click", () => {
-        try {
-          saveSelectedCleaner(localStorage, cleaner.cleanerId);
-          saveSelectedProperty(sessionStorage, cleaner.propertyId);
-        } catch {}
-        location.assign("/landlord/dashboard?start=booking");
-      });
+      repeat.addEventListener("click", () => { void prepareRepeatRequest(cleaner, repeat); });
       actions.append(repeat);
     }
     card.append(identity, actions);

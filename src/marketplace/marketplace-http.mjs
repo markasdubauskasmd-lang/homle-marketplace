@@ -12,6 +12,7 @@ import { quoteRooms } from "../../public/pricing-engine.js";
 import { defaultPricingEconomics, normalizedPricingEconomics, reviewedQuote } from "./pricing-economics.mjs";
 
 const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
+const landlordRepeatPath = new RegExp(`^/api/marketplace/landlord/bookings/(${uuidPattern})/repeat-scope$`);
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
 const bookingResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/response$`);
 const requestInvitationPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitations$`);
@@ -1445,6 +1446,18 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request);
           sendJson(response, 200, { ok: true, progress: await progress.getProgress(context.actor, selectedCleaningProgress[1]) });
+          return true;
+        }
+        const selectedRepeat = pathname.match(landlordRepeatPath);
+        if (selectedRepeat) {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["landlord"] });
+          if (!dependencies.landlordRepeatService) {
+            sendJson(response, 503, { ok: false, error: "Repeat requests are temporarily unavailable." });
+            return true;
+          }
+          const scope = await dependencies.landlordRepeatService.getScope(context.actor, selectedRepeat[1]);
+          sendJson(response, 200, { ok: true, scope });
           return true;
         }
         const selectedBooking = pathname.match(bookingPropertyPath);
