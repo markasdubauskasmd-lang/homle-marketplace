@@ -3669,12 +3669,14 @@ function renderPastCleans(buckets) {
   const groups = new Map();
   past.forEach((booking) => {
     const propertyName = booking.propertyName || "Saved property";
-    if (!groups.has(propertyName)) groups.set(propertyName, []);
-    groups.get(propertyName).push(booking);
+    const groupKey = booking.propertyId || "legacy:" + propertyName;
+    if (!groups.has(groupKey)) groups.set(groupKey, []);
+    groups.get(groupKey).push(booking);
   });
 
   const rows = [];
-  groups.forEach((propertyBookings, propertyName) => {
+  groups.forEach((propertyBookings) => {
+    const propertyName = propertyBookings[0].propertyName || "Saved property";
     const heading = element("div", "ld-past-group-head");
     const headingCopy = element("div", "ld-past-group-copy");
     const completedValuePence = propertyBookings.reduce((total, booking) => total + (Number.isInteger(booking.pricePence) ? booking.pricePence : 0), 0);
@@ -3683,19 +3685,20 @@ function renderPastCleans(buckets) {
       element("strong", "ld-past-group-name", propertyName),
       element("span", "ld-past-group-summary", `${propertyBookings.length} ${propertyBookings.length === 1 ? "clean" : "cleans"}${valueLabel}`),
     );
-    const again = element("button", "ld-btn ld-btn-quiet", "Book again");
-    again.type = "button";
-    again.addEventListener("click", () => {
-      const match = properties.find((property) => property.name === propertyName);
-      if (match) {
-        bookCleanPropertyId = match.propertyId;
-        saveSelectedProperty(sessionStorage, match.propertyId);
-        selectedPropertyId = match.propertyId;
-      }
-      openBookCleanChooser();
-    });
-    heading.append(headingCopy, again);
+    heading.append(headingCopy);
     rows.push(heading);
+    const previous = propertyBookings.find(booking => booking.status === "completed" && booking.propertyId && booking.cleanerId);
+    if (previous) {
+      const again = element("button", "ld-btn ld-btn-quiet", "Book again");
+      again.type = "button";
+      const feedback = element("p", "landlord-form-feedback");
+      feedback.setAttribute("role", "status");
+      feedback.tabIndex = -1;
+      feedback.hidden = true;
+      again.addEventListener("click", () => { void prepareRepeatRequest(previous, again, feedback); });
+      heading.append(again);
+      rows.push(feedback);
+    }
 
     propertyBookings.forEach((booking) => {
       const row = element("article", "ld-past-row");
@@ -3852,9 +3855,8 @@ function renderLandlordPayments(allBookings) {
 }
 
 let repeatScopePending = false;
-async function prepareRepeatRequest(previous, button) {
+async function prepareRepeatRequest(previous, button, feedback = document.querySelector("[data-repeat-feedback]")) {
   if (repeatScopePending || requestDraftPending) return;
-  const feedback = document.querySelector("[data-repeat-feedback]");
   if ((requestDirty || currentRequestDraft) && !window.confirm("Replace the unfinished request in this tab with the previous clean's scope?")) return;
   const before = JSON.stringify(requestDraftFields());
   const priorDraft = currentRequestDraft;
