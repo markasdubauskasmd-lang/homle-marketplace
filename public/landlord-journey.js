@@ -1229,7 +1229,7 @@ function objectControls(roomName, object) {
   const optional = state.scanPremiumPlan.options.find((option) =>
     option.id === premiumChoiceId(roomName, object.inventoryKey));
   const recommendation = optional
-    ? optional.restricted ? "Excluded by your scan instructions."
+    ? (optional.restricted || premiumRestrictions(state.scanPremiumPlan, currentNoteLines()).includes(optional.id)) ? "Excluded by your scan instructions."
       : eligiblePremiumSelections().includes(optional.id) ? "Specialist task selected in your checklist."
       : "Optional specialist work — select it below to include it."
     : object.recommendation;
