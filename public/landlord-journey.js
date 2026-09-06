@@ -1838,6 +1838,14 @@ async function inviteSelectedCleaner(csrf, requestId) {
 
 async function confirmJourney() {
   if (state.confirming) return;
+  if (state.scanRooms.length) {
+    if (!validatePremiumChecklist()) {
+      show("results");
+      el.tasks.reportValidity();
+      return;
+    }
+    state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+  }
   state.confirming = true;
   el.confirm.disabled = true;
   el.checkoutState.hidden = false;
