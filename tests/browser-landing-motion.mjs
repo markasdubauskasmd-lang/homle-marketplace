@@ -114,7 +114,7 @@ try {
 
   const top = await at("open", 0);
   assert(top.open !== null && top.open < 0.05, `The opening act does not start at zero progress: ${top.open}.`);
-  assert(top.launchOn === false, "The launch button is already revealed before the wipe begins.");
+  assert(top.launchOn === true, "The first booking action must be visible before the wipe begins.");
   assert(top.videoSource === null && top.videoDeferredSource === "/landing/cleaning-720-e8b1a7ce.mp4",
     `The detail clip was not held off the initial desktop load: ${JSON.stringify({ source: top.videoSource, deferred: top.videoDeferredSource })}.`);
   assert(top.videoPoster === null && top.videoDeferredPoster === "/landing/dark-kitchen-1600-f930f4ce.webp",
@@ -129,7 +129,7 @@ try {
     `The opening wipe is not moving on transform layers: ${JSON.stringify({ dirty: wiping.dirtyTransform, edge: wiping.edgeTransform })}.`);
   assert(wiping.dirtyClipPath === "none",
     `The opening wipe still clips a full-screen photograph instead of moving its layer: ${wiping.dirtyClipPath}.`);
-  assert(wiping.launchOn === true, "The launch button never drops in after its mark.");
+  assert(wiping.launchOn === true, "The booking action must remain visible during the animation.");
 
   /* ── Act 2: the walk around the room ──────────────── */
 
