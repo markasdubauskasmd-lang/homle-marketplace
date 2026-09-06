@@ -1,0 +1,62 @@
+/* Public policy and account privacy documents; no shared workspace selectors. */
+body.customer-document {
+  min-height: 100vh;
+  background: var(--customer-canvas);
+  color: var(--customer-ink);
+}
+body.customer-document .legal-header {
+  background: var(--customer-paper);
+  border-bottom: 1px solid var(--customer-line);
+}
+body.customer-document .legal-header .shell { gap: 20px; flex-wrap: wrap; }
+body.customer-document :is(h1, h2, h3, .brand) {
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-weight: 700;
+  letter-spacing: -.02em;
+  color: var(--customer-ink);
+}
+body.customer-document h1 { font-size: clamp(28px, 4vw, 36px); line-height: 1.2; }
+body.customer-document h2 { font-size: 22px; line-height: 1.3; }
+body.customer-document .legal-main { max-width: 880px; padding: 40px 20px 72px; }
+body.customer-document :is(.legal-main article, .account-card) {
+  padding: clamp(24px, 4vw, 40px);
+  background: var(--customer-paper);
+  border: 1px solid var(--customer-border);
+  border-radius: 20px;
+  box-shadow: var(--customer-shadow);
+}
+body.customer-document :is(.legal-main p, .legal-main li, .account-card p) {
+  color: var(--customer-muted);
+  font-size: 15px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+body.customer-document .eyebrow { color: var(--customer-muted); font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+body.customer-document .legal-main .notice,
+body.customer-document .account-message {
+  background: var(--customer-active);
+  color: var(--customer-ink);
+  border: 1px solid var(--customer-border);
+  border-left: 3px solid var(--customer-accent);
+  border-radius: 11px;
+}
+body.customer-document :is(.back-link, .button-secondary) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--customer-accent);
+  border-radius: 11px;
+  color: var(--customer-accent);
+  background: var(--customer-paper);
+  font: 600 14px var(--homle-body, "DM Sans", system-ui, sans-serif);
+  text-decoration: none;
+  box-shadow: none;
+}
+body.customer-document :is(.back-link, .button-secondary):hover { background: var(--customer-active); }
+body.customer-document .legal-main a { color: var(--customer-accent); }
+@media (max-width: 600px) {
+  body.customer-document .legal-main { padding: 24px 16px 48px; }
+  body.customer-document .account-main { padding: 24px 16px; }
+  body.customer-document .account-card { width: 100%; }
+}

@@ -1,6 +1,5 @@
 /*
- * Account entry (/login, /signup, /reset-password, /verify-email, /onboarding,
- * /account-ready) on the landing design.
+ * Account entry uses the approved landlord workspace typography and surfaces.
  *
  * Built to redesign-gated.html: one centred panel on the landing wash, with the
  * Homle logo, the underlined headline, the indeterminate bar while the
@@ -35,8 +34,8 @@ body.account-entry {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--homle-cream, #faf7ec);
-  color: var(--homle-ink, #201308);
+  background: var(--customer-canvas);
+  color: var(--customer-ink);
   font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
 }
 
@@ -50,18 +49,16 @@ body.account-entry .ae-stage {
   justify-content: center;
   text-align: center;
   padding: 64px 24px;
-  background:
-    radial-gradient(1000px 520px at 82% -4%, oklch(0.92 0.06 25 / .5) 0%, transparent 62%),
-    radial-gradient(900px 500px at 8% 104%, oklch(0.93 0.06 190 / .4) 0%, transparent 60%),
-    var(--homle-cream, #faf7ec);
+  background: var(--customer-canvas);
 }
 body.account-entry .ae-panel {
   width: 100%;
   max-width: 560px;
   padding: 44px 44px 38px;
-  border-radius: 26px;
-  background: var(--homle-paper, #fff);
-  box-shadow: 0 24px 60px oklch(0.3 0.05 60 / .1);
+  border-radius: 20px;
+  background: var(--customer-paper);
+  border: 1px solid var(--customer-border);
+  box-shadow: var(--customer-shadow);
 }
 
 /* The same Homle logo used across the product now owns the card's visual
@@ -71,8 +68,8 @@ body.account-entry .ae-logo {
   width: 76px;
   height: 76px;
   margin: 0 auto 26px;
-  border-radius: 22px;
-  box-shadow: 0 12px 30px oklch(0.53 0.21 25 / .28);
+  border-radius: 20px;
+  box-shadow: var(--customer-shadow);
   transition: transform .18s ease, box-shadow .18s ease;
 }
 body.account-entry .ae-logo img {
@@ -83,10 +80,10 @@ body.account-entry .ae-logo img {
 }
 body.account-entry .ae-logo:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 34px oklch(0.53 0.21 25 / .34);
+  box-shadow: var(--customer-shadow);
 }
 body.account-entry .ae-logo:focus-visible {
-  outline: 3px solid var(--homle-coral, #e24947);
+  outline: 3px solid var(--customer-accent);
   outline-offset: 5px;
 }
 body.account-entry .ae-eyebrow {
@@ -99,13 +96,13 @@ body.account-entry .ae-eyebrow {
   font-size: 13px;
   letter-spacing: .22em;
   text-transform: uppercase;
-  color: var(--homle-eyebrow, #8b5148);
+  color: var(--customer-muted);
 }
 body.account-entry .ae-eyebrow::before {
   content: "";
   width: 34px;
   height: 2px;
-  background: var(--homle-coral, #e24947);
+  background: var(--customer-accent);
 }
 
 /* The headline text is replaced by auth-entry.js as the mode resolves, so the
@@ -115,15 +112,15 @@ body.account-entry .ae-h {
   position: relative;
   display: inline-block;
   margin: 0 0 16px;
-  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
-  font-weight: 800;
-  font-size: 40px;
-  line-height: 1;
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 1.15;
   letter-spacing: -.025em;
-  color: var(--homle-ink, #201308);
+  color: var(--customer-ink);
 }
 body.account-entry .ae-underline {
-  display: block;
+  display: none;
   width: 74%;
   height: .2em;
   margin: .08em auto 0;
@@ -135,7 +132,7 @@ body.account-entry .ae-lead {
   margin: 0 auto 26px;
   font-size: 16.5px;
   line-height: 1.55;
-  color: var(--homle-muted-2, #61564d);
+  color: var(--customer-muted);
 }
 
 /* Indeterminate bar. Shown only while the check is genuinely outstanding — a
@@ -153,7 +150,7 @@ body.account-entry .ae-bar i {
   height: 100%;
   width: 46%;
   border-radius: 999px;
-  background: linear-gradient(90deg, oklch(0.7 0.16 150), oklch(0.83 0.14 190));
+  background: var(--customer-accent);
   animation: ae-slide 1.8s ease-in-out infinite;
 }
 @keyframes ae-slide {
@@ -175,7 +172,7 @@ body.account-entry .ae-readiness strong::before {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--homle-dim, #999189);
+  background: var(--customer-muted);
   box-shadow: 0 0 0 4px oklch(0.66 0.015 65 / .18);
 }
 body.account-entry [data-state="ready"] strong::before {
@@ -184,14 +181,14 @@ body.account-entry [data-state="ready"] strong::before {
 }
 body.account-entry [data-state="unavailable"] strong::before,
 body.account-entry [data-state="error"] strong::before {
-  background: var(--homle-coral-action, #d33a3c);
+  background: var(--customer-accent);
   box-shadow: 0 0 0 4px oklch(0.58 0.19 25 / .18);
 }
 body.account-entry .ae-readiness p {
   margin: 6px 0 0;
   font-size: 13.5px;
   line-height: 1.5;
-  color: var(--homle-muted-2, #61564d);
+  color: var(--customer-muted);
 }
 
 /* ── Feedback ─────────────────────────────────────────────────────────── */
@@ -200,17 +197,17 @@ body.account-entry .account-feedback {
   margin: 0 0 18px;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1.5px solid oklch(0.2 0.03 60 / .12);
+  border: 1px solid var(--customer-border);
   background: oklch(0.975 0.015 95);
   font-size: 13.5px;
   line-height: 1.5;
   text-align: left;
-  color: var(--homle-ink-2, #2a1c10);
+  color: var(--customer-ink);
 }
 body.account-entry .account-feedback[data-kind="error"] {
   border-color: oklch(0.58 0.19 25 / .35);
   background: oklch(0.58 0.19 25 / .07);
-  color: var(--homle-coral-action, #d33a3c);
+  color: var(--customer-accent);
 }
 
 /* ── Provider buttons ─────────────────────────────────────────────────── */
@@ -220,7 +217,7 @@ body.account-entry .account-social > p {
   margin: 0 0 6px;
   font-size: 13.5px;
   line-height: 1.5;
-  color: var(--homle-muted-2, #61564d);
+  color: var(--customer-muted);
 }
 /* Google's brand guidance asks for its mark unmodified on a neutral surface, so
    these are deliberately not restyled into the coral system. */
@@ -232,10 +229,10 @@ body.account-entry .account-provider-button {
   width: 100%;
   min-height: 54px;
   padding: 0 18px;
-  border: 1.5px solid oklch(0.2 0.03 60 / .16);
-  border-radius: 14px;
-  background: var(--homle-paper, #fff);
-  color: var(--homle-ink, #201308);
+  border: 1px solid var(--customer-border);
+  border-radius: 11px;
+  background: var(--customer-paper);
+  color: var(--customer-ink);
   font-family: inherit;
   font-weight: 600;
   font-size: 15.5px;
@@ -243,13 +240,13 @@ body.account-entry .account-provider-button {
   transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
 }
 body.account-entry .account-provider-button:hover {
-  border-color: var(--homle-ink-2, #2a1c10);
+  border-color: var(--customer-ink);
   transform: translateY(-1px);
   box-shadow: 0 10px 24px oklch(0.3 0.05 60 / .1);
 }
 body.account-entry .account-provider-button:focus-visible {
   outline: none;
-  border-color: var(--homle-coral, #e24947);
+  border-color: var(--customer-accent);
   box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .12);
 }
 body.account-entry .account-provider-mark { flex: none; width: 20px; height: 20px; }
@@ -262,7 +259,7 @@ body.account-entry .account-choice-divider {
   gap: 14px;
   margin: 22px 0;
   font-size: 13px;
-  color: var(--homle-dim, #999189);
+  color: var(--customer-muted);
 }
 body.account-entry .account-choice-divider::before,
 body.account-entry .account-choice-divider::after {
@@ -276,17 +273,17 @@ body.account-entry .account-choice-divider span { white-space: nowrap; }
 body.account-entry .account-email-toggle {
   width: 100%;
   min-height: 54px;
-  border: 1.5px solid oklch(0.2 0.03 60 / .16);
-  border-radius: 14px;
+  border: 1px solid var(--customer-accent);
+  border-radius: 11px;
   background: none;
-  color: var(--homle-ink, #201308);
+  color: var(--customer-accent);
   font-family: inherit;
   font-weight: 600;
   font-size: 15.5px;
   cursor: pointer;
   transition: border-color .18s ease, transform .18s ease;
 }
-body.account-entry .account-email-toggle:hover { border-color: var(--homle-ink-2, #2a1c10); transform: translateY(-1px); }
+body.account-entry .account-email-toggle:hover { border-color: var(--customer-ink); transform: translateY(-1px); }
 
 /* ── Forms ────────────────────────────────────────────────────────────── */
 
@@ -295,7 +292,7 @@ body.account-entry .account-form fieldset { margin: 0; padding: 0; border: 0; }
 body.account-entry .account-form legend {
   padding: 0;
   margin: 0 0 16px;
-  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
   font-weight: 700;
   font-size: 18px;
 }
@@ -303,14 +300,14 @@ body.account-entry .account-form > fieldset > p {
   margin: 0 0 16px;
   font-size: 14.5px;
   line-height: 1.55;
-  color: var(--homle-muted-2, #61564d);
+  color: var(--customer-muted);
 }
 body.account-entry .account-form label {
   display: block;
   margin-bottom: 16px;
   font-weight: 600;
   font-size: 14px;
-  color: var(--homle-ink-2, #2a1c10);
+  color: var(--customer-ink);
 }
 body.account-entry .account-form input:not([type="radio"]) {
   display: block;
@@ -319,18 +316,18 @@ body.account-entry .account-form input:not([type="radio"]) {
   height: 54px;
   margin-top: 8px;
   padding: 0 18px;
-  border: 1.5px solid oklch(0.2 0.03 60 / .14);
-  border-radius: 14px;
-  background: var(--homle-paper, #fff);
+  border: 1px solid var(--customer-border);
+  border-radius: 11px;
+  background: var(--customer-paper);
   font-family: inherit;
   font-size: 16px;
   font-weight: 400;
-  color: var(--homle-ink, #201308);
+  color: var(--customer-ink);
 }
-body.account-entry .account-form input::placeholder { color: var(--homle-dim, #999189); }
+body.account-entry .account-form input::placeholder { color: var(--customer-muted); }
 body.account-entry .account-form input:focus {
   outline: none;
-  border-color: var(--homle-coral, #e24947);
+  border-color: var(--customer-accent);
   box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .12);
 }
 body.account-entry .account-form small {
@@ -338,9 +335,9 @@ body.account-entry .account-form small {
   margin: -8px 0 16px;
   font-size: 13px;
   line-height: 1.5;
-  color: var(--homle-muted-2, #61564d);
+  color: var(--customer-muted);
 }
-/* The primary action is the landing's dark pill, as the design has it. */
+/* The primary action matches the approved landlord workspace. */
 body.account-entry .account-form > fieldset > button[type="submit"] {
   display: inline-flex;
   align-items: center;
@@ -351,14 +348,14 @@ body.account-entry .account-form > fieldset > button[type="submit"] {
   margin-top: 4px;
   padding: 0 22px;
   border: 0;
-  border-radius: 999px;
-  background: var(--homle-ink, #201308);
+  border-radius: 11px;
+  background: var(--customer-accent);
   color: #fff;
   font-family: inherit;
   font-weight: 600;
   font-size: 16px;
   cursor: pointer;
-  box-shadow: 0 14px 30px oklch(0.2 0.03 60 / .28);
+  box-shadow: none;
   transition: transform .18s ease, box-shadow .18s ease;
 }
 /* Keep the north-east arrow decorative. Text generated with `content: "↗"`
@@ -377,11 +374,14 @@ body.account-entry .account-form > fieldset > button[type="submit"]::after {
 }
 body.account-entry .account-form > fieldset > button[type="submit"]:hover {
   transform: translateY(-2px);
-  box-shadow: 0 18px 38px oklch(0.2 0.03 60 / .34);
+  background: var(--customer-accent-dark);
+  box-shadow: none;
 }
 body.account-entry .account-form > fieldset > button[type="submit"]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .3), 0 14px 30px oklch(0.2 0.03 60 / .28);
+  outline: 3px solid var(--customer-focus);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 body.account-entry fieldset[disabled] button[type="submit"] {
   opacity: .55;
@@ -396,28 +396,28 @@ body.account-entry .account-form-link {
   gap: 6px 16px;
   margin: 16px 0 0;
   font-size: 13.5px;
-  color: var(--homle-muted-2, #61564d);
+  color: var(--customer-muted);
 }
-body.account-entry .account-form-link a { color: var(--homle-eyebrow, #8b5148); }
+body.account-entry .account-form-link a { color: var(--customer-muted); }
 
 body.account-entry .account-role {
   display: block;
   margin-bottom: 12px;
   padding: 16px 18px;
-  border: 1.5px solid oklch(0.2 0.03 60 / .12);
+  border: 1px solid var(--customer-border);
   border-radius: 16px;
   font-weight: 400;
   cursor: pointer;
   transition: border-color .18s ease, transform .18s ease;
 }
-body.account-entry .account-role:hover { border-color: var(--homle-ink-2, #2a1c10); transform: translateY(-1px); }
+body.account-entry .account-role:hover { border-color: var(--customer-ink); transform: translateY(-1px); }
 body.account-entry .account-role:has(input:checked) {
-  border-color: var(--homle-coral, #e24947);
+  border-color: var(--customer-accent);
   box-shadow: 0 0 0 4px oklch(0.62 0.19 25 / .1);
 }
 body.account-entry .account-role strong {
   display: block;
-  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
   font-weight: 700;
   font-size: 16px;
 }
@@ -436,9 +436,9 @@ body.account-entry .role-account-avatar {
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  background: var(--homle-coral, #e24947);
+  background: var(--customer-accent);
   color: #fff;
-  font-family: var(--homle-display, "Bricolage Grotesque", sans-serif);
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
   font-weight: 700;
 }
 body.account-entry .account-ready-panel .account-actions { display: grid; gap: 10px; }
@@ -453,7 +453,7 @@ body.account-entry .account-noscript {
   margin: 18px 0 0;
   font-size: 13.5px;
   line-height: 1.5;
-  color: var(--homle-muted-2, #61564d);
+  color: var(--customer-muted);
 }
 
 /* ── The step trail ───────────────────────────────────────────────────── */
@@ -470,22 +470,22 @@ body.account-entry .ae-crumbs {
 body.account-entry .ae-crumbs li {
   padding: 7px 14px;
   border-radius: 999px;
-  background: var(--homle-paper, #fff);
+  background: var(--customer-paper);
   box-shadow: 0 8px 22px oklch(0.3 0.05 60 / .07);
   font-size: 13px;
   font-weight: 600;
-  color: var(--homle-muted, #564b42);
+  color: var(--customer-muted);
 }
 body.account-entry .ae-crumbs li[aria-current] {
-  background: var(--homle-ink, #201308);
-  color: #fff;
+  background: var(--customer-active);
+  color: var(--customer-accent);
 }
 
 /* ── Footer ───────────────────────────────────────────────────────────── */
 
 body.account-entry .account-footer {
   padding: 26px 0;
-  background: var(--homle-ink, #201308);
+  background: var(--customer-ink);
   color: oklch(0.86 0.01 60);
   font-size: 13.5px;
 }
@@ -506,7 +506,7 @@ body.account-entry .account-footer a { color: #fff; }
 @media (max-width: 560px) {
   body.account-entry .account-footer .shell { padding: 0 20px; }
   body.account-entry .ae-stage { padding: 28px 16px 48px; }
-  body.account-entry .ae-panel { padding: 30px 22px 26px; border-radius: 22px; }
+  body.account-entry .ae-panel { padding: 30px 22px 26px; border-radius: 20px; }
   body.account-entry .ae-h { font-size: 31px; }
 }
 

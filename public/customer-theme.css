@@ -1,0 +1,20 @@
+/* Values copied from landlord-dashboard-v2.css. Opt-in customer documents only.
+   The approved dashboard and Cleaner documents do not load this sheet. */
+body.customer-theme {
+  --customer-canvas: #f7f6f5;
+  --customer-paper: #ffffff;
+  --customer-ink: #1a1a1a;
+  --customer-muted: #666666;
+  --customer-accent: #e11b22;
+  --customer-accent-dark: #c4151b;
+  --customer-active: #fdecec;
+  --customer-border: #e7e4e0;
+  --customer-line: #efedeb;
+  --customer-focus: #2456e6;
+  --customer-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
+  font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
+}
+body.customer-theme :is(input, select, textarea, button, a):focus-visible {
+  outline: 3px solid var(--customer-focus);
+  outline-offset: 2px;
+}
