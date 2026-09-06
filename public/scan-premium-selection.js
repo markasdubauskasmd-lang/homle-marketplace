@@ -5,6 +5,12 @@ const text = (value) => String(value || "").trim().replace(/\s+/g, " ");
 const words = (value) => text(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 export const premiumChoiceId = (roomName, code) => JSON.stringify([text(roomName).toLowerCase(), text(code).toLowerCase()]);
 
+function isRestriction(line) {
+  const body = text(line.includes(":") ? line.slice(line.indexOf(":") + 1) : line);
+  return /^(?:please\s+)?(?:do\s+not|don['’]?t|dont|never|skip|exclude|avoid|no\s+need\s+to|not\s+(?:necessary|required)\s+to|leave\b.*\balone)\b/i.test(body)
+    || /\b(?:does(?:\s+not|n['’]?t)\s+(?:need|require)|(?:is|are)\s+(?:excluded|out\s+of\s+scope))\b/i.test(body);
+}
+
 function refersTo(line, option) {
   const colon = line.indexOf(":");
   if (colon >= 0 && words(line.slice(0, colon)) !== words(option.roomName)) return false;
@@ -33,17 +39,18 @@ export function createPremiumPlan(rooms = [], taskLines = [], config = {}) {
         names: [...new Set(names)], task: roomName + ": Clean the " + text(object.label || premium.label).toLowerCase() + " — " + premium.label });
     }
   }
+  for (const option of options) option.restricted = taskLines.some((line) => isRestriction(text(line)) && refersTo(text(line), option));
   const groups = [];
   const baseTasks = [];
   for (const raw of taskLines) {
     const line = text(raw);
     if (!line) continue;
     const ids = options.filter((option) => refersTo(line, option)).map((option) => option.id);
-    if (ids.length) groups.push({ text: line, ids });
+    if (ids.length && !isRestriction(line)) groups.push({ text: line, ids });
     else baseTasks.push(line);
   }
   for (const option of options) {
-    if (!groups.some((group) => group.ids.includes(option.id))) {
+    if (!option.restricted && !groups.some((group) => group.ids.includes(option.id))) {
       groups.push({ text: option.task, ids: [option.id] });
     }
   }
@@ -51,7 +58,7 @@ export function createPremiumPlan(rooms = [], taskLines = [], config = {}) {
 }
 
 export function premiumScope(plan, baseTasks, selectedIds) {
-  const selected = new Set(selectedIds);
+  const selected = new Set(selectedIds.filter((id) => !plan.options.some((option) => option.id === id && option.restricted)));
   const tasks = [...baseTasks];
   for (const group of plan.groups) {
     if (group.ids.every((id) => selected.has(id))) tasks.push(group.text);
@@ -79,7 +86,7 @@ export function premiumBaseTasks(plan, tasks) {
 export function unselectedPremiumInTasks(plan, tasks, selectedIds) {
   const selected = new Set(selectedIds);
   return plan.options.find((option) => !selected.has(option.id)
-    && tasks.some((line) => refersTo(text(line), option))) || null;
+    && tasks.some((line) => !isRestriction(text(line)) && refersTo(text(line), option))) || null;
 }
 
 export function selectedScanRooms(rooms, plan, selectedIds) {
@@ -89,7 +96,7 @@ export function selectedScanRooms(rooms, plan, selectedIds) {
     ...room,
     objects: (room.objects || []).map((object) => {
       const id = premiumChoiceId(room.name || room.roomName, object.inventoryKey || object.code);
-      return optional.has(id) ? { ...object, selected: selected.has(id) } : { ...object };
+      return optional.has(id) ? { ...object, selected: selected.has(id) && !plan.options.some((option) => option.id === id && option.restricted) } : { ...object };
     })
   }));
 }
