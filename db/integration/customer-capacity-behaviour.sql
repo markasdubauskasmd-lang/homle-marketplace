@@ -2,6 +2,15 @@
 BEGIN;
 SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000002',true);
 SELECT set_config('app.user_roles','cleaner',true);
+DO $available_before$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM cleaner_availability availability JOIN bookings booking
+    ON booking.cleaner_user_id=availability.cleaner_user_id
+    WHERE booking.id='40000000-0000-4000-8000-000000000001' AND availability.status='available'
+      AND availability.starts_at<=booking.scheduled_start_at AND availability.ends_at>=booking.scheduled_end_at
+  ) THEN RAISE EXCEPTION 'Capacity fixture had no full-visit availability before withdrawal'; END IF;
+END $available_before$;
 SAVEPOINT before_withdrawal;
 DELETE FROM cleaner_availability WHERE cleaner_user_id='10000000-0000-4000-8000-000000000002';
 DO $withdrawn$

@@ -11,4 +11,6 @@ INSERT INTO bookings (
  now()+interval '51 hours',now()+interval '53 hours',10000,7000,
  now()-interval '1 day',now()-interval '1 minute',repeat('e',64),repeat('f',64),'{}'::jsonb
 );
+UPDATE cleaning_requests SET status='pending-cleaner-acceptance'
+WHERE id='30000000-0000-4000-8000-000000000003';
 COMMIT;
