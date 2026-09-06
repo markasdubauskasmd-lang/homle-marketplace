@@ -199,6 +199,32 @@ export async function createS3ObjectStorage(env = process.env, options = {}) {
       await send(new sdk.PutObjectCommand({ Bucket: selected.bucket, Key: targetKey, Body: bytes, ContentType: "image/jpeg", ContentLength: bytes.length, ChecksumSHA256: base64Checksum(outputChecksumSha256), Metadata: { "tideway-sha256": outputChecksumSha256, "tideway-sanitized": "true" }, ServerSideEncryption: "AES256" }));
       return Object.freeze({ safe: true, outputMimeType: "image/jpeg", outputByteSize: bytes.length, outputChecksumSha256, width: Number(output.info.width), height: Number(output.info.height) });
     },
+    async readRequestImage(input) {
+      const key = storageKey(input?.storageKey, "request-photos/");
+      const size = byteSize(input?.byteSize);
+      if (closed) throw new TypeError("Private object storage is closed.");
+      const controller = new AbortController();
+      let body;
+      let timer;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          body?.destroy?.();
+          reject(new Error("private-image-read-timeout"));
+        }, 10_000);
+      });
+      try {
+        return await Promise.race([timeout, (async () => {
+          const result = await s3.send(new sdk.GetObjectCommand({ Bucket: selected.bucket, Key: key }), { abortSignal: controller.signal });
+          body = result.Body;
+          if (result.ContentType !== "image/jpeg" || Number(result.ContentLength) !== size) throw new Error("private-image-metadata-mismatch");
+          const bytes = await boundedBody(body, size);
+          if (bytes.length !== size) throw new Error("private-image-size-mismatch");
+          return bytes;
+        })()]);
+      } catch (error) { throw operationalFailure(error, onUnexpectedError); }
+      finally { clearTimeout(timer); controller.abort(); body?.destroy?.(); }
+    },
     async createReadUrl(input) {
       const key = finalImageKey(input?.storageKey);
       const expiresIn = expirySeconds(input?.expiresAt, 300, now);
