@@ -42,8 +42,10 @@ BEGIN
     OR (report->'onboarding'->>'propertyCount')::integer<>1
     OR (report->'requestJourney'->>'requestCount')::integer<>3
     OR (report->'requestJourney'->>'scanCount')::integer<>1
-    OR (report->'requestJourney'->>'submittedCount')::integer<>1
-    OR (report->'requestJourney'->>'bookingCount')::integer<>1
+    OR (report->'requestJourney'->>'submittedCount')::integer<>3
+    OR (report->'requestJourney'->>'bookingCount')::integer<>3
+    OR (report->'requestJourney'->>'completedCount')::integer<>1
+    OR (report->'requestJourney'->>'reviewCount')::integer<>1
     OR (report->'payments'->>'bookingCount')::integer<>0
     OR (report->>'maturityHours')::integer<>24 THEN
     RAISE EXCEPTION 'Administrator funnel did not derive cumulative matured cohorts from authoritative records';

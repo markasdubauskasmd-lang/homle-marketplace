@@ -3,6 +3,8 @@
 -- Restore the shared synthetic fixtures immediately so unrelated integration
 -- scenarios continue to exercise their original fresh-account assumptions.
 BEGIN;
+DELETE FROM reviews WHERE id='5e000000-0000-4000-8000-000000000001';
+DELETE FROM bookings WHERE id='4e000000-0000-4000-8000-000000000001';
 
 DELETE FROM room_scan_sessions
 WHERE id='3e000000-0000-4000-8000-000000000001';
