@@ -77,3 +77,24 @@ for(const options of [{fail:true},{changed:true}]) {
   assert.equal(denied.resets(),0);assert.equal(denied.fields.tasks.value,"old");
 }
 console.log("Repeat scope passed: owner-only completed records, frozen task/instruction projection, no old money/media/time, fresh review, failed reads and concurrent draft edits preserved.");
+
+const pastHandler = source.slice(source.indexOf("function renderPastCleans("), source.indexOf("function renderBookings("));
+function item(tag, className, textContent) {
+  return {tag,className,textContent,children:[],events:{},append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},setAttribute(){},addEventListener(name,callback){this.events[name]=callback;}};
+}
+const grid=item(), empty=item(), note=item(), repeats=[];
+const pastContext=vm.createContext({
+  document:{querySelector:selector=>selector.includes("grid")?grid:selector.includes("empty")?empty:note},
+  element:item,formatBookingMoney:value=>String(value),formatShortDate:()=>"",namedCleaner:()=>"Synthetic Cleaner",
+  prepareRepeatRequest:(previous,button,feedback)=>repeats.push({previous,button,feedback})
+});
+vm.runInContext(pastHandler,pastContext);
+const completed={bookingId,propertyId,cleanerId,status:"completed",propertyName:"Same name",pricePence:100,taskCount:1};
+pastContext.renderPastCleans({history:[completed,{...completed,propertyId:"99999999-9999-4999-8999-999999999999",bookingId:"99999999-9999-4999-8999-999999999998"},{...completed,status:"disputed",propertyId:"99999999-9999-4999-8999-999999999997"}]});
+const buttons=grid.children.flatMap(row=>row.children).filter(child=>child.tag==="button");
+assert.equal(buttons.length,2,"Two distinct completed properties need their own repeat action; disputed-only visits cannot repeat.");
+buttons.forEach(button=>button.events.click());
+assert.equal(repeats.length,2);
+assert.notEqual(repeats[0].previous.propertyId,repeats[1].previous.propertyId);
+assert.ok(repeats.every(repeat=>repeat.feedback.hidden===true));
+console.log("Visible past-cleans actions passed: exact property groups and completed-scope handoff.");
