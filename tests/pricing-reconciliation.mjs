@@ -124,7 +124,7 @@ const scan = {
       { inventoryKey: "hob", label: "Hob" },
       { inventoryKey: "sink", label: "Sink" },
       { inventoryKey: "splashback", label: "Splashback" },
-      { inventoryKey: "oven", label: "Oven" }
+      { inventoryKey: "oven", label: "Oven", selected: true }
     ]
   }]
 };
