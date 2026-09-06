@@ -495,3 +495,5 @@ assert(script.includes("clearLandlordRequestDraft(window.sessionStorage)") && sc
 console.log("Landlord dashboard UI tests passed: simplified navigation, selected-Cleaner continuation, voice-first scope, grouped bullet review, accessible fallbacks, owner APIs, direct room-scan continuation, safe rendering, builder close-out, draft clearing and mobile accessibility.");
 
 await import("./customer-care-empty-state.mjs");
+
+await import("./manual-coverage.mjs");

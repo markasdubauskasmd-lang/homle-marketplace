@@ -124,6 +124,54 @@ const checklistChangesBody = document.querySelector("[data-checklist-changes-bod
 const checklistRestore = document.querySelector("[data-checklist-restore]");
 const cleaningTypeSelect = requestForm.elements.cleaningType;
 const cleaningTypeHint = document.querySelector("[data-cleaning-type-hint]");
+const manualCoverage = document.querySelector("[data-manual-coverage]");
+const manualCoverageRetry = document.querySelector("[data-manual-coverage-retry]");
+let manualCoverageKey = "";
+let manualCoverageLookup = 0;
+let manualCoverageCheckedAt = 0;
+
+function setManualCoverage(status, message) {
+  requestForm.dataset.coveragePending = String(status === "loading");
+  if (manualCoverage) manualCoverage.textContent = message;
+  if (manualCoverageRetry) manualCoverageRetry.hidden = status !== "error";
+}
+
+async function checkManualCoverage({ force = false } = {}) {
+  if (!manualCoverage) return;
+  const property = properties.find((item) => item.propertyId === propertySelect.value);
+  const serviceCode = cleaningTypeSelect.value;
+  const fullPostcode = String(property?.exactAddress?.postcode || "");
+  const outward = isUkPostcode(fullPostcode) ? fullPostcode.replace(/\s+/g, "").slice(0, -3).toUpperCase() : "";
+  const key = JSON.stringify([property?.propertyId || "", outward, serviceCode]);
+  if (!force && key === manualCoverageKey && (requestForm.dataset.coveragePending === "true" || Date.now() - manualCoverageCheckedAt < 60_000)) return;
+  manualCoverageCheckedAt = Date.now();
+  manualCoverageKey = key;
+  const lookup = ++manualCoverageLookup;
+  if (!property || !serviceCode) {
+    setManualCoverage("idle", "Choose a property and cleaning type to check local profiles.");
+    return;
+  }
+  if (!outward) {
+    setManualCoverage("error", "This property needs a valid postcode to check coverage. Update it in Your properties before requesting a clean.");
+    return;
+  }
+  setManualCoverage("loading", `Checking ${outward} for this cleaning type…`);
+  try {
+    const query = new URLSearchParams({ outwardPostcode: outward, serviceCode, limit: "50" });
+    const result = await requestJson(`/api/marketplace/cleaners?${query}`, { timeoutMs: 8_000 });
+    if (lookup !== manualCoverageLookup) return;
+    if (!Array.isArray(result?.cleaners)) throw new Error("Invalid coverage response");
+    const count = result.cleaners.length;
+    setManualCoverage(count ? "ready" : "empty", count
+      ? `${count} ${count === 1 ? "profile covers" : "profiles cover"} ${outward} for this cleaning type. Availability and the exact total are checked before you approve an invitation.`
+      : `No profiles for this cleaning type are listed in ${outward} yet. You can prepare your request or choose another property or service. No Cleaner is contacted and nothing is booked here.`);
+  } catch {
+    if (lookup !== manualCoverageLookup) return;
+    setManualCoverage("error", "Coverage could not be checked. Retry, or continue preparing your request. Availability is checked before any invitation; nothing is booked here.");
+  }
+}
+
+
 const mediaReadiness = document.querySelector("[data-landlord-media-readiness]");
 const capabilityTitle = document.querySelector("[data-landlord-capability-title]");
 const capabilityCopy = document.querySelector("[data-landlord-capability-copy]");
@@ -1114,7 +1162,7 @@ function setRequestBuilderExpanded(expanded) {
 let prepareWizardLoad = null;
 function loadPrepareWizard() {
   if (prepareWizardLoad) return prepareWizardLoad;
-  prepareWizardLoad = import("./landlord-prepare-wizard.js?v=20260723-2").catch((error) => {
+  prepareWizardLoad = import("./landlord-prepare-wizard.js?v=20260906-1").catch((error) => {
     // Deliberately quiet: the panel below is a working form without this.
     console.warn("The stepped wizard could not load; the request form remains usable.", error);
   });
@@ -1841,6 +1889,7 @@ async function archiveProperty(event) {
 }
 
 function applySuggestedCleaningType() {
+  try {
   const property = properties.find((item) => item.propertyId === propertySelect.value);
   const suggestion = suggestedCleaningType(property?.propertyType);
   const source = cleaningTypeSelect.dataset.selectionSource;
@@ -1858,6 +1907,7 @@ function applySuggestedCleaningType() {
   cleaningTypeSelect.value = suggestion;
   cleaningTypeSelect.dataset.selectionSource = "suggested";
   cleaningTypeHint.textContent = `Suggested from the saved ${String(property.propertyType).replace(/-/g, " ")} type. Change it if needed.`;
+  } finally { void checkManualCoverage(); }
 }
 
 function propertyFact(label, value) {
@@ -4657,9 +4707,12 @@ document.querySelector("[data-use-saved-checklist]").addEventListener("click", u
 checklistRestore?.addEventListener("click", restoreGeneratedChecklist);
 document.querySelector("[data-summarise-speech]").addEventListener("click", summariseSpeech);
 propertySelect.addEventListener("change", applySuggestedCleaningType);
+requestForm.addEventListener("homle:check-coverage", () => { void checkManualCoverage(); });
+manualCoverageRetry?.addEventListener("click", () => { void checkManualCoverage({ force: true }); });
 cleaningTypeSelect.addEventListener("change", () => {
   cleaningTypeSelect.dataset.selectionSource = "user";
   cleaningTypeHint.textContent = "Selected by you. Change it if the requested clean is different.";
+  void checkManualCoverage();
 });
 speechButton.addEventListener("click", () => { if (!recognition) return; if (listening) recognition.stop(); else { try { recognition.start(); } catch { speechStatus.textContent = "Speech is already starting. Try again in a moment."; } } });
 requestForm.elements.transcript.addEventListener("input", () => { invalidateScopeReview("The walkthrough changed. Summarise again or manually reconcile every room task before confirming."); scheduleLiveSummarise(); });
