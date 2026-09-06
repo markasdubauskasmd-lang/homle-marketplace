@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createMediaRepository } from "../src/marketplace/media-repository.mjs";
 import { createMediaService } from "../src/marketplace/media-service.mjs";
@@ -48,10 +49,11 @@ const storage = {
   async createUploadUrl(input) { calls.push({ kind: "upload-url", input }); return { url: "https://storage.example/private-write-signature", requiredHeaders: { "Content-Type": input.mimeType, "X-Amz-Checksum-Sha256": checksumBase64, "X-Amz-Meta-Tideway-Sha256": input.checksumSha256, "X-Amz-Server-Side-Encryption": "AES256" } }; },
   async headObject(input) { calls.push({ kind: "head", input }); return { mimeType: "image/jpeg", byteSize: 1234, checksumSha256: checksum }; },
   async inspectAndSanitizeImage(input) { calls.push({ kind: "sanitize", input }); return { safe: true, outputMimeType: "image/jpeg", outputByteSize: 987, outputChecksumSha256: processedChecksum, width: 1200, height: 900 }; },
+  async readPrivateImage() { throw new Error("unused"); },
   async createReadUrl(input) { calls.push({ kind: "read-url", input }); return { url: "https://storage.example/private-read-signature" }; },
   async deleteObject(input) { calls.push({ kind: "delete", input }); }
 };
-const service = createMediaService(fakeRepository, { objectStorage: storage, now: () => new Date("2026-07-15T16:00:00.000Z"), createId: () => uploadId });
+const service = createMediaService(fakeRepository, { objectStorage: storage, appOrigin: "https://homlle.com", now: () => new Date("2026-07-15T16:00:00.000Z"), createId: () => uploadId });
 
 const intent = await service.createUploadIntent(cleaner, bookingId, { taskId, photoType: "before", mimeType: "image/jpeg", byteSize: 1234, checksumSha256: checksum, note: "Kitchen before cleaning" });
 assert(intent.uploadId === uploadId && intent.method === "PUT" && intent.uploadUrl.startsWith("https://storage.example/") && intent.requiredHeaders["X-Amz-Checksum-Sha256"] === checksumBase64 && intent.requiredHeaders["X-Amz-Meta-Tideway-Sha256"] === checksum && !Object.hasOwn(intent.requiredHeaders, "Content-Length"), "The media service did not create a browser-compatible bounded signed upload contract.");
@@ -106,3 +108,39 @@ for (const required of ["job_photo_uploads", "requested_checksum_sha256", "quara
 assert(grants.includes("REVOKE INSERT, UPDATE, DELETE") && grants.includes("REVOKE SELECT ON job_photos, job_photo_uploads") && workerGrants.includes("expire_due_job_photo_uploads"), "Runtime or worker grants permit reading storage keys or bypassing private photo transactions/expiry.");
 
 console.log("Media tests passed: server-owned signed upload, exact object verification, safety inspection/re-encode, idempotent transaction boundary, participant-only signed reads, quarantine cleanup and fail-closed storage composition.");
+
+const imageBytes = Buffer.from("synthetic private JPEG");
+const imageChecksum = createHash("sha256").update(imageBytes).digest("hex");
+const imageRecord = { storageKey: `job-photos/${bookingId}/${uploadId}.jpg`, mimeType: "image/jpeg", byteSize: imageBytes.length, checksumSha256: imageChecksum };
+let allowed = true;
+let reads = 0;
+let revokeDuringRead = false;
+let currentTime = new Date("2026-07-16T12:00:00.000Z");
+const privateService = createMediaService({
+  ...fakeRepository,
+  async getPhotoObject(actor) {
+    if (!allowed || actor.userId !== landlord.userId) throw Object.assign(new Error("request-not-found"), { statusCode: 404 });
+    return imageRecord;
+  }
+}, {
+  appOrigin: "https://homlle.com", now: () => currentTime,
+  objectStorage: { async readPrivateImage() { reads += 1; if (revokeDuringRead) allowed = false; return imageBytes; } }
+});
+const privateAccess = await privateService.getPhotoAccess(landlord, bookingId, uploadId);
+const privateUrl = new URL(privateAccess.url);
+assert(privateUrl.origin === "https://homlle.com" && privateUrl.pathname.endsWith("/content") && privateUrl.searchParams.get("expiresAt") === privateAccess.expiresAt, "A room photo still exposes an independent storage URL.");
+assert((await privateService.getPhotoContent(landlord, bookingId, uploadId, privateAccess.expiresAt)).bytes.equals(imageBytes), "Owner could not read private photo bytes.");
+const beforeDenied = reads;
+assert(await rejects(() => privateService.getPhotoContent(cleaner, bookingId, uploadId, privateAccess.expiresAt), "request-not-found") && reads === beforeDenied, "Copied photo link fetched storage for another account.");
+allowed = false;
+assert(await rejects(() => privateService.getPhotoContent(landlord, bookingId, uploadId, privateAccess.expiresAt), "request-not-found") && reads === beforeDenied, "Revoked access still fetched storage.");
+allowed = true; revokeDuringRead = true;
+assert(await rejects(() => privateService.getPhotoContent(landlord, bookingId, uploadId, privateAccess.expiresAt), "request-not-found"), "Access revoked during storage read still released bytes.");
+allowed = true; revokeDuringRead = false;
+currentTime = new Date(privateAccess.expiresAt);
+const beforeExpired = reads;
+assert(await rejects(() => privateService.getPhotoContent(landlord, bookingId, uploadId, privateAccess.expiresAt), "expired") && reads === beforeExpired, "An expired link fetched private storage.");
+currentTime = new Date("2026-07-16T12:00:00.000Z");
+const corruptService = createMediaService({ ...fakeRepository, async getPhotoObject() { return imageRecord; } }, { now: () => currentTime, objectStorage: { async readPrivateImage() { return Buffer.alloc(imageBytes.length); } } });
+assert(await rejects(() => corruptService.getPhotoContent(landlord, bookingId, uploadId, privateAccess.expiresAt), "temporarily unavailable"), "Mismatched private bytes escaped integrity verification.");
+console.log("Booking-photo revocation: copied account, expired link, withdrawn permission, in-flight withdrawal and byte integrity passed.");
