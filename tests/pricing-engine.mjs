@@ -239,7 +239,7 @@ const fromScan = quoteInputFromScan({
       { inventoryKey: "worktop", label: "Worktops" },
       { inventoryKey: "hob", label: "Hob" },
       { inventoryKey: "sink", label: "Sink" },
-      { inventoryKey: "oven", label: "Oven" },
+      { inventoryKey: "oven", label: "Oven", selected: true },
       { inventoryKey: "unsure", label: "Something", needsConfirmation: true },
       { inventoryKey: "removed", label: "Removed", selected: false }
     ]
@@ -249,6 +249,29 @@ assert(fromScan.rooms[0].items.length === 4, "The scan adapter kept an unconfirm
 const scanQuote = quoteRooms(fromScan, config);
 assert(scanQuote.priceable && scanQuote.premiumPence === 5500, "A scanned oven was not priced as a premium task.");
 assert(reconciles(scanQuote), "A scan-derived breakdown does not sum to its total.");
+
+for (const selected of [undefined, false, "true", 1]) {
+  const input = quoteInputFromScan({ rooms: [{ roomName: "Kitchen", objects: [
+    { inventoryKey: "oven", label: "Oven", selected },
+    { inventoryKey: "worktop", label: "Worktop" }
+  ] }] });
+  assert(input.rooms[0].items.length === 1 && input.rooms[0].items[0].code === "worktop",
+    "Detection or a truthy value opted the customer into specialist work.");
+  assert(quoteRooms(input, config).premiumPence === 0, "An unchecked specialist task was charged.");
+}
+const customConfig = normalizedPricingConfig({ ...defaultPricingConfig,
+  premiumItems: { ...defaultPricingConfig.premiumItems, "special-surface": { label: "Special surface", pence: 1900, minutes: 20 } }
+});
+const customScan = { rooms: [{ roomName: "Kitchen", objects: [{ inventoryKey: "special-surface", label: "Special surface" }] }] };
+assert(quoteInputFromScan(customScan, { config: customConfig }).rooms[0].items.length === 0,
+  "An operator-configured specialist task bypassed explicit selection.");
+customScan.rooms[0].objects[0].selected = true;
+assert(quoteInputFromScan(customScan, { config: customConfig }).rooms[0].items.length === 1,
+  "An explicitly selected specialist task was lost.");
+customScan.rooms[0].objects[0].needsConfirmation = true;
+assert(quoteInputFromScan(customScan, { config: customConfig }).rooms[0].items.length === 0,
+  "Selection bypassed unresolved object confirmation.");
+
 
 /* ── Economics helper is usable on its own ────────────────────────────────── */
 
