@@ -175,3 +175,51 @@ function invitationHarness({ found = true, approve = true, invitationError = nul
   assert.match(h.approvals[1], /Replacement Cleaner.*exactly GBP 89.00/s);
 }
 console.log("Customer invitation contract passed: empty capacity, declined exact price, approved amount, mismatch, uncertainty and replacement consent.");
+
+
+// Run the actual step transition. Forward, in-app Back and browser history
+// must leave focus in the revealed step, not on a hidden button or body.
+{
+  let focused = null;
+  const headings = Object.fromEntries(["postcode", "service", "results", "when", "cleaner", "checkout", "done"].map(id => [id, {
+    attributes: {}, setAttribute(key, value) { this.attributes[key] = value; },
+    focus(options) { assert.equal(options.preventScroll, true); focused = id; }
+  }]));
+  const sections = Object.entries(headings).map(([id, heading]) => ({
+    dataset: { step: id }, hidden: id !== "postcode",
+    querySelector(selector) { assert.equal(selector, "h2"); return heading; }
+  }));
+  const state = { step: "postcode" };
+  const el = { rail: { innerHTML: "", appendChild() {}, setAttribute() {} },
+    stepLabel: {}, back: {}, exit: {} };
+  const history = [];
+  const context = vm.createContext({
+    state, el, $$: () => sections,
+    document: { createElement: () => ({ appendChild() {} }) },
+    window: { scrollTo() {} }, railState: () => [true, false],
+    stepIndex: id => Object.keys(headings).indexOf(id), stepLabel: id => id,
+    previousStep: id => id === "postcode" ? null : "previous",
+    saveDraft() {}, renderResults() {}, renderScanPropertyChoice() {},
+    renderWhen() {}, loadCleaners() {}, renderCheckout() {},
+    syncJourneyHistory: (id, mode) => history.push({ id, mode })
+  });
+  vm.runInContext(section("function show(", "function goNext("), context);
+  context.show("postcode", "replace");
+  assert.equal(focused, null, "Initial same-step rendering stole focus");
+  for (const id of ["service", "results", "when", "cleaner", "checkout", "done"]) {
+    context.show(id);
+    assert.equal(focused, id);
+    assert.equal(headings[id].attributes.tabindex, "-1");
+    assert.equal(sections.filter(s => !s.hidden).length, 1);
+  }
+  context.show("results", "replace");
+  assert.equal(focused, "results", "In-app Back lost the step heading");
+  context.show("service", "none");
+  assert.equal(focused, "service", "Browser history lost the step heading");
+  focused = "typed-input";
+  context.show("service", "replace");
+  assert.equal(focused, "typed-input", "Same-step refresh stole focus from an input");
+  assert.equal(history.at(-2).mode, "none");
+  assert.equal(history.at(-1).mode, "replace");
+  console.log("Journey step focus passed: forward/back/history target the revealed heading; initial and same-step updates preserve focus.");
+}

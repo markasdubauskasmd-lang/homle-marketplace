@@ -326,8 +326,13 @@ function syncJourneyHistory(stepId, mode) {
 }
 
 function show(stepId, historyMode = "push") {
+  const changedStep = state.step !== stepId;
   state.step = stepId;
-  for (const section of $$(".jstep")) section.hidden = section.dataset.step !== stepId;
+  let activeSection = null;
+  for (const section of $$(".jstep")) {
+    section.hidden = section.dataset.step !== stepId;
+    if (!section.hidden) activeSection = section;
+  }
   const rail = railState(stepId);
   el.rail.innerHTML = "";
   for (const status of rail) {
@@ -354,6 +359,13 @@ function show(stepId, historyMode = "push") {
   if (stepId === "cleaner") loadCleaners();
   if (stepId === "checkout") renderCheckout();
   syncJourneyHistory(stepId, historyMode);
+  // A step change hides the initiating control. Move keyboard and reading
+  // focus to the new question, while same-step refreshes preserve input focus.
+  if (changedStep) {
+    const heading = activeSection?.querySelector("h2");
+    heading?.setAttribute("tabindex", "-1");
+    heading?.focus({ preventScroll: true });
+  }
 }
 
 function goNext() {
