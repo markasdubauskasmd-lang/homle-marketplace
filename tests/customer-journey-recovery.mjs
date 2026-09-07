@@ -97,3 +97,81 @@ function harness() {
   assert.match(el.resultsSource.textContent, /scan/);
 }
 console.log("Customer journey recovery: stale success/failure, timeout recovery, selection fallback and manual entry passed.");
+
+const initialCleaner = "22222222-2222-4222-8222-222222222222";
+const replacementCleaner = "33333333-3333-4333-8333-333333333333";
+const savedRequest = "66666666-6666-4666-8666-666666666666";
+function invitationHarness({ found = true, approve = true, invitationError = null, changedPrice = false, replacement = null } = {}) {
+  const network = [], approvals = [];
+  let writes = 0;
+  const ctx = vm.createContext({
+    state: { capabilities: { matchingReady: true }, draft: { cleanerId: "marketplace", cleanerName: "Best available Cleaner" } },
+    el: { checkoutState: { textContent: "" } },
+    exactPriceLabel: pence => "GBP " + (pence / 100).toFixed(2),
+    loadBestEligibleCleaner: async () => found ? { cleanerId: initialCleaner, displayName: "First Cleaner" } : null,
+    loadQuoteVerifiedAlternative: async () => replacement,
+    window: { confirm(message) { approvals.push(message); return typeof approve === "function" ? approve(approvals.length) : approve; } },
+    requestJson: async (url, options) => {
+      const body = JSON.parse(options.body);
+      network.push({ url, body });
+      if (url.endsWith("/invitation-quote")) return { quote: { customerPricePence: 7300 } };
+      if (url.endsWith("/invitations")) {
+        writes += 1;
+        if (invitationError && writes === 1) throw invitationError;
+        return { booking: { customerPricePence: changedPrice ? 7400 : body.approvedCustomerPricePence } };
+      }
+      throw Error("Unexpected route");
+    }
+  });
+  vm.runInContext(section("function cleanerInvitationRecovery(", "async function loadBestEligibleCleaner(") + section("async function loadInvitationQuote(", "async function confirmJourney("), ctx);
+  return { ctx, network, approvals, writes: () => writes };
+}
+{
+  const h = invitationHarness({ found: false });
+  const outcome = await h.ctx.inviteSelectedCleaner("csrf", savedRequest);
+  assert.equal(outcome.invited, false);
+  assert.match(outcome.reason, /No eligible Cleaner/);
+  assert.equal(h.network.length, 0, "Empty capacity wrote an invitation or manufactured a quote.");
+  assert.equal(h.approvals.length, 0);
+}
+{
+  const h = invitationHarness({ approve: false });
+  const outcome = await h.ctx.inviteSelectedCleaner("csrf", savedRequest);
+  assert.equal(outcome.invited, false);
+  assert.equal(h.network.length, 1, "Declining exact terms sent an invitation.");
+  assert.match(h.approvals[0], /exactly GBP 73.00/);
+}
+{
+  const h = invitationHarness();
+  const outcome = await h.ctx.inviteSelectedCleaner("csrf", savedRequest);
+  assert.equal(outcome.invited, true);
+  assert.equal(h.writes(), 1);
+  assert.equal(h.network[1].body.cleanerId, initialCleaner);
+  assert.equal(h.network[1].body.approvedCustomerPricePence, 7300, "Invitation did not use the exact approved quote.");
+}
+{
+  const h = invitationHarness({ changedPrice: true });
+  await assert.rejects(() => h.ctx.inviteSelectedCleaner("csrf", savedRequest), /saved Cleaner invitation total could not be verified/);
+  assert.equal(h.writes(), 1, "Mismatched response triggered another invitation.");
+}
+{
+  const h = invitationHarness({ invitationError: Object.assign(Error("response may have reached Homle"), { code: "request-timeout" }) });
+  let caught;
+  try { await h.ctx.inviteSelectedCleaner("csrf", savedRequest); } catch (error) { caught = error; }
+  assert(caught);
+  assert.equal(h.writes(), 1, "Uncertain invitation was automatically repeated.");
+  assert.match(h.ctx.cleanerInvitationRecovery(caught), /no Cleaner invitation was verified/);
+}
+{
+  const h = invitationHarness({
+    invitationError: Object.assign(Error("payout changed"), { code: "cleaner-payout-not-ready" }),
+    replacement: { cleaner: { cleanerId: replacementCleaner, displayName: "Replacement Cleaner" }, customerPricePence: 8900 },
+    approve: n => n === 1
+  });
+  const outcome = await h.ctx.inviteSelectedCleaner("csrf", savedRequest);
+  assert.equal(outcome.invited, false);
+  assert.equal(h.writes(), 1, "Replacement was invited without fresh price approval.");
+  assert.equal(h.approvals.length, 2);
+  assert.match(h.approvals[1], /Replacement Cleaner.*exactly GBP 89.00/s);
+}
+console.log("Customer invitation contract passed: empty capacity, declined exact price, approved amount, mismatch, uncertainty and replacement consent.");
