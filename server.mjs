@@ -5643,6 +5643,11 @@ async function serveFile(requestPath, response, cspNonce = "") {
     if (requestPath === "/cleaner/jobs-map" && extension === ".html") {
       body = Buffer.from(body.toString("utf8").replaceAll("__CSP_NONCE__", cspNonce), "utf8");
     }
+    // The shared document is frozen for Cleaner parity. Its existing role-owned
+    // workspace link gates every rule in this customer-only presentation sheet.
+    if (relative === "active-job.html") {
+      body = Buffer.from(body.toString("utf8").replace("</head>", '<link rel="stylesheet" href="/customer-active-job.css?v=20260907-1">\n</head>'), "utf8");
+    }
     // Everything else is served `no-cache` with no validator, so it comes back
     // in full on every request. That is fine for a 20 KB script and ruinous for
     // the vendored detector, which is several megabytes: uncached it would be
