@@ -133,7 +133,7 @@ function createRequest(rawBody) {
   const body = JSON.parse(rawBody);
   const quote = quoteRooms(body.pricingRequest || {}, pricingConfig);
   const record = {
-    requestId: randomUUID(),
+    requestId: body.id || randomUUID(),
     propertyId: body.propertyId,
     status: "draft",
     requestedStartAt: body.requestedStartAt,
