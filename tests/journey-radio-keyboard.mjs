@@ -7,6 +7,7 @@ if (!resolveChromiumPath()) {
   process.exit(0);
 }
 const fixture = `<!doctype html><meta name="viewport" content="width=device-width">
+<button id="outside">Outside the group</button>
 <div id="plain" role="radiogroup" aria-label="Plain choices"></div>
 <div id="redraw" role="radiogroup" aria-label="Redrawn choices"></div>
 <div id="disabled" role="radiogroup" aria-label="Disabled choices"></div>
@@ -34,6 +35,7 @@ function render(id, selected = -1) {
 for (const id of ["plain", "redraw", "disabled"]) render(id);
 bindJourneyRadioGroups();
 bindJourneyRadioGroups(); // Safe to initialize more than once.
+window.redrawChoices = render;
 window.radioReady = true;
 </script>`;
 const server = await serveStatic({ extraFiles: { "/radio-keyboard-fixture": fixture } });
@@ -87,6 +89,18 @@ try {
         tabs: [...group.children].map(r => r.tabIndex) };`);
     assert.equal(clicked.focused, 1, "Selection redraw lost focus");
     assert.deepEqual(clicked.tabs, [-1, 0, -1]);
+    const redraw = await browser.evaluate(`
+      const group = document.getElementById("redraw");
+      group.children[1].focus();
+      window.redrawChoices("redraw", 1);
+      await new Promise(r => setTimeout(r, 0));
+      const restored = [...group.children].indexOf(document.activeElement);
+      document.getElementById("outside").focus();
+      window.redrawChoices("redraw", 2);
+      await new Promise(r => setTimeout(r, 0));
+      return { restored, outside: document.activeElement.id };`);
+    assert.equal(redraw.restored, 1, "Asynchronous redraw dropped focus to body");
+    assert.equal(redraw.outside, "outside", "A background redraw stole focus from another control");
     const disabled = await browser.evaluate(`
       const group = document.getElementById("disabled");
       [...group.children].forEach(r => { r.disabled = true; });
