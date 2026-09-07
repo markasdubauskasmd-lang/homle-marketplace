@@ -71,6 +71,7 @@ const el = {
   resultsRooms: $("[data-results-rooms]"),
   resultsTasks: $("[data-results-tasks]"),
   tasks: $("[data-tasks]"),
+  tasksError: $("[data-tasks-error]"),
   days: $("[data-days]"),
   times: $("[data-times]"),
   frequencies: $("[data-frequencies]"),
@@ -368,12 +369,27 @@ function show(stepId, historyMode = "push") {
   }
 }
 
+function setChecklistError(message, focus = false) {
+  if (el.tasksError) {
+    el.tasksError.textContent = message;
+    el.tasksError.hidden = !message;
+  }
+  if (message) el.tasks.setAttribute("aria-invalid", "true");
+  else el.tasks.removeAttribute("aria-invalid");
+  if (message && focus) el.tasks.focus();
+}
+
 function goNext() {
   if (state.step === "results" && !validatePremiumChecklist()) return;
   readCurrentStep();
   if (state.step === "postcode" && state.supplyPending) return toast("Checking coverage for this property…");
   if (state.step === "cleaner" && state.cleanersPending) return toast("Checking cleaner profiles…");
-  if (!canLeaveStep(state.step, state.draft)) return toast(blockedReason(state.step, state.draft));
+  if (!canLeaveStep(state.step, state.draft)) {
+    const message = blockedReason(state.step, state.draft);
+    if (state.step === "results") return setChecklistError(message, true);
+    return toast(message);
+  }
+  if (state.step === "results") setChecklistError("");
   const index = stepIndex(state.step);
   const next = journeySteps[index + 1];
   if (next) show(next.id);
@@ -596,6 +612,7 @@ function guideRange(taskCount) {
 el.tasks.addEventListener("input", () => {
   invalidateScanRequest();
   el.tasks.setCustomValidity("");
+  if (editableTaskLines().length) setChecklistError("");
   updateResultTotals();
 });
 
