@@ -223,3 +223,52 @@ console.log("Customer invitation contract passed: empty capacity, declined exact
   assert.equal(history.at(-1).mode, "replace");
   console.log("Journey step focus passed: forward/back/history target the revealed heading; initial and same-step updates preserve focus.");
 }
+
+
+// Empty scope is a persistent field error. Run the actual Continue and input
+// handlers so correction, repeated attempts and focus use the real wiring.
+{
+  const attributes = {};
+  let focused = false, inputHandler, next = null, toastCalls = 0;
+  const el = { tasksError: { textContent: "", hidden: true }, tasks: {
+    value: "", setAttribute(name, value) { attributes[name] = value; },
+    removeAttribute(name) { delete attributes[name]; },
+    focus() { focused = true; }, setCustomValidity() {},
+    addEventListener(name, handler) { assert.equal(name, "input"); inputHandler = handler; }
+  } };
+  const state = { step: "results", draft: { tasks: [] } };
+  const context = vm.createContext({
+    el, state, validatePremiumChecklist: () => true,
+    readCurrentStep: () => { state.draft.tasks = el.tasks.value.split("\n").map(s => s.trim()).filter(Boolean); },
+    canLeaveStep: () => state.draft.tasks.length > 0,
+    blockedReason: () => "Add at least one room task before continuing.",
+    toast() { toastCalls++; }, stepIndex: () => 0, journeySteps: [{ id: "results" }, { id: "when" }],
+    show: id => { next = id; }, invalidateScanRequest() {}, updateResultTotals() {}
+  });
+  vm.runInContext(section("function setChecklistError(", "function readCurrentStep(")
+    + section('el.tasks.addEventListener("input"', "function eligiblePremiumSelections("), context);
+  context.goNext();
+  assert.equal(next, null);
+  assert.equal(focused, true);
+  assert.equal(attributes["aria-invalid"], "true");
+  assert.equal(el.tasksError.hidden, false);
+  assert.equal(el.tasksError.textContent, "Add at least one room task before continuing.");
+  assert.equal(toastCalls, 0, "Blocking checklist error still relies on a disappearing toast");
+  el.tasks.value = " \n ";
+  inputHandler();
+  assert.equal(el.tasksError.hidden, false, "Whitespace cleared the unresolved validation error");
+  context.goNext();
+  assert.equal(next, null, "Repeated attempts bypassed empty scope validation");
+  el.tasks.value = "Kitchen: clean worktops";
+  inputHandler();
+  assert.equal(el.tasksError.hidden, true);
+  assert.equal(el.tasksError.textContent, "");
+  assert.equal(attributes["aria-invalid"], undefined);
+  context.goNext();
+  assert.equal(next, "when", "A corrected checklist could not continue");
+  const html = await readFile(new URL("../public/landlord-journey.html", import.meta.url), "utf8");
+  assert.match(html, /data-tasks aria-describedby="tasks-hint tasks-error"/);
+  assert.match(html, /id="tasks-hint" data-task-hint/);
+  assert.match(html, /id="tasks-error" data-tasks-error hidden/);
+  console.log("Checklist validation passed: persistent associated error, focus, whitespace/retry blocking and correction recovery.");
+}
