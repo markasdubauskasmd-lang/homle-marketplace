@@ -219,8 +219,9 @@
 
       <div class="field">
         <label for="tasks">Room checklist</label>
-        <textarea class="inp" id="tasks" name="tasks" data-tasks rows="9" placeholder="Kitchen: degrease the worktops&#10;Bathroom: remove limescale from the shower screen"></textarea>
-        <p class="hint" data-task-hint>One task per line. Your Cleaner receives these editable tasks plus the selected specialist tasks shown above.</p>
+        <textarea class="inp" id="tasks" name="tasks" data-tasks aria-describedby="tasks-hint tasks-error" rows="9" placeholder="Kitchen: degrease the worktops&#10;Bathroom: remove limescale from the shower screen"></textarea>
+        <p class="hint" id="tasks-hint" data-task-hint>One task per line. Your Cleaner receives these editable tasks plus the selected specialist tasks shown above.</p>
+        <p class="err" id="tasks-error" data-tasks-error hidden></p>
       </div>
 
       <button class="btn btn-p btn-full btn-lg" type="button" data-next>Continue</button>
