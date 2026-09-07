@@ -360,7 +360,7 @@ function confirmationHarness({ matchingReady = true, mediaReady = false, photos 
   const ctx = vm.createContext({
     state, el,
     recoverCsrf: csrfRecovery,
-    $: () => [el.confirm, el.cleanerPhotoPreview, el.propertyType],
+    $$: () => [el.confirm, el.cleanerPhotoPreview, el.propertyType],
     createOrRecoverProperty: async () => "fixture-property",
     createOrRecoverRequest: async () => { calls.push({ kind: "save" }); return { requestId: "fixture-request" }; },
     saveStructuredScanWithRetry: async () => true,
