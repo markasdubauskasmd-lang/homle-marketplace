@@ -106,6 +106,8 @@ const first = context.createRequestDraft();
 assert.equal(await context.createRequestDraft(), false, "Second tap must be blocked before CSRF returns");
 releaseCsrf("csrf");
 assert.equal(await first, false);
+// A refreshed bootstrap may already contain the saved request when recovery resumes.
+context.requests.push([...actualRecords.values()][0]);
 context.recoverCsrf = async () => "csrf";
 assert.equal(await context.createRequestDraft(), true);
 assert.equal(actualRecords.size, 1);
