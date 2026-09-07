@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { uuid, uuidPattern } from "./validation.mjs";
+import { createHash, randomUUID } from "node:crypto";
+import { exactOrigin, uuid, uuidPattern } from "./validation.mjs";
 
 const checksumPattern = /^[0-9a-f]{64}$/;
 const mimeTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]);
@@ -62,6 +62,7 @@ function scanProjection(value) {
 export function createRequestMediaService(repository, options = {}) {
   if (!repository || !["createUploadIntent", "getUploadForCompletion", "rejectUpload", "completeUpload", "getScan", "getPhotoObject"].every((method) => typeof repository[method] === "function")) throw new TypeError("A complete request-media repository is required.");
   const storage = options.objectStorage || null;
+  const appOrigin = options.appOrigin ? exactOrigin(options.appOrigin) : null;
   const now = typeof options.now === "function" ? options.now : () => new Date();
   const createId = typeof options.createId === "function" ? options.createId : randomUUID;
   async function remove(key) { if (typeof storage?.deleteObject === "function") try { await storage.deleteObject({ storageKey: key }); } catch {} }
@@ -127,12 +128,32 @@ export function createRequestMediaService(repository, options = {}) {
     },
     async getPhotoAccess(actor, cleaningRequestId, photoId) {
       if (!actor?.userId) throw new TypeError("An authenticated marketplace account is required to view a room photo.");
-      const adapter = storageAdapter(storage);
-      const photo = await repository.getPhotoObject(actor, uuid(cleaningRequestId, "cleaning request id"), uuid(photoId, "room photo id"));
+      if (!appOrigin || typeof storage?.readPrivateImage !== "function") throw unavailable();
+      const requestId = uuid(cleaningRequestId, "cleaning request id");
+      const id = uuid(photoId, "room photo id");
+      const photo = await repository.getPhotoObject(actor, requestId, id);
       const expiresAt = new Date(now().getTime() + 5 * 60_000).toISOString();
-      let signed;
-      try { signed = await adapter.createReadUrl({ storageKey: photo.storageKey, expiresAt }); } catch { throw unavailable(); }
-      return Object.freeze({ photoId: photoId.toLowerCase(), roomName: photo.roomName, note: photo.note, mimeType: photo.mimeType, byteSize: photo.byteSize, url: signedUrl(signed?.url), expiresAt });
+      const url = new URL(`/api/marketplace/cleaning-requests/${requestId}/photos/${id}/content`, appOrigin);
+      url.searchParams.set("expiresAt", expiresAt);
+      return Object.freeze({ photoId: id, roomName: photo.roomName, note: photo.note, mimeType: photo.mimeType, byteSize: photo.byteSize, url: url.toString(), expiresAt });
+    },
+    async getPhotoContent(actor, cleaningRequestId, photoId, expiresAt) {
+      if (!actor?.userId) throw new TypeError("An authenticated marketplace account is required to view a room photo.");
+      const expiry = new Date(expiresAt);
+      const remaining = expiry.getTime() - now().getTime();
+      if (!Number.isFinite(remaining) || remaining <= 0 || remaining > 5 * 60_000 || expiry.toISOString() !== expiresAt) throw Object.assign(new Error("The private photo link has expired. Open the photo again."), { statusCode: 410, code: "request-photo-link-expired" });
+      const requestId = uuid(cleaningRequestId, "cleaning request id");
+      const id = uuid(photoId, "room photo id");
+      // Authorize before fetching, then again after the storage read so a
+      // permission withdrawn during that read cannot release new bytes.
+      const photo = await repository.getPhotoObject(actor, requestId, id);
+      if (typeof storage?.readPrivateImage !== "function") throw unavailable();
+      let bytes;
+      try { bytes = await storage.readPrivateImage({ storageKey: photo.storageKey, byteSize: photo.byteSize }); } catch { throw unavailable(); }
+      if (!Buffer.isBuffer(bytes) || bytes.length !== photo.byteSize || bytes.length > 15_000_000 || photo.mimeType !== "image/jpeg" || createHash("sha256").update(bytes).digest("hex") !== photo.checksumSha256) throw unavailable();
+      const current = await repository.getPhotoObject(actor, requestId, id);
+      if (current.storageKey !== photo.storageKey || current.checksumSha256 !== photo.checksumSha256 || expiry.getTime() <= now().getTime()) throw Object.assign(new Error("The private photo is no longer available. Open the photo again."), { statusCode: 410, code: "request-photo-link-expired" });
+      return Object.freeze({ mimeType: "image/jpeg", bytes });
     }
   });
 }

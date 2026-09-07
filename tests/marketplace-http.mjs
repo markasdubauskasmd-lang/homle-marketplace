@@ -143,11 +143,13 @@ const progressService = {
   async finishCleaning(actor, bookingId) { calls.push({ kind: "progress-finish", actor, bookingId }); return { bookingId, status: "awaiting-review", overallPercentage: 100 }; }
 };
 const mediaService = {
+  async getPhotoContent(actor, bookingId, photoId, expiresAt) { calls.push({ kind: "job-media-content", actor, bookingId, photoId, expiresAt }); return { mimeType: "image/jpeg", bytes: Buffer.from("synthetic booking photo") }; },
   async createUploadIntent(actor, bookingId, input) { calls.push({ kind: "media-intent", actor, bookingId, input }); return { uploadId: "88888888-8888-4888-8888-888888888888", uploadUrl: "https://storage.example/write", method: "PUT" }; },
   async completeUpload(actor, bookingId, uploadId) { calls.push({ kind: "media-complete", actor, bookingId, uploadId }); return { bookingId, status: "cleaning-in-progress", eventVersion: 8 }; },
   async getPhotoAccess(actor, bookingId, photoId) { calls.push({ kind: "media-access", actor, bookingId, photoId }); return { photoId, url: "https://storage.example/read" }; }
 };
 const requestMediaService = {
+  async getPhotoContent(actor, cleaningRequestId, photoId, expiresAt) { calls.push({ kind: "request-media-content", actor, cleaningRequestId, photoId, expiresAt }); return { mimeType: "image/jpeg", bytes: Buffer.from("synthetic photo") }; },
   async createUploadIntent(actor, cleaningRequestId, input) { calls.push({ kind: "request-media-intent", actor, cleaningRequestId, input }); return { uploadId: "88888888-8888-4888-8888-888888888888", uploadUrl: "https://storage.example/request-write", method: "PUT", requiredHeaders: {} }; },
   async completeUpload(actor, cleaningRequestId, uploadId) { calls.push({ kind: "request-media-complete", actor, cleaningRequestId, uploadId }); return { cleaningRequestId, status: "draft", photos: [{ photoId: uploadId }] }; },
   async getScan(actor, cleaningRequestId) { calls.push({ kind: "request-media-scan", actor, cleaningRequestId }); return { cleaningRequestId, status: "draft", photos: [] }; },
@@ -953,3 +955,19 @@ assert(repeatWrite.response.statusCode === 405 && repeatReads.length === 1, "Rep
 const repeatUnavailable = await dispatch(router, "GET", repeatUrl, {headers:authHeaders});
 assert(repeatUnavailable.response.statusCode === 503, "Unconfigured repeat scope did not fail clearly.");
 console.log("Repeat-scope HTTP checks passed: owner-role gate, no-store response, anonymous denial and GET-only boundary.");
+
+const privatePhotoPath = "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/photos/88888888-8888-4888-8888-888888888888/content?expiresAt=2026-07-16T12%3A05%3A00.000Z";
+const unauthenticatedPhoto = await dispatch(router, "GET", privatePhotoPath);
+assert(unauthenticatedPhoto.response.statusCode === 401, "Private photo content skipped session authentication.");
+const authenticatedPhoto = await dispatch(router, "GET", privatePhotoPath, { headers: { cookie: `${developmentSessionCookieName}=${material.token}` } });
+assert(authenticatedPhoto.response.statusCode === 200 && Buffer.isBuffer(authenticatedPhoto.body) && authenticatedPhoto.body.toString() === "synthetic photo", "Authenticated photo content failed to deliver binary data.");
+assert(authenticatedPhoto.response.headers["Cache-Control"].includes("no-store") && authenticatedPhoto.response.headers["Cross-Origin-Resource-Policy"] === "same-origin" && authenticatedPhoto.response.headers["X-Content-Type-Options"] === "nosniff", "Private photo response permits caching or cross-origin embedding.");
+const postPhoto = await dispatch(router, "POST", privatePhotoPath);
+assert(postPhoto.response.statusCode === 405, "Private photo content accepts mutation methods.");
+
+const jobPhotoPath = "/api/marketplace/bookings/55555555-5555-4555-8555-555555555555/cleaning-progress/photos/88888888-8888-4888-8888-888888888888/content?expiresAt=2026-07-16T12%3A05%3A00.000Z";
+const anonymousJobPhoto = await dispatch(router, "GET", jobPhotoPath);
+assert(anonymousJobPhoto.response.statusCode === 401, "Booking photo content skipped authentication.");
+const participantJobPhoto = await dispatch(router, "GET", jobPhotoPath, { headers: { cookie: `${developmentSessionCookieName}=${material.token}` } });
+assert(participantJobPhoto.response.statusCode === 200 && participantJobPhoto.body.toString() === "synthetic booking photo" && participantJobPhoto.response.headers["Cache-Control"].includes("no-store"), "Authenticated booking image delivery failed.");
+assert((await dispatch(router, "POST", jobPhotoPath)).response.statusCode === 405, "Booking image content accepts writes.");
