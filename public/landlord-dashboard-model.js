@@ -109,7 +109,7 @@ export function moneyToPence(value) {
   return pence;
 }
 
-const pricingServiceTypeByCleaningType = Object.freeze({
+export const pricingServiceTypeByCleaningType = Object.freeze({
   "regular-domestic": "standard",
   "rental-turnovers": "rental-turnover",
   "end-of-tenancy": "end-of-tenancy",
