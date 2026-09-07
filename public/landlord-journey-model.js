@@ -239,7 +239,7 @@ export function checkoutMode({ matchingReady = false } = {}) {
 export function checkoutCopy(mode) {
   if (mode === "request") return Object.freeze({
     action: "Save and review request",
-    note: "Homle saves the private request and verifies the room photos first. A Cleaner is invited only after you approve an exact quoted total. No payment is taken here."
+    note: "Homle saves the private request and verifies any attached room photos first. A Cleaner is invited only after you approve an exact quoted total. No payment is taken here."
   });
   return Object.freeze({
     action: "Save private draft",
