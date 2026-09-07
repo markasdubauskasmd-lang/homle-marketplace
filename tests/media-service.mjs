@@ -66,7 +66,7 @@ assert(calls.find((call) => call.kind === "complete").verified.outputMimeType ==
 assert(calls.some((call) => call.kind === "delete"), "The quarantine object was not removed after verified completion.");
 
 const access = await service.getPhotoAccess(landlord, bookingId, photoId);
-assert(access.url.startsWith("https://storage.example/") && access.expiresAt === "2026-07-15T16:05:00.000Z" && !Object.hasOwn(access, "storageKey") && !Object.hasOwn(access, "checksumSha256"), "Participant read access leaked storage internals or was not short-lived.");
+assert(new URL(access.url).origin === "https://homlle.com" && new URL(access.url).pathname === `/api/marketplace/bookings/${bookingId}/cleaning-progress/photos/${photoId}/content` && access.expiresAt === "2026-07-15T16:05:00.000Z" && !Object.hasOwn(access, "storageKey") && !Object.hasOwn(access, "checksumSha256"), "Participant read access leaked storage internals or was not short-lived.");
 assert(await rejects(() => service.createUploadIntent(landlord, bookingId, { photoType: "before", mimeType: "image/jpeg", byteSize: 1, checksumSha256: checksum }), "Cleaner"), "A Landlord created a Cleaner job-photo upload.");
 assert(await rejects(() => createMediaService(fakeRepository).createUploadIntent(cleaner, bookingId, { photoType: "before", mimeType: "image/jpeg", byteSize: 1, checksumSha256: checksum }), "temporarily unavailable"), "Media upload did not fail closed without private storage.");
 const malformedHeaderStorage = { ...storage, async createUploadUrl() { return { url: "https://storage.example/private-write-signature", requiredHeaders: { "Content-Type": "image/jpeg", "X-Unreviewed-Header": "unsafe" } }; } };
