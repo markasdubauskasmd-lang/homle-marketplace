@@ -37,7 +37,19 @@ export function bindJourneyRadioGroups(root = document) {
       options[nextIndex].click();
       synchronize()?.focus();
     });
-    const observer = new MutationObserver(synchronize);
+    const document = group.ownerDocument;
+    let focusedWithin = false;
+    document.addEventListener("focusin", event => {
+      focusedWithin = group.contains(event.target);
+    });
+    const observer = new MutationObserver(() => {
+      const lostFocus = focusedWithin && document.activeElement === document.body;
+      const selected = synchronize();
+      // A later coverage response may redraw the property options after the
+      // click has finished. Restore only focus lost from this group; never
+      // take focus back after the user has moved to another control.
+      if (lostFocus) selected?.focus({ preventScroll: true });
+    });
     observer.observe(group, { childList: true, subtree: true, attributes: true,
       attributeFilter: ["aria-checked", "aria-disabled", "disabled"] });
     synchronize();
