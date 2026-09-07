@@ -461,6 +461,10 @@ for (const fail of [false, true]) {
     assert.equal(el.confirm.disabled, false);
     backHandler();
     assert.equal(state.step, "cleaner", "Failed confirmation left Back locked");
+    assert.equal(reads, 1, "Recovered Back did not preserve current answers");
+    historyHandler({ state: { journeyStep: "when" } });
+    assert.equal(state.step, "when", "Recovered history remained locked");
+    assert.equal(reads, 2, "Recovered history did not preserve current answers");
   }
 }
 console.log("Pending confirmation passed: scope controls and Back/history lock before await, and failure restores editing without enabling unavailable choices.");
