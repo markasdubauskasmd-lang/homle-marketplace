@@ -40,6 +40,7 @@ const server = await serveStatic({ extraFiles: { "/tracking-style-fixture": fixt
 const browser = await launchBrowser();
 const snapshot = [
   'await document.fonts.ready;',
+  'await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));',
   'return [...document.querySelectorAll("body,body *")].map(el =>',
   '["", "::before", "::after"].map(pseudo => {',
   'const css = getComputedStyle(el, pseudo || null);',
@@ -50,6 +51,13 @@ try {
   for (const width of [390, 1280]) {
     await browser.setViewport({ width, height: 844, mobile: width < 700 });
     await browser.goto(server.origin + "/tracking-style-fixture");
+    const loaded = await browser.evaluate([
+      'const link = document.querySelector(\'link[href*="customer-active-job.css"]\');',
+      'const deadline = Date.now() + 10000;',
+      'while (!link.sheet) { if (Date.now() > deadline) return false; await new Promise(r => setTimeout(r, 50)); }',
+      'return link.sheet.cssRules.length > 0;'
+    ].join("\n"));
+    assert(loaded, "Customer stylesheet failed to load");
     await browser.evaluate([
       'document.querySelector("[data-job-workspace]").hidden = false;',
       'document.querySelector("[data-job-gate]").hidden = true;',
@@ -63,14 +71,14 @@ try {
     ].join("\n"));
     for (const href of ["/login", "/cleaner/dashboard", "/landlord/dashboard"]) {
       await browser.evaluate('document.querySelector("[data-workspace-link]").setAttribute("href",' + JSON.stringify(href) + '); return true;');
-      await browser.evaluate('document.querySelector(\'link[href*="customer-active-job.css"]\').disabled = true; return true;');
+      await browser.evaluate('document.querySelector(\'link[href*="customer-active-job.css"]\').sheet.disabled = true; return true;');
       const before = await browser.evaluate(snapshot);
-      await browser.evaluate('document.querySelector(\'link[href*="customer-active-job.css"]\').disabled = false; return true;');
+      await browser.evaluate('document.querySelector(\'link[href*="customer-active-job.css"]\').sheet.disabled = false; return true;');
       const after = await browser.evaluate(snapshot);
       if (href !== "/landlord/dashboard") {
-        assert.deepEqual(after, before, href + " computed styles changed at " + width);
+        assert(JSON.stringify(after) === JSON.stringify(before), href + " computed styles changed at " + width);
       } else {
-        assert.notDeepEqual(after, before, "Customer styling did not apply");
+        assert(JSON.stringify(after) !== JSON.stringify(before), "Customer styling did not apply");
         const result = await browser.evaluate([
           'const style = selector => getComputedStyle(document.querySelector(selector));',
           'return { canvas: style("body").backgroundColor, font: style("h1").fontFamily,',
