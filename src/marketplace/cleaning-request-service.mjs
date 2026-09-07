@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { pricingServiceTypeByCleaningType } from "../../public/landlord-dashboard-model.js";
 import { serviceCodes } from "./cleaner-profile.mjs";
 import { cleanerTaskGuidance, cleanerTaskQuality } from "../../public/task-quality.js";
 import { uuid, uuidPattern } from "./validation.mjs";
@@ -223,7 +224,14 @@ export function createCleaningRequestService(repository, options = {}) {
         const requestedStart = instant(input.requestedStartAt, "Requested start");
         const requestedEnd = instant(input.requestedEndAt, "Requested end");
         const requestedMinutes = (requestedEnd.getTime() - requestedStart.getTime()) / 60_000;
-        platformQuote = await options.quotePlatformRequest(actor, { ...input.pricingRequest, requestedMinutes });
+        const serviceType = pricingServiceTypeByCleaningType[boundedText(input.cleaningType, 80, "Cleaning type", 1)];
+        if (!serviceType) throw new TypeError("Choose a supported cleaning type.");
+        platformQuote = await options.quotePlatformRequest(actor, {
+          ...input.pricingRequest,
+          serviceType,
+          frequency: recurrence(input.frequency).frequency,
+          requestedMinutes
+        });
       }
       return projection(await repository.createOwnRequest(actor, normalizedCleaningRequest({ ...input, submit: false }, { ...options, platformQuote })));
     },
