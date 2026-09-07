@@ -1,3 +1,5 @@
+import { quoteRooms } from "../public/pricing-engine.js";
+import { defaultPricingConfig } from "../public/pricing-config.js";
 import { readFile } from "node:fs/promises";
 import { createCleaningRequestRepository } from "../src/marketplace/cleaning-request-repository.mjs";
 import { cleaningRequestScopeFingerprint, createCleaningRequestService, normalizedCleaningRequest } from "../src/marketplace/cleaning-request-service.mjs";
@@ -168,3 +170,52 @@ for (const required of ["withdraw_cleaning_request", "request_record.status NOT 
 for (const required of ["reschedule_open_cleaning_request", "request.landlord_user_id=actor_id", "request_record.status<>'searching-for-cleaner'", "booking.status<>'cancelled'", "request_record.requested_end_at-request_record.requested_start_at", "new_scope_fingerprint", "automatic_dispatch_lease_token=NULL", "cleaning_request_status_history", "cleaning-request-rescheduled", "REVOKE ALL ON FUNCTION"]) assert(rescheduleMigration.includes(required), `Owner request-reschedule migration omitted ${required}.`);
 
 console.log("Cleaning request tests passed: validated future scope, recurrence, room tasks, stable fingerprinting, owner-bound property writes, auditable submission/withdrawal/rescheduling and private projections.");
+
+
+// Replay mismatched quote metadata through the actual request service and pricing
+// engine. Repository storage is the only fixture: no customer operation occurs.
+const serviceMappings = {
+  "regular-domestic": "standard", "rental-turnovers": "rental-turnover",
+  "end-of-tenancy": "end-of-tenancy", workplaces: "commercial",
+  "communal-areas": "commercial", "deep-cleans": "deep"
+};
+const rooms = [{ roomType: "kitchen", items: [] }];
+let receivedPricing;
+const scopeBoundService = createCleaningRequestService(fakeRepository, {
+  clock: () => new Date(now),
+  quotePlatformRequest: async (_actor, pricingRequest) => {
+    receivedPricing = pricingRequest;
+    return quoteRooms(pricingRequest, defaultPricingConfig);
+  }
+});
+for (const [cleaningType, serviceType] of Object.entries(serviceMappings)) {
+  for (const frequency of ["one-time", "weekly", "fortnightly", "every-four-weeks"]) {
+    const result = await scopeBoundService.createOwnRequest(landlord, {
+      ...input, cleaningType, requiredServices: [cleaningType], frequency,
+      requestedEndAt: "2026-07-20T13:00:00.000Z",
+      pricingRequest: { serviceType: "standard", frequency: "weekly", requestedMinutes: 120, rooms }
+    });
+    const expected = quoteRooms({ serviceType, frequency, requestedMinutes: 240, rooms }, defaultPricingConfig);
+    assert(receivedPricing.serviceType === serviceType && receivedPricing.frequency === frequency
+      && receivedPricing.requestedMinutes === 240 && result.quotedTotalPence === expected.totalPence
+      && result.cleaningType === cleaningType && result.frequency === frequency,
+    "Stored scope and server quote disagree for " + cleaningType + "/" + frequency);
+    if (cleaningType === "end-of-tenancy" && frequency === "one-time") {
+      assert(result.quotedTotalPence === 22400, "A four-hour tenancy clean retained the standard-clean total.");
+    }
+  }
+}
+const defaultFrequency = await scopeBoundService.createOwnRequest(landlord, {
+  ...input, frequency: undefined, pricingRequest: { serviceType: "standard", frequency: "weekly", rooms }
+});
+assert(defaultFrequency.frequency === "one-time" && receivedPricing.frequency === "one-time",
+  "An omitted booking frequency inherited a quote-only recurring selection.");
+const writesBeforeInvalidScope = calls.length;
+await rejects(() => scopeBoundService.createOwnRequest(landlord, {
+  ...input, cleaningType: "unknown", pricingRequest: { rooms }
+}), "supported cleaning type").then((rejected) => assert(rejected, "Unknown service was priced."));
+await rejects(() => scopeBoundService.createOwnRequest(landlord, {
+  ...input, frequency: "daily", pricingRequest: { rooms }
+}), "supported one-time").then((rejected) => assert(rejected, "Unknown frequency was priced."));
+assert(calls.length === writesBeforeInvalidScope, "Invalid pricing scope reached storage.");
+console.log("Request pricing scope passed: all six services and four frequencies use booked scope; mismatched quote metadata cannot change the saved amount.");
