@@ -972,7 +972,7 @@ function renderMediaState() {
     el.mediaState.textContent = `${state.scanPhotos.length} room ${state.scanPhotos.length === 1 ? "photo is" : "photos are"} ready in this tab. They will be uploaded privately only after you confirm.`;
     el.cleanerPhotoPreview.disabled = !state.capabilities.mediaReady;
   } else {
-    el.mediaState.textContent = "No room photo is available in this tab. Homle can save a private draft, but it cannot submit the request for matching until at least one current room photo is attached.";
+    el.mediaState.textContent = "Room photos are optional. You can review and submit this request without images.";
     el.cleanerPhotoPreview.checked = false;
     el.cleanerPhotoPreview.disabled = true;
   }
@@ -1981,13 +1981,13 @@ async function confirmJourney() {
     }
     let submitted = false;
     let invitation = { invited: false, reason: "" };
-    if (state.capabilities.mediaReady && state.scanPhotos.length) {
-      await uploadRoomPhotos(csrf, request.requestId);
+    if (state.capabilities.matchingReady && (!state.scanPhotos.length || state.capabilities.mediaReady)) {
+      if (state.scanPhotos.length) await uploadRoomPhotos(csrf, request.requestId);
       el.checkoutState.textContent = "Submitting your reviewed room scope…";
       const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/submit`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-        body: JSON.stringify({ scopeReviewed: true, cleanerPreviewAuthorized: el.cleanerPhotoPreview.checked })
+        body: JSON.stringify({ scopeReviewed: true, cleanerPreviewAuthorized: state.scanPhotos.length > 0 && el.cleanerPhotoPreview.checked === true })
       });
       submitted = result.submission?.status === "searching-for-cleaner";
       if (!submitted) throw new Error("The submitted request could not be verified.");
@@ -2005,8 +2005,8 @@ async function confirmJourney() {
     state.scanReview = null;
     el.doneTitle.textContent = invitation.invited ? "Your Cleaner has been invited." : submitted ? "Your request is ready for matching." : "Your private draft is saved.";
     el.doneBody.textContent = invitation.reason || (submitted
-      ? "The reviewed room photos and checklist are saved. A booking exists only after an eligible Cleaner accepts the exact time, work and price. No payment was taken."
-      : "The checklist is on your dashboard. Add a current room photo there before submitting it for matching. Nothing was sent to a Cleaner and no payment was taken.");
+      ? "The reviewed checklist and any attached room photos are saved. A booking exists only after an eligible Cleaner accepts the exact time, work and price. No payment was taken."
+      : "The checklist is on your dashboard. Review and submit it there when the required services are available. Nothing was sent to a Cleaner and no payment was taken.");
     show("done");
   } catch (error) {
     const signInRequired = error?.code === "sign-in-required" || error?.code === "authentication-required" || error?.statusCode === 401;
