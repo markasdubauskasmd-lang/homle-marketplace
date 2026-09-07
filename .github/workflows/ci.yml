@@ -123,4 +123,6 @@ jobs:
           DATABASE_INTEGRATION_APP_URL: postgresql://tideway_app:${{ env.APP_PW }}@localhost:5432/ci_tideway_test
           DATABASE_INTEGRATION_WORKER_URL: postgresql://tideway_worker:${{ env.WORKER_PW }}@localhost:5432/ci_tideway_test
           TIDEWAY_DATABASE_TEST_CONFIRMATION: RUN TIDEWAY DISPOSABLE DATABASE TESTS
-        run: node tools/postgres-integration-runner.mjs
+        run: |
+          node tools/postgres-integration-runner.mjs
+          node tools/postgres-media-delivery.mjs

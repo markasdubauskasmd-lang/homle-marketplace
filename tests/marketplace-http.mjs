@@ -143,13 +143,13 @@ const progressService = {
   async finishCleaning(actor, bookingId) { calls.push({ kind: "progress-finish", actor, bookingId }); return { bookingId, status: "awaiting-review", overallPercentage: 100 }; }
 };
 const mediaService = {
-  async getPhotoContent(actor, bookingId, photoId, expiresAt) { calls.push({ kind: "job-media-content", actor, bookingId, photoId, expiresAt }); return { mimeType: "image/jpeg", bytes: Buffer.from("synthetic booking photo") }; },
+  async getPhotoContent(actor, bookingId, photoId, expiresAt) { calls.push({ kind: "job-media-content", actor, bookingId, photoId, expiresAt }); if (expiresAt === "expired") throw Object.assign(new Error("Open the photo again."), { statusCode: 410, code: "job-photo-link-expired" }); return { mimeType: "image/jpeg", bytes: Buffer.from("synthetic booking photo") }; },
   async createUploadIntent(actor, bookingId, input) { calls.push({ kind: "media-intent", actor, bookingId, input }); return { uploadId: "88888888-8888-4888-8888-888888888888", uploadUrl: "https://storage.example/write", method: "PUT" }; },
   async completeUpload(actor, bookingId, uploadId) { calls.push({ kind: "media-complete", actor, bookingId, uploadId }); return { bookingId, status: "cleaning-in-progress", eventVersion: 8 }; },
   async getPhotoAccess(actor, bookingId, photoId) { calls.push({ kind: "media-access", actor, bookingId, photoId }); return { photoId, url: "https://storage.example/read" }; }
 };
 const requestMediaService = {
-  async getPhotoContent(actor, cleaningRequestId, photoId, expiresAt) { calls.push({ kind: "request-media-content", actor, cleaningRequestId, photoId, expiresAt }); return { mimeType: "image/jpeg", bytes: Buffer.from("synthetic photo") }; },
+  async getPhotoContent(actor, cleaningRequestId, photoId, expiresAt) { calls.push({ kind: "request-media-content", actor, cleaningRequestId, photoId, expiresAt }); if (expiresAt === "expired") throw Object.assign(new Error("Open the photo again."), { statusCode: 410, code: "request-photo-link-expired" }); return { mimeType: "image/jpeg", bytes: Buffer.from("synthetic photo") }; },
   async createUploadIntent(actor, cleaningRequestId, input) { calls.push({ kind: "request-media-intent", actor, cleaningRequestId, input }); return { uploadId: "88888888-8888-4888-8888-888888888888", uploadUrl: "https://storage.example/request-write", method: "PUT", requiredHeaders: {} }; },
   async completeUpload(actor, cleaningRequestId, uploadId) { calls.push({ kind: "request-media-complete", actor, cleaningRequestId, uploadId }); return { cleaningRequestId, status: "draft", photos: [{ photoId: uploadId }] }; },
   async getScan(actor, cleaningRequestId) { calls.push({ kind: "request-media-scan", actor, cleaningRequestId }); return { cleaningRequestId, status: "draft", photos: [] }; },
@@ -971,3 +971,10 @@ assert(anonymousJobPhoto.response.statusCode === 401, "Booking photo content ski
 const participantJobPhoto = await dispatch(router, "GET", jobPhotoPath, { headers: { cookie: `${developmentSessionCookieName}=${material.token}` } });
 assert(participantJobPhoto.response.statusCode === 200 && participantJobPhoto.body.toString() === "synthetic booking photo" && participantJobPhoto.response.headers["Cache-Control"].includes("no-store"), "Authenticated booking image delivery failed.");
 assert((await dispatch(router, "POST", jobPhotoPath)).response.statusCode === 405, "Booking image content accepts writes.");
+
+for (const [path, code] of [[privatePhotoPath, "request-photo-link-expired"], [jobPhotoPath, "job-photo-link-expired"]]) {
+  const expired = await dispatch(router, "GET", path.replace(/expiresAt=.*/, "expiresAt=expired"), { headers: authHeaders });
+  assert(expired.response.statusCode === 410 && expired.body.code === code && expired.body.error === "Open the photo again.", "An expired photo became a generic server error instead of a recoverable expiry response.");
+  assert(expired.response.headers["Cache-Control"].includes("no-store"), "Expired photo errors can be cached.");
+}
+console.log("Private photo expiry HTTP checks passed for request and booking images.");
