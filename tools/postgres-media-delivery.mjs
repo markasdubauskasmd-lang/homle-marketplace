@@ -50,7 +50,7 @@ try {
     if (duringRead) { const action = duringRead; duringRead = null; await action(); }
     return bytes;
   } };
-  const serviceOptions = { objectStorage: storage, appOrigin: "http://127.0.0.1:4173", clock: () => new Date(time) };
+  const serviceOptions = { objectStorage: storage, appOrigin: "http://127.0.0.1:4173", now: () => new Date(time) };
   const requestMedia = createRequestMediaService(createRequestMediaRepository(database), serviceOptions);
   const jobMedia = createMediaService(createMediaRepository(database), serviceOptions);
   const unused = new Proxy({}, { get: () => async () => { throw new Error("Unexpected unrelated service call"); } });
