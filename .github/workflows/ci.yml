@@ -126,3 +126,4 @@ jobs:
         run: |
           node tools/postgres-integration-runner.mjs
           node tools/postgres-media-delivery.mjs
+          node tools/postgres-quote-handoff.mjs
