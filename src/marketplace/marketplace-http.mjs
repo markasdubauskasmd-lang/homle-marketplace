@@ -70,6 +70,7 @@ const favouriteCleanerPath = new RegExp(`^/api/marketplace/landlord/favourite-cl
 const bookingCompletionPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/completion$`);
 const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews$`);
 const bookingReviewResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews/response$`);
+const bookingReceiptPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/receipt$`);
 const bookingPaymentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/payment$`);
 const adminPaymentCommandPath = new RegExp(`^/api/marketplace/admin/payments/(${uuidPattern})/(capture|cancel|refund|transfer)$`);
 const adminRequestMatchingReadinessPath = new RegExp(`^/api/marketplace/admin/cleaning-requests/(${uuidPattern})/matching-readiness$`);
@@ -349,6 +350,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
           const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
           sendJson(response, 201, { ok: true, payout: await cleanerPayouts.beginOnboarding(context.actor) });
+          return true;
+        }
+        const selectedBookingReceipt = pathname.match(bookingReceiptPath);
+        if (selectedBookingReceipt) {
+          if (!payments) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { mutation: false, roles: ["landlord"] });
+          sendJson(response, 200, { ok: true, receipt: await payments.getReceiptForBooking(context.actor, selectedBookingReceipt[1]) }, { "Cache-Control": "private, no-store" });
           return true;
         }
         const selectedBookingPayment = pathname.match(bookingPaymentPath);

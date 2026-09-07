@@ -526,12 +526,17 @@
       "order": 105,
       "file": "105_manual_request_funnel.sql",
       "sha256": "736aa7d50e57a30cf552e92f34160bc68d87791165b7987d86f48178a111acb6"
+    },
+    {
+      "order": 106,
+      "file": "106_customer_receipt_access.sql",
+      "sha256": "f2bab60b1b404620852ff4495c6a4e2f25427a10613f65c08386520ba8cea457"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "af8dd733fa00af8fa9a9224f0a3614cfafd5cc4d2ace5973711700d2f4408273"
+      "sha256": "0e084cc866045dee2c722041365fed9904f639a0b27e09749d23f7515ccb02be"
     },
     {
       "file": "worker-role-grants.sql",

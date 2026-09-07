@@ -7107,6 +7107,27 @@
    "min-height": "auto",
    "outline-style": "none",
    "display": "flex"
+  },
+  "div.landlord-payment-status#1": {
+   "font-family": "\"DM Sans\", system-ui, -apple-system, sans-serif",
+   "font-size": "16px",
+   "font-weight": "400",
+   "letter-spacing": "normal",
+   "line-height": "25.6px",
+   "color": "rgb(26, 26, 26)",
+   "background-color": "rgba(0, 0, 0, 0)",
+   "border-top-width": "0px",
+   "border-top-style": "none",
+   "border-top-color": "rgb(26, 26, 26)",
+   "border-radius": "0px",
+   "box-shadow": "none",
+   "padding-top": "0px",
+   "padding-right": "0px",
+   "padding-bottom": "0px",
+   "padding-left": "0px",
+   "min-height": "0px",
+   "outline-style": "none",
+   "display": "flex"
   }
  },
  "phone · book": {
@@ -14452,6 +14473,27 @@
    "min-height": "0px",
    "outline-style": "none",
    "display": "block"
+  },
+  "div.landlord-payment-status#1": {
+   "font-family": "\"DM Sans\", system-ui, -apple-system, sans-serif",
+   "font-size": "16px",
+   "font-weight": "400",
+   "letter-spacing": "normal",
+   "line-height": "25.6px",
+   "color": "rgb(26, 26, 26)",
+   "background-color": "rgba(0, 0, 0, 0)",
+   "border-top-width": "0px",
+   "border-top-style": "none",
+   "border-top-color": "rgb(26, 26, 26)",
+   "border-radius": "0px",
+   "box-shadow": "none",
+   "padding-top": "0px",
+   "padding-right": "0px",
+   "padding-bottom": "0px",
+   "padding-left": "0px",
+   "min-height": "0px",
+   "outline-style": "none",
+   "display": "flex"
   }
  },
  "desktop · book": {

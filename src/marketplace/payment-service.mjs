@@ -258,6 +258,24 @@ export function createPaymentService(repository, provider, options = {}) {
       requireRole(actor, "landlord");
       return Object.freeze({ publishableKey, testMode: true });
     },
+    async getReceiptForBooking(actor, bookingId) {
+      requireRole(actor, "landlord");
+      const selectedBookingId = uuid(bookingId, "booking id");
+      if (typeof repository.getForReceipt !== "function" || typeof provider.retrieveReceipt !== "function") {
+        throw Object.assign(new Error("Receipts are temporarily unavailable. Try again later."), { statusCode: 503, code: "receipt-unavailable" });
+      }
+      // The database verifies ownership before any external provider lookup.
+      const record = await repository.getForReceipt(actor, selectedBookingId);
+      if (!record || !record.providerPaymentId || !Number.isInteger(record.amountCapturedPence) || record.amountCapturedPence < 1) {
+        return Object.freeze({ available: false, reason: "not-captured" });
+      }
+      try {
+        const receipt = await provider.retrieveReceipt(record);
+        return receipt ? Object.freeze({ available: true, ...receipt }) : Object.freeze({ available: false, reason: "not-ready" });
+      } catch {
+        throw Object.assign(new Error("The payment receipt could not be verified. Try again later."), { statusCode: 503, code: "receipt-unavailable" });
+      }
+    },
     async getForBooking(actor, bookingId) {
       requireRole(actor, "landlord", "administrator");
       const record = await repository.getByBooking(actor, uuid(bookingId, "booking id"));

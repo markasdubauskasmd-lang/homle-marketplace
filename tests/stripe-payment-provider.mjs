@@ -124,3 +124,45 @@ await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /API version/);
 assert(!JSON.stringify(provider).includes(secretKey) && !JSON.stringify(provider).includes(webhookSecret));
 
 console.log("Stripe payment provider tests passed: test-key-only adapter, hosted Cleaner payout onboarding, manual authorization, exact server commands, source-backed transfer and raw signed event projection.");
+
+/* Read-only receipts: verify identity, capture, currency and destination. */
+{
+  const input = { paymentId, bookingId, providerPaymentId: "pi_test_receipt", amountCapturedPence: 12000, currency: "gbp" };
+  const charge = { id: "ch_test_receipt", payment_intent: input.providerPaymentId, livemode: false,
+    currency: "gbp", amount_captured: 12000, amount_refunded: 0, paid: true, captured: true,
+    status: "succeeded", receipt_url: "https://pay.stripe.com/receipts/payment/synthetic" };
+  const intent = { id: input.providerPaymentId, livemode: false, currency: "gbp", status: "succeeded",
+    amount_received: 12000, metadata: { tideway_payment_id: paymentId, tideway_booking_id: bookingId }, latest_charge: charge };
+  let returned = structuredClone(intent);
+  const reads = [];
+  const receiptProvider = await createStripePaymentProvider({ secretKey, webhookSecret }, { stripeClient: {
+    ...client, paymentIntents: { ...client.paymentIntents, async retrieve(id, options) { reads.push({ id, options }); return returned; } },
+    charges: { async retrieve(id) { assert.equal(id, charge.id); return charge; } }
+  } });
+  assert.deepEqual(await receiptProvider.retrieveReceipt(input), { url: charge.receipt_url, amountCapturedPence: 12000, amountRefundedPence: 0, currency: "gbp", testMode: true });
+  assert.deepEqual(reads[0], { id: input.providerPaymentId, options: { expand: ["latest_charge"] } });
+  returned = { ...intent, latest_charge: charge.id };
+  assert.equal((await receiptProvider.retrieveReceipt(input)).url, charge.receipt_url);
+  for (const patch of [{ status: "requires_capture" }, { latest_charge: null }]) {
+    returned = { ...intent, ...patch };
+    assert.equal(await receiptProvider.retrieveReceipt(input), null);
+  }
+  returned = { ...intent, latest_charge: { ...charge, receipt_url: null } };
+  assert.equal(await receiptProvider.retrieveReceipt(input), null);
+  for (const patch of [{ id: "pi_wrong_payment" }, { livemode: true }, { currency: "eur" }, { amount_received: 11000 }, { metadata: {} }]) {
+    returned = { ...intent, ...patch };
+    await assert.rejects(receiptProvider.retrieveReceipt(input), /could not be verified/);
+  }
+  for (const patch of [{ payment_intent: "pi_wrong_payment" }, { livemode: true }, { currency: "eur" }, { amount_captured: 11000 },
+    { paid: false }, { captured: false }, { status: "failed" }, { amount_refunded: 13000 },
+    { receipt_url: "https://pay.stripe.com.evil.example/receipts/x" }, { receipt_url: "http://pay.stripe.com/receipts/x" },
+    { receipt_url: "https://someone@pay.stripe.com/receipts/x" }, { receipt_url: "https://pay.stripe.com/not-a-receipt" }]) {
+    returned = { ...intent, latest_charge: { ...charge, ...patch } };
+    await assert.rejects(receiptProvider.retrieveReceipt(input), /could not be verified/);
+  }
+  returned = { ...intent, latest_charge: { ...charge, amount_refunded: 12000 } };
+  assert.equal((await receiptProvider.retrieveReceipt(input)).amountRefundedPence, 12000);
+  const before = reads.length;
+  await assert.rejects(receiptProvider.retrieveReceipt({ ...input, amountCapturedPence: 0 }), /captured Homle payment/);
+  assert.equal(reads.length, before);
+}

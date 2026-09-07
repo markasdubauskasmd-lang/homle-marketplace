@@ -217,6 +217,7 @@ const paymentService = {
     calls.push({ kind: "payment-sandbox-checkout", actor, input });
     return { status: "requires-customer-action", amountPence: 30, currency: "gbp", requiresCustomerAction: true, clientSecret: "pi_test_sandbox_secret", testMode: true };
   },
+  async getReceiptForBooking(actor, bookingId) { calls.push({ kind: "receipt-get", actor, bookingId }); return { available: false, reason: "not-captured" }; },
   async getForBooking(actor, bookingId) {
     calls.push({ kind: "payment-get", actor, bookingId });
     return { paymentId: paymentStarted ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" : null, bookingId, status: paymentStarted ? "authorized" : "not-started", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, requiresCustomerAction: false, clientSecret: null };
@@ -423,6 +424,17 @@ assert(await noPaymentRouter.handle(request("POST", "/api/marketplace/payments/w
 
 const paymentBookingId = "55555555-5555-4555-8555-555555555555";
 const bookingPaymentUrl = `/api/marketplace/bookings/${paymentBookingId}/payment`;
+const receiptUrl = `/api/marketplace/bookings/${paymentBookingId}/receipt`;
+const receiptRead = await dispatch(router, "GET", receiptUrl, { headers: { cookie: authHeaders.cookie } });
+assert(receiptRead.response.statusCode === 200 && receiptRead.body.receipt.reason === "not-captured" && calls.at(-1).kind === "receipt-get", "Receipt route did not use the protected payment service.");
+assert(String(receiptRead.response.headers["Cache-Control"]).includes("no-store"), "Receipt response could be cached.");
+const receiptUnauthenticated = await dispatch(router, "GET", receiptUrl);
+assert(receiptUnauthenticated.response.statusCode === 401, "Private receipt was accessible without a session.");
+const receiptAdministrator = await dispatch(router, "GET", receiptUrl, { headers: { cookie: administratorAuthHeaders.cookie } });
+assert(receiptAdministrator.response.statusCode === 403, "Administrator-only session accessed the customer receipt route.");
+const receiptPost = await dispatch(router, "POST", receiptUrl, { headers: authHeaders });
+assert(receiptPost.response.statusCode === 405 && receiptPost.response.headers.Allow === "GET", "Receipt route accepted a mutation.");
+
 const paymentConfiguration = await dispatch(router, "GET", "/api/marketplace/payments/config", { headers: { cookie: authHeaders.cookie } });
 assert(paymentConfiguration.response.statusCode === 200 && paymentConfiguration.body.payment.publishableKey.startsWith("pk_test_") && paymentConfiguration.body.payment.testMode === true && calls.at(-1).kind === "payment-config", "Authenticated test checkout could not obtain its bounded publishable configuration.");
 const unauthenticatedPaymentConfiguration = await dispatch(router, "GET", "/api/marketplace/payments/config");

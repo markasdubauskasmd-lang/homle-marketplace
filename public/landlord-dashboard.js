@@ -3807,6 +3807,48 @@ function updateUpcomingRevealCount() {
  * So every row reuses the same wording the booking cards already use, rather
  * than inventing a more confident phrasing for the same underlying data.
  */
+function renderReceiptControl(bookingId) {
+  const host = element("div", "landlord-payment-status");
+  const button = element("button", "button button-outline", "Check receipt");
+  button.type = "button";
+  const feedback = element("span", "landlord-payment-boundary", "");
+  feedback.setAttribute("role", "status");
+  host.append(button, feedback);
+  button.addEventListener("click", async () => {
+    if (button.disabled) return;
+    button.disabled = true;
+    feedback.textContent = "Checking payment receipt…";
+    try {
+      const result = await requestJson(`/api/marketplace/bookings/${encodeURIComponent(bookingId)}/receipt`, { timeoutMs: 8000 });
+      if (!host.isConnected) return;
+      if (result.receipt?.available !== true) {
+        feedback.textContent = result.receipt?.reason === "not-captured"
+          ? "No captured payment receipt is available for this booking."
+          : "The payment provider has not made this receipt available yet.";
+        button.textContent = "Check again";
+        return;
+      }
+      const url = new URL(result.receipt.url);
+      if (url.protocol !== "https:" || url.hostname !== "pay.stripe.com" || url.port || url.username || url.password
+        || url.hash || !url.pathname.startsWith("/receipts/")) throw new Error("Invalid receipt link");
+      const link = element("a", "button button-outline", result.receipt.testMode === true ? "View test receipt" : "View receipt");
+      link.href = url.toString();
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.referrerPolicy = "no-referrer";
+      button.replaceWith(link);
+      feedback.textContent = result.receipt.testMode === true ? "Test payment receipt from Stripe." : "Payment receipt from Stripe.";
+    } catch {
+      if (!host.isConnected) return;
+      feedback.textContent = "The receipt could not be loaded. Try again.";
+      button.textContent = "Retry receipt";
+    } finally {
+      button.disabled = false;
+    }
+  });
+  return host;
+}
+
 function renderLandlordPayments(allBookings) {
   const list = document.querySelector("[data-landlord-payments-list]");
   const empty = document.querySelector("[data-landlord-payments-empty]");
@@ -3849,7 +3891,7 @@ function renderLandlordPayments(allBookings) {
       status.append(authorize);
     }
 
-    row.append(head, meta, status, element("p", "landlord-payment-boundary", bookingSummaryMoneyBoundary(booking, "landlord")));
+    row.append(head, meta, status, element("p", "landlord-payment-boundary", bookingSummaryMoneyBoundary(booking, "landlord")), renderReceiptControl(booking.bookingId));
     return row;
   }));
 }

@@ -69,4 +69,35 @@ BEGIN
 END
 $payment_ordering$;
 
+
+-- Exercise the SECURITY DEFINER ownership logic on a captured fixture and verify runtime grants.
+SELECT set_config('app.user_id', (SELECT landlord_user_id::text FROM bookings WHERE id='40000000-0000-4000-8000-000000000003'), true);
+SELECT set_config('app.user_roles', 'landlord', true);
+DO $receipt_owner$
+DECLARE payment record; blocked boolean := false;
+BEGIN
+  IF NOT has_function_privilege('tideway_app','tideway_private.read_my_booking_receipt_payment(uuid)','EXECUTE')
+    THEN RAISE EXCEPTION 'Runtime role cannot execute the owner-bound receipt lookup'; END IF;
+  SELECT * INTO payment FROM tideway_private.read_my_booking_receipt_payment('40000000-0000-4000-8000-000000000003');
+  IF payment.provider_payment_id IS DISTINCT FROM 'pi_payment_ordering' OR payment.amount_captured_pence < 1
+    THEN RAISE EXCEPTION 'Receipt owner lost the captured provider payment'; END IF;
+  IF has_table_privilege('tideway_app','public.booking_payments','SELECT')
+    THEN RAISE EXCEPTION 'Receipt access broadened payment table privileges'; END IF;
+  PERFORM set_config('app.user_id','10000000-0000-4000-8000-000000000099',true);
+  BEGIN
+    PERFORM * FROM tideway_private.read_my_booking_receipt_payment('40000000-0000-4000-8000-000000000003');
+  EXCEPTION WHEN SQLSTATE 'P0002' OR SQLSTATE '42501' THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'Another account read a private receipt payment'; END IF;
+  PERFORM set_config('app.user_id','10000000-0000-4000-8000-000000000004',true);
+  PERFORM set_config('app.user_roles','administrator',true);
+  blocked := false;
+  BEGIN
+    PERFORM * FROM tideway_private.read_my_booking_receipt_payment('40000000-0000-4000-8000-000000000003');
+  EXCEPTION WHEN SQLSTATE '42501' THEN blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'Administrator-only context bypassed customer receipt ownership'; END IF;
+END
+$receipt_owner$;
+
 ROLLBACK;
