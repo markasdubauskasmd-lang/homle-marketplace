@@ -48,3 +48,6 @@ body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .act
 }
 
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .button:disabled { background: #f7f6f5; border-color: #e7e4e0; color: #666; cursor: not-allowed; }
+
+body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-dispute-confirm input[type="checkbox"] { width: 18px; height: 18px; flex: 0 0 18px; accent-color: #e11b22; }
+body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-dispute-confirm span { min-width: 0; }
