@@ -1981,8 +1981,11 @@ async function confirmJourney() {
     }
     let submitted = false;
     let invitation = { invited: false, reason: "" };
-    if (state.capabilities.matchingReady && (!state.scanPhotos.length || state.capabilities.mediaReady)) {
-      if (state.scanPhotos.length) await uploadRoomPhotos(csrf, request.requestId);
+    if (state.scanPhotos.length) {
+      if (!state.capabilities.mediaReady) throw new Error("Secure photo upload is temporarily unavailable. Your selected photos remain in this tab; try again when it is available.");
+      await uploadRoomPhotos(csrf, request.requestId);
+    }
+    if (state.capabilities.matchingReady) {
       el.checkoutState.textContent = "Submitting your reviewed room scope…";
       const result = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(request.requestId)}/submit`, {
         method: "POST",
