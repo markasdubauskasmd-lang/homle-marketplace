@@ -264,7 +264,7 @@ function restoreDraft() {
     if (stored && !live) return discardDraft();
     if (stored?.draft && typeof stored.draft === "object") Object.assign(state.draft, stored.draft);
     if (typeof stored?.step === "string" && stepIndex(stored.step) >= 0) state.step = stored.step;
-    if (!durationChoices.includes(Number(state.draft.durationMinutes))) state.draft.durationMinutes = 120;
+    if (!durationChoices.includes(Number(state.draft.durationMinutes))) setRequestScopeValue("durationMinutes", 120);
     for (const key of ["propertyDraftId", "requestId"]) {
       if (!/^[0-9a-f-]{36}$/i.test(state.draft[key] || "")) state.draft[key] = "";
     }
@@ -296,7 +296,7 @@ function adoptScan() {
   state.scanCorrections = [];
   state.scanMeasurements = [];
   state.scanReview = null;
-  state.draft.durationMinutes = suggestedDurationMinutes(tasks);
+  setRequestScopeValue("durationMinutes", suggestedDurationMinutes(tasks));
   state.step = "results";
   return true;
 }
@@ -406,7 +406,7 @@ function readCurrentStep() {
   if (state.step === "results") {
     state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
   }
-  if (state.step === "when") state.draft.durationMinutes = Number(el.duration.value);
+  if (state.step === "when") setRequestScopeValue("durationMinutes", Number(el.duration.value));
   saveDraft();
 }
 
@@ -418,7 +418,7 @@ function selectScanProperty(property) {
     el.postcodeError.hidden = false;
     return;
   }
-  state.draft.propertyId = property.propertyId;
+  setRequestScopeValue("propertyId", property.propertyId);
   state.draft.postcode = parsed.full || String(property.exactAddress.postcode).trim();
   state.draft.outward = parsed.outward;
   el.postcode.value = state.draft.postcode;
@@ -434,7 +434,7 @@ function renderScanPropertyChoice() {
   const available = state.properties.filter((property) => normalisedPostcode(property?.exactAddress?.postcode));
   const needsPostcode = state.properties.length - available.length;
   if (state.draft.propertyId && !available.some((property) => property.propertyId === state.draft.propertyId)) {
-    state.draft.propertyId = "";
+    setRequestScopeValue("propertyId", "");
     state.draft.postcode = "";
     state.draft.outward = "";
   }
@@ -510,7 +510,7 @@ function renderServices() {
     option.querySelector(".opt-name").textContent = service.name;
     option.querySelector(".opt-detail").textContent = service.detail;
     option.addEventListener("click", () => {
-      state.draft.serviceCode = service.code;
+      setRequestScopeValue("serviceCode", service.code);
       saveDraft();
       renderServices();
     });
@@ -561,7 +561,7 @@ el.scanLink.addEventListener("click", async () => {
     state.draft.requestId = "";
     state.scanSessionId = "";
     refreshScanReview();
-    state.draft.durationMinutes = suggestedDurationMinutes(state.draft.tasks);
+    setRequestScopeValue("durationMinutes", suggestedDurationMinutes(state.draft.tasks));
     saveDraft();
     show("results");
     toast(state.draft.tasks.length
@@ -626,6 +626,11 @@ function eligiblePremiumSelections() {
     .map((object) => premiumChoiceId(room.name || room.roomName, object.inventoryKey || object.code))));
   const restricted = new Set(premiumRestrictions(state.scanPremiumPlan, currentNoteLines()));
   return state.scanPremiumSelected.filter((id) => present.has(id) && !restricted.has(id) && !state.scanPremiumPlan.options.some((option) => option.id === id && option.restricted));
+}
+
+function setRequestScopeValue(field, value) {
+  if (state.draft[field] !== value) invalidateScanRequest();
+  state.draft[field] = value;
 }
 
 function invalidateScanRequest() {
@@ -766,7 +771,7 @@ function renderSelectedPremiumTasks() {
 /* ── Step 4: when ───────────────────────────────────── */
 function renderWhen() {
   const days = bookableDays(new Date());
-  if (!days.some((day) => day.iso === state.draft.date)) state.draft.date = days[0].iso;
+  if (!days.some((day) => day.iso === state.draft.date)) setRequestScopeValue("date", days[0].iso);
   el.days.innerHTML = "";
   for (const day of days) {
     const option = document.createElement("button");
@@ -778,12 +783,12 @@ function renderWhen() {
     option.innerHTML = `<span></span><b></b>`;
     option.querySelector("span").textContent = day.weekday;
     option.querySelector("b").textContent = day.dayOfMonth;
-    option.addEventListener("click", () => { state.draft.date = day.iso; saveDraft(); renderWhen(); });
+    option.addEventListener("click", () => { setRequestScopeValue("date", day.iso); saveDraft(); renderWhen(); });
     el.days.appendChild(option);
   }
   renderChips(el.times, arrivalWindows.map((time) => ({ code: time, label: time })), "time");
   renderChips(el.frequencies, frequencies, "frequency");
-  if (!durationChoices.includes(Number(state.draft.durationMinutes))) state.draft.durationMinutes = suggestedDurationMinutes(state.draft.tasks);
+  if (!durationChoices.includes(Number(state.draft.durationMinutes))) setRequestScopeValue("durationMinutes", suggestedDurationMinutes(state.draft.tasks));
   el.duration.value = String(state.draft.durationMinutes);
 }
 
@@ -798,7 +803,7 @@ function renderChips(container, items, field) {
     chip.classList.toggle("on", state.draft[field] === item.code);
     chip.textContent = item.label;
     chip.addEventListener("click", () => {
-      state.draft[field] = item.code;
+      setRequestScopeValue(field, item.code);
       saveDraft();
       renderChips(container, items, field);
     });
@@ -931,8 +936,8 @@ function renderPropertyChoice() {
   }
 
   const eligible = matchingProperties(state.properties, state.draft.postcode);
-  if (state.draft.propertyId && !eligible.some((property) => property.propertyId === state.draft.propertyId)) state.draft.propertyId = "";
-  if (!state.draft.propertyId && eligible.length === 1) state.draft.propertyId = eligible[0].propertyId;
+  if (state.draft.propertyId && !eligible.some((property) => property.propertyId === state.draft.propertyId)) setRequestScopeValue("propertyId", "");
+  if (!state.draft.propertyId && eligible.length === 1) setRequestScopeValue("propertyId", eligible[0].propertyId);
   el.propertyAccountState.textContent = eligible.length
     ? `${eligible.length} saved ${eligible.length === 1 ? "property matches" : "properties match"} this postcode.`
     : "No saved property matches this postcode.";
@@ -946,7 +951,7 @@ function renderPropertyChoice() {
     option.classList.toggle("on", state.draft.propertyId === property.propertyId);
     option.textContent = propertyLabel(property);
     option.addEventListener("click", () => {
-      state.draft.propertyId = property.propertyId;
+      setRequestScopeValue("propertyId", property.propertyId);
       saveDraft();
       renderPropertyChoice();
     });
@@ -1043,7 +1048,7 @@ async function createOrRecoverProperty(csrf) {
     });
     if (!result.property?.propertyId) throw new Error("The saved property could not be verified.");
     state.properties.push(result.property);
-    state.draft.propertyId = result.property.propertyId;
+    setRequestScopeValue("propertyId", result.property.propertyId);
     saveDraft();
     return state.draft.propertyId;
   } catch (error) {
@@ -1052,7 +1057,7 @@ async function createOrRecoverProperty(csrf) {
     const recovered = (result.properties || []).find((property) => property.propertyId === state.draft.propertyDraftId);
     if (!recovered) throw error;
     state.properties = result.properties;
-    state.draft.propertyId = recovered.propertyId;
+    setRequestScopeValue("propertyId", recovered.propertyId);
     saveDraft();
     return recovered.propertyId;
   }
@@ -2085,7 +2090,7 @@ async function openAuthenticatedJourney() {
   // bypass the new property choice or attach a scan to the wrong place.
   const selectedProperty = state.properties.find((property) => property.propertyId === state.draft.propertyId);
   if (!selectedProperty || !normalisedPostcode(selectedProperty.exactAddress?.postcode)) {
-    state.draft.propertyId = "";
+    setRequestScopeValue("propertyId", "");
     state.draft.postcode = "";
     state.draft.outward = "";
     if (stepIndex(state.step) > 0) state.step = "postcode";
@@ -2100,11 +2105,11 @@ async function openAuthenticatedJourney() {
 for (const button of $$("[data-next]")) button.addEventListener("click", goNext);
 el.confirm.addEventListener("click", confirmJourney);
 el.duration.addEventListener("change", () => {
-  state.draft.durationMinutes = Number(el.duration.value);
+  setRequestScopeValue("durationMinutes", Number(el.duration.value));
   saveDraft();
 });
 el.propertyNewToggle.addEventListener("click", () => {
-  state.draft.propertyId = "";
+  setRequestScopeValue("propertyId", "");
   saveDraft();
   renderPropertyChoice();
   el.propertyType.focus();
@@ -2136,7 +2141,7 @@ restoreDraft();
 // An unrecognised or absent code changes nothing, and a draft already carrying
 // a service wins — a restored walkthrough is a stronger signal than a link.
 const requestedService = new URLSearchParams(location.search).get("service") || "";
-if (!state.draft.serviceCode && isKnownService(requestedService)) state.draft.serviceCode = requestedService;
+if (!state.draft.serviceCode && isKnownService(requestedService)) setRequestScopeValue("serviceCode", requestedService);
 if (!state.draft.cleanerId) {
   state.draft.cleanerId = "marketplace";
   state.draft.cleanerName = "Best available Cleaner";
