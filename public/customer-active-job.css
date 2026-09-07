@@ -46,3 +46,5 @@ body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .act
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-heading h1 { font-size: 26px; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-stages small { overflow-wrap: anywhere; }
 }
+
+body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .button:disabled { background: #f7f6f5; border-color: #e7e4e0; color: #666; cursor: not-allowed; }
