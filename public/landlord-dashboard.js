@@ -1,3 +1,4 @@
+import { createManualRequestRecovery } from "./manual-request-recovery.js";
 import { checklistFromTranscript } from "./checklist.js";
 import { checklistChangeReview } from "./checklist-change-review.js";
 import { clearSelectedCleaner, clearSelectedProperty, readSelectedCleaner, readSelectedProperty, saveSelectedCleaner, saveSelectedProperty } from "./account-intent.js?v=20260718-2";
@@ -2045,6 +2046,7 @@ function renderBookingSourceState() {
 
 // Guards the one function every "save this draft" control reaches.
 let requestDraftPending = false;
+const saveManualRequest = createManualRequestRecovery({ requestJson, getStorage: () => window.sessionStorage });
 function setRequestDraftControlsLocked(locked) {
   for (const control of [requestSave, requestContinue]) {
     if (control) control.disabled = locked;
@@ -4418,9 +4420,9 @@ async function createRequestDraft(event, options = {}) {
       }),
       submit: false
     };
-    const result = await requestJson("/api/marketplace/cleaning-requests", { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
+    const result = await saveManualRequest(csrf, body);
     if (!result.cleaningRequest?.requestId) throw new Error("The saved cleaning-request draft could not be verified.");
-    requests.unshift(result.cleaningRequest);
+    requests = [result.cleaningRequest, ...requests.filter(request => request.requestId !== result.cleaningRequest.requestId)];
     currentRequestDraft = result.cleaningRequest;
     renderRequests();
     try { clearLandlordRequestDraft(window.sessionStorage); } catch {}
