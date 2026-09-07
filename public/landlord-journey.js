@@ -1,3 +1,4 @@
+import { bindJourneyRadioGroups } from "./journey-radio-keyboard.js?v=20260907-1";
 // Pricing. The same modules the server prices with, so the number the customer
 // watches move is the number the booking is made at.
 import { defaultPricingConfig, normalizedPricingConfig } from "./pricing-config.js?v=20260808-1";
@@ -2105,6 +2106,7 @@ async function openAuthenticatedJourney() {
 }
 
 /* ── Wiring ─────────────────────────────────────────── */
+bindJourneyRadioGroups();
 for (const button of $$("[data-next]")) button.addEventListener("click", goNext);
 el.confirm.addEventListener("click", confirmJourney);
 el.duration.addEventListener("change", () => {
