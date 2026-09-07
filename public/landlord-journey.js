@@ -34,7 +34,7 @@ import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInT
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
-import { requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
+import { pricingRequestFromManualTasks, requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
 import { landlordRequestDraftLifetimeMs } from "./landlord-request-draft.js?v=20260830-1";
 import { isUkPostcode } from "./contact-validation.js";
 
@@ -1083,7 +1083,11 @@ async function createOrRecoverRequest(csrf, propertyId) {
     tasks,
     // The browser sends scope, never money. The server recomputes this selection
     // from its active price list and freezes that authoritative quote.
-    pricingRequest: state.scanRooms.length ? currentPricingRequest() : null,
+    pricingRequest: state.scanRooms.length ? currentPricingRequest() : pricingRequestFromManualTasks(tasks, {
+      cleaningType: state.draft.serviceCode,
+      frequency: state.draft.frequency,
+      requestedMinutes: Number(state.draft.durationMinutes)
+    }),
     submit: false
   };
   try {

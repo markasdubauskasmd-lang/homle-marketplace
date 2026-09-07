@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
-import { requestedWindow, requestTasksFromLines } from "../public/landlord-dashboard-model.js";
+import { pricingRequestFromManualTasks, requestedWindow, requestTasksFromLines } from "../public/landlord-dashboard-model.js";
 import { premiumBaseTasks } from "../public/scan-premium-selection.js";
 
 // Exercise the actual customer handlers with deferred directory responses.
@@ -293,7 +293,7 @@ console.log("Customer invitation contract passed: empty capacity, declined exact
   };
   const el = { duration: { value: "120", addEventListener(name, handler) { assert.equal(name, "change"); durationChange = handler; } } };
   const context = vm.createContext({
-    state, el, requestedWindow, requestTasksFromLines, saveDraft() {},
+    state, el, requestedWindow, requestTasksFromLines, pricingRequestFromManualTasks, saveDraft() {},
     randomId: () => "30000000-0000-4000-8000-" + String(++sequence).padStart(12, "0"),
     requestJson: async (url, options) => {
       if (!options) return { cleaningRequests: [...records.values()] };
@@ -468,3 +468,4 @@ for (const fail of [false, true]) {
   }
 }
 console.log("Pending confirmation passed: scope controls and Back/history lock before await, and failure restores editing without enabling unavailable choices.");
+
