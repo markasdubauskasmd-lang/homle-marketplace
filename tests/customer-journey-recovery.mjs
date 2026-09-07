@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
+import { requestedWindow, requestTasksFromLines } from "../public/landlord-dashboard-model.js";
 import { premiumBaseTasks } from "../public/scan-premium-selection.js";
 
 // Exercise the actual customer handlers with deferred directory responses.
@@ -271,4 +272,73 @@ console.log("Customer invitation contract passed: empty capacity, declined exact
   assert.match(html, /id="tasks-hint" data-task-hint/);
   assert.match(html, /id="tasks-error" data-tasks-error hidden/);
   console.log("Checklist validation passed: persistent associated error, focus, whitespace/retry blocking and correction recovery.");
+}
+
+
+// A scope edit after a saved request must not recover the old request by ID.
+// Exercise the actual duration handler and request save/recovery path together.
+{
+  let durationChange, sequence = 0;
+  const records = new Map(), payloads = [];
+  const state = {
+    scanSessionId: "", scanRooms: [],
+    draft: { requestId: "", propertyId: "20000000-0000-4000-8000-000000000001",
+      serviceCode: "regular-domestic", date: "2026-10-08", time: "09:00",
+      durationMinutes: 120, frequency: "one-time", tasks: ["Kitchen: clean worktops"], transcript: "" }
+  };
+  const el = { duration: { value: "120", addEventListener(name, handler) { assert.equal(name, "change"); durationChange = handler; } } };
+  const context = vm.createContext({
+    state, el, requestedWindow, requestTasksFromLines, saveDraft() {},
+    randomId: () => "30000000-0000-4000-8000-" + String(++sequence).padStart(12, "0"),
+    requestJson: async (url, options) => {
+      if (!options) return { cleaningRequests: [...records.values()] };
+      const payload = JSON.parse(options.body);
+      payloads.push(payload);
+      if (records.has(payload.id)) throw Object.assign(new Error("Already saved"), { statusCode: 409 });
+      const record = { requestId: payload.id, requestedStartAt: payload.requestedStartAt, requestedEndAt: payload.requestedEndAt };
+      records.set(payload.id, record);
+      return { cleaningRequest: record };
+    }
+  });
+  vm.runInContext(section("function setRequestScopeValue(", "function currentNoteLines(")
+    + section('el.duration.addEventListener("change"', "el.propertyNewToggle.addEventListener")
+    + section("async function createOrRecoverRequest(", "// Saves what the scan actually saw"), context);
+  const first = await context.createOrRecoverRequest("test-csrf", state.draft.propertyId);
+  state.scanSessionId = "scan-for-two-hour-request";
+  el.duration.value = "240";
+  durationChange();
+  assert.equal(state.draft.requestId, "");
+  assert.equal(state.scanSessionId, "");
+  const second = await context.createOrRecoverRequest("test-csrf", state.draft.propertyId);
+  assert.notEqual(first.requestId, second.requestId, "An edited request reused the old saved identity");
+  assert.equal(new Date(first.requestedEndAt) - new Date(first.requestedStartAt), 120 * 60000);
+  assert.equal(new Date(second.requestedEndAt) - new Date(second.requestedStartAt), 240 * 60000);
+  state.scanSessionId = "scan-for-four-hour-request";
+  durationChange(); // Same value: a harmless event must preserve retry identity.
+  assert.equal(state.draft.requestId, second.requestId);
+  assert.equal(state.scanSessionId, "scan-for-four-hour-request");
+  const retry = await context.createOrRecoverRequest("test-csrf", state.draft.propertyId);
+  assert.equal(retry.requestId, second.requestId);
+  assert.equal(records.size, 2, "An unchanged retry created another draft");
+  assert.equal(payloads.at(-1).id, second.requestId);
+
+  for (const [field, value] of Object.entries({
+    propertyId: "20000000-0000-4000-8000-000000000002", serviceCode: "deep-cleans",
+    date: "2026-10-09", time: "10:00", frequency: "weekly", durationMinutes: 180
+  })) {
+    state.draft.requestId = "old-request"; state.scanSessionId = "old-scan";
+    context.setRequestScopeValue(field, value);
+    assert.equal(state.draft[field], value);
+    assert.equal(state.draft.requestId, "", field + " retained an old request");
+    assert.equal(state.scanSessionId, "", field + " retained an old scan");
+    state.draft.requestId = "unchanged-request"; state.scanSessionId = "unchanged-scan";
+    context.setRequestScopeValue(field, value);
+    assert.equal(state.draft.requestId, "unchanged-request", field + " broke unchanged retries");
+    assert.equal(state.scanSessionId, "unchanged-scan");
+  }
+  // Every direct assignment for these fields must pass through the same helper,
+  // including automatic stale-date/property corrections and chip selection.
+  assert.doesNotMatch(script, /state\.draft\.(propertyId|serviceCode|date|time|frequency|durationMinutes) = /);
+  assert.match(script, /setRequestScopeValue\(field, item.code\)/);
+  console.log("Journey scope recovery passed: edits create a new exact-scope request; unchanged retry recovers the same record, and all scoped fields clear stale scan identity.");
 }
