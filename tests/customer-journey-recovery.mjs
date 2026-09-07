@@ -342,3 +342,70 @@ console.log("Customer invitation contract passed: empty capacity, declined exact
   assert.match(script, /setRequestScopeValue\(field, item.code\)/);
   console.log("Journey scope recovery passed: edits create a new exact-scope request; unchanged retry recovers the same record, and all scoped fields clear stale scan identity.");
 }
+
+
+// Optional photos use the existing submission contract. Test the actual final
+// handler, with explicit fixture services and no real requests or invitations.
+function confirmationHarness({ matchingReady = true, mediaReady = false, photos = [], uploadError = null, submitStatus = "searching-for-cleaner" } = {}) {
+  const calls = [];
+  const state = { signedIn: true, confirming: false, step: "checkout", scanRooms: [],
+    scanPhotos: [...photos], capabilities: { matchingReady, mediaReady }, draft: {} };
+  const el = Object.fromEntries(["confirm", "checkoutState", "cleanerPhotoPreview", "doneTitle", "doneBody", "propertySignIn"].map(key => [key, {}]));
+  el.cleanerPhotoPreview.checked = true; // Stale UI consent cannot authorize absent photos.
+  const ctx = vm.createContext({
+    state, el,
+    recoverCsrf: async () => "fixture-csrf",
+    createOrRecoverProperty: async () => "fixture-property",
+    createOrRecoverRequest: async () => { calls.push({ kind: "save" }); return { requestId: "fixture-request" }; },
+    saveStructuredScanWithRetry: async () => true,
+    uploadRoomPhotos: async () => { calls.push({ kind: "upload" }); if (uploadError) throw uploadError; },
+    requestJson: async (url, options) => { calls.push({ kind: "submit", url, body: JSON.parse(options.body) }); return { submission: { status: submitStatus } }; },
+    inviteSelectedCleaner: async () => { calls.push({ kind: "invitation-review" }); return { invited: false, reason: "" }; },
+    cleanerInvitationRecovery: error => error.message,
+    discardDraft: () => calls.push({ kind: "discard" }),
+    show: step => { state.step = step; }
+  });
+  vm.runInContext(section("async function confirmJourney()", "async function loadCapabilities()"), ctx);
+  return { ctx, calls, state, el };
+}
+{
+  const { ctx, calls, state, el } = confirmationHarness();
+  await Promise.all([ctx.confirmJourney(), ctx.confirmJourney()]);
+  assert.deepEqual(calls.map(c => c.kind), ["save", "submit", "invitation-review", "discard"]);
+  assert.deepEqual(calls.find(c => c.kind === "submit").body, { scopeReviewed: true, cleanerPreviewAuthorized: false });
+  assert.equal(state.step, "done");
+  assert.equal(el.doneTitle.textContent, "Your request is ready for matching.");
+  assert(!/photo.*required|Add a current room photo/.test(el.doneBody.textContent));
+}
+for (const photos of [[], [{ id: "synthetic-photo" }]]) {
+  const { ctx, calls, el } = confirmationHarness({ matchingReady: false, mediaReady: true, photos });
+  await ctx.confirmJourney();
+  assert.equal(calls.some(c => c.kind === "submit" || c.kind === "invitation-review"), false, "Draft-only mode submitted a request");
+  assert.equal(calls.filter(c => c.kind === "upload").length, photos.length ? 1 : 0);
+  assert.equal(el.doneTitle.textContent, "Your private draft is saved.");
+}
+{
+  const { ctx, calls } = confirmationHarness({ mediaReady: true, photos: [{ id: "synthetic-photo" }] });
+  await ctx.confirmJourney();
+  assert.deepEqual(calls.map(c => c.kind), ["save", "upload", "submit", "invitation-review", "discard"]);
+  assert.equal(calls.find(c => c.kind === "submit").body.cleanerPreviewAuthorized, true);
+}
+for (const options of [
+  { mediaReady: false },
+  { mediaReady: true, uploadError: new Error("Upload failed") }
+]) {
+  const { ctx, calls, state, el } = confirmationHarness({ ...options, photos: [{ id: "synthetic-photo" }] });
+  await ctx.confirmJourney();
+  assert.equal(calls.some(c => ["submit", "invitation-review", "discard"].includes(c.kind)), false);
+  assert.equal(state.scanPhotos.length, 1, "Unavailable or failed upload discarded selected photos");
+  assert.equal(state.step, "checkout");
+  assert.equal(state.confirming, false);
+  assert.equal(el.confirm.disabled, false);
+}
+{
+  const { ctx, calls, state } = confirmationHarness({ submitStatus: "draft" });
+  await ctx.confirmJourney();
+  assert.equal(calls.some(c => ["invitation-review", "discard"].includes(c.kind)), false);
+  assert.equal(state.step, "checkout", "Unverified submission looked successful");
+}
+console.log("Manual fallback submission passed: optional photos, no implicit preview consent, draft-only mode, upload order/failure retention, verified submission and double-click lock.");
