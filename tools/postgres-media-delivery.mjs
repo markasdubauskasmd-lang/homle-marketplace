@@ -7,6 +7,7 @@ import { createRequestMediaRepository } from "../src/marketplace/request-media-r
 import { createMediaRepository } from "../src/marketplace/media-repository.mjs";
 import { createRequestMediaService } from "../src/marketplace/request-media-service.mjs";
 import { createMediaService } from "../src/marketplace/media-service.mjs";
+import { AccountHttpError } from "../src/marketplace/account-security.mjs";
 import { createMarketplaceHttpRouter } from "../src/marketplace/marketplace-http.mjs";
 
 assert.equal(process.env.TIDEWAY_DATABASE_TEST_CONFIRMATION, "RUN TIDEWAY DISPOSABLE DATABASE TESTS");
@@ -58,7 +59,7 @@ try {
   // runtime-role database, repository and media service, followed by the real router.
   const dependencies = new Proxy({
     security: { async protect(request) {
-      if (!request.actor) throw Object.assign(new Error("Sign in required"), { statusCode: 401 });
+      if (!request.actor) throw new AccountHttpError(401, "authentication-required", "Sign in required");
       return { actor: request.actor };
     } },
     requestMediaService: requestMedia, mediaService: jobMedia,
