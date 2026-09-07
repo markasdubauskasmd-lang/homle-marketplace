@@ -469,4 +469,3 @@ for (const fail of [false, true]) {
 }
 console.log("Pending confirmation passed: scope controls and Back/history lock before await, and failure restores editing without enabling unavailable choices.");
 
-await import("./journey-payload-parity.mjs");
