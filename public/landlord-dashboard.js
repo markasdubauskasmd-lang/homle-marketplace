@@ -4422,7 +4422,7 @@ async function createRequestDraft(event, options = {}) {
     };
     const result = await saveManualRequest(csrf, body);
     if (!result.cleaningRequest?.requestId) throw new Error("The saved cleaning-request draft could not be verified.");
-    requests.unshift(result.cleaningRequest);
+    requests = [result.cleaningRequest, ...requests.filter(request => request.requestId !== result.cleaningRequest.requestId)];
     currentRequestDraft = result.cleaningRequest;
     renderRequests();
     try { clearLandlordRequestDraft(window.sessionStorage); } catch {}
