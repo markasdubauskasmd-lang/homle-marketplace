@@ -329,7 +329,7 @@ function show(stepId, historyMode = "push") {
   const changedStep = state.step !== stepId;
   state.step = stepId;
   let activeSection = null;
-  for (const section of $(".jstep")) {
+  for (const section of $$(".jstep")) {
     section.hidden = section.dataset.step !== stepId;
     if (!section.hidden) activeSection = section;
   }
