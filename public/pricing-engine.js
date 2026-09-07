@@ -269,13 +269,19 @@ export function quoteRooms(request = {}, config = {}) {
  * same function.
  */
 export function quoteInputFromScan(scan = {}, options = {}) {
+  const config = normalizedPricingConfig(options.config);
   const rooms = (Array.isArray(scan?.rooms) ? scan.rooms : []).map((room) => ({
     roomType: room?.roomType || room?.roomName || "other",
     label: room?.roomName || room?.label || "Room",
     items: (Array.isArray(room?.objects) ? room.objects : [])
       // Anything the customer deselected is not work, and anything still
       // awaiting confirmation is not work either until they say so.
-      .filter((object) => object?.selected !== false && object?.needsConfirmation !== true)
+      .filter((object) => {
+        if (object?.selected === false || object?.needsConfirmation === true) return false;
+        const code = String(object?.inventoryKey || object?.code || "").trim().toLowerCase();
+        // Detection is evidence of an object, never consent to specialist work.
+        return !Object.hasOwn(config.premiumItems, code) || object?.selected === true;
+      })
       .map((object) => ({
         code: String(object?.inventoryKey || object?.code || "").trim(),
         label: String(object?.label || object?.name || "Task").slice(0, 80)

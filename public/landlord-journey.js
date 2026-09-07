@@ -1,7 +1,7 @@
 // Pricing. The same modules the server prices with, so the number the customer
 // watches move is the number the booking is made at.
 import { defaultPricingConfig, normalizedPricingConfig } from "./pricing-config.js?v=20260808-1";
-import { quoteInputFromScan, quoteRooms } from "./pricing-engine.js?v=20260808-1";
+import { quoteInputFromScan, quoteRooms } from "./pricing-engine.js?v=20260906-1";
 import { createPriceAnimator, formatPence, showPriceDelta } from "./price-animator.js?v=20260808-1";
 
 import {
@@ -29,6 +29,7 @@ import {
   checkoutMode,
   checkoutCopy
 } from "./landlord-journey-model.js?v=journey9";
+import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInTasks, selectedScanRooms, premiumChoiceId, reviewedScanNotes, scanNoteLines, premiumRestrictions } from "./scan-premium-selection.js?v=20260906-2";
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
@@ -112,6 +113,8 @@ const state = {
   // of the inside of someone's home does not belong there before the
   // authenticated private draft exists to receive it.
   scanRooms: [],
+  scanPremiumPlan: { options: [], groups: [], baseTasks: [] },
+  scanPremiumSelected: [],
   scanDeviceClass: "unknown",
   // Stable across retries so a save that timed out and is tried again is
   // absorbed by the server rather than recorded twice.
@@ -123,6 +126,8 @@ const state = {
   scanCorrections: [],
   scanReview: null,
   scanInstructions: [],
+  scanNoteEdits: {},
+  scanGeneralNote: "",
   // Measurements taken from the room photos at review time. Held in memory like
   // the photos they were measured from, and stored against the saved scan at
   // confirm — the same deferred-persist pattern as corrections and instructions.
@@ -352,6 +357,7 @@ function show(stepId, historyMode = "push") {
 }
 
 function goNext() {
+  if (state.step === "results" && !validatePremiumChecklist()) return;
   readCurrentStep();
   if (state.step === "postcode" && state.supplyPending) return toast("Checking coverage for this property…");
   if (state.step === "cleaner" && state.cleanersPending) return toast("Checking cleaner profiles…");
@@ -370,7 +376,7 @@ function readCurrentStep() {
     state.draft.outward = parsed?.outward || "";
   }
   if (state.step === "results") {
-    state.draft.tasks = el.tasks.value.split("\n").map((line) => line.trim()).filter(Boolean).slice(0, 40);
+    state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
   }
   if (state.step === "when") state.draft.durationMinutes = Number(el.duration.value);
   saveDraft();
@@ -508,10 +514,24 @@ el.scanLink.addEventListener("click", async () => {
     state.draft.guideTime = typeof result.guideTime === "string" ? result.guideTime : "";
     state.scanPhotos = Array.isArray(result.photos) ? result.photos : [];
     state.scanRooms = Array.isArray(result.rooms) ? result.rooms : [];
+    state.scanNoteEdits = {};
+    const sourceNotes = state.scanRooms.filter((room) => String(room.note || "").trim())
+      .map((room) => room.name + ": " + String(room.note).trim()).join("\n");
+    // Preserve unmatched legacy speech separately; the overlay aggregate can
+    // be a truncated prefix of the complete room notes.
+    state.scanGeneralNote = sourceNotes && sourceNotes.startsWith(state.draft.transcript.trim())
+      ? "" : state.draft.transcript;
     state.scanDeviceClass = typeof result.deviceClass === "string" ? result.deviceClass : "unknown";
     state.scanCorrections = [];
     state.scanMeasurements = [];
     state.scanReview = null;
+    await loadPricingConfig();
+    state.scanPremiumPlan = createPremiumPlan(state.scanRooms, state.draft.tasks, pricingConfig);
+    state.scanPremiumSelected = [];
+    state.draft.tasks = state.scanPremiumPlan.baseTasks;
+    state.draft.guideTime = "";
+    state.draft.requestId = "";
+    state.scanSessionId = "";
     refreshScanReview();
     state.draft.durationMinutes = suggestedDurationMinutes(state.draft.tasks);
     saveDraft();
@@ -537,12 +557,14 @@ function renderResults() {
   el.resultsSource.textContent = scanned
     ? `Scoped from your ${state.draft.rooms.length || "room"} scan${state.draft.transcript ? " + voice note" : ""}`
     : "Written by you";
-  el.tasks.value = state.draft.tasks.join("\n");
+  el.tasks.value = premiumBaseTasks(state.scanPremiumPlan, state.draft.tasks).join("\n");
+  renderPremiumChoices();
+  renderRoomNotes();
   updateResultTotals();
 }
 
 function updateResultTotals() {
-  const tasks = el.tasks.value.split("\n").map((line) => line.trim()).filter(Boolean);
+  const tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
   const rooms = new Set(tasks.map((task) => (task.includes(":") ? task.split(":")[0].trim().toLowerCase() : "")).filter(Boolean));
   el.resultsTasks.textContent = String(tasks.length);
   el.resultsRooms.textContent = String(rooms.size || state.draft.rooms.length || 0);
@@ -552,14 +574,165 @@ function updateResultTotals() {
 // Same honesty as the scan: a range from the work listed, never a single
 // confident figure a checklist cannot support.
 function guideRange(taskCount) {
-  const minutes = Math.max(60, Math.round((taskCount * 12) / 5) * 5);
-  const low = Math.max(60, Math.round((minutes * 0.65) / 15) * 15);
+  const minutes = Math.max(120, Math.round((taskCount * 12) / 5) * 5);
+  const low = Math.max(120, Math.round((minutes * 0.65) / 15) * 15);
   const high = Math.round((minutes * 1.35) / 15) * 15;
   const clock = (value) => (value % 60 ? `${Math.floor(value / 60)}h ${value % 60}m` : `${Math.floor(value / 60)}h`);
   return low >= high ? clock(minutes) : `${clock(low)}–${clock(high)}`;
 }
 
-el.tasks.addEventListener("input", updateResultTotals);
+el.tasks.addEventListener("input", () => {
+  invalidateScanRequest();
+  el.tasks.setCustomValidity("");
+  updateResultTotals();
+});
+
+function editableTaskLines() {
+  return el.tasks.value.split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+function eligiblePremiumSelections() {
+  const present = new Set(correctedScanRooms().flatMap((room) => (room.objects || [])
+    .filter((object) => object.needsConfirmation !== true && object.selected !== false)
+    .map((object) => premiumChoiceId(room.name || room.roomName, object.inventoryKey || object.code))));
+  const restricted = new Set(premiumRestrictions(state.scanPremiumPlan, currentNoteLines()));
+  return state.scanPremiumSelected.filter((id) => present.has(id) && !restricted.has(id) && !state.scanPremiumPlan.options.some((option) => option.id === id && option.restricted));
+}
+
+function invalidateScanRequest() {
+  state.draft.requestId = "";
+  state.scanSessionId = "";
+}
+
+function currentNoteLines() {
+  return scanNoteLines(state.scanRooms, state.scanNoteEdits || {}, state.scanGeneralNote ?? state.draft.transcript);
+}
+
+function currentReviewedNotes() {
+  return reviewedScanNotes(state.scanRooms, state.scanNoteEdits || {}, state.scanGeneralNote ?? state.draft.transcript);
+}
+
+function renderRoomNotes() {
+  let host = document.querySelector("[data-reviewed-room-notes]");
+  if (!host) {
+    host = textNode("section", "scan-review-room");
+    host.dataset.reviewedRoomNotes = "";
+    document.querySelector("[data-task-hint]").after(host);
+  }
+  host.replaceChildren();
+  host.hidden = !state.scanRooms.length && !state.scanGeneralNote;
+  if (host.hidden) return;
+  host.append(textNode("h3", "", "Room instructions"),
+    textNode("p", "hint", "Check your spoken notes against the checklist and optional tasks. Keep safety restrictions. These reviewed instructions are saved with your request and room photos."));
+  const fields = state.scanRooms.map((room) => ({ name: room.name || room.roomName, key: String(room.name || room.roomName).trim().toLowerCase(), note: room.note || "" }));
+  if (state.scanGeneralNote) fields.push({ name: "Other scan instructions", key: null, note: state.scanGeneralNote });
+  for (const [index, field] of fields.entries()) {
+    const label = textNode("label", "hint", field.name);
+    const input = document.createElement("textarea");
+    input.id = "reviewed-room-note-" + index;
+    label.htmlFor = input.id;
+    input.rows = 3;
+    input.value = field.key === null ? state.scanGeneralNote : state.scanNoteEdits[field.key] ?? field.note;
+    input.addEventListener("input", () => {
+      if (field.key === null) state.scanGeneralNote = input.value;
+      else state.scanNoteEdits[field.key] = input.value;
+      // A refused extra needs fresh consent if the restriction is later removed.
+      state.scanPremiumSelected = eligiblePremiumSelections();
+      invalidateScanRequest();
+      el.tasks.setCustomValidity("");
+      renderPremiumChoices();
+      updateResultTotals();
+      renderReview();
+    });
+    host.append(label, input);
+  }
+}
+
+function validatePremiumChecklist() {
+  try { currentReviewedNotes(); } catch (error) {
+    el.tasks.setCustomValidity(error.message);
+    el.tasks.reportValidity();
+    return false;
+  }
+  const noteConflict = unselectedPremiumInTasks(state.scanPremiumPlan, currentNoteLines(), eligiblePremiumSelections());
+  if (noteConflict) {
+    el.tasks.setCustomValidity("Your room instructions request " + noteConflict.label + ". Select that optional task or edit the room instructions below.");
+    el.tasks.reportValidity();
+    return false;
+  }
+  const conflict = unselectedPremiumInTasks(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+  const tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+  const message = conflict
+    ? `Choose the optional ${conflict.label} below, or remove that specialist task from the editable checklist.`
+    : tasks.length > 40 ? "Keep your checklist to 40 tasks, including optional tasks." : "";
+  el.tasks.setCustomValidity(message);
+  if (message) { el.tasks.reportValidity(); return false; }
+  return true;
+}
+
+function renderPremiumChoices() {
+  let host = document.querySelector("[data-scan-premium-choices]");
+  if (!host) {
+    host = textNode("section", "scan-review-room");
+    host.dataset.scanPremiumChoices = "";
+    host.setAttribute("aria-label", "Optional specialist tasks");
+    el.tasks.after(host);
+  }
+  host.replaceChildren();
+  host.hidden = !state.scanPremiumPlan.options.length;
+  if (host.hidden) return;
+  host.append(textNode("h3", "", "Optional specialist tasks"),
+    textNode("p", "hint", "These tasks are not included unless you select them. Their prices are task components; the total also reflects the minimum visit charge."));
+  const available = new Set(correctedScanRooms().flatMap((room) => (room.objects || [])
+    .filter((object) => object.needsConfirmation !== true && object.selected !== false)
+    .map((object) => premiumChoiceId(room.name || room.roomName, object.inventoryKey || object.code))));
+  const selected = new Set(eligiblePremiumSelections());
+  for (const option of state.scanPremiumPlan.options) {
+    const card = textNode("div", "scan-review-object");
+    const label = textNode("label", "hint");
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = selected.has(option.id);
+    input.disabled = option.restricted || premiumRestrictions(state.scanPremiumPlan, currentNoteLines()).includes(option.id) || !available.has(option.id);
+    input.dataset.premiumChoice = option.id;
+    label.append(input, document.createTextNode(` ${option.roomName} · ${option.label} (${formatPence(option.pence)})`));
+    card.append(label);
+    for (const group of state.scanPremiumPlan.groups.filter((group) => group.ids.includes(option.id))) {
+      card.append(textNode("p", "hint", group.text + (group.ids.length > 1
+        ? " — select all related specialist tasks to include this combined instruction." : "")));
+    }
+    if (input.disabled) card.append(textNode("p", "hint", (option.restricted || premiumRestrictions(state.scanPremiumPlan, currentNoteLines()).includes(option.id)) ? "Your scan instructions exclude this work. Rescan with corrected instructions if that restriction has changed." : "Confirm this item in the scan review before selecting it."));
+    input.addEventListener("change", () => {
+      const next = new Set(state.scanPremiumSelected);
+      if (input.checked) next.add(option.id); else next.delete(option.id);
+      state.scanPremiumSelected = [...next];
+      invalidateScanRequest();
+      el.tasks.setCustomValidity("");
+      state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+      state.draft.guideTime = "";
+      updateResultTotals();
+      saveDraft();
+      renderSelectedPremiumTasks();
+      renderReview();
+    });
+    host.append(card);
+  }
+  const selectedTasks = textNode("div", "");
+  selectedTasks.dataset.premiumSelectedTasks = "";
+  selectedTasks.setAttribute("aria-live", "polite");
+  host.append(selectedTasks);
+  renderSelectedPremiumTasks();
+}
+
+function renderSelectedPremiumTasks() {
+  const host = document.querySelector("[data-premium-selected-tasks]");
+  if (!host) return;
+  const tasks = premiumScope(state.scanPremiumPlan, [], eligiblePremiumSelections());
+  const list = textNode("ul", "");
+  for (const task of tasks) list.append(textNode("li", "", task));
+  host.replaceChildren(textNode("h4", "", "Selected specialist tasks"),
+    tasks.length ? list : textNode("p", "hint", "None selected."));
+}
 
 /* ── Step 4: when ───────────────────────────────────── */
 function renderWhen() {
@@ -867,7 +1040,7 @@ async function createOrRecoverRequest(csrf, propertyId) {
     ...window,
     cleaningType: state.draft.serviceCode,
     requiredServices: [state.draft.serviceCode],
-    specialInstructions: state.draft.transcript,
+    specialInstructions: state.scanRooms.length ? currentReviewedNotes().transcript : state.draft.transcript,
     budgetPence: null,
     frequency: state.draft.frequency,
     tasks,
@@ -956,8 +1129,10 @@ const pricingServiceTypeByCode = Object.freeze({
 
 function currentPricingRequest() {
   return quoteInputFromScan({
-    rooms: correctedScanRooms().map((room) => ({ roomName: room.name, objects: room.objects }))
+    rooms: selectedScanRooms(correctedScanRooms(), state.scanPremiumPlan, eligiblePremiumSelections())
+      .map((room) => ({ roomName: room.name, objects: room.objects }))
   }, {
+    config: pricingConfig || defaultPricingConfig,
     serviceType: pricingServiceTypeByCode[state.draft.serviceCode] || "standard",
     frequency: state.draft.frequency || "one-time"
   });
@@ -1053,7 +1228,14 @@ function objectControls(roomName, object) {
   // The action the finding leads to — "Descale the tap" — so the review answers
   // "what will be done about it", not only "what was seen". Comes from the
   // deterministic mapping in scan-review-render, never from the model.
-  if (object.recommendation) row.append(textNode("p", "scan-review-action", object.recommendation));
+  const optional = state.scanPremiumPlan.options.find((option) =>
+    option.id === premiumChoiceId(roomName, object.inventoryKey));
+  const recommendation = optional
+    ? (optional.restricted || premiumRestrictions(state.scanPremiumPlan, currentNoteLines()).includes(optional.id)) ? "Excluded by your scan instructions."
+      : eligiblePremiumSelections().includes(optional.id) ? "Specialist task selected in your checklist."
+      : "Optional specialist work — select it below to include it."
+    : object.recommendation;
+  if (recommendation) row.append(textNode("p", "scan-review-action", recommendation));
 
   const actions = textNode("div", "scan-review-object-actions");
 
@@ -1417,6 +1599,11 @@ function correctScanObject(roomName, inventoryKey, field, value) {
   const { corrections } = applyCorrection(correctedScanRooms(), { roomName, inventoryKey, field, value });
   if (!corrections.length) return;
   state.scanCorrections.push({ roomName, inventoryKey, field, value, originalValue: corrections[0].originalValue });
+  invalidateScanRequest();
+  if (field === "removed") state.scanPremiumSelected = state.scanPremiumSelected.filter((id) => id !== premiumChoiceId(roomName, inventoryKey));
+  renderPremiumChoices();
+  state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+  updateResultTotals();
   refreshScanReview();
 }
 
@@ -1509,12 +1696,13 @@ async function saveScanMeasurements(csrf, requestId, savedScan) {
 }
 
 async function saveStructuredScan(csrf, requestId) {
+  const reviewedNotes = currentReviewedNotes();
   const rooms = state.scanRooms
     .filter((room) => room && String(room.name || "").trim())
     .map((room) => ({
       roomName: room.name,
       condition: room.condition || "",
-      note: room.note || "",
+      note: reviewedNotes.notes[String(room.name).trim().toLowerCase()] || "",
       objects: Array.isArray(room.objects) ? room.objects : []
     }));
   if (!rooms.length) return false;
@@ -1567,6 +1755,7 @@ async function saveStructuredScanWithRetry(csrf, requestId, attempts = 3) {
 }
 
 async function uploadRoomPhotos(csrf, requestId) {
+  const reviewedNotes = currentReviewedNotes();
   const existing = await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/scan`);
   const attachedRooms = new Set((existing.scan?.photos || []).map((photo) => String(photo.roomName || "").trim().toLowerCase()));
   const reviewedRooms = new Set(requestTasksFromLines(state.draft.tasks.join("\n")).map((task) => task.roomName.toLowerCase()));
@@ -1582,7 +1771,7 @@ async function uploadRoomPhotos(csrf, requestId) {
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
       body: JSON.stringify({
         roomName: photo.roomName,
-        note: photo.note || "",
+        note: reviewedNotes.notes[String(photo.roomName).trim().toLowerCase()] || "",
         mimeType: file.type,
         byteSize: file.size,
         checksumSha256: await sha256(file)
@@ -1724,6 +1913,14 @@ async function inviteSelectedCleaner(csrf, requestId) {
 
 async function confirmJourney() {
   if (state.confirming) return;
+  if (state.scanRooms.length) {
+    if (!validatePremiumChecklist()) {
+      show("results");
+      el.tasks.reportValidity();
+      return;
+    }
+    state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+  }
   state.confirming = true;
   el.confirm.disabled = true;
   el.checkoutState.hidden = false;

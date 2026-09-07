@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
+import { premiumBaseTasks } from "../public/scan-premium-selection.js";
 
 // Exercise the actual customer handlers with deferred directory responses.
 // No browser, account, network requests or booking mutations are involved.
@@ -17,10 +18,11 @@ function element() {
 }
 function harness() {
   const requests = [];
-  const state = { draft: { outward: "SM4", propertyId: "one", cleanerId: "marketplace", tasks: [], rooms: [], transcript: "" } };
+  const state = { scanPremiumPlan: { options: [], groups: [], baseTasks: [] }, draft: { outward: "SM4", propertyId: "one", cleanerId: "marketplace", tasks: [], rooms: [], transcript: "" } };
   const el = Object.fromEntries(["propertyNext", "supply", "supplyHead", "supplyDetail", "cleaners", "cleanerState", "cleanerLede", "resultsEyebrow", "resultsTitle", "resultsIntro", "resultsSource", "tasks"].map(key => [key, element()]));
   const context = vm.createContext({
-    state, el, URLSearchParams,
+    state, el, URLSearchParams, premiumBaseTasks,
+    renderPremiumChoices() {}, renderRoomNotes() {},
     DIRECTORY_REQUEST_TIMEOUT_MS: 8000,
     requestJson(url) { return new Promise((resolve, reject) => requests.push({ url, resolve, reject })); },
     supplyMessage(count, outward) { return { headline: count + " near " + outward, detail: "Checked", available: count > 0 }; },
