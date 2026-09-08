@@ -2142,6 +2142,7 @@ async function openAuthenticatedJourney() {
     el.accessRetry.disabled = false;
     return false;
   }
+  if (adoptScan()) toast("Your scan is here. Check the checklist before continuing.");
   // Drafts created before the property-first journey may already point at a
   // later step with only a free postcode. Do not let that stale browser state
   // bypass the new property choice or attach a scan to the wrong place.
@@ -2153,7 +2154,6 @@ async function openAuthenticatedJourney() {
     if (stepIndex(state.step) > 0) state.step = "postcode";
     saveDraft();
   }
-  if (adoptScan()) toast("Your scan is here. Check the checklist before continuing.");
   renderServices();
   el.accessGate.hidden = true;
   el.journeyShell.forEach((section) => { section.hidden = false; });
