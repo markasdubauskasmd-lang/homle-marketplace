@@ -206,7 +206,7 @@ const staticFiles = {
   "/api/marketplace/bookings": JSON.stringify({ ok: true, bookings: [] }),
   "/api/marketplace/landlord/support-requests": JSON.stringify({ ok: true, supportRequests: [] }),
   "/api/marketplace/landlord/favourite-cleaners": JSON.stringify({ ok: true, cleaners: [] }),
-  "/api/marketplace/auth/session": JSON.stringify({ ok: true, csrfToken: "journey-token" }),
+  "/api/marketplace/auth/session": JSON.stringify({ ok: true, csrfToken: "journey-token", account: { userId: "11111111-1111-4111-8111-111111111111", roles: ["landlord"], selectedRole: "landlord" } }),
   /* A key that fails the page's own publishable-key gate. This makes the
      provider-failure branch deterministic wherever the test runs: with real
      network access a plausible test key lets Stripe's script load and mount an

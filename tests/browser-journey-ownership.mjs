@@ -1,0 +1,52 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
+if (!resolveChromiumPath()) { if(process.env.CI) throw new Error("Ownership browser check requires Chromium."); process.exit(0); }
+const A="11111111-1111-4111-8111-111111111111", B="22222222-2222-4222-8222-222222222222";
+let owner=A, failSession=false;
+const writes=[];
+const account=()=>({userId:owner,roles:["landlord"],selectedRole:"landlord",displayName:"Synthetic owner"});
+const html=await readFile(new URL("../public/landlord-journey.html",import.meta.url),"utf8");
+const server=await serveStatic({extraFiles:{
+  "/owner-seed":"<!doctype html><title>Synthetic storage setup</title>",
+  "/landlord/book":html,
+  "/api/marketplace/account":()=>({body:{ok:true,account:account()}}),
+  "/api/marketplace/properties":()=>({body:{ok:true,properties:[{propertyId:owner,propertyType:"house",exactAddress:{line1:"Synthetic property",city:"London",postcode:"SW1A 1AA"}}]}}),
+  "/api/marketplace/auth/session":({method})=>{assert.equal(method,"POST"); return failSession?{status:503,body:{error:"Synthetic session unavailable"}}:{body:{ok:true,account:account(),csrfToken:"synthetic-csrf"}};},
+  "/api/health":JSON.stringify({ok:true,marketplace:{ready:true,matchingReady:false,mediaReady:false}}),
+  "/api/marketplace/cleaning-requests":({method})=>{writes.push(method);return {status:503,body:{error:"No real writes"}};}
+}});
+const browser=await launchBrowser();
+async function waitFor(code) { const end=Date.now()+12000; while(!await browser.evaluate(code)) { if(Date.now()>end)throw new Error("Not ready: "+code+" "+await browser.evaluate("document.body.innerText")); await new Promise(r=>setTimeout(r,50)); } }
+async function seed(ownerId=A) {
+ await browser.goto(server.origin+"/owner-seed");
+ await browser.evaluate(`
+ const now=Date.now();
+ sessionStorage.setItem("homle_journey_draft",JSON.stringify({ownerId:${JSON.stringify(ownerId)},savedAt:now,expiresAt:now+1800000,step:"results",
+ draft:{propertyId:${JSON.stringify(A)},durationMinutes:120,serviceCode:"regular-domestic",tasks:["Kitchen: Private synthetic account A task"],transcript:"Private synthetic account A note"}}));
+ return true;`);
+}
+const results=()=>waitFor('document.querySelector("[data-access-gate]")?.hidden && document.querySelector("[data-step=results]")?.hidden === false');
+try {
+ for(const width of [390,1280]) {
+  await browser.setViewport({width,height:844,mobile:width===390}); owner=A; failSession=false;
+  await seed(); await browser.goto(server.origin+"/landlord/book"); await results();
+  assert((await browser.evaluate('document.querySelector("[data-tasks]").value')).includes("Private synthetic"));
+  await browser.evaluate('document.querySelector("[data-tasks]").value="Kitchen: Private edited account A task"; document.querySelector("[data-back]").click(); return true;');
+  await waitFor('document.querySelector("[data-step=service]")?.hidden === false');
+  await browser.goto(server.origin+"/landlord/book");
+  await waitFor('document.querySelector("[data-access-gate]")?.hidden && document.querySelector("[data-step=service]")?.hidden === false');
+  await browser.evaluate('document.querySelector("[data-skip-scan]").click(); return true;'); await results();
+  assert((await browser.evaluate('document.querySelector("[data-tasks]").value')).includes("Private edited"));
+  owner=B; await browser.goto(server.origin+"/landlord/book");
+  await waitFor('document.querySelector("[data-access-gate]")?.hidden && document.querySelector("[data-step=postcode]")?.hidden === false');
+  assert.equal(await browser.evaluate('return [...document.querySelectorAll("input,textarea")].some(e=>e.value.includes("Private")) || sessionStorage.getItem("homle_journey_draft")?.includes("Private") || false;'),false);
+  owner=A; await seed(); failSession=true; await browser.goto(server.origin+"/landlord/book");
+  await waitFor('document.querySelector("[data-access-retry]")?.hidden === false');
+  assert.equal(await browser.evaluate('return [...document.querySelectorAll("input,textarea")].some(e=>e.value.includes("Private"));'),false);
+  failSession=false;
+ }
+ assert.deepEqual(writes,[]);
+ assert.deepEqual(browser.pageErrors,[]);
+} finally {await browser.close(); await server.close();}
+console.log("Browser ownership passed at 390/1280: same-owner edit/back/reload, changed owner, failed session; no private request writes.");

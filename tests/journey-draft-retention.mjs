@@ -78,3 +78,96 @@ assert.ok(
 );
 
 console.log("Journey draft retention tests passed: the 30-minute promise is stated on all three pages that make it, the shared lifetime matches it, and the booking journey stamps its draft, refuses one that is expired, unstamped, over-long or future-dated, and discards it in every case.");
+
+
+
+
+// Execute recovery against the existing authenticated session response.
+{
+  const { default: vm } = await import("node:vm");
+  const { journeyAccountState } = await import("../public/landlord-journey-model.js");
+  const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
+  const initial = {
+    step: "postcode", signedIn: false, draftOwner: "", properties: [], confirming: false,
+    draft: { propertyId: "", durationMinutes: 120, tasks: [], transcript: "", serviceCode: "" },
+    scanPhotos: [], scanRooms: [], scanPremiumPlan: { options: [], groups: [], baseTasks: [] },
+    scanPremiumSelected: [], scanSessionId: "", scanCorrections: [], scanReview: null,
+    scanInstructions: [], scanNoteEdits: {}, scanGeneralNote: "", scanMeasurements: []
+  };
+  const storedDraft = (ownerId=A, age=1000) => { const savedAt=Date.now()-age; return { ownerId, step: "results", savedAt,
+    expiresAt: savedAt+landlordRequestDraftLifetimeMs,
+    draft: { propertyId: A, durationMinutes: 120, tasks: ["Kitchen: private synthetic task"], transcript: "Private synthetic access note" } }; };
+  function harness(stored, owner=A) {
+    const values = new Map(stored == null ? [] : [["homle_journey_draft", typeof stored === "string" ? stored : JSON.stringify(stored)]]);
+    const state = structuredClone(initial), responses = { owner, failure: false }, calls = [];
+    const el = { accessRetry: {}, accessSignIn: {}, accessTitle: {}, accessCopy: {}, accessGate: {},
+      journeyShell: [{ hidden: true }] };
+    const context = vm.createContext({ state, el, Date, JSON, Number, Object, draftKey: "homle_journey_draft",
+      landlordRequestDraftLifetimeMs, durationChoices: [120], journeyAccountState,
+      sessionStorage: { getItem:k=>values.get(k)||null, setItem:(k,v)=>values.set(k,v), removeItem:k=>values.delete(k) },
+      stepIndex:s=>["postcode","service","results","when","cleaner","checkout"].indexOf(s),
+      normalisedPostcode:value=>value?{ full:value }:null,
+      renderServices(){}, toast(){}, closeMeasure(){ calls.push("close-measure"); },
+      suggestedDurationMinutes:()=>120, saveCsrf:()=>true,
+      requestJson:async path=>{
+        calls.push(path);
+        if(responses.failure) throw Object.assign(new Error("Synthetic offline"),{statusCode:503});
+        const account={userId:responses.owner,roles:["landlord"]};
+        if(path.endsWith("/auth/session")) return {csrfToken:"synthetic-csrf",account};
+        if(path.endsWith("/account")) return {account};
+        if(path.endsWith("/properties")) return {properties:[{propertyId:responses.owner,exactAddress:{postcode:"SW1A 1AA"}}]};
+        throw new Error("Unexpected request "+path);
+      },
+      location:{replace(){throw new Error("Unexpected redirect");}}
+    });
+    const section=(from,to)=>journey.slice(journey.indexOf(from),journey.indexOf(to,journey.indexOf(from)));
+    vm.runInContext(section("const emptyPrivateJourney =", "// Core account")
+      + section("async function recoverCsrf()", "// The journey is long enough")
+      + section("function saveDraft()", "/* ── Navigation")
+      + section("function setRequestScopeValue(", "function currentNoteLines(")
+      + section("async function loadAccount()", "/* ── Wiring"),context);
+    return {state,values,responses,calls,el,run:code=>vm.runInContext(code,context)};
+  }
+  const same=harness(storedDraft());
+  same.run("restoreDraft()");
+  assert.equal(same.state.draft.tasks.length,0,"Private draft restored before authenticated ownership");
+  assert.equal(await same.run("openAuthenticatedJourney()"),true);
+  assert.equal(same.state.draft.tasks[0],"Kitchen: private synthetic task");
+  same.run("saveDraft()");
+  assert.equal(JSON.parse(same.values.get("homle_journey_draft")).ownerId,A);
+  assert.equal(same.state.step,"results");
+
+  for(const stored of [storedDraft(A),storedDraft(undefined),{...storedDraft(A),ownerId:undefined},
+    storedDraft(B,1800001),"{corrupt", {...storedDraft(B),expiresAt:Date.now()+3600000}]) {
+    const other=harness(stored,B);
+    await other.run("openAuthenticatedJourney()");
+    assert.equal(other.state.draft.tasks.length,0);
+    assert.equal(other.state.draft.transcript,"");
+    assert(!String(other.values.get("homle_journey_draft")).includes("Private synthetic"));
+  }
+  const failed=harness(storedDraft());
+  failed.responses.failure=true;
+  assert.equal(await failed.run("openAuthenticatedJourney()"),false);
+  assert.equal(failed.state.draft.tasks.length,0);
+  assert.equal(failed.el.journeyShell[0].hidden,true);
+
+  same.state.scanPhotos=[{url:"synthetic-private-photo"}];
+  same.state.scanRooms=[{name:"Private room"}];
+  same.responses.owner=B;
+  let wrote=false;
+  await assert.rejects(async()=>{await same.run("recoverCsrf()");wrote=true;},/account changed/);
+  assert.equal(wrote,false,"Mutation continued with a different account");
+  assert.equal(same.state.scanPhotos.length,0);
+  assert.equal(same.state.scanRooms.length,0);
+  assert.equal(same.state.draft.tasks.length,0);
+  assert.equal(same.values.has("homle_journey_draft"),false);
+  assert.equal(same.el.journeyShell[0].hidden,true);
+  assert.equal(await same.run("openAuthenticatedJourney()"),true);
+  assert.equal(same.state.draftOwner,B);
+  const legacy=harness(null,A);
+  legacy.values.set("homle_scan_result",JSON.stringify({tasks:["Private prior scan"],transcript:"Private prior scan"}));
+  await legacy.run("openAuthenticatedJourney()");
+  assert.equal(legacy.state.draft.tasks.length,0);
+  assert.equal(legacy.values.has("homle_scan_result"),false);
+}
+console.log("Actual journey owner recovery passed: pre-auth isolation, same owner, changed owner, legacy/expired/corrupt data, session failure, pending mutation and scan handoff.");

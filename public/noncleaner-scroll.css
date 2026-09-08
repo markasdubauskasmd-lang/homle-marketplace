@@ -32,4 +32,15 @@ dialog { overscroll-behavior: contain; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  /* The existing renderer hides Home only after selecting another workspace view. */
+  html:has(> body.landlord-dashboard-page [data-landlord-panel="home"][hidden])::view-transition-old(root),
+  html:has(> body.landlord-dashboard-page [data-landlord-panel="home"][hidden])::view-transition-new(root) {
+    animation-duration: .001ms;
+  }
+  /* These existing customer document classes exclude approved Home and Cleaner.
+     Higher specificity keeps the shared root fade from overriding this preference. */
+  html:has(> body:is(.customer-theme, .journey-page, .scan-page, .homle-landlord-support, .booking-payment-page))::view-transition-old(root),
+  html:has(> body:is(.customer-theme, .journey-page, .scan-page, .homle-landlord-support, .booking-payment-page))::view-transition-new(root) {
+    animation-duration: .001ms;
+  }
 }

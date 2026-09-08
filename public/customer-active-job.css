@@ -51,3 +51,11 @@ body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .but
 
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-dispute-confirm input[type="checkbox"] { width: 18px; height: 18px; flex: 0 0 18px; accent-color: #e11b22; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-dispute-confirm span { min-width: 0; }
+
+/* The renderer-owned customer marker excludes signed-out and Cleaner tracking. */
+@media (prefers-reduced-motion: reduce) {
+  html:has(> body.active-job-page [data-workspace-link][href="/landlord/dashboard"])::view-transition-old(root),
+  html:has(> body.active-job-page [data-workspace-link][href="/landlord/dashboard"])::view-transition-new(root) {
+    animation-duration: .001ms;
+  }
+}

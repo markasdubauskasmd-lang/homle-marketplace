@@ -34,7 +34,7 @@ import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInT
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
-import { requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
+import { pricingRequestFromManualTasks, requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
 import { landlordRequestDraftLifetimeMs } from "./landlord-request-draft.js?v=20260830-1";
 import { isUkPostcode } from "./contact-validation.js";
 
@@ -107,6 +107,7 @@ const state = {
   step: "postcode",
   capabilities: { mediaReady: false, matchingReady: false },
   signedIn: false,
+  draftOwner: "",
   properties: [],
   scanPhotos: [],
   // The structured reading — per-object condition, soiling, confidence and
@@ -156,6 +157,32 @@ const state = {
   cleanersPending: false,
   confirming: false
 };
+
+const emptyPrivateJourney = JSON.stringify(Object.fromEntries(
+  ["draft", "scanPhotos", "scanRooms", "scanPremiumPlan", "scanPremiumSelected", "scanSessionId",
+    "scanCorrections", "scanReview", "scanInstructions", "scanNoteEdits", "scanGeneralNote", "scanMeasurements"]
+    .map(key => [key, state[key]])
+));
+
+function bindJourneyOwner(account) {
+  const owner = typeof account?.userId === "string" ? account.userId : "";
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(owner)
+      || journeyAccountState(account) !== "ready") {
+    throw new Error("Your secure account could not be checked.");
+  }
+  if (state.draftOwner === owner) return;
+  if (state.draftOwner) {
+    Object.assign(state, JSON.parse(emptyPrivateJourney), { step: "postcode", signedIn: false, properties: [], draftOwner: "" });
+    discardDraft();
+    try { sessionStorage.removeItem("homle_scan_result"); } catch {}
+    closeMeasure();
+    showJourneyAccessFailure("Your secure account changed.");
+    el.accessRetry.disabled = false;
+    throw Object.assign(new Error("Your secure account changed."), { code: "journey-account-changed" });
+  }
+  state.draftOwner = owner;
+  restoreDraft(owner);
+}
 
 // Core account and mutation requests receive the full mobile allowance. The
 // readiness and directory reads below are advisory: they must never hold the
@@ -225,6 +252,7 @@ async function recoverCsrf() {
     body: "{}"
   });
   if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("This browser could not keep the renewed secure editing token.");
+  bindJourneyOwner(result.account);
   return result.csrfToken;
 }
 
@@ -239,9 +267,10 @@ async function recoverCsrf() {
 // product stated a retention limit it did not keep. The lifetime is imported
 // rather than restated so there is one number to change.
 function saveDraft() {
+  if (!state.draftOwner) return;
   try {
     const savedAt = Date.now();
-    sessionStorage.setItem(draftKey, JSON.stringify({ step: state.step, draft: state.draft, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs }));
+    sessionStorage.setItem(draftKey, JSON.stringify({ ownerId: state.draftOwner, step: state.step, draft: state.draft, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs }));
   } catch {}
 }
 
@@ -250,8 +279,11 @@ function discardDraft() {
 }
 
 function restoreDraft() {
+  const owner = state.draftOwner;
+  if (!owner) return;
   try {
     const stored = JSON.parse(sessionStorage.getItem(draftKey) || "null");
+    if (stored && stored.ownerId !== owner) return discardDraft();
     const savedAt = Number(stored?.savedAt);
     const expiresAt = Number(stored?.expiresAt);
     // A draft with no stamp predates this and cannot be shown to be inside the
@@ -269,11 +301,12 @@ function restoreDraft() {
     for (const key of ["propertyDraftId", "requestId"]) {
       if (!/^[0-9a-f-]{36}$/i.test(state.draft[key] || "")) state.draft[key] = "";
     }
-  } catch {}
+  } catch { discardDraft(); }
 }
 
 // A finished room scan hands its checklist here.
 function adoptScan() {
+  if (!state.draftOwner) return false;
   let scan = null;
   try {
     const stored = sessionStorage.getItem("homle_scan_result");
@@ -281,7 +314,8 @@ function adoptScan() {
     sessionStorage.removeItem("homle_scan_result");
     scan = JSON.parse(stored);
   } catch { return false; }
-  // Compatibility with old text-only handoffs is harmless, but a cached legacy
+  if (scan?.ownerId !== state.draftOwner) return false;
+  // Owner-verified text-only handoffs can resume, but a cached legacy
   // scanner may have written private room photographs into this value. Purge
   // and refuse that shape rather than bringing persisted photos into a booking.
   if (Array.isArray(scan?.photos) && scan.photos.length) return false;
@@ -328,6 +362,7 @@ function syncJourneyHistory(stepId, mode) {
 }
 
 function show(stepId, historyMode = "push") {
+  if (state.confirming && stepId !== "done") return;
   const changedStep = state.step !== stepId;
   state.step = stepId;
   let activeSection = null;
@@ -381,6 +416,7 @@ function setChecklistError(message, focus = false) {
 }
 
 function goNext() {
+  if (state.confirming) return;
   if (state.step === "results" && !validatePremiumChecklist()) return;
   readCurrentStep();
   if (state.step === "postcode" && state.supplyPending) return toast("Checking coverage for this property…");
@@ -570,6 +606,7 @@ el.scanLink.addEventListener("click", async () => {
       : "Your scan is saved. Add the checklist below before continuing.");
   } finally {
     el.scanLink.disabled = false;
+    if (state.step === "service") el.scanLink.focus({ preventScroll: true });
   }
 });
 el.skipScan.addEventListener("click", () => {
@@ -1081,7 +1118,11 @@ async function createOrRecoverRequest(csrf, propertyId) {
     tasks,
     // The browser sends scope, never money. The server recomputes this selection
     // from its active price list and freezes that authoritative quote.
-    pricingRequest: state.scanRooms.length ? currentPricingRequest() : null,
+    pricingRequest: state.scanRooms.length ? currentPricingRequest() : pricingRequestFromManualTasks(tasks, {
+      cleaningType: state.draft.serviceCode,
+      frequency: state.draft.frequency,
+      requestedMinutes: Number(state.draft.durationMinutes)
+    }),
     submit: false
   };
   try {
@@ -1946,6 +1987,15 @@ async function inviteSelectedCleaner(csrf, requestId) {
   return { invited: true, reason: usedAlternative ? `${initiallySelectedCleanerName} was unavailable for this paid booking. ${cleanerName} now has the exact ${exactPriceLabel(price)} offer to accept or decline.` : `${cleanerName} has the exact ${exactPriceLabel(price)} offer to accept or decline.` };
 }
 
+function lockConfirmationControls() {
+  const controls = [...new Set([el.back, ...$$('[data-step="checkout"] input, [data-step="checkout"] select, [data-step="checkout"] textarea, [data-step="checkout"] button')])];
+  const disabledStates = controls.map(control => [control, control.disabled]);
+  for (const [control] of disabledStates) control.disabled = true;
+  return () => {
+    for (const [control, disabled] of disabledStates) control.disabled = disabled;
+  };
+}
+
 async function confirmJourney() {
   if (state.confirming) return;
   if (state.scanRooms.length) {
@@ -1957,6 +2007,7 @@ async function confirmJourney() {
     state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
   }
   state.confirming = true;
+  const restoreControls = lockConfirmationControls();
   el.confirm.disabled = true;
   el.checkoutState.hidden = false;
   el.checkoutState.textContent = "Checking your private account…";
@@ -2013,6 +2064,7 @@ async function confirmJourney() {
       : "The checklist is on your dashboard. Review and submit it there when the required services are available. Nothing was sent to a Cleaner and no payment was taken.");
     show("done");
   } catch (error) {
+    if (error?.code === "journey-account-changed") return;
     const signInRequired = error?.code === "sign-in-required" || error?.code === "authentication-required" || error?.statusCode === 401;
     el.checkoutState.textContent = signInRequired
       ? "Your session ended while you were preparing this request. Sign in in the new tab, return here and press confirm again. Your room photos and answers remain in this tab."
@@ -2020,6 +2072,7 @@ async function confirmJourney() {
     el.propertySignIn.hidden = !signInRequired;
   } finally {
     state.confirming = false;
+    restoreControls();
     if (state.step !== "done") el.confirm.disabled = !state.signedIn;
   }
 }
@@ -2089,6 +2142,7 @@ async function openAuthenticatedJourney() {
     el.accessRetry.disabled = false;
     return false;
   }
+  if (adoptScan()) toast("Your scan is here. Check the checklist before continuing.");
   // Drafts created before the property-first journey may already point at a
   // later step with only a free postcode. Do not let that stale browser state
   // bypass the new property choice or attach a scan to the wrong place.
@@ -2100,6 +2154,7 @@ async function openAuthenticatedJourney() {
     if (stepIndex(state.step) > 0) state.step = "postcode";
     saveDraft();
   }
+  renderServices();
   el.accessGate.hidden = true;
   el.journeyShell.forEach((section) => { section.hidden = false; });
   return true;
@@ -2123,6 +2178,7 @@ el.accessRetry.addEventListener("click", async () => {
   if (await openAuthenticatedJourney()) show(state.step, "replace");
 });
 el.back.addEventListener("click", () => {
+  if (state.confirming) return;
   readCurrentStep();
   const previous = previousStep(state.step);
   // Replace rather than push: going back in the app should not leave a forward
@@ -2131,6 +2187,10 @@ el.back.addEventListener("click", () => {
 });
 
 window.addEventListener("popstate", (event) => {
+  if (state.confirming) {
+    syncJourneyHistory(state.step, "replace");
+    return;
+  }
   const stepId = event.state?.journeyStep;
   if (typeof stepId !== "string" || stepIndex(stepId) < 0 || stepId === state.step) return;
   // Keep whatever was typed on the step being left, exactly as the in-app
