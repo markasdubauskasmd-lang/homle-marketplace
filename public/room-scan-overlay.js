@@ -1,3 +1,4 @@
+import { containScannerFocus } from "./scanner-modal-focus.js";
 import {
   canFinishScan,
   usableDetections,
@@ -552,6 +553,9 @@ export function openRoomScan() {
       send: (path, options) => fetch(path, { credentials: "same-origin", cache: "no-store", ...options }),
       token: storedCsrf
     });
+
+    const releaseFocus = containScannerFocus(overlay, () =>
+      [el.discard, el.itemEditor, el.consent, el.hub].find(panel => !panel.hidden) || overlay);
 
     const state = {
       stream: null, cameraStarting: false, resumeCameraOnVisible: false,
@@ -3867,6 +3871,7 @@ export function openRoomScan() {
       window.removeEventListener("offline", onNetworkChange);
       window.removeEventListener("beforeunload", onBeforeUnload);
       document.body.style.overflow = previousOverflow;
+      releaseFocus();
       overlay.remove();
       // After teardown, deliberately. Releasing the camera and microphone comes
       // before reporting anything, and an abandoned scan is distinguished from a
