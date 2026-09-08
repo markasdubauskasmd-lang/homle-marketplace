@@ -55,7 +55,7 @@ body.customer-document :is(.back-link, .button-secondary) {
   text-decoration: none;
   box-shadow: none;
 }
-body.customer-document :is(.back-link, .button-secondary):hover { background: var(--customer-active); }
+body.customer-document :is(.back-link, .button-secondary):hover { background: var(--customer-active); color: var(--customer-accent-dark); }
 body.customer-document .legal-main a { color: var(--customer-accent); }
 @media (max-width: 600px) {
   body.customer-document .legal-main { padding: 24px 16px 48px; }

@@ -278,6 +278,18 @@ export async function launchBrowser({ headless = true } = {}) {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
     },
+    async hover(selector) {
+      if (typeof selector !== "string" || !selector) throw new TypeError("A hover selector is required.");
+      const point = await this.evaluate(`
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) throw new Error("Hover target missing");
+        el.scrollIntoView({block:"center",inline:"center",behavior:"instant"});
+        const rect = el.getBoundingClientRect();
+        if (!rect.width || !rect.height) throw new Error("Hover target is not displayed");
+        return {x:rect.left+rect.width/2,y:rect.top+rect.height/2};
+      `);
+      await send("Input.dispatchMouseEvent", {type:"mouseMoved",...point}, sessionId);
+    },
     async evaluate(expression) {
       const result = await send("Runtime.evaluate", {
         expression: `(async () => { ${expression.includes("return") ? expression : `return (${expression})`} })()`,
