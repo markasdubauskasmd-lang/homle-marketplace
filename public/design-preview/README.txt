@@ -1,0 +1,1 @@
+Generated from design/homlle by tools/export-homlle-design.mjs. Prototype with sample data; no live account operations.

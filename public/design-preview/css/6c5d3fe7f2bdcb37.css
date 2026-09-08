@@ -1,0 +1,10 @@
+
+    body { margin: 0; background: #eceaea; }
+    a { color: #201e1d; }
+    a:hover { color: #e01030; }
+    /* phones don't paint desktop scrollbars; inline styles can't express this */
+    [data-phone-scroll] { scrollbar-width: none; -ms-overflow-style: none; }
+    [data-phone-scroll]::-webkit-scrollbar { width: 0; height: 0; display: none; }
+    /* the tappable box is .seg-opt (its radio is visually hidden), so it carries the 44px minimum */
+    .seg-opt { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+  

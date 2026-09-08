@@ -22,3 +22,6 @@ db/migration-lock.json text eol=lf
 # Font binaries. The rules above normalise many types to LF; woff2 must never be
 # touched or the file is corrupted on checkout.
 *.woff2 binary
+
+# Preserve the exact upstream bytes used by preview subresource integrity.
+public/design-preview/vendor/* -text

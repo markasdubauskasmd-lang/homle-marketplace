@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/modernist-b31e8f7a-e017-4700-9238-bcc6db4fa16c/styles.css">
+  <script src="_ds/modernist-b31e8f7a-e017-4700-9238-bcc6db4fa16c/_ds_bundle.js"></script>
+  <style>
+    body { margin: 0; background: #f3f2f2; }
+    a { color: #201e1d; }
+    a:hover { color: #ec3013; }
+  </style>
+</helmet>
+<div style="box-sizing: border-box; width: 2160px; padding: 56px 56px 56px; background: #f3f2f2; font-family: 'Archivo', system-ui, sans-serif; color: #201e1d;">
+  <div style="height: 2px; background: #201e1d;"></div>
+  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 24px; padding: 14px 0 0;">
+    <span style="font-size: 13px; font-weight: 800; letter-spacing: .18em;">ONBOARDING HOME · OPENED IN A REAL BROWSER</span>
+    <span style="font-size: 13px; font-weight: 600; color: rgba(32,30,29,.6);">Three real viewport sizes, each at true pixel scale, shown at 45%</span>
+  </div>
+
+  <div style="display: flex; gap: 44px; margin-top: 40px;">
+
+    <div style="width: 864px;">
+      <div style="height: 540px; overflow: hidden;">
+        <div style="width: 1920px; height: 1200px; transform: scale(.45); transform-origin: top left;">
+          <x-import component-from-global-scope="ChromeWindow" from="./browser-window.jsx" width="{{ w1920 }}" height="{{ win1080 }}" url="homlle.com/cleaner/introduction" hint-size="1920px,1164px">
+            <iframe src="Onboarding Home.dc.html" title="Onboarding home at 1920 by 1080" scrolling="no" style="display: block; width: 1920px; height: 1080px; border: 0;"></iframe>
+          </x-import>
+        </div>
+      </div>
+      <div style="height: 2px; margin-top: 4px; background: #201e1d;"></div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; padding-top: 10px;">
+        <span style="font-size: 15px; font-weight: 800;">1920 × 1080 — large desktop</span>
+        <span style="font-size: 12px; font-weight: 700; letter-spacing: .1em; color: #ec3013;">GAPS OPEN UP</span>
+      </div>
+      <p style="margin: 6px 0 0; max-width: 700px; font-size: 13px; line-height: 1.5; color: rgba(32,30,29,.68);">Everything fits. The cast and the right-hand column drift apart, and the red field carries a wide empty band down its middle.</p>
+    </div>
+
+    <div style="width: 680px;">
+      <div style="height: 540px; overflow: hidden;">
+        <div style="width: 1512px; height: 1200px; transform: scale(.45); transform-origin: top left;">
+          <x-import component-from-global-scope="ChromeWindow" from="./browser-window.jsx" width="{{ w1512 }}" height="{{ win982 }}" url="homlle.com/cleaner/introduction" hint-size="1512px,1066px">
+            <iframe src="Onboarding Home.dc.html" title="Onboarding home at 1512 by 982" scrolling="no" style="display: block; width: 1512px; height: 982px; border: 0;"></iframe>
+          </x-import>
+        </div>
+      </div>
+      <div style="height: 2px; margin-top: 4px; background: #201e1d;"></div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; padding-top: 10px;">
+        <span style="font-size: 15px; font-weight: 800;">1512 × 982 — MacBook Pro 14"</span>
+        <span style="font-size: 12px; font-weight: 700; letter-spacing: .1em; color: #ec3013;">CUT OFF AT THE BOTTOM</span>
+      </div>
+      <p style="margin: 6px 0 0; max-width: 620px; font-size: 13px; line-height: 1.5; color: rgba(32,30,29,.68);">The canvas is 1024px tall, the window is 982px: the frame's bottom edge, the cast's feet, the bucket and the chat bubble all sit below the fold.</p>
+    </div>
+
+    <div style="width: 576px;">
+      <div style="height: 540px; overflow: hidden;">
+        <div style="width: 1280px; height: 1200px; transform: scale(.45); transform-origin: top left;">
+          <x-import component-from-global-scope="ChromeWindow" from="./browser-window.jsx" width="{{ w1280 }}" height="{{ win800 }}" url="homlle.com/cleaner/introduction" hint-size="1280px,884px">
+            <iframe src="Onboarding Home.dc.html" title="Onboarding home at 1280 by 800" scrolling="no" style="display: block; width: 1280px; height: 800px; border: 0;"></iframe>
+          </x-import>
+        </div>
+      </div>
+      <div style="height: 2px; margin-top: 4px; background: #201e1d;"></div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; padding-top: 10px;">
+        <span style="font-size: 15px; font-weight: 800;">1280 × 800 — small laptop</span>
+        <span style="font-size: 12px; font-weight: 700; letter-spacing: .1em; color: #ec3013;">WORST CASE</span>
+      </div>
+      <p style="margin: 6px 0 0; max-width: 540px; font-size: 13px; line-height: 1.5; color: rgba(32,30,29,.68);">160px of the design is off-screen to the right and 240px below it, so the "NEXT" row, the chat bubble and the cast's lower half are all lost.</p>
+    </div>
+  </div>
+
+  <div style="height: 2px; margin-top: 48px; background: #201e1d;"></div>
+  <p style="margin: 14px 0 0; max-width: 1100px; font-size: 14px; line-height: 1.55; color: rgba(32,30,29,.72);">Each window above renders the design file itself at true pixel scale — no fitting, no zoom — which is what a browser does with a fixed 1440 × 1024 canvas. Your product CSS instead sizes the shell to <span style="font-weight: 800; color: #201e1d;">calc(100vw − 16px) × calc(100vh − 16px)</span>, so the live page would stretch to fill each of these windows once the layout is made fluid.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 2160, &quot;height&quot;: 1300}}">
+class Component extends DCLogic {
+  renderVals() {
+    return { w1920: 1920, win1080: 1164, w1512: 1512, win982: 1066, w1280: 1280, win800: 884 };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="vendor/react.js"></script><script src="vendor/react-dom.js"></script><script src="browser-window.js"></script><script src="ios-frame.js"></script><script src="compiled.js"></script><script src="./support.js"></script>
+<title>Homlle — Cleaner Dashboard Prototype</title><link rel="stylesheet" href="css/hidden-template.css"></head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/modernist-b31e8f7a-e017-4700-9238-bcc6db4fa16c/styles.css">
+  <script src="_ds/modernist-b31e8f7a-e017-4700-9238-bcc6db4fa16c/_ds_bundle.js"></script>
+  
+  <link rel="stylesheet" href="css/b6ed4eec7ce5ec5b.css">
+</helmet>
+<div data-preview-style="width: 100%; max-width: 1440px; margin: 0 auto; font-family: 'Archivo', system-ui, sans-serif; color: #201e1d;">
+  <div data-shell data-preview-style="box-sizing: border-box; width: 100%; display: flex; overflow: hidden; border: 7px solid #2d2b2a; border-radius: 29px; box-shadow: 0 18px 45px rgba(28,23,22,.14); background-image: repeating-linear-gradient(115deg, rgba(255,255,255,.14) 0 2px, transparent 2px 15px), linear-gradient(118deg, #f7123d 0%, #ee0026 46%, #dc0a30 100%); background-color: #f3f2f2;">
+
+    <aside data-rail data-preview-style="position: relative; flex: 0 0 88px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 0 18px; background: transparent; --was: linear-gradient(180deg, #ff1747 0%, #f10021 58%, #d9002c 100%);">
+      <a href="#activity" aria-label="Homlle" data-preview-style="position: relative; display: block; width: 46px; height: 46px; margin-bottom: 10px; background: url('public/homlle-onboarding-logo-white.png') center / contain no-repeat;"></a>
+      <a href="#activity" aria-label="Activity" title="Activity" data-preview-style="position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: {{ navActivity }}; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="none" stroke="{{ inkActivity }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      <a href="#jobs-map" aria-label="Jobs Map" title="Jobs Map" data-preview-style="position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: {{ navMap }}; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" fill="none" stroke="{{ inkMap }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      <a href="#messages" aria-label="Messages" title="Messages" data-preview-style="position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: {{ navMsg }}; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" fill="none" stroke="{{ inkMsg }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      <a href="#earnings" aria-label="Earnings" title="Earnings" data-preview-style="position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: {{ navPay }}; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5.5A4 4 0 0 0 9 9v6c0 2-.8 3-2.5 4H17M7 12h6" fill="none" stroke="{{ inkPay }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      <a href="#reviews" aria-label="Reviews" title="Reviews" data-preview-style="position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: {{ navReviews }}; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.7 6.3.9-4.5 4.4 1 6.3-5.5-3-5.5 3 1-6.3L3 9.6l6.3-.9z" fill="none" stroke="{{ inkReviews }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      <span aria-hidden="true" data-preview-style="flex: 1;"></span>
+      <span aria-hidden="true" data-preview-style="position: relative; width: 36px; height: 1px; margin: 6px 0; background: rgba(255,255,255,.45);"></span>
+      <a href="#profile" aria-label="My Profile" title="My Profile" data-preview-style="position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; border: 1px solid rgba(255,255,255,.45); background: {{ navProfile }}; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5" fill="none" stroke="{{ inkProfile }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      <a href="#profile" aria-label="Settings" title="Settings — opens on the real site" data-preview-style="display: grid; place-items: center; width: 46px; height: 46px; margin-top: 8px; border-radius: 14px; text-decoration: none;" style-hover="background: rgba(255,255,255,.2);"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+      <button type="button" data-account-sign-out aria-label="Logout" title="Logout — signs out to /login on the real site" data-preview-style="display: grid; place-items: center; width: 46px; height: 46px; margin-top: 8px; border: 0; border-radius: 14px; background: transparent; font-family: inherit; cursor: pointer;" style-hover="background: rgba(255,255,255,.2);"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></button>
+    </aside>
+
+    <main data-scroll data-preview-style="flex: 1; min-width: 0; height: 940px; display: flex; flex-direction: column; overflow-y: auto;">
+
+      <header data-pagehead data-preview-style="position: relative; flex: none; box-sizing: border-box; min-height: 177px; overflow: hidden; padding: 26px 30px 28px; background: transparent;">
+        <span aria-hidden="true" data-preview-style="position: absolute; right: -60px; top: -70px; width: 300px; height: 300px; border: 34px solid rgba(255,255,255,.12); border-radius: 50%;"></span>
+        <div data-preview-style="position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px;">
+          <div data-preview-style="flex: 1 1 320px; min-width: 0;">
+            <span data-preview-style="display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px;"><span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .2em; color: #fff;">{{ kicker }}</span><span data-preview-style="padding: 4px 9px; border: 1px solid rgba(255,255,255,.65); border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: .12em; color: #fff;">EXAMPLE DATA</span></span>
+            <h1 data-pagetitle data-preview-style="margin: 10px 0 0; font-size: 40px; font-weight: 800; line-height: 1.0; letter-spacing: -.03em; color: #fff; text-wrap: pretty;">{{ pageTitle }}</h1>
+            <p data-preview-style="margin: 8px 0 0; max-width: 520px; font-size: 14px; font-weight: 600; line-height: 1.45; color: #fff;">{{ pageSub }}</p>
+          </div>
+          <div data-preview-style="display: flex; align-items: center; gap: 10px;">
+            <a href="#profile" aria-label="Notifications" title="Notifications — opens /cleaner/notifications on the real site" data-preview-style="display: grid; place-items: center; width: 46px; height: 46px; border-radius: 23px; background: #fff; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 1 1 12 0v5l2 3H4zM10 19a2 2 0 0 0 4 0" fill="none" stroke="#201e1d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg></a>
+            <a href="#profile" data-preview-style="display: inline-flex; align-items: center; gap: 10px; min-height: 46px; padding: 0 16px 0 6px; border-radius: 23px; background: #201e1d; text-decoration: none;">
+              <img class="grayscale" src="assets/homlle-face-2.png" alt="" data-preview-style="display: block; width: 34px; height: 34px; border-radius: 50%; object-fit: cover; object-position: 50% 18%; background: #fff;">
+              <span data-chiplabel data-preview-style="font-size: 13px; font-weight: 800; color: #fff;">Your account</span>
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <sc-if value="{{ isActivity }}" hint-placeholder-val="{{ true }}">
+        <div data-pagebody data-screen-label="Activity" data-preview-style="background: #f3f2f2; flex: 1 0 auto; padding: 22px 30px 30px; border-top-left-radius: 28px;">
+          <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: 12px; margin-bottom: 18px;">
+            <div data-preview-style="display: grid; grid-template-rows: 30px max-content max-content; padding: 15px 17px 17px; border: 3px solid #2d2b2a; border-radius: 20px; background: #fff;">
+              <span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">VALUE THIS WEEK</span>
+              <strong data-preview-style="font-size: 26px; letter-spacing: -.03em; color: {{ weekValueInk }};">{{ weekValue }}</strong>
+              <small data-preview-style="font-size: 11px; color: rgba(32,30,29,.78);">agreed Cleaner pay</small>
+            </div>
+            <div data-preview-style="display: grid; grid-template-rows: 30px max-content max-content; padding: 15px 17px 17px; border: 3px solid #2d2b2a; border-radius: 20px; background: #fff;">
+              <span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">NEXT WEEK</span>
+              <strong data-preview-style="font-size: 26px; letter-spacing: -.03em; color: {{ nextValueInk }};">{{ nextValue }}</strong>
+              <small data-preview-style="font-size: 11px; color: rgba(32,30,29,.78);">{{ nextValueNote }}</small>
+            </div>
+            <div data-preview-style="display: grid; grid-template-rows: 30px max-content max-content; padding: 15px 17px 17px; border: 3px solid #2d2b2a; border-radius: 20px; background: #fff;">
+              <span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">HOURS BOOKED</span>
+              <strong data-preview-style="font-size: 26px; letter-spacing: -.03em; color: {{ weekHoursInk }};">{{ weekHours }}</strong>
+              <small data-preview-style="font-size: 11px; color: rgba(32,30,29,.78);">{{ weekLabelShort }}</small>
+            </div>
+            <div data-preview-style="display: grid; grid-template-rows: 30px max-content max-content; padding: 15px 17px 17px; border: 3px solid {{ offersEdge }}; border-radius: 20px; background: #fff;">
+              <span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; line-height: 1.25; color: {{ offersInk }};">JOBS</span>
+              <strong data-preview-style="font-size: 26px; letter-spacing: -.03em; color: {{ offersInk }};">{{ offersCount }}</strong>
+              <small data-preview-style="font-size: 11px; color: rgba(32,30,29,.78);">{{ offersNote }}</small>
+            </div>
+          </div>
+          <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 18px; align-items: start;">
+            <sc-if value="{{ weekHasJob }}" hint-placeholder-val="{{ true }}">
+              <div data-preview-style="overflow: hidden; border: 3px solid #2d2b2a; border-radius: 24px; background: #201e1d;">
+                <div data-preview-style="position: relative;">
+                  <img class="grayscale" src="assets/room-photo.png" alt="The property for this clean" data-preview-style="display: block; width: 100%; height: 208px; object-fit: cover;">
+                  <span aria-hidden="true" data-preview-style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(32,30,29,0) 40%, rgba(32,30,29,.82) 100%);"></span>
+                  <span data-preview-style="position: absolute; left: 18px; top: 18px; padding: 6px 12px; border-radius: 999px; background: #e01030; color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .14em;">{{ heroBadge }}</span>
+                  <span data-preview-style="position: absolute; left: 18px; bottom: 16px; font-size: 25px; font-weight: 800; letter-spacing: -.02em; color: #fff;">{{ heroTitle }}</span>
+                </div>
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 18px 20px 20px;">
+                  <span><span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; color: rgba(255,255,255,.75);">AREA</span><strong data-preview-style="font-size: 15px; color: #fff;">{{ heroArea }}</strong></span>
+                  <span><span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; color: rgba(255,255,255,.75);">HOURS</span><strong data-preview-style="font-size: 15px; color: #fff;">{{ heroHours }}</strong></span>
+                  <span><span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; color: rgba(255,255,255,.75);">YOUR PAY</span><strong data-preview-style="font-size: 15px; color: #fff;">{{ heroPay }}</strong></span>
+                  <span data-preview-style="flex: 1;"></span>
+                  <a href="#job" data-preview-style="display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 23px; background: #fff; color: #201e1d; font-size: 13.5px; font-weight: 800; text-decoration: none;">Start job <span aria-hidden="true">↗</span></a>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ weekNoJob }}">
+              <div data-preview-style="overflow: hidden; border: 3px solid #2d2b2a; border-radius: 24px; background: #201e1d;">
+                <div data-preview-style="position: relative;">
+                  <img class="grayscale" src="assets/room-photo.png" alt="" data-preview-style="display: block; width: 100%; height: 208px; object-fit: cover; opacity: .3;">
+                  <span aria-hidden="true" data-preview-style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(32,30,29,.3) 40%, rgba(32,30,29,.88) 100%);"></span>
+                  <span data-preview-style="position: absolute; left: 18px; top: 18px; padding: 6px 12px; border: 1px solid rgba(255,255,255,.55); border-radius: 999px; color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .14em;">{{ heroBadge }}</span>
+                  <span data-preview-style="position: absolute; left: 18px; bottom: 16px; font-size: 25px; font-weight: 800; letter-spacing: -.02em; color: #fff;">{{ heroTitle }}</span>
+                </div>
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 18px 20px 20px;">
+                  <span data-preview-style="flex: 1 1 170px; min-width: 0; font-size: 13px; line-height: 1.45; color: rgba(255,255,255,.86);">{{ heroEmptyLine }}</span>
+                  <a href="#jobs-map" data-preview-style="display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 23px; background: #fff; color: #201e1d; font-size: 13.5px; font-weight: 800; text-decoration: none;">Find jobs near you <span aria-hidden="true">↗</span></a>
+                </div>
+              </div>
+            </sc-if>
+
+            <div data-preview-style="display: flex; flex-direction: column; gap: 14px;">
+              <div data-weekcard data-preview-style="padding: 18px 20px 20px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px;">
+                  <span data-preview-style="flex: 1 1 auto; min-width: 0; font-size: 10px; font-weight: 800; letter-spacing: .16em;">{{ weekLabel }}</span>
+                  <button type="button" data-preview-onClick="{{ prevWeek }}" aria-label="Previous week" title="Previous week" data-preview-style="display: grid; place-items: center; width: 44px; height: 44px; flex: none; border: 2px solid {{ prevEdge }}; border-radius: 22px; background: transparent; color: {{ prevInk }}; font-family: inherit; font-size: 15px; font-weight: 800; cursor: {{ prevCursor }};">←</button>
+                  <button type="button" data-preview-onClick="{{ nextWeek }}" aria-label="Next week" title="Next week" data-preview-style="display: grid; place-items: center; width: 44px; height: 44px; flex: none; border: 2px solid {{ nextEdge }}; border-radius: 22px; background: transparent; color: {{ nextInk }}; font-family: inherit; font-size: 15px; font-weight: 800; cursor: {{ nextCursor }};">→</button>
+                </div>
+                <div data-weekstrip data-preview-style="display: flex; gap: 5px; margin-top: 12px;">
+                  <sc-for list="{{ weekDays }}" as="day" hint-placeholder-count="7">
+                    <a href="#jobs-map" aria-label="{{ day.aria }}" title="{{ day.aria }}" data-preview-style="flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; text-decoration: none;">
+                      <span data-preview-style="width: 100%; height: 44px; border-radius: 8px; background: {{ day.fill }}; box-shadow: {{ day.ring }};"></span>
+                      <span data-preview-style="font-size: 9.5px; font-weight: 800; color: {{ day.ink }};">{{ day.name }}</span>
+                    </a>
+                  </sc-for>
+                </div>
+                <p data-preview-style="margin: 10px 0 0; font-size: 11.5px; color: rgba(32,30,29,.78);">{{ weekNote }}</p>
+                <p data-preview-style="margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed rgba(32,30,29,.4); font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Authored, not product:</strong> cleaner-dashboard.html renders this week as a seven-column grid with dated headers — the photo hero and this bar strip are proposed replacements. Sourced from it: "Activity schedule", the four week tiles, "Upcoming cleans", the eight status-tile labels below, and "Complete your setup / Get ready for suitable jobs" with "Onboarding progress". Not yet reconciled: its "Pending requests" and "Active and upcoming jobs" sections are reorganised (see below), and the status tiles' sub-lines are written here rather than lifted — only "awaiting your reply" is a real string.</p>
+              </div>
+            </div>
+          </div>
+
+          <div data-preview-style="margin-top: 18px; padding: 18px 20px 20px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+            <div data-preview-style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px;">
+              <span><span data-preview-style="display: block; font-size: 10px; font-weight: 800; letter-spacing: .16em; color: #a30c24;">SELECTED WORK</span><span data-preview-style="display: block; margin-top: 3px; font-size: 19px; font-weight: 800; letter-spacing: -.015em;">Upcoming cleans</span></span>
+              <a href="#earnings" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; font-size: 12px; font-weight: 800; text-decoration: none; border-bottom: 2px solid #e01030;">EARNINGS ↗</a>
+            </div>
+            <div data-preview-style="height: 2px; margin: 10px 0 0; background: #201e1d;"></div>
+            <p data-preview-style="margin: 10px 0 0; font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Reorganised, as flagged above:</strong> cleaner-dashboard.html keeps "Pending requests" and "Active and upcoming jobs" as two separate sections. This design merges the confirmed work into "Upcoming cleans" and sends pending offers to <a href="#jobs-map" data-preview-style="font-weight: 800;">Jobs near you</a>, where the map gives them context.</p>
+            <sc-for list="{{ weekJobs }}" as="jb" hint-placeholder-count="1">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 14px 0; border-bottom: 1px solid rgba(32,30,29,.3);">
+                <img class="grayscale" src="assets/room-photo.png" alt="" data-preview-style="display: block; width: 96px; height: 72px; flex: none; object-fit: cover; border-radius: 14px;">
+                <span data-preview-style="flex: 1 1 150px; min-width: 0;"><strong data-preview-style="display: block; font-size: 15px;">{{ jb.title }}</strong><small data-preview-style="font-size: 12px; color: rgba(32,30,29,.78);">{{ jb.meta }}</small></span>
+                <span data-preview-style="font-size: 17px; font-weight: 800;">{{ jb.pay }}</span>
+                <a href="#job" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 22px; background: #201e1d; color: #fff; font-size: 12.5px; font-weight: 800; text-decoration: none;">Open</a>
+              </div>
+            </sc-for>
+            <sc-if value="{{ weekNoJob }}">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 0; border-bottom: 1px solid rgba(32,30,29,.3);">
+                <span data-preview-style="flex: 1 1 200px; min-width: 0; font-size: 13px; color: rgba(32,30,29,.8);">No confirmed cleans in {{ weekLabel }}.</span>
+              </div>
+            </sc-if>
+            <sc-if value="{{ weekHasOffers }}">
+              <a href="#jobs-map" data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 0; text-decoration: none;">
+                <span data-preview-style="flex: 1 1 150px; min-width: 0; font-size: 13px; color: rgba(32,30,29,.8);">{{ offersLine }}</span>
+                <span data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 22px; border: 2px solid #e01030; color: #a30c24; font-size: 12.5px; font-weight: 800;">Reply on Jobs near you ↗</span>
+              </a>
+            </sc-if>
+          </div>
+          <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 18px; margin-top: 18px; align-items: start;">
+            <div data-preview-style="padding: 18px 20px 20px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+              <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">YOUR STATUS</span>
+              <div data-preview-style="height: 2px; margin: 10px 0 14px; background: #201e1d;"></div>
+              <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 128px), 1fr)); gap: 10px;">
+              <div data-preview-style="display: grid; grid-template-rows: 28px max-content max-content; padding: 13px 15px 15px; border: 1px solid rgba(32,30,29,.4); border-radius: 18px; background: #fff;">
+                <span data-preview-style="display: block; font-size: 9px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">PENDING OFFERS</span>
+                <strong data-preview-style="font-size: 21px; letter-spacing: -.025em;">2</strong>
+                <small data-preview-style="font-size: 10.5px; color: rgba(32,30,29,.78);">awaiting your reply</small>
+              </div>
+              <div data-preview-style="display: grid; grid-template-rows: 28px max-content max-content; padding: 13px 15px 15px; border: 1px solid rgba(32,30,29,.4); border-radius: 18px; background: #fff;">
+                <span data-preview-style="display: block; font-size: 9px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">CURRENT JOBS</span>
+                <strong data-preview-style="font-size: 21px; letter-spacing: -.025em;">1</strong>
+                <small data-preview-style="font-size: 10.5px; color: rgba(32,30,29,.78);">confirmed</small>
+              </div>
+              <div data-preview-style="display: grid; grid-template-rows: 28px max-content max-content; padding: 13px 15px 15px; border: 1px solid rgba(32,30,29,.4); border-radius: 18px; background: #fff;">
+                <span data-preview-style="display: block; font-size: 9px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">COMPLETED</span>
+                <strong data-preview-style="font-size: 21px; letter-spacing: -.025em;">0</strong>
+                <small data-preview-style="font-size: 10.5px; color: rgba(32,30,29,.78);">verified jobs</small>
+              </div>
+              <div data-preview-style="display: grid; grid-template-rows: 28px max-content max-content; padding: 13px 15px 15px; border: 1px solid rgba(32,30,29,.4); border-radius: 18px; background: #fff;">
+                <span data-preview-style="display: block; font-size: 9px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">RATING</span>
+                <strong data-preview-style="font-size: 21px; letter-spacing: -.025em; color: rgba(32,30,29,.5);">—</strong>
+                <small data-preview-style="font-size: 10.5px; color: rgba(32,30,29,.78);">no approved reviews</small>
+              </div>
+              <div data-preview-style="display: grid; grid-template-rows: 28px max-content max-content; padding: 13px 15px 15px; border: 1px solid rgba(32,30,29,.4); border-radius: 18px; background: #fff;">
+                <span data-preview-style="display: block; font-size: 9px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">CONFIRMED JOB VALUE</span>
+                <strong data-preview-style="font-size: 21px; letter-spacing: -.025em;">£68.00</strong>
+                <small data-preview-style="font-size: 10.5px; color: rgba(32,30,29,.78);">agreed pay</small>
+              </div>
+              <div data-preview-style="display: grid; grid-template-rows: 28px max-content max-content; padding: 13px 15px 15px; border: 1px solid rgba(32,30,29,.4); border-radius: 18px; background: #fff;">
+                <span data-preview-style="display: block; font-size: 9px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">COMPLETED JOB VALUE</span>
+                <strong data-preview-style="font-size: 21px; letter-spacing: -.025em; color: rgba(32,30,29,.5);">£0.00</strong>
+                <small data-preview-style="font-size: 10.5px; color: rgba(32,30,29,.78);">on completed jobs</small>
+              </div>
+              <div data-preview-style="display: grid; grid-template-rows: 28px max-content max-content; padding: 13px 15px 15px; border: 1px solid rgba(32,30,29,.4); border-radius: 18px; background: #fff;">
+                <span data-preview-style="display: block; font-size: 9px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">AVAILABILITY</span>
+                <strong data-preview-style="font-size: 21px; letter-spacing: -.025em;">Open</strong>
+                <small data-preview-style="font-size: 10.5px; color: rgba(32,30,29,.78);">holiday mode off</small>
+              </div>
+              <div data-preview-style="display: grid; grid-template-rows: 28px max-content max-content; padding: 13px 15px 15px; border: 1px solid rgba(32,30,29,.4); border-radius: 18px; background: #fff;">
+                <span data-preview-style="display: block; font-size: 9px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">GETTING PAID</span>
+                <strong data-preview-style="font-size: 21px; letter-spacing: -.025em; color: rgba(32,30,29,.5);">Not set up</strong>
+                <small data-preview-style="font-size: 10.5px; color: rgba(32,30,29,.78);">payouts pending</small>
+              </div>
+              </div>
+            </div>
+
+            <div data-preview-style="padding: 18px 20px 20px; border: 3px solid #e01030; border-radius: 22px; background: #fff;">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+                <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 50%; background: #e01030;"><svg width="21" height="21" viewBox="0 0 24 24"><path d="M12 4l9 16H3zM12 10v4M12 17h.01" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                <span data-preview-style="flex: 1 1 180px; min-width: 0;">
+                  <span data-preview-style="display: block; font-size: 10px; font-weight: 800; letter-spacing: .16em; color: #a30c24;">SOMETHING WRONG ON THIS JOB?</span>
+                  <strong data-preview-style="display: block; margin-top: 2px; font-size: 17px; letter-spacing: -.015em;">Report an incident</strong>
+                </span>
+              </div>
+              <div data-preview-style="height: 2px; margin: 12px 0 14px; background: #201e1d;"></div>
+              <p data-preview-style="margin: 0 0 12px; font-size: 12.5px; line-height: 1.5; color: rgba(32,30,29,.8);">Tell Homlle what happened and it is logged against the booking — not just left in chat.</p>
+              <div class="field" data-preview-style="margin: 0;">
+                <label for="incident-activity" data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .12em;">WHAT HAS HAPPENED?</label>
+                <select id="incident-activity" class="input" data-preview-onChange="{{ pickIncident }}" value="{{ incident }}" data-preview-style="border-radius: 12px; min-height: 46px; padding-top: 0; padding-bottom: 0;">
+                  <option value="">Choose a reason…</option>
+                  <sc-for list="{{ incidentOptions }}" as="opt" hint-placeholder-count="8">
+                    <option value="{{ opt.value }}">{{ opt.label }}</option>
+                  </sc-for>
+                </select>
+              </div>
+              <sc-if value="{{ incidentOther }}">
+                <div class="field" data-preview-style="margin: 12px 0 0;">
+                  <label for="incident-other-activity" data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .12em;">TELL US WHAT HAPPENED</label>
+                  <textarea id="incident-other-activity" class="input" rows="3" placeholder="Describe the problem in your own words" data-preview-style="border-radius: 12px; resize: vertical;"></textarea>
+                </div>
+              </sc-if>
+              <sc-if value="{{ incidentPicked }}">
+                <div data-preview-style="display: flex; gap: 12px; margin-top: 14px; padding: 14px 16px; border-radius: 16px; background: {{ incidentFill }};">
+                  <span aria-hidden="true" data-preview-style="flex: none; margin-top: 1px;"><svg width="17" height="17" viewBox="0 0 24 24"><path d="{{ incidentGlyph }}" fill="none" stroke="{{ incidentInk }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                  <span><strong data-preview-style="display: block; font-size: 12.5px; color: {{ incidentInk }};">{{ incidentHeading }}</strong><span data-preview-style="display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.5; color: rgba(32,30,29,.82);">{{ incidentGuidance }}</span></span>
+                </div>
+              </sc-if>
+              <div data-preview-style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px;">
+                <button type="button" data-preview-onClick="{{ sendReport }}" data-preview-style="display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 0 20px; border: 0; border-radius: 24px; background: {{ reportFill }}; color: {{ reportInk }}; font-family: inherit; font-size: 13.5px; font-weight: 800; cursor: {{ reportCursor }};">{{ reportLabel }}</button>
+                <a href="#messages" data-preview-style="display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 0 20px; border: 2px solid #201e1d; border-radius: 24px; color: #201e1d; font-size: 13.5px; font-weight: 800; text-decoration: none;"><svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" fill="none" stroke="#201e1d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>Contact the customer</a>
+              </div>
+              <sc-if value="{{ reportSent }}">
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; padding: 14px 16px; border-radius: 16px; background: #201e1d;">
+                  <span data-preview-style="flex: 1 1 180px; min-width: 0;"><strong data-preview-style="display: block; font-size: 13px; color: #fff;">Reported — {{ incidentLabel }}</strong><small data-preview-style="font-size: 11.5px; color: rgba(255,255,255,.82);">Logged against this booking. Homlle Support will pick it up and message you here.</small></span>
+                  <button type="button" data-preview-onClick="{{ clearReport }}" data-preview-style="min-height: 44px; padding: 0 15px; border: 2px solid rgba(255,255,255,.6); border-radius: 22px; background: transparent; color: #fff; font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;">Undo</button>
+                </div>
+              </sc-if>
+              <p data-preview-style="margin: 14px 0 0; padding-top: 11px; border-top: 1px dashed rgba(32,30,29,.4); font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Authored, not product:</strong> Homlle has "Report an Incident" in its account menu, but no in-job reporting exists. The eight reasons and the guidance under each — waiting time, scope approval, insurance routing — are proposed policy, not Homlle's stated terms.</p>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isMap }}">
+        <div data-pagebody data-screen-label="Jobs Map" data-preview-style="background: #f3f2f2; flex: 1 0 auto; padding: 22px 30px 30px; border-top-left-radius: 28px;">
+          <div data-preview-style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
+            <a href="#activity" data-preview-style="display: inline-flex; align-items: center; gap: 9px; min-height: 46px; padding: 0 18px; border: 2px solid #201e1d; border-radius: 23px; background: #fff; color: #201e1d; font-size: 13px; font-weight: 800; text-decoration: none;"><span aria-hidden="true">←</span>Back to Activity schedule</a>
+          </div>
+          <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 18px; align-items: start;">
+            <div data-preview-style="overflow: hidden; border: 3px solid #2d2b2a; border-radius: 24px; background: #fff;">
+              <div data-preview-style="position: relative; height: 396px; background: #eceaea;">
+                <iframe src="jobs-map.html" title="Map of available cleaning jobs in your work areas" loading="lazy" data-preview-style="display: block; width: 100%; height: 100%; border: 0;"></iframe>
+                <span data-preview-style="position: absolute; left: 18px; top: 18px; z-index: 500; padding: 10px 13px; border: 2px solid #201e1d; border-radius: 14px; background: #fff; pointer-events: none;"><strong data-preview-style="display: block; font-size: 12.5px;">Your work area</strong><small data-preview-style="font-size: 11px; color: rgba(32,30,29,.72);">LS1, LS2, LS6 · 15 miles</small></span>
+              </div>
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 18px 16px; border-top: 2px solid #201e1d;">
+                <span data-preview-style="font-size: 11.5px; font-weight: 700; color: rgba(32,30,29,.75);">Approximate areas only — exact addresses appear once a job is accepted.</span>
+                <span data-preview-style="flex: 1;"></span>
+                <a href="#activity" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 22px; border: 2px solid #201e1d; font-size: 12.5px; font-weight: 800; text-decoration: none;">Edit areas</a>
+              </div>
+            </div>
+
+            <div data-preview-style="display: flex; flex-direction: column; gap: 14px;">
+              <div data-preview-style="padding: 18px 20px 20px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+                <span data-preview-style="display: block; font-size: 11px; font-weight: 800; letter-spacing: .16em;">AVAILABLE JOBS</span>
+                <span data-preview-style="display: block; margin-top: 4px; font-size: 11px; color: rgba(32,30,29,.72);">Offers close automatically when the window ends.</span>
+                <div data-preview-style="height: 2px; margin: 10px 0 0; background: #201e1d;"></div>
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid rgba(32,30,29,.3);">
+                  <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 56px; height: 44px; flex: none; border-radius: 12px; background: #e7e4e4;"><svg width="17" height="17" viewBox="0 0 24 24"><path d="M3 6h18v13H3zM3 15l5-4 4 3 3-2 6 4" fill="none" stroke="rgba(32,30,29,.6)" stroke-width="1.6" stroke-linejoin="round"></path></svg></span>
+                  <span data-preview-style="flex: 1 1 130px; min-width: 0;"><strong data-preview-style="display: block; font-size: 13.5px;">Regular clean · LS1</strong><small data-preview-style="font-size: 11.5px; color: rgba(32,30,29,.72);">Tue 8 · 13:00 · 2h · 4.1 miles</small></span>
+                  <span data-preview-style="font-size: 15px; font-weight: 800;">£36</span>
+                  <button type="button" data-preview-onClick="{{ pickOffer0 }}" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 0; border-radius: 22px; background: #e01030; color: #fff; font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer;">Review</button>
+                </div>
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 13px 0;">
+                  <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 56px; height: 44px; flex: none; border-radius: 12px; background: #e7e4e4;"><svg width="17" height="17" viewBox="0 0 24 24"><path d="M3 6h18v13H3zM3 15l5-4 4 3 3-2 6 4" fill="none" stroke="rgba(32,30,29,.6)" stroke-width="1.6" stroke-linejoin="round"></path></svg></span>
+                  <span data-preview-style="flex: 1 1 130px; min-width: 0;"><strong data-preview-style="display: block; font-size: 13.5px;">End of tenancy · LS2</strong><small data-preview-style="font-size: 11.5px; color: rgba(32,30,29,.72);">Thu 10 · 10:00 · 5h · 6.8 miles</small></span>
+                  <span data-preview-style="font-size: 15px; font-weight: 800;">£95</span>
+                  <button type="button" data-preview-onClick="{{ pickOffer1 }}" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 0; border-radius: 22px; background: #e01030; color: #fff; font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer;">Review</button>
+                </div>
+              </div>
+              <div data-preview-style="padding: 18px 20px 20px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+                <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">TRAVEL</span>
+                <div data-preview-style="height: 2px; margin: 10px 0 14px; background: #201e1d;"></div>
+                <div data-preview-style="display: flex; align-items: baseline; justify-content: space-between;"><strong data-preview-style="font-size: 13.5px;">Maximum distance</strong><span data-preview-style="font-size: 15px; font-weight: 800;">15 miles</span></div>
+                <div data-preview-style="position: relative; height: 6px; margin-top: 12px; border-radius: 3px; background: rgba(32,30,29,.16);"><span data-preview-style="position: absolute; inset: 0 auto 0 0; width: 30%; border-radius: 3px; background: #e01030;"></span></div>
+                <p data-preview-style="margin: 12px 0 0; font-size: 11.5px; line-height: 1.5; color: rgba(32,30,29,.78);">Homlle stores the outward postcodes you choose, never an address from this page.</p>
+                <p data-preview-style="margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed rgba(32,30,29,.4); font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Authored, not product:</strong> the map is real — live OpenStreetMap tiles via Leaflet, with the 15-mile radius drawn to scale. The travel card is a proposed design, and the plotted postcodes and jobs are example data. Only the page title and “Available jobs” come from cleaner-jobs-map.html.</p>
+              </div>
+            </div>
+          </div>
+
+          <div data-preview-style="margin-top: 18px; overflow: hidden; border: 3px solid #2d2b2a; border-radius: 24px; background: #fff;">
+            <div data-preview-style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; padding: 20px 22px 18px; border-bottom: 2px solid #201e1d;">
+              <span data-preview-style="flex: 1 1 260px; min-width: 0;">
+                <span data-preview-style="display: block; font-size: 10px; font-weight: 800; letter-spacing: .16em; color: #a30c24;">OFFER {{ offerNum }} OF 2 · AWAITING YOUR REPLY</span>
+                <strong data-preview-style="display: block; margin-top: 5px; font-size: 25px; line-height: 1.12; letter-spacing: -.02em;">{{ offerTitle }}</strong>
+                <span data-preview-style="display: block; margin-top: 4px; font-size: 13px; color: rgba(32,30,29,.78);">{{ offerWhen }} · {{ offerArea }} · {{ offerFrequency }}</span>
+              </span>
+              <span data-preview-style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex: none;">
+                <span data-preview-style="display: inline-flex; align-items: center; gap: 8px; padding: 8px 13px; border: 2px solid {{ expiryEdge }}; border-radius: 999px; background: {{ expiryFill }};">
+                  <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3.5 2" fill="none" stroke="{{ expiryInk }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <span data-preview-style="font-size: 12.5px; font-weight: 800; color: {{ expiryInk }};">Expires in {{ countdown }}</span>
+                </span>
+                <span data-preview-style="display: flex; gap: 6px;">
+                  <sc-for list="{{ offerTabs }}" as="tab" hint-placeholder-count="2">
+                    <button type="button" data-preview-onClick="{{ tab.select }}" data-preview-style="min-height: 34px; padding: 0 12px; border: 2px solid #201e1d; border-radius: 17px; background: {{ tab.bg }}; color: {{ tab.ink }}; font-family: inherit; font-size: 11px; font-weight: 800; cursor: pointer;">{{ tab.label }}</button>
+                  </sc-for>
+                </span>
+              </span>
+            </div>
+
+            <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 0;">
+              <section data-preview-style="padding: 20px 22px 22px; border-right: 1px solid rgba(32,30,29,.28);">
+                <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">WHAT THE CLEAN COVERS</span>
+                <div data-preview-style="height: 2px; margin: 10px 0 14px; background: #201e1d;"></div>
+                <ul data-preview-style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px;">
+                  <sc-for list="{{ offerScope }}" as="line" hint-placeholder-count="4">
+                    <li data-preview-style="display: flex; gap: 10px; font-size: 13px; line-height: 1.45;">
+                      <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" data-preview-style="flex: none; margin-top: 2px;"><path d="M5 12.5l4.5 4.5L19 7" fill="none" stroke="#e01030" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                      <span>{{ line.text }}</span>
+                    </li>
+                  </sc-for>
+                </ul>
+                <div data-preview-style="margin-top: 16px; padding-top: 13px; border-top: 1px solid rgba(32,30,29,.28);">
+                  <sc-for list="{{ offerExtras }}" as="note" hint-placeholder-count="2">
+                    <p data-preview-style="margin: 0 0 6px; font-size: 12px; line-height: 1.45; color: rgba(32,30,29,.78);">{{ note.text }}</p>
+                  </sc-for>
+                </div>
+              </section>
+
+              <section data-preview-style="padding: 20px 22px 22px; border-right: 1px solid rgba(32,30,29,.28);">
+                <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">WHAT YOU GET PAID</span>
+                <div data-preview-style="height: 2px; margin: 10px 0 14px; background: #201e1d;"></div>
+                <div data-preview-style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 11px;">
+                  <span data-preview-style="font-size: 13px; color: rgba(32,30,29,.8);">Client pays</span>
+                  <span data-preview-style="font-size: 14px; font-weight: 700;">{{ payClient }}</span>
+                </div>
+                <div data-preview-style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid rgba(32,30,29,.28);">
+                  <span data-preview-style="font-size: 13px; color: rgba(32,30,29,.8);">Homlle service fee</span>
+                  <span data-preview-style="font-size: 14px; font-weight: 700;">−{{ payFee }}</span>
+                </div>
+                <div data-preview-style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 13px 0 0;">
+                  <span data-preview-style="font-size: 12.5px; font-weight: 800; letter-spacing: .1em;">YOUR PAY</span>
+                  <strong data-preview-style="font-size: 31px; letter-spacing: -.03em;">{{ payNet }}</strong>
+                </div>
+                <span data-preview-style="display: block; font-size: 12px; color: rgba(32,30,29,.78);">{{ payRate }} · {{ offerHours }} hours agreed</span>
+                <p data-preview-style="margin: 14px 0 0; padding-top: 11px; border-top: 1px solid rgba(32,30,29,.28); font-size: 11.5px; line-height: 1.5; color: rgba(32,30,29,.78);">Paid weekly on Friday once payouts are set up. If the clean turns out bigger than described, request extra time before you start — never work unpaid hours.</p>
+              </section>
+
+              <section data-preview-style="padding: 20px 22px 22px;">
+                <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">TRAVEL FROM YOUR BASE</span>
+                <div data-preview-style="height: 2px; margin: 10px 0 14px; background: #201e1d;"></div>
+                <div data-preview-style="display: flex; gap: 13px;">
+                  <span aria-hidden="true" data-preview-style="display: flex; flex-direction: column; align-items: center; flex: none; padding-top: 4px;">
+                    <span data-preview-style="width: 11px; height: 11px; border: 3px solid #201e1d; border-radius: 50%;"></span>
+                    <span data-preview-style="flex: 1; width: 3px; min-height: 26px; background: rgba(32,30,29,.22);"></span>
+                    <span data-preview-style="width: 11px; height: 11px; border-radius: 50%; background: #e01030;"></span>
+                  </span>
+                  <span data-preview-style="flex: 1 1 auto; min-width: 0;">
+                    <strong data-preview-style="display: block; font-size: 13.5px;">LS1 · your base</strong>
+                    <small data-preview-style="display: block; margin-bottom: 14px; font-size: 11.5px; color: rgba(32,30,29,.78);">Travel measured from here</small>
+                    <strong data-preview-style="display: block; font-size: 13.5px;">{{ offerArea }} · the property</strong>
+                    <small data-preview-style="display: block; font-size: 11.5px; color: rgba(32,30,29,.78);">Exact address once you accept</small>
+                  </span>
+                </div>
+                <div data-preview-style="display: flex; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(32,30,29,.28);">
+                  <span data-preview-style="flex: 1;"><span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; color: rgba(32,30,29,.78);">DISTANCE</span><strong data-preview-style="font-size: 19px; letter-spacing: -.02em;">{{ offerMiles }}</strong><span data-preview-style="font-size: 11.5px; color: rgba(32,30,29,.78);"> miles</span></span>
+                  <span data-preview-style="flex: 1;"><span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; color: rgba(32,30,29,.78);">DRIVE TIME</span><strong data-preview-style="font-size: 19px; letter-spacing: -.02em;">{{ offerDrive }}</strong></span>
+                  <span data-preview-style="flex: 1;"><span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; color: rgba(32,30,29,.78);">LEAVE BY</span><strong data-preview-style="font-size: 19px; letter-spacing: -.02em;">{{ offerLeaveBy }}</strong></span>
+                </div>
+                <p data-preview-style="margin: 14px 0 0; font-size: 11.5px; line-height: 1.5; color: rgba(32,30,29,.78);">Within your 15-mile limit. Travel time is not paid — check it works with the jobs either side.</p>
+              </section>
+            </div>
+
+            <sc-if value="{{ showDecide }}" hint-placeholder-val="{{ true }}">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px 22px 20px; border-top: 2px solid #201e1d; background: #f7f5f5;">
+                <button type="button" data-preview-onClick="{{ acceptOffer }}" data-preview-style="display: inline-flex; align-items: center; gap: 10px; min-height: 50px; padding: 0 22px; border: 0; border-radius: 25px; background: #e01030; color: #fff; font-family: inherit; font-size: 14.5px; font-weight: 800; cursor: pointer;">Accept this job <span aria-hidden="true">↗</span></button>
+                <button type="button" data-preview-onClick="{{ openDecline }}" data-preview-style="display: inline-flex; align-items: center; min-height: 50px; padding: 0 22px; border: 2px solid #201e1d; border-radius: 25px; background: transparent; color: #201e1d; font-family: inherit; font-size: 14.5px; font-weight: 800; cursor: pointer;">Decline</button>
+                <span data-preview-style="flex: 1 1 200px; min-width: 0; font-size: 11.5px; line-height: 1.5; color: rgba(32,30,29,.78);">Accepting confirms the time, the scope and {{ payNet }} as your pay. Declining is free — it does not affect how often you are offered work.</span>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ showDecline }}">
+              <div data-preview-style="padding: 18px 22px 20px; border-top: 2px solid #201e1d; background: #f7f5f5;">
+                <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">WHY ARE YOU DECLINING?</span>
+                <span data-preview-style="display: block; margin-top: 4px; font-size: 12px; color: rgba(32,30,29,.78);">This is not shown to the client. It tunes the jobs you get offered next.</span>
+                <div data-preview-style="display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 16px;">
+                  <sc-for list="{{ reasons }}" as="reason" hint-placeholder-count="5">
+                    <button type="button" data-preview-onClick="{{ reason.select }}" data-preview-style="display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 15px; border: 2px solid {{ reason.edge }}; border-radius: 22px; background: {{ reason.bg }}; color: {{ reason.ink }}; font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;">
+                      <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 15px; height: 15px; flex: none; border: 2px solid {{ reason.dotEdge }}; border-radius: 50%;"><span data-preview-style="width: 7px; height: 7px; border-radius: 50%; background: {{ reason.dot }};"></span></span>
+                      {{ reason.label }}
+                    </button>
+                  </sc-for>
+                </div>
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-top: 14px; border-top: 1px solid rgba(32,30,29,.28);">
+                  <button type="button" data-preview-onClick="{{ confirmDecline }}" data-preview-style="display: inline-flex; align-items: center; min-height: 50px; padding: 0 22px; border: 0; border-radius: 25px; background: {{ confirmFill }}; color: {{ confirmInk }}; font-family: inherit; font-size: 14px; font-weight: 800; cursor: {{ confirmCursor }};">{{ confirmLabel }}</button>
+                  <button type="button" data-preview-onClick="{{ cancelDecline }}" data-preview-style="display: inline-flex; align-items: center; min-height: 50px; padding: 0 20px; border: 2px solid #201e1d; border-radius: 25px; background: transparent; color: #201e1d; font-family: inherit; font-size: 14px; font-weight: 800; cursor: pointer;">Keep the offer</button>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ showAccepted }}">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 18px 22px 20px; border-top: 2px solid #201e1d; background: #201e1d;">
+                <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 42px; height: 42px; flex: none; border-radius: 50%; background: #e01030;"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                <span data-preview-style="flex: 1 1 220px; min-width: 0;"><strong data-preview-style="display: block; font-size: 15.5px; color: #fff;">Accepted — {{ offerTitle }}</strong><small data-preview-style="font-size: 12px; color: rgba(255,255,255,.82);">{{ offerWhen }} is now in your week. The exact address and access notes are on the job screen.</small></span>
+                <a href="#job" data-preview-style="display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 23px; background: #fff; color: #201e1d; font-size: 13px; font-weight: 800; text-decoration: none;">Open the job <span aria-hidden="true">↗</span></a>
+                <button type="button" data-preview-onClick="{{ resetOffer }}" data-preview-style="min-height: 46px; padding: 0 16px; border: 2px solid rgba(255,255,255,.6); border-radius: 23px; background: transparent; color: #fff; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer;">Undo</button>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ showDeclined }}">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 18px 22px 20px; border-top: 2px solid #201e1d; background: #f7f5f5;">
+                <span data-preview-style="flex: 1 1 220px; min-width: 0;"><strong data-preview-style="display: block; font-size: 15px;">Declined — {{ declinedReason }}</strong><small data-preview-style="font-size: 12px; color: rgba(32,30,29,.78);">The offer is released back to other cleaners. Nothing is shared with the client.</small></span>
+                <button type="button" data-preview-onClick="{{ resetOffer }}" data-preview-style="min-height: 46px; padding: 0 18px; border: 2px solid #201e1d; border-radius: 23px; background: transparent; color: #201e1d; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer;">Undo</button>
+              </div>
+            </sc-if>
+
+            <p data-preview-style="margin: 0; padding: 14px 22px 18px; border-top: 1px dashed rgba(32,30,29,.4); font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Authored, not product:</strong> this whole offer screen is a proposed design — Homlle has no accept or decline flow today, which is why the map's job list previously sent "Accept" to Messages. The scope lines, drive times and decline reasons are written here. The fee line is illustrative at 20%: Homlle's real commission is not in the source, and the countdown is a live demo timer, not a real offer window.</p>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isMessages }}">
+        <div data-pagebody data-screen-label="Messages" data-preview-style="background: #f3f2f2; flex: 1 0 auto; padding: 22px 30px 30px; border-top-left-radius: 28px;">
+          <div data-preview-style="display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: flex-end; gap: 14px; margin-bottom: 16px;">
+            <span title="Automatic translation is not connected in this preview" data-preview-style="display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 13px; border: 2px solid rgba(32,30,29,.4); border-radius: 18px; font-size: 11.5px; font-weight: 800; color: rgba(32,30,29,.78);">🌐 Auto-translate off</span>
+          </div>
+          <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 18px; align-items: start;">
+            <div aria-label="Private booking conversations" data-preview-style="padding: 6px 0 8px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+              <sc-for list="{{ threads }}" as="t" hint-placeholder-count="3">
+                <button type="button" data-preview-onClick="{{ t.select }}" data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 13px; width: 100%; padding: 14px 18px; border: 0; border-bottom: 1px solid rgba(32,30,29,.22); border-left: {{ t.edge }}; background: {{ t.bg }}; font-family: inherit; text-align: left; cursor: pointer;">
+                  <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 42px; height: 42px; flex: none; border-radius: 50%; background: #201e1d; color: #fff; font-size: 15px; font-weight: 800;">{{ t.initial }}</span>
+                  <span data-preview-style="flex: 1 1 140px; min-width: 0;"><strong data-preview-style="display: block; font-size: 14px;">{{ t.name }}</strong><small data-preview-style="display: block; font-size: 11.5px; color: rgba(32,30,29,.78);">{{ t.preview }}</small></span>
+                  <span data-preview-style="font-size: 10.5px; font-weight: 800; color: rgba(32,30,29,.78);">{{ t.when }}</span>
+                </button>
+              </sc-for>
+              <div data-preview-style="padding: 16px 18px 10px; font-size: 11.5px; line-height: 1.5; color: rgba(32,30,29,.78);">Messages are monitored for safety · keep bookings and payment on Homlle.</div>
+            </div>
+
+            <div data-preview-style="display: flex; flex-direction: column; overflow: hidden; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 2px solid #201e1d;">
+                <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 50%; background: #201e1d; color: #fff; font-size: 14px; font-weight: 800;">{{ chatInitial }}</span>
+                <span data-preview-style="flex: 1 1 120px; min-width: 0;"><strong data-preview-style="display: block; font-size: 14px;">{{ chatName }}</strong><small data-preview-style="font-size: 11px; color: rgba(32,30,29,.78);">Private booking messages</small></span>
+                <a href="#job" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 22px; border: 2px solid #201e1d; font-size: 12px; font-weight: 800; text-decoration: none;">View clean →</a>
+              </div>
+              <div role="log" data-preview-style="display: flex; flex-direction: column; gap: 12px; padding: 18px; background-image: repeating-linear-gradient(115deg, rgba(32,30,29,.035) 0 1px, transparent 1px 14px);">
+                <sc-for list="{{ chatMessages }}" as="m" hint-placeholder-count="3">
+                  <sc-if value="{{ m.fromThem }}">
+                    <span data-preview-style="align-self: flex-start; max-width: 78%; padding: 12px 15px; border-radius: 18px 18px 18px 5px; background: #eceaea; font-size: 13.5px; line-height: 1.45;">{{ m.text }}</span>
+                  </sc-if>
+                  <sc-if value="{{ m.fromMe }}">
+                    <span data-preview-style="align-self: flex-end; max-width: 78%; padding: 12px 15px; border-radius: 18px 18px 5px 18px; background: #201e1d; color: #fff; font-size: 13.5px; line-height: 1.45;">{{ m.text }}</span>
+                  </sc-if>
+                </sc-for>
+              </div>
+              <div data-preview-style="padding: 12px 18px 14px; border-top: 2px solid #201e1d;">
+                <div aria-label="Quick replies" data-preview-style="display: flex; flex-wrap: wrap; gap: 7px;">
+                  <span data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 13px; border: 2px solid rgba(32,30,29,.4); border-radius: 22px; font-size: 12px; font-weight: 700; color: rgba(32,30,29,.78);">On my way</span>
+                  <span data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 13px; border: 2px solid rgba(32,30,29,.4); border-radius: 22px; font-size: 12px; font-weight: 700; color: rgba(32,30,29,.78);">Running 10 minutes late — sorry!</span>
+                  <span data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 13px; border: 2px solid rgba(32,30,29,.4); border-radius: 22px; font-size: 12px; font-weight: 700; color: rgba(32,30,29,.78);">All done — photos are in the app</span>
+                  <span data-preview-style="display: inline-flex; align-items: center; min-height: 44px; font-size: 9px; font-weight: 800; letter-spacing: .1em; color: rgba(32,30,29,.7);">NOT IN THIS PASS</span>
+                </div>
+                <div data-preview-style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px;">
+                  <span data-preview-style="flex: 1 1 160px; min-width: 0; display: flex; align-items: center; min-height: 46px; padding: 0 16px; border: 2px solid rgba(32,30,29,.4); border-radius: 23px; font-size: 13px; color: rgba(32,30,29,.78);">Write a message…</span>
+                  <span role="img" aria-label="Send message — not in this pass" title="Send message — not in this pass" data-preview-style="display: grid; place-items: center; width: 46px; height: 46px; border-radius: 23px; background: rgba(32,30,29,.1); color: rgba(32,30,29,.78); font-size: 19px; font-weight: 800;">↑</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isEarnings }}">
+        <div data-pagebody data-screen-label="Earnings" data-preview-style="background: #f3f2f2; flex: 1 0 auto; padding: 22px 30px 30px; border-top-left-radius: 28px;">
+          <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 18px; align-items: start;">
+            <div data-preview-style="padding: 20px 22px 22px; border: 3px solid #2d2b2a; border-radius: 24px; background: #fff;">
+              <h2 data-preview-style="margin: 0; font-size: 25px; font-weight: 800; line-height: 1.1; letter-spacing: -.02em;">Get paid without sharing bank details with Homlle</h2>
+              <p data-preview-style="margin: 10px 0 0; font-size: 13.5px; line-height: 1.5; color: rgba(32,30,29,.78);">Stripe securely collects the information it needs. Homlle stores only your payout-account reference and whether payouts are ready.</p>
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 18px; padding: 15px 17px; border: 2px solid #e01030; border-radius: 18px; background: rgba(224,16,48,.06);">
+                <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 50%; background: #e01030; color: #fff; font-size: 17px; font-weight: 800;">!</span>
+                <span data-preview-style="flex: 1 1 180px; min-width: 0;"><strong data-preview-style="display: block; font-size: 14px;">Payouts are not set up yet</strong><small data-preview-style="font-size: 12px; color: rgba(32,30,29,.78);">You can accept work now and set this up before your first completed clean.</small></span>
+              </div>
+              <span data-preview-style="display: block; margin-top: 14px;"><span role="note" data-preview-style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; min-height: 46px; padding: 8px 18px; border-radius: 23px; background: rgba(32,30,29,.1); font-size: 13px; font-weight: 800; color: rgba(32,30,29,.78);">Set up payouts securely<span data-preview-style="font-size: 9px; font-weight: 800; letter-spacing: .1em;">OPENS STRIPE</span></span></span>
+              <p data-preview-style="margin: 14px 0 0; font-size: 11.5px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Protected:</strong> never enter bank details anywhere on Homlle. The next screen must be on <span data-preview-style="font-weight: 700;">connect.stripe.com</span>. During launch testing, no real payment or payout will be made.</p>
+            </div>
+
+            <div data-preview-style="display: flex; flex-direction: column; gap: 14px;">
+              <div data-preview-style="padding: 18px 20px 20px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+                <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">PAYOUTS</span>
+                <div data-preview-style="height: 2px; margin: 10px 0 14px; background: #201e1d;"></div>
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 13px; padding-bottom: 14px; border-bottom: 1px solid rgba(32,30,29,.3);">
+                  <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 50%; border: 2px solid #e01030; font-size: 14px; font-weight: 800; color: #a30c24;">1</span>
+                  <span data-preview-style="flex: 1 1 130px; min-width: 0;"><strong data-preview-style="display: block; font-size: 13.5px;">Weekly, every Friday</strong><small data-preview-style="font-size: 11.5px; color: rgba(32,30,29,.72);">Stripe holds your bank details</small></span>
+                  <span data-preview-style="padding: 5px 10px; border: 2px solid #e01030; border-radius: 999px; font-size: 9.5px; font-weight: 800; letter-spacing: .1em; color: #a30c24;">NOT CONNECTED</span>
+                </div>
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 13px; padding-top: 14px;">
+                  <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 50%; border: 2px solid rgba(32,30,29,.32); font-size: 14px; font-weight: 800; color: rgba(32,30,29,.72);">2</span>
+                  <span data-preview-style="flex: 1 1 130px; min-width: 0;"><strong data-preview-style="display: block; font-size: 13.5px;">First transfer</strong><small data-preview-style="font-size: 11.5px; color: rgba(32,30,29,.72);">After your first completed clean</small></span>
+                </div>
+                <span data-preview-style="display: block; margin-top: 16px;"><span role="note" data-preview-style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; min-height: 46px; padding: 8px 18px; border-radius: 23px; background: rgba(32,30,29,.1); font-size: 13px; font-weight: 800; color: rgba(32,30,29,.78);">Connect payouts<span data-preview-style="font-size: 9px; font-weight: 800; letter-spacing: .1em;">OPENS STRIPE</span></span></span>
+              </div>
+                          </div>
+              <div data-preview-style="padding: 18px 20px 20px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+                <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">GETTING PAID</span>
+                <div data-preview-style="height: 2px; margin: 10px 0 14px; background: #201e1d;"></div>
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-bottom: 13px; border-bottom: 1px solid rgba(32,30,29,.3);">
+                  <span data-preview-style="flex: 1 1 150px; min-width: 0; font-size: 13.5px; font-weight: 700;">Payout account</span>
+                  <span data-preview-style="padding: 5px 10px; border: 2px solid #e01030; border-radius: 999px; font-size: 9.5px; font-weight: 800; letter-spacing: .1em; color: #a30c24;">NOT CONNECTED</span>
+                </div>
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 13px 0; border-bottom: 1px solid rgba(32,30,29,.3);">
+                  <span data-preview-style="flex: 1 1 150px; min-width: 0; font-size: 13.5px; color: rgba(32,30,29,.8);">Held by</span>
+                  <span data-preview-style="font-size: 13.5px; font-weight: 800;">Stripe</span>
+                </div>
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-top: 13px;">
+                  <span data-preview-style="flex: 1 1 150px; min-width: 0; font-size: 13.5px; color: rgba(32,30,29,.8);">Homlle stores</span>
+                  <span data-preview-style="font-size: 13px; font-weight: 700; text-align: right;">your payout-account reference only</span>
+                </div>
+                <p data-preview-style="margin: 14px 0 0; padding-top: 10px; border-top: 1px dashed rgba(32,30,29,.4); font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">From source:</strong> "GETTING PAID" is a real cleaner-dashboard.html tile label; the Stripe wording is cleaner-payouts.html's own.</p>
+              </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPerformance }}">
+        <div data-pagebody data-screen-label="Performance" data-preview-style="background: #f3f2f2; flex: 1 0 auto; padding: 22px 30px 30px; border-top-left-radius: 28px;">
+          <div role="tablist" aria-label="Reviews and performance" data-preview-style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
+            <a href="#reviews" role="tab" aria-selected="false" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border: 2px solid #201e1d; border-radius: 22px; background: transparent; color: #201e1d; font-size: 12.5px; font-weight: 800; text-decoration: none;">Reviews &amp; ratings</a>
+            <a href="#performance" role="tab" aria-selected="true" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border: 2px solid #201e1d; border-radius: 22px; background: #201e1d; color: #fff; font-size: 12.5px; font-weight: 800; text-decoration: none;">Performance</a>
+          </div>
+          <div data-preview-style="padding: 20px 22px 22px; border: 3px solid #2d2b2a; border-radius: 24px; background: #fff;">
+            <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px;">
+              <span data-preview-style="padding: 6px 12px; border: 2px solid rgba(32,30,29,.4); border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .12em; color: rgba(32,30,29,.78);">NOT RANKED YET</span>
+              <strong data-preview-style="flex: 1 1 240px; min-width: 0; font-size: 21px; letter-spacing: -.015em;">Nothing is measured here yet</strong>
+            </div>
+            <p data-preview-style="margin: 12px 0 0; max-width: 620px; font-size: 13.5px; line-height: 1.55; color: rgba(32,30,29,.8);">Homlle records no on-time, response-rate or rebook metrics, so this page shows no score rather than an invented one. Your rating and reviews live on <a href="#reviews" data-preview-style="font-weight: 800;">Reviews &amp; ratings</a>.</p>
+            <p data-preview-style="margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed rgba(32,30,29,.4); font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">From source:</strong> cleaner-reviews.html marks Jobs Map and Performance inert because MAP_PROVIDER is none and no punctuality, response or rebook metric is recorded. This page proposes what could fill that gap.</p>
+          </div>
+
+          <div data-preview-style="margin-top: 18px; padding: 18px 20px 20px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+            <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid rgba(32,30,29,.3);">
+              <span data-preview-style="display: flex; flex: none;">
+                <img class="grayscale" src="assets/homlle-face-1.png" alt="" data-preview-style="display: block; width: 42px; height: 42px; border-radius: 50%; object-fit: cover; object-position: 50% 16%; background: #fff; box-shadow: 0 0 0 2px #fff;">
+                <img class="grayscale" src="assets/homlle-face-2.png" alt="" data-preview-style="display: block; width: 42px; height: 42px; margin-left: -12px; border-radius: 50%; object-fit: cover; object-position: 50% 16%; background: #fff; box-shadow: 0 0 0 2px #fff;">
+                <img class="grayscale" src="assets/homlle-face-3.png" alt="" data-preview-style="display: block; width: 42px; height: 42px; margin-left: -12px; border-radius: 50%; object-fit: cover; object-position: 50% 16%; background: #fff; box-shadow: 0 0 0 2px #fff;">
+                <img class="grayscale" src="assets/homlle-face-4.png" alt="" data-preview-style="display: block; width: 42px; height: 42px; margin-left: -12px; border-radius: 50%; object-fit: cover; object-position: 50% 16%; background: #fff; box-shadow: 0 0 0 2px #fff;">
+              </span>
+              <span data-preview-style="flex: 1 1 180px; min-width: 0; font-size: 12.5px; line-height: 1.45; color: rgba(32,30,29,.8);">Verified Homlle cleaners in LS1–LS6. Badges are how clients tell you apart.</span>
+            </div>
+            <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">BADGES YOU HOLD</span>
+            <div data-preview-style="height: 2px; margin: 10px 0 14px; background: #201e1d;"></div>
+            <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px;">
+              <div data-preview-style="display: flex; align-items: center; gap: 11px; padding: 13px 14px; border-radius: 18px; background: #201e1d;">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.5 7.5-8 9-4.5-1.5-8-4.5-8-9V6zM9 12l2 2 4-4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"></path></svg>
+                <span><strong data-preview-style="display: block; font-size: 12.5px; color: #fff;">DBS verified</strong><small data-preview-style="font-size: 10.5px; color: rgba(255,255,255,.78);">Enhanced</small></span>
+              </div>
+              <div data-preview-style="display: flex; align-items: center; gap: 11px; padding: 13px 14px; border-radius: 18px; background: #201e1d;">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v13H3zM7 11a2 2 0 1 0 4 0 2 2 0 0 0-4 0M6 15.5c.7-1.3 1.8-2 3-2s2.3.7 3 2M15 10h4M15 13h3" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"></path></svg>
+                <span><strong data-preview-style="display: block; font-size: 12.5px; color: #fff;">ID verified</strong><small data-preview-style="font-size: 10.5px; color: rgba(255,255,255,.78);">By Homlle</small></span>
+              </div>
+              <div data-preview-style="display: flex; align-items: center; gap: 11px; padding: 13px 14px; border-radius: 18px; border: 1px solid rgba(32,30,29,.4);">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v1M3 13a9 9 0 0 1 18 0H3zM12 13v5a2.5 2.5 0 0 0 5 0" fill="none" stroke="rgba(32,30,29,.78)" stroke-width="1.8" stroke-linejoin="round"></path></svg>
+                <span><strong data-preview-style="display: block; font-size: 12.5px; ">Insurance</strong><small data-preview-style="font-size: 10.5px; color: rgba(32,30,29,.78);">Certificate pending</small></span>
+              </div>
+              <div data-preview-style="display: flex; align-items: center; gap: 11px; padding: 13px 14px; border-radius: 18px; border: 1px solid rgba(32,30,29,.4);">
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM9 13l-1.5 7L12 17.5 16.5 20 15 13" fill="none" stroke="rgba(32,30,29,.78)" stroke-width="1.8" stroke-linejoin="round"></path></svg>
+                <span><strong data-preview-style="display: block; font-size: 12.5px; ">Academy</strong><small data-preview-style="font-size: 10.5px; color: rgba(32,30,29,.78);">3 modules to go</small></span>
+              </div>
+            </div>
+            <p data-preview-style="margin: 14px 0 0; padding-top: 10px; border-top: 1px dashed rgba(32,30,29,.4); font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Authored, not product:</strong> the badge tiles are a proposed way to surface onboarding state (DBS, ID, insurance, Academy). Homlle has no badge feature today.</p>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isJob }}">
+        <div data-pagebody data-screen-label="Job" data-preview-style="background: #f3f2f2; flex: 1 0 auto; padding: 22px 30px 30px; border-top-left-radius: 28px;">
+          <div data-preview-style="overflow: hidden; border: 3px solid #2d2b2a; border-radius: 24px; background: #201e1d;">
+            <img class="grayscale" src="assets/room-photo.png" alt="The property for this clean" data-preview-style="display: block; width: 100%; height: 190px; object-fit: cover;">
+            <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 18px 20px 20px;">
+              <span data-preview-style="flex: 1 1 200px; min-width: 0;"><span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; color: rgba(255,255,255,.75);">CONFIRMED VISIT</span><strong data-preview-style="font-size: 19px; color: #fff;">LS6 · today 09:00</strong></span>
+              <span data-preview-style="padding: 5px 10px; border: 1px solid rgba(255,255,255,.5); border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: .1em; color: #fff;">PROTECTED DETAILS</span>
+              <a href="#messages" data-preview-style="display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 18px; border-radius: 23px; background: #fff; color: #201e1d; font-size: 13.5px; font-weight: 800; text-decoration: none;">Message client <span aria-hidden="true">↗</span></a>
+            </div>
+          </div>
+          <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 18px; margin-top: 18px; align-items: start;">
+
+            <div data-preview-style="padding: 20px 22px 22px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px;">
+                <span><span data-preview-style="display: block; font-size: 10px; font-weight: 800; letter-spacing: .16em; color: #a30c24;">PRIVATE LIVE JOURNEY</span><strong data-preview-style="display: block; margin-top: 3px; font-size: 19px; letter-spacing: -.015em;">{{ stageTitle }}</strong></span>
+                <span data-preview-style="padding: 5px 10px; border: 2px solid rgba(32,30,29,.4); border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: .1em; color: rgba(32,30,29,.78);">BOOKING PARTICIPANTS ONLY</span>
+              </div>
+              <div data-preview-style="height: 2px; margin: 12px 0 16px; background: #201e1d;"></div>
+              <sc-for list="{{ journey }}" as="st" hint-placeholder-count="5">
+                <div data-preview-style="display: flex; gap: 13px;">
+                  <span aria-hidden="true" data-preview-style="display: flex; flex-direction: column; align-items: center; flex: none;">
+                    <span data-preview-style="display: grid; place-items: center; width: 17px; height: 17px; border: {{ st.ring }}; border-radius: 50%; background: {{ st.fill }}; font-size: 9px; font-weight: 800; color: #fff;">{{ st.tick }}</span>
+                    <span data-preview-style="flex: 1; width: 3px; min-height: {{ st.rail }}; background: {{ st.railFill }};"></span>
+                  </span>
+                  <span data-preview-style="flex: 1 1 auto; min-width: 0; padding-bottom: 12px;">
+                    <span data-preview-style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;">
+                      <strong data-preview-style="font-size: 14px; color: {{ st.ink }};">{{ st.label }}</strong>
+                      <span data-preview-style="font-size: 11.5px; font-weight: 700; color: rgba(32,30,29,.7);">{{ st.time }}</span>
+                    </span>
+                  </span>
+                </div>
+              </sc-for>
+              <p data-preview-style="margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; color: rgba(32,30,29,.8);">{{ stageNote }}</p>
+              <sc-if value="{{ stageHasAction }}" hint-placeholder-val="{{ true }}">
+                <div data-preview-style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px;">
+                  <button type="button" data-preview-onClick="{{ advanceStage }}" disabled="{{ stageActionBlocked }}" data-preview-style="display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 0 20px; border: 0; border-radius: 24px; background: {{ stageActionFill }}; color: {{ stageActionInk }}; font-family: inherit; font-size: 13.5px; font-weight: 800; cursor: {{ stageActionCursor }};">{{ stageAction }} <span aria-hidden="true">↗</span></button>
+                  <a href="#messages" data-preview-style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 18px; border: 2px solid #201e1d; border-radius: 24px; font-size: 13px; font-weight: 800; text-decoration: none;">Tell the client</a>
+                </div>
+              </sc-if>
+              <sc-if value="{{ stageCanReset }}">
+                <button type="button" data-preview-onClick="{{ resetStage }}" data-preview-style="min-height: 44px; margin-top: 12px; padding: 0 16px; border: 2px solid rgba(32,30,29,.4); border-radius: 22px; background: transparent; color: rgba(32,30,29,.8); font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;">Reset journey</button>
+              </sc-if>
+              <p data-preview-style="margin: 14px 0 0; padding-top: 11px; border-top: 1px solid rgba(32,30,29,.28); font-size: 11.5px; line-height: 1.5; color: rgba(32,30,29,.78);">Can't get in, or the job is bigger than described? Use <strong data-preview-style="color: #201e1d;">Report an incident</strong> below before you start — not the chat.</p>
+            </div>
+
+            <div data-preview-style="padding: 20px 22px 22px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px;">
+                <span><span data-preview-style="display: block; font-size: 10px; font-weight: 800; letter-spacing: .16em; color: #a30c24;">LIVE ROOM CHECKLIST</span><strong data-preview-style="display: block; margin-top: 3px; font-size: 19px; letter-spacing: -.015em;">Cleaning progress</strong></span>
+                <span data-preview-style="padding: 5px 10px; border: 2px solid rgba(32,30,29,.4); border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: .1em; color: rgba(32,30,29,.78);">THE CLIENT'S LIST</span>
+              </div>
+              <div data-preview-style="height: 2px; margin: 12px 0 14px; background: #201e1d;"></div>
+              <div data-preview-style="display: flex; align-items: baseline; justify-content: space-between;"><span data-preview-style="font-size: 13px; color: rgba(32,30,29,.8);">{{ taskDone }} of {{ taskTotal }} tasks ticked</span><strong data-preview-style="font-size: 24px; letter-spacing: -.02em;">{{ taskPct }}</strong></div>
+              <div data-preview-style="position: relative; height: 8px; margin: 10px 0 18px; border-radius: 4px; background: rgba(32,30,29,.14);"><span data-preview-style="position: absolute; inset: 0 auto 0 0; width: {{ taskPct }}; border-radius: 4px; background: #e01030;"></span></div>
+              <sc-for list="{{ rooms }}" as="room" hint-placeholder-count="5">
+                <div data-preview-style="margin-bottom: 14px;">
+                  <div data-preview-style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding-bottom: 7px; border-bottom: 1px solid rgba(32,30,29,.28);">
+                    <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .12em;">{{ room.name }}</span>
+                    <span data-preview-style="font-size: 11px; font-weight: 800; color: {{ room.ink }};">{{ room.count }}</span>
+                  </div>
+                  <sc-for list="{{ room.items }}" as="task" hint-placeholder-count="3">
+                    <button type="button" data-preview-onClick="{{ task.toggle }}" aria-pressed="{{ task.pressed }}" disabled="{{ taskLocked }}" data-preview-style="display: flex; align-items: center; gap: 11px; width: 100%; min-height: 46px; padding: 4px 0; border: 0; border-bottom: 1px solid rgba(32,30,29,.14); background: transparent; font-family: inherit; text-align: left; cursor: {{ taskCursor }};">
+                      <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 22px; height: 22px; flex: none; border: 2px solid {{ task.edge }}; border-radius: 7px; background: {{ task.fill }};"><svg width="13" height="13" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7" fill="none" stroke="{{ task.tickInk }}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                      <span data-preview-style="flex: 1 1 auto; min-width: 0; font-size: 13.5px; color: {{ task.ink }}; text-decoration: {{ task.strike }};">{{ task.label }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+              </sc-for>
+              <sc-if value="{{ taskEditable }}" hint-placeholder-val="{{ true }}">
+                <div data-preview-style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px;">
+                  <button type="button" data-preview-onClick="{{ tickAll }}" data-preview-style="min-height: 44px; padding: 0 15px; border: 2px solid rgba(32,30,29,.4); border-radius: 22px; background: transparent; color: rgba(32,30,29,.8); font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;">Tick everything</button>
+                  <button type="button" data-preview-onClick="{{ clearAll }}" data-preview-style="min-height: 44px; padding: 0 15px; border: 2px solid rgba(32,30,29,.4); border-radius: 22px; background: transparent; color: rgba(32,30,29,.8); font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;">Clear</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ taskLocked }}">
+                <p data-preview-style="margin: 4px 0 0; padding: 12px 14px; border-radius: 16px; background: rgba(32,30,29,.06); font-size: 12px; line-height: 1.5; color: rgba(32,30,29,.82);">{{ taskLockNote }}</p>
+              </sc-if>
+            </div>
+
+            <div data-preview-style="padding: 20px 22px 22px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px;">
+                <span><span data-preview-style="display: block; font-size: 10px; font-weight: 800; letter-spacing: .16em; color: #a30c24;">PRIVATE CLEANING EVIDENCE</span><strong data-preview-style="display: block; margin-top: 3px; font-size: 19px; letter-spacing: -.015em;">Before, after and issue photos</strong></span>
+                <span data-preview-style="padding: 5px 10px; border: 2px solid rgba(32,30,29,.4); border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: .1em; color: rgba(32,30,29,.78);">FIVE-MINUTE PRIVATE VIEWING</span>
+              </div>
+              <div data-preview-style="height: 2px; margin: 12px 0 14px; background: #201e1d;"></div>
+              <span data-preview-style="display: block; font-size: 11px; font-weight: 800; letter-spacing: .12em; color: rgba(32,30,29,.78);">BEFORE</span>
+              <div data-preview-style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 9px 0 16px;">
+                <image-slot id="job-before-kitchen" placeholder="Kitchen before" radius="14" data-preview-style="display: block; width: 100%; height: 108px;"></image-slot>
+                <image-slot id="job-before-bathroom" placeholder="Bathroom before" radius="14" data-preview-style="display: block; width: 100%; height: 108px;"></image-slot>
+              </div>
+              <span data-preview-style="display: block; font-size: 11px; font-weight: 800; letter-spacing: .12em; color: rgba(32,30,29,.78);">AFTER</span>
+              <div data-preview-style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 9px 0 16px;">
+                <image-slot id="job-after-kitchen" placeholder="Kitchen after" radius="14" data-preview-style="display: block; width: 100%; height: 108px;"></image-slot>
+                <image-slot id="job-after-bathroom" placeholder="Bathroom after" radius="14" data-preview-style="display: block; width: 100%; height: 108px;"></image-slot>
+              </div>
+              <span data-preview-style="display: block; font-size: 11px; font-weight: 800; letter-spacing: .12em; color: rgba(32,30,29,.78);">AN ISSUE TO FLAG</span>
+              <image-slot id="job-issue" placeholder="Damage or a problem you found" radius="14" data-preview-style="display: block; width: 100%; height: 108px; margin-top: 9px;"></image-slot>
+              <p data-preview-style="margin: 14px 0 0; padding-top: 11px; border-top: 1px solid rgba(32,30,29,.28); font-size: 11.5px; line-height: 1.5; color: rgba(32,30,29,.78);">Photos are held privately against this booking. A private link expires after five minutes and is not stored.</p>
+            </div>
+
+            <div data-preview-style="padding: 20px 22px 22px; border: 3px solid {{ finishEdge }}; border-radius: 22px; background: #fff;">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px;">
+                <span><span data-preview-style="display: block; font-size: 10px; font-weight: 800; letter-spacing: .16em; color: #a30c24;">FINISH THE JOB</span><strong data-preview-style="display: block; margin-top: 3px; font-size: 19px; letter-spacing: -.015em;">{{ finishTitle }}</strong></span>
+              </div>
+              <div data-preview-style="height: 2px; margin: 12px 0 14px; background: #201e1d;"></div>
+              <sc-for list="{{ finishChecks }}" as="chk" hint-placeholder-count="3">
+                <div data-preview-style="display: flex; align-items: center; gap: 11px; padding: 9px 0; border-bottom: 1px solid rgba(32,30,29,.16);">
+                  <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 20px; height: 20px; flex: none; border: 2px solid {{ chk.edge }}; border-radius: 50%; background: {{ chk.fill }};"><svg width="12" height="12" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7" fill="none" stroke="{{ chk.tickInk }}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                  <span data-preview-style="flex: 1 1 auto; min-width: 0; font-size: 13px; color: {{ chk.ink }};">{{ chk.label }}</span>
+                </div>
+              </sc-for>
+              <button type="button" data-preview-onClick="{{ finishJob }}" data-preview-style="display: inline-flex; align-items: center; gap: 9px; min-height: 50px; margin-top: 16px; padding: 0 22px; border: 0; border-radius: 25px; background: {{ finishFill }}; color: {{ finishInk }}; font-family: inherit; font-size: 14px; font-weight: 800; cursor: {{ finishCursor }};">{{ finishLabel }}</button>
+              <sc-if value="{{ jobFinished }}">
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 13px; margin-top: 14px; padding: 15px 17px; border-radius: 18px; background: #201e1d;">
+                  <span data-preview-style="flex: 1 1 190px; min-width: 0;"><strong data-preview-style="display: block; font-size: 14px; color: #fff;">Waiting for Landlord confirmation</strong><small data-preview-style="font-size: 11.5px; color: rgba(255,255,255,.82);">{{ jobMoneyNote }}</small></span>
+                  <a href="#earnings" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 22px; background: #fff; color: #201e1d; font-size: 12.5px; font-weight: 800; text-decoration: none;">Earnings ↗</a>
+                </div>
+              </sc-if>
+              <p data-preview-style="margin: 14px 0 0; padding-top: 11px; border-top: 1px solid rgba(32,30,29,.28); font-size: 11.5px; line-height: 1.5; color: rgba(32,30,29,.78);">Status changes are checked on the server before they are saved, so a job cannot be marked complete from the phone alone.</p>
+            </div>
+
+            <div data-preview-style="padding: 20px 22px 22px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px;">
+                <span><span data-preview-style="display: block; font-size: 10px; font-weight: 800; letter-spacing: .16em; color: #a30c24;">PRIVATE BOOKING CHAT</span><strong data-preview-style="display: block; margin-top: 3px; font-size: 19px; letter-spacing: -.015em;">Cleaner and Landlord messages</strong></span>
+                <span data-preview-style="padding: 5px 10px; border: 2px solid rgba(32,30,29,.4); border-radius: 999px; font-size: 9px; font-weight: 800; letter-spacing: .1em; color: rgba(32,30,29,.78);">NO PERSONAL CONTACT DETAILS</span>
+              </div>
+              <div data-preview-style="height: 2px; margin: 12px 0 14px; background: #201e1d;"></div>
+              <a href="#messages" data-preview-style="display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 18px; border-radius: 24px; border: 2px solid #201e1d; font-size: 13px; font-weight: 800; text-decoration: none;">Open conversation <span aria-hidden="true">↗</span></a>
+            </div>
+
+          </div>
+          <div data-preview-style="margin-top: 18px;">
+            <div data-preview-style="padding: 20px 22px 22px; border: 3px solid #e01030; border-radius: 22px; background: #fff;">
+              <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+                <span aria-hidden="true" data-preview-style="display: grid; place-items: center; width: 40px; height: 40px; flex: none; border-radius: 50%; background: #e01030;"><svg width="21" height="21" viewBox="0 0 24 24"><path d="M12 4l9 16H3zM12 10v4M12 17h.01" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                <span data-preview-style="flex: 1 1 180px; min-width: 0;">
+                  <span data-preview-style="display: block; font-size: 10px; font-weight: 800; letter-spacing: .16em; color: #a30c24;">SOMETHING WRONG ON THIS JOB?</span>
+                  <strong data-preview-style="display: block; margin-top: 2px; font-size: 19px; letter-spacing: -.015em;">Report an incident</strong>
+                </span>
+              </div>
+              <div data-preview-style="height: 2px; margin: 12px 0 14px; background: #201e1d;"></div>
+              <p data-preview-style="margin: 0 0 12px; font-size: 12.5px; line-height: 1.5; color: rgba(32,30,29,.8);">Tell Homlle what happened and it is logged against the booking — not just left in chat.</p>
+              <div class="field" data-preview-style="margin: 0;">
+                <label for="incident-job" data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .12em;">WHAT HAS HAPPENED?</label>
+                <select id="incident-job" class="input" data-preview-onChange="{{ pickIncident }}" value="{{ incident }}" data-preview-style="border-radius: 12px; min-height: 46px; padding-top: 0; padding-bottom: 0;">
+                  <option value="">Choose a reason…</option>
+                  <sc-for list="{{ incidentOptions }}" as="opt" hint-placeholder-count="8">
+                    <option value="{{ opt.value }}">{{ opt.label }}</option>
+                  </sc-for>
+                </select>
+              </div>
+              <sc-if value="{{ incidentOther }}">
+                <div class="field" data-preview-style="margin: 12px 0 0;">
+                  <label for="incident-other-job" data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .12em;">TELL US WHAT HAPPENED</label>
+                  <textarea id="incident-other-job" class="input" rows="3" placeholder="Describe the problem in your own words" data-preview-style="border-radius: 12px; resize: vertical;"></textarea>
+                </div>
+              </sc-if>
+              <sc-if value="{{ incidentPicked }}">
+                <div data-preview-style="display: flex; gap: 12px; margin-top: 14px; padding: 14px 16px; border-radius: 16px; background: {{ incidentFill }};">
+                  <span aria-hidden="true" data-preview-style="flex: none; margin-top: 1px;"><svg width="17" height="17" viewBox="0 0 24 24"><path d="{{ incidentGlyph }}" fill="none" stroke="{{ incidentInk }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+                  <span><strong data-preview-style="display: block; font-size: 12.5px; color: {{ incidentInk }};">{{ incidentHeading }}</strong><span data-preview-style="display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.5; color: rgba(32,30,29,.82);">{{ incidentGuidance }}</span></span>
+                </div>
+              </sc-if>
+              <div data-preview-style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px;">
+                <button type="button" data-preview-onClick="{{ sendReport }}" data-preview-style="display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 0 20px; border: 0; border-radius: 24px; background: {{ reportFill }}; color: {{ reportInk }}; font-family: inherit; font-size: 13.5px; font-weight: 800; cursor: {{ reportCursor }};">{{ reportLabel }}</button>
+                <a href="#messages" data-preview-style="display: inline-flex; align-items: center; gap: 9px; min-height: 48px; padding: 0 20px; border: 2px solid #201e1d; border-radius: 24px; color: #201e1d; font-size: 13.5px; font-weight: 800; text-decoration: none;"><svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" fill="none" stroke="#201e1d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>Contact the customer</a>
+              </div>
+              <sc-if value="{{ reportSent }}">
+                <div data-preview-style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; padding: 14px 16px; border-radius: 16px; background: #201e1d;">
+                  <span data-preview-style="flex: 1 1 180px; min-width: 0;"><strong data-preview-style="display: block; font-size: 13px; color: #fff;">Reported — {{ incidentLabel }}</strong><small data-preview-style="font-size: 11.5px; color: rgba(255,255,255,.82);">Logged against this booking. Homlle Support will pick it up and message you here.</small></span>
+                  <button type="button" data-preview-onClick="{{ clearReport }}" data-preview-style="min-height: 44px; padding: 0 15px; border: 2px solid rgba(255,255,255,.6); border-radius: 22px; background: transparent; color: #fff; font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;">Undo</button>
+                </div>
+              </sc-if>
+              <p data-preview-style="margin: 14px 0 0; padding-top: 11px; border-top: 1px dashed rgba(32,30,29,.4); font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Authored, not product:</strong> Homlle has "Report an Incident" in its account menu, but no in-job reporting exists. The eight reasons and the guidance under each — waiting time, scope approval, insurance routing — are proposed policy, not Homlle's stated terms.</p>
+            </div>
+          </div>
+          <p data-preview-style="margin: 16px 0 0; padding-top: 12px; border-top: 1px dashed rgba(32,30,29,.4); font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Authored, not product:</strong> the journey timestamps, the eighteen tasks across five rooms, "THE CLIENT'S LIST" as a concept, and the room grouping shown here. Homlle has none of these today.</p>
+          <p data-preview-style="margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">From source:</strong> the five stages, their labels and all four action buttons are verbatim from active-job-model.js — statuses confirmed, cleaner-en-route, cleaner-arrived, cleaning-in-progress, awaiting-review, labelled by activeJobStatusLabels, with Start journey, I have arrived, Start cleaning and Finish cleaning from activeJobAction(). The finish gate is that function's own rule — every task resolved — including its "Resolve N tasks first" label. The pay wording is bookingSummaryMoneyBoundary's text and the awaiting-review note is bookingReviewView's, both quoted exactly. The four card names and privacy pills come from active-job.html. Only the layout is proposed.</p>
+          <p data-preview-style="margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Deliberate departures:</strong> active-job-model.js gates Start journey behind a booking-authorization check and offers "Resume location sharing" when tracking drops — neither is shown here. Its sixth stage, completed, is omitted because the Landlord owns that transition.</p>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isReviews }}">
+        <div data-pagebody data-screen-label="Reviews" data-preview-style="background: #f3f2f2; flex: 1 0 auto; padding: 22px 30px 30px; border-top-left-radius: 28px;">
+          <div role="tablist" aria-label="Reviews and performance" data-preview-style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">
+            <a href="#reviews" role="tab" aria-selected="true" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border: 2px solid #201e1d; border-radius: 22px; background: #201e1d; color: #fff; font-size: 12.5px; font-weight: 800; text-decoration: none;">Reviews &amp; ratings</a>
+            <a href="#performance" role="tab" aria-selected="false" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; border: 2px solid #201e1d; border-radius: 22px; background: transparent; color: #201e1d; font-size: 12.5px; font-weight: 800; text-decoration: none;">Performance</a>
+          </div>
+          <div data-preview-style="display: flex; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 14px;">
+            <a href="#profile" data-preview-style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 2px solid #201e1d; border-radius: 22px; font-size: 12.5px; font-weight: 800; text-decoration: none;">View public profile ↗</a>
+          </div>
+          <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 12px;">
+            <div data-preview-style="display: grid; grid-template-rows: 30px max-content max-content; padding: 15px 17px 17px; border: 3px solid #2d2b2a; border-radius: 20px; background: #fff;">
+              <span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">OVERALL RATING</span>
+              <strong data-preview-style="font-size: 26px; letter-spacing: -.03em; color: rgba(32,30,29,.5);">—</strong>
+              <small data-preview-style="font-size: 11px; color: rgba(32,30,29,.78);">No approved reviews yet</small>
+            </div>
+            <div data-preview-style="display: grid; grid-template-rows: 30px max-content max-content; padding: 15px 17px 17px; border: 3px solid #2d2b2a; border-radius: 20px; background: #fff;">
+              <span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">COMPLETED JOBS</span>
+              <strong data-preview-style="font-size: 26px; letter-spacing: -.03em;">0</strong>
+              <small data-preview-style="font-size: 11px; color: rgba(32,30,29,.78);">verified marketplace jobs</small>
+            </div>
+            <div data-preview-style="display: grid; grid-template-rows: 30px max-content max-content; padding: 15px 17px 17px; border: 3px solid #2d2b2a; border-radius: 20px; background: #fff;">
+              <span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">PUBLIC LISTING</span>
+              <strong data-preview-style="font-size: 26px; letter-spacing: -.03em; color: rgba(32,30,29,.5);">—</strong>
+              <small data-preview-style="font-size: 11px; color: rgba(32,30,29,.78);">what clients can see</small>
+            </div>
+            <div data-preview-style="display: grid; grid-template-rows: 30px max-content max-content; padding: 15px 17px 17px; border: 3px solid #2d2b2a; border-radius: 20px; background: #fff;">
+              <span data-preview-style="display: block; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; line-height: 1.25;">AWAITING MODERATION</span>
+              <strong data-preview-style="font-size: 26px; letter-spacing: -.03em; color: rgba(32,30,29,.5);">—</strong>
+              <small data-preview-style="font-size: 11px; color: rgba(32,30,29,.78);">held until Homlle approves</small>
+            </div>
+          </div>
+          <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 18px; margin-top: 18px; align-items: start;">
+            <div data-preview-style="display: grid; place-items: center; padding: 34px 22px; border: 2px dashed rgba(32,30,29,.4); border-radius: 22px; background: #fff; text-align: center;">
+              <img class="grayscale" src="assets/homlle-beauty-kit.png" alt="" data-preview-style="display: block; width: 246px; margin-bottom: 6px;">
+              <span aria-hidden="true" data-preview-style="font-size: 26px; line-height: 1; color: rgba(32,30,29,.45);">★</span>
+              <strong data-preview-style="margin-top: 8px; font-size: 16px;">No client reviews yet</strong>
+              <p data-preview-style="margin: 8px 0 0; max-width: 340px; font-size: 12.5px; line-height: 1.5; color: rgba(32,30,29,.78);">Reviews appear here after your first completed job. A client can only review a booking they confirmed as finished.</p>
+            </div>
+            <div data-preview-style="display: flex; flex-direction: column; gap: 14px;">
+              <div data-preview-style="padding: 18px 20px 20px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+                <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">RATING BREAKDOWN</span>
+                <div data-preview-style="height: 2px; margin: 10px 0 14px; background: #201e1d;"></div>
+                <div data-preview-style="display: flex; flex-direction: column; gap: 8px;">
+                  <span data-preview-style="display: flex; align-items: center; gap: 10px;"><span data-preview-style="width: 22px; font-size: 11.5px; font-weight: 800;">5★</span><span data-preview-style="flex: 1; height: 12px; border-radius: 6px; background: rgba(32,30,29,.12);"></span><span data-preview-style="width: 16px; font-size: 11px; color: rgba(32,30,29,.78);">0</span></span>
+                  <span data-preview-style="display: flex; align-items: center; gap: 10px;"><span data-preview-style="width: 22px; font-size: 11.5px; font-weight: 800;">4★</span><span data-preview-style="flex: 1; height: 12px; border-radius: 6px; background: rgba(32,30,29,.12);"></span><span data-preview-style="width: 16px; font-size: 11px; color: rgba(32,30,29,.78);">0</span></span>
+                  <span data-preview-style="display: flex; align-items: center; gap: 10px;"><span data-preview-style="width: 22px; font-size: 11.5px; font-weight: 800;">3★</span><span data-preview-style="flex: 1; height: 12px; border-radius: 6px; background: rgba(32,30,29,.12);"></span><span data-preview-style="width: 16px; font-size: 11px; color: rgba(32,30,29,.78);">0</span></span>
+                  <span data-preview-style="display: flex; align-items: center; gap: 10px;"><span data-preview-style="width: 22px; font-size: 11.5px; font-weight: 800;">2★</span><span data-preview-style="flex: 1; height: 12px; border-radius: 6px; background: rgba(32,30,29,.12);"></span><span data-preview-style="width: 16px; font-size: 11px; color: rgba(32,30,29,.78);">0</span></span>
+                  <span data-preview-style="display: flex; align-items: center; gap: 10px;"><span data-preview-style="width: 22px; font-size: 11.5px; font-weight: 800;">1★</span><span data-preview-style="flex: 1; height: 12px; border-radius: 6px; background: rgba(32,30,29,.12);"></span><span data-preview-style="width: 16px; font-size: 11px; color: rgba(32,30,29,.78);">0</span></span>
+                </div>
+              </div>
+              <div data-preview-style="padding: 18px 20px 20px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+                <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">EARN YOUR FIRST 5★</span>
+                <div data-preview-style="height: 2px; margin: 10px 0 14px; background: #201e1d;"></div>
+                <p data-preview-style="margin: 0; font-size: 13.5px; line-height: 1.55;">Arrive on time · follow the client's checklist · send finish photos · reply to messages quickly.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isProfile }}">
+        <div data-pagebody data-screen-label="My Profile" data-preview-style="background: #f3f2f2; flex: 1 0 auto; padding: 22px 30px 30px; border-top-left-radius: 28px;">
+          <div data-preview-style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 18px; align-items: start;">
+            <div data-preview-style="overflow: hidden; border: 3px solid #2d2b2a; border-radius: 24px; background: #fff;">
+              <span data-preview-style="display: grid; place-items: end center; height: 210px; background: linear-gradient(150deg, #ff1747, #f10021);"><img class="grayscale" src="assets/homlle-crew-2.png" alt="Your public profile photo" data-preview-style="display: block; height: 196px;"></span>
+              <div data-preview-style="padding: 18px 20px 20px; border-top: 2px solid #201e1d;">
+                <strong data-preview-style="display: block; font-size: 21px; letter-spacing: -.015em;">Amara Nwosu</strong>
+                <span data-preview-style="display: block; margin-top: 3px; font-size: 12.5px; color: rgba(32,30,29,.72);">Cleaner · LS1, LS2, LS6 · 4 years experience</span>
+                <div data-preview-style="display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px;">
+                  <span data-preview-style="padding: 7px 11px; border-radius: 999px; background: #201e1d; color: #fff; font-size: 11.5px; font-weight: 800;">DBS verified</span>
+                  <span data-preview-style="padding: 7px 11px; border-radius: 999px; background: #201e1d; color: #fff; font-size: 11.5px; font-weight: 800;">ID verified</span>
+                  <span data-preview-style="padding: 7px 11px; border-radius: 999px; border: 2px solid rgba(32,30,29,.32); font-size: 11.5px; font-weight: 800; color: rgba(32,30,29,.72);">Insurance pending</span>
+                </div>
+                <a href="#reviews" data-preview-style="display: flex; align-items: center; justify-content: space-between; min-height: 46px; margin-top: 16px; padding: 0 18px; border-radius: 23px; background: #201e1d; color: #fff; font-size: 13px; font-weight: 800; text-decoration: none;">Reviews &amp; ratings <span aria-hidden="true">↗</span></a>
+                <p data-preview-style="margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed rgba(32,30,29,.4); font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Authored, not product:</strong> the name, areas, experience line and badge row are placeholders. Only the page title and its sub-line come from cleaner-public-profile.html.</p>
+                <p data-preview-style="margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">Why you may have landed here:</strong> Settings and Notifications are real accountNav destinations (/cleaner/settings, /cleaner/notifications) but are not built in this pass, so the rail's Settings control and the header bell both open this page.</p>
+              </div>
+            </div>
+
+            <div data-preview-style="display: flex; flex-direction: column; gap: 14px;">
+            <div data-preview-style="padding: 6px 0 8px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+              <div data-preview-style="padding: 14px 18px 10px; font-size: 11px; font-weight: 800; letter-spacing: .16em;">WORKSPACE</div>
+
+                <a href="#reviews" data-preview-style="display: flex; align-items: center; gap: 13px; min-height: 52px; padding: 12px 18px; border-top: 1px solid rgba(32,30,29,.22); text-decoration: none;">
+                  <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" data-preview-style="flex: none;"><path d="M12 3l2.7 5.7 6.3.9-4.5 4.4 1 6.3-5.5-3-5.5 3 1-6.3L3 9.6l6.3-.9z" fill="none" stroke="#201e1d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <span data-preview-style="flex: 1 1 140px; min-width: 0; font-size: 14px; font-weight: 700;">Reviews</span>
+                  <span aria-hidden="true" data-preview-style="font-size: 15px; color: rgba(32,30,29,.78);">›</span>
+                </a>
+                <a href="#performance" data-preview-style="display: flex; align-items: center; gap: 13px; min-height: 52px; padding: 12px 18px; border-top: 1px solid rgba(32,30,29,.22); text-decoration: none;">
+                  <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" data-preview-style="flex: none;"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z" fill="none" stroke="#201e1d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                  <span data-preview-style="flex: 1 1 140px; min-width: 0; font-size: 14px; font-weight: 700;">Performance</span>
+                  <span aria-hidden="true" data-preview-style="font-size: 15px; color: rgba(32,30,29,.78);">›</span>
+                </a>
+
+            </div>
+            <div data-preview-style="padding: 6px 0 8px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+              <div data-preview-style="padding: 14px 18px 10px; font-size: 11px; font-weight: 800; letter-spacing: .16em;">ACCOUNT</div>
+              <sc-for list="{{ accountNav }}" as="item" hint-placeholder-count="8">
+                <sc-if value="{{ item.live }}">
+                  <a href="{{ item.href }}" data-preview-style="display: flex; align-items: center; gap: 13px; min-height: 52px; padding: 12px 18px; border-top: 1px solid rgba(32,30,29,.22); text-decoration: none;">
+                    <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" data-preview-style="flex: none;"><path d="{{ item.icon }}" fill="none" stroke="{{ item.ink }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                    <span data-preview-style="flex: 1 1 140px; min-width: 0; font-size: 14px; font-weight: 700; color: {{ item.ink }};">{{ item.label }}</span>
+                    <span aria-hidden="true" data-preview-style="font-size: 15px; color: rgba(32,30,29,.78);">›</span>
+                  </a>
+                </sc-if>
+                <sc-if value="{{ item.inert }}">
+                  <div data-preview-style="display: flex; align-items: center; gap: 13px; min-height: 52px; padding: 12px 18px; border-top: 1px solid rgba(32,30,29,.22); opacity: .62;">
+                    <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" data-preview-style="flex: none;"><path d="{{ item.icon }}" fill="none" stroke="#201e1d" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                    <span data-preview-style="flex: 1 1 140px; min-width: 0; font-size: 14px; font-weight: 700;">{{ item.label }}</span>
+                    <span data-preview-style="font-size: 9px; font-weight: 800; letter-spacing: .1em;">{{ item.note }}</span>
+                  </div>
+                </sc-if>
+              </sc-for>
+            </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+    </main>
+
+      <nav data-mobilebar aria-label="Cleaner navigation" data-preview-style="flex: none; padding: 4px 8px 8px; background: #fff; border-top: 2px solid #201e1d;">
+        <a href="#activity" data-preview-style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 52px; padding: 7px 0; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="none" stroke="rgba(32,30,29,.78)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg><span data-preview-style="font-size: 9.5px; font-weight: 800; color: rgba(32,30,29,.78);">ACTIVITY</span></a>
+        <a href="#jobs-map" data-preview-style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 52px; padding: 7px 0; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" fill="none" stroke="rgba(32,30,29,.78)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg><span data-preview-style="font-size: 9.5px; font-weight: 800; color: rgba(32,30,29,.78);">MAP</span></a>
+        <a href="#messages" data-preview-style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 52px; padding: 7px 0; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" fill="none" stroke="rgba(32,30,29,.78)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg><span data-preview-style="font-size: 9.5px; font-weight: 800; color: rgba(32,30,29,.78);">INBOX</span></a>
+        <a href="#earnings" data-preview-style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 52px; padding: 7px 0; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5.5A4 4 0 0 0 9 9v6c0 2-.8 3-2.5 4H17M7 12h6" fill="none" stroke="rgba(32,30,29,.78)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg><span data-preview-style="font-size: 9.5px; font-weight: 800; color: rgba(32,30,29,.78);">PAY</span></a>
+        <a href="#profile" data-preview-style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 52px; padding: 7px 0; text-decoration: none;"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5" fill="none" stroke="rgba(32,30,29,.78)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg><span data-preview-style="font-size: 9.5px; font-weight: 800; color: rgba(32,30,29,.78);">ACCOUNT</span></a>
+      </nav>
+  </div>
+
+  <sc-if value="{{ showChrome }}" hint-placeholder-val="{{ true }}">
+  <p data-preview-style="max-width: 900px; margin: 18px auto 0; font-size: 13px; line-height: 1.55; color: rgba(32,30,29,.75); text-align: center; text-wrap: pretty;">Every rail icon works — Activity, Jobs Map, Messages, Earnings, Reviews and My Profile, plus a job screen. Reviews and Performance share one tab, switched in the page. Registration lives in the onboarding dashboard, not here. My Profile carries the eight ACCOUNT destinations. Every page is the same size, so the frame does not resize as you click through.</p>
+
+    <section data-preview-style="max-width: 1440px; margin: 34px auto 0;">
+      <div data-preview-style="height: 2px; background: #201e1d;"></div>
+      <div data-preview-style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 20px; padding-top: 14px;">
+        <span data-preview-style="font-size: 12px; font-weight: 800; letter-spacing: .18em;">MOBILE LAYOUT · 390 × 844</span>
+        <span data-preview-style="font-size: 12.5px; font-weight: 600; color: rgba(32,30,29,.75);">The same screens, live — edit once and both update</span>
+      </div>
+      <p data-preview-style="max-width: 620px; margin: 12px 0 0; font-size: 13px; line-height: 1.55; color: rgba(32,30,29,.78); text-wrap: pretty;">This is not a second design: it is this page rendered at phone width, so the rail becomes the bottom bar, the cards stack to one column and the header tightens. Navigate it with its own tab bar.</p>
+      <div data-preview-style="display: flex; flex-wrap: wrap; gap: 28px; margin-top: 22px; align-items: flex-start;">
+        <div data-preview-style="flex: none; padding: 13px; border-radius: 52px; background: #2d2b2a; box-shadow: 0 20px 44px rgba(28,23,22,.22);">
+          <div data-preview-style="position: relative; overflow: hidden; width: 390px; height: 844px; border-radius: 40px; background: #f3f2f2;">
+            <iframe name="phone" title="Cleaner dashboard at phone width" src="cleaner-dashboard-prototype.dc.html?embed=1" data-preview-style="display: block; width: 390px; height: 844px; border: 0;"></iframe>
+          </div>
+        </div>
+        <div data-preview-style="flex: 1 1 260px; min-width: 0; padding: 20px 22px 22px; border: 3px solid #2d2b2a; border-radius: 22px; background: #fff;">
+          <span data-preview-style="font-size: 11px; font-weight: 800; letter-spacing: .16em;">WHAT CHANGES AT PHONE WIDTH</span>
+          <div data-preview-style="height: 2px; margin: 10px 0 14px; background: #201e1d;"></div>
+          <div data-preview-style="display: flex; flex-direction: column; gap: 11px; font-size: 13px; line-height: 1.45;">
+            <span><strong>The rail becomes a bottom bar.</strong> Five destinations — Activity, Map, Inbox, Pay, Account. Reviews and the job screen are reached from Account and from the job cards.</span>
+            <span><strong>The wide grids collapse to one column</strong> at 700px, so the offer screen reads scope, then pay, then travel, in that order. The small stat tiles stay two-up, where they still read at a glance.</span>
+            <span><strong>The header loses the account label</strong> and keeps the avatar, so the page title still fits on one line.</span>
+            <span><strong>The page scrolls, the shell does not</strong> — the bottom bar stays put, which is what you want one-handed in a client's house.</span>
+          </div>
+          <p data-preview-style="margin: 14px 0 0; padding-top: 11px; border-top: 1px dashed rgba(32,30,29,.4); font-size: 11px; line-height: 1.5; color: rgba(32,30,29,.78);"><strong data-preview-style="color: #201e1d;">One source:</strong> the phone above loads this same file with <span data-preview-style="font-weight: 700;">?embed=1</span>, which hides this section inside it. Any change you make to the design appears in both.</p>
+        </div>
+      </div>
+    </section>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1440, &quot;height&quot;: 1010}}">
+const ICON = {
+  user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20c1.5-3.5 4.5-5 8-5s6.5 1.5 8 5",
+  bell: "M6 16v-5a6 6 0 1 1 12 0v5l2 3H4zM10 19a2 2 0 0 0 4 0",
+  help: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9a2.7 2.7 0 1 1 4.1 2.3c-1 .7-1.6 1.1-1.6 2.2M12 17h.01",
+  chat: "M4 5h16v11H9l-5 4zM8 9h8M8 12h5",
+  shield: "M12 3l8 3v6c0 4.5-3.5 7.5-8 9-4.5-1.5-8-4.5-8-9V6zM9 12l2 2 4-4",
+  gear: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1",
+  logout: "M10 4H5v16h5M14 8l4 4-4 4M18 12H9"
+};
+
+const PAGES = {
+  activity:    { kicker: "31 AUG – 6 SEPT", title: "Activity schedule", sub: "See selected work by week, then review every clean's price, area, type and property images below." },
+  "jobs-map":  { kicker: "YOUR WORK AREAS", title: "Jobs near you", sub: "Explore available jobs by area, then review the full clean details before deciding." },
+  messages:    { kicker: "PRIVATE BOOKING CONVERSATIONS", title: "Messages", sub: "Chat with clients and the Homlle team. Numbers stay private — everything goes through the app." },
+  earnings:    { kicker: "CLEANER PAYOUTS", title: "Earnings", sub: "Agreed Cleaner pay on completed jobs, and how payouts get set up." },
+  performance: { kicker: "RATING & BADGES", title: "Performance", sub: "Clients rate every completed job. Ratings drive how often you're offered work." },
+  profile:     { kicker: "YOUR PUBLIC PROFILE", title: "Your public profile", sub: "Exactly what clients see when Homlle offers them your profile. It updates live as you edit your registration." },
+  reviews:     { kicker: "REVIEWS & RATINGS", title: "Reviews & ratings", sub: "Clients rate every completed job. Ratings drive how often you're offered work." },
+  job:         { kicker: "CONFIRMED VISIT", title: "Deep clean · 3 bed house", sub: "Sun 6 Sept · 09:00 · LS6 · 3.5 hours · £68.00 agreed Cleaner pay." }
+};
+
+const ACCOUNT = [
+  { label: "My Profile", icon: ICON.user, href: "#profile", note: "CURRENT PAGE" },
+  { label: "Notifications", icon: ICON.bell, href: "#profile", note: "NOT IN THIS PASS" },
+  { label: "Help Centre", icon: ICON.help, href: "#profile", note: "NOT IN THIS PASS" },
+  { label: "Support Tickets", icon: ICON.chat, href: "#profile", note: "NOT IN THIS PASS" },
+  { label: "Report an Incident", icon: ICON.shield, href: "#profile", note: "NOT IN THIS PASS" },
+  { label: "My Disputes", icon: ICON.shield, href: "#profile", note: "NOT IN THIS PASS" },
+  { label: "Settings", icon: ICON.gear, href: "#profile", note: "NOT IN THIS PASS" },
+  { label: "Logout", icon: ICON.logout, href: "", note: "SIGNS OUT TO /LOGIN" }
+];
+
+const THREADS = [
+  { name: "Jordan · LS6 deep clean", preview: "Perfect. Oven's the main thing if you have time.", when: "09:12", initial: "J",
+    messages: [
+      { them: "Morning! The key is in the lockbox, code is on your job sheet." },
+      { me: "On my way" },
+      { them: "Perfect. Oven's the main thing if you have time." }
+    ] },
+  { name: "Homlle Support", preview: "Your insurance certificate is still outstanding.", when: "Fri", initial: "H",
+    messages: [
+      { them: "Your insurance certificate is still outstanding." },
+      { them: "Upload it on the Insurance step and we'll review it within two working days." }
+    ] },
+  { name: "Priya · LS1", preview: "Thanks for accepting — see you Tuesday at one.", when: "Thu", initial: "P",
+    messages: [
+      { me: "Happy to take Tuesday at one." },
+      { them: "Thanks for accepting — see you Tuesday at one." }
+    ] }
+];
+
+const OFFERS = [
+  { title: "Regular clean · 2 bed flat", area: "LS1", when: "Tue 8 Sept · 13:00–15:00",
+    hours: 2, miles: "4.1", drive: "14 min", leaveBy: "12:40", frequency: "One-off",
+    client: 45, fee: 9, pay: 36, expires: 3 * 3600 + 42 * 60,
+    scope: ["Kitchen — surfaces, hob, sink, floor", "Bathroom — bath, shower, WC, mirror", "Two bedrooms — dust and vacuum", "Living room — dust, vacuum, tidy"],
+    extras: ["Client provides all products and equipment.", "Key is in a lockbox — the code appears once you accept."] },
+  { title: "End of tenancy", area: "LS2", when: "Thu 10 Sept · 10:00–15:00",
+    hours: 5, miles: "6.8", drive: "22 min", leaveBy: "09:30", frequency: "One-off",
+    client: 118.75, fee: 23.75, pay: 95, expires: 21 * 3600 + 6 * 60,
+    scope: ["Whole two-bed flat, empty of furniture", "Oven deep clean, inside and out", "Windows inside, sills and frames", "Skirtings, doors and light switches", "Carpets vacuumed throughout"],
+    extras: ["You bring your own products and equipment.", "The letting agent meets you on arrival."] }
+];
+
+/* Every status, label and action label below is verbatim from
+ * public/active-job-model.js — `activeJobStages`, `activeJobStatusLabels` and
+ * the descriptors `activeJobAction()` returns for the cleaner role. The notes
+ * are the only authored strings here.
+ *
+ * Two label maps exist for the same statuses and they are not interchangeable:
+ * activeJobStatusLabels (this screen, both roles watching the job) says
+ * "Cleaning finished" for awaiting-review, while bookingSummaryStatusLabels
+ * (the booking lists) says "Awaiting review". Use the map that owns the surface.
+ *
+ * `completed` is deliberately absent: the Landlord confirms it, so the Cleaner
+ * screen stops at awaiting-review. */
+const STAGES = [
+  { status: "confirmed",
+    note: "Set off and tell the client — they see you are travelling, not your location." },
+  { status: "cleaner-en-route",
+    note: "The client can see you are travelling. Message them if you are held up." },
+  { status: "cleaner-arrived",
+    note: "Check you can get in and that the job matches the description before you start." },
+  { status: "cleaning-in-progress",
+    note: "Tick each task as you finish it. The client sees progress, not the ticks themselves." },
+  { status: "awaiting-review",
+    note: "Waiting for Landlord confirmation. Your completed checklist and evidence are ready for them to review." }
+];
+
+/* Shown only until import("./homlle-booking.js") resolves. If a label here ever
+ * differs from the module's, the module wins — these are never authoritative. */
+const FALLBACK_LABEL = {
+  confirmed: "Booking confirmed",
+  "cleaner-en-route": "Cleaner en route",
+  "cleaner-arrived": "Cleaner arrived",
+  "cleaning-in-progress": "Cleaning in progress",
+  "awaiting-review": "Cleaning finished"
+};
+const FALLBACK_ACTION = {
+  confirmed: "Start journey",
+  "cleaner-en-route": "I have arrived",
+  "cleaner-arrived": "Start cleaning",
+  "cleaning-in-progress": "Finish cleaning"
+};
+
+const ROOMS = [
+  { name: "KITCHEN", items: ["Worktops and splashback", "Hob and extractor", "Sink and taps", "Inside the oven", "Floor"] },
+  { name: "BATHROOM", items: ["Bath and shower", "WC", "Sink and mirror", "Tiles and grout", "Floor"] },
+  { name: "THREE BEDROOMS", items: ["Dust all surfaces", "Change the bedding", "Vacuum"] },
+  { name: "LIVING ROOM", items: ["Dust and polish", "Vacuum", "Tidy and cushions"] },
+  { name: "HALL AND STAIRS", items: ["Vacuum", "Skirtings and switches"] }
+];
+
+const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+
+const WEEKS = [
+  { label: "31 AUG – 6 SEPT", short: "this week",
+    note: "One clean booked today, outlined. Tap any day to see jobs going in your areas.",
+    days: [0, 0, 0, 0, 0, 0, 2],
+    value: 68, hours: "3.5",
+    hero: { badge: "TODAY · 09:00", title: "Deep clean · 3 bed house", area: "LS6", hours: "3.5", pay: "£68.00" },
+    jobs: [{ title: "Deep clean · 3 bed house", meta: "Sun 6 Sept · 09:00 · LS6 · 3.5 hours · confirmed", pay: "£68.00" }] },
+  { label: "7 – 13 SEPT", short: "week of 7 Sept",
+    note: "Two offers are waiting on your reply — nothing confirmed yet. Tap a day to open the map.",
+    days: [0, 1, 0, 1, 0, 0, 0],
+    value: 0, hours: "0",
+    hero: null, emptyBadge: "NOTHING CONFIRMED", emptyTitle: "Two offers, no bookings",
+    emptyLine: "Reply to the offers on Tue 8 and Thu 10 and they land in this week.",
+    jobs: [] },
+  { label: "14 – 20 SEPT", short: "week of 14 Sept",
+    note: "Nothing booked yet. Jobs in your work areas appear on the map as clients post them.",
+    days: [0, 0, 0, 0, 0, 0, 0],
+    value: 0, hours: "0",
+    hero: null, emptyBadge: "NOTHING BOOKED", emptyTitle: "This week is open",
+    emptyLine: "Nothing offered for this week yet. Widening your travel radius brings more work in.",
+    jobs: [] }
+];
+
+/* The seam. `homlle-booking.js` owns the booking record and the pure functions
+ * over it; the Landlord view is a second consumer of the same module. Loading
+ * it here proves the boundary instead of describing it. */
+let BOOKING = null;
+
+const INCIDENTS = [
+  { value: "access", label: "Can't get in", heading: "Message the client first",
+    text: "Wait at the property and message the client. If there is no reply after 15 minutes, report it here — Homlle logs your arrival so waiting time can be considered." },
+  { value: "scope", label: "Job is bigger than described", heading: "Do not start yet",
+    text: "Send a scope change with the extra time you need. The client approves it before you begin, so the extra hours are paid rather than worked free." },
+  { value: "damage", label: "Something broke", heading: "Photograph it before you touch it",
+    text: "Take photos of the damage, then report it. Homlle routes the claim to your insurer — never agree a cash settlement with the client." },
+  { value: "safety", label: "Safety concern", heading: "Leave now if you feel unsafe", urgent: true,
+    text: "Your safety comes before the clean. Call 999 in an emergency. Report it afterwards and Homlle will not offer you this client again." },
+  { value: "cancel", label: "I need to cancel", heading: "Tell us as early as you can",
+    text: "Homlle re-offers the job to other cleaners. Cancelling at short notice may affect how often you are offered work." },
+  { value: "client-cancelled", label: "Client cancelled late", heading: "Get it on record",
+    text: "Report it so the late cancellation sits against the booking, not just in the chat thread." },
+  { value: "off-platform", label: "Client asked to pay cash", heading: "Keep it on Homlle", urgent: true,
+    text: "Paying off-platform voids your insurance and your protection if anything goes wrong. Report the request — it is not held against you." },
+  { value: "other", label: "Other", heading: "Tell us in your own words",
+    text: "Describe what happened and Homlle Support will pick it up from here." }
+];
+
+const REASONS = [
+  "Too far to travel",
+  "Not free at that time",
+  "Pay too low for the work",
+  "Outside my specialisms",
+  "Something looks wrong"
+];
+
+const STEPS = [
+  { title: "Personal details", done: true },
+  { title: "Business details", done: false },
+  { title: "Banking & payments", done: false },
+  { title: "Identity verification", done: false },
+  { title: "Right to work", done: false },
+  { title: "Background checks (DBS)", done: false },
+  { title: "Skills and Experience", done: true },
+  { title: "Insurance", done: false },
+  { title: "Equipment & Travel", done: false },
+  { title: "Work areas", done: true },
+  { title: "Skills", done: false },
+  { title: "Training & certificates", done: false },
+  { title: "Compliance & declarations", done: false },
+  { title: "Review & submit", done: false }
+];
+
+class Component extends DCLogic {
+  state = { route: (window.location.hash || "#activity").slice(1) || "activity", thread: 0,
+    offer: 0, decline: false, reason: null, decided: null, elapsed: 0,
+    incident: "", reported: false, week: 0,
+    stage: 0, stamps: {}, ticked: {},
+    // ?embed=1 is the phone-width copy of this page: it renders the shell only
+    embedded: /[?&]embed=1/.test(window.location.search) };
+
+  componentDidMount() {
+    /* The seam in one line: swap MOCK_BOOKINGS for list_my_booking_summaries
+     * and re-point this at ./booking-summary-model.js to go live. */
+    import("./homlle-booking.js").then((mod) => {
+      BOOKING = mod;
+      this.forceUpdate();
+    }).catch(() => { BOOKING = null; });
+    this.timer = setInterval(() => this.setState((st) => ({ elapsed: st.elapsed + 1 })), 1000);
+    this.onHash = () => {
+      const next = (window.location.hash || "#activity").slice(1) || "activity";
+      this.setState({ route: PAGES[next] ? next : "activity" });
+      const main = this.el && this.el.querySelector ? this.el.querySelector("main") : null;
+      if (main) main.scrollTop = 0;
+    };
+    window.addEventListener("hashchange", this.onHash);
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener("hashchange", this.onHash);
+    clearInterval(this.timer);
+  }
+
+  money(n) { return "£" + n.toFixed(2); }
+
+  clock(secs) {
+    if (secs <= 0) return "0m 00s";
+    const h = Math.floor(secs / 3600), m = Math.floor((secs % 3600) / 60), s = secs % 60;
+    const pad = (v) => String(v).padStart(2, "0");
+    return h > 0 ? h + "h " + pad(m) + "m " + pad(s) + "s" : m + "m " + pad(s) + "s";
+  }
+
+  setOffer(i) { this.setState({ offer: i, decline: false, reason: null, decided: null }); }
+
+  offerVals() {
+    const i = this.state.offer || 0;
+    const o = OFFERS[i];
+    const left = Math.max(0, o.expires - this.state.elapsed);
+    const urgent = left < 3600;
+    const chosen = this.state.reason;
+    const decided = this.state.decided;
+    return {
+      offerNum: i + 1,
+      offerTitle: o.title,
+      offerArea: o.area,
+      offerWhen: o.when,
+      offerHours: o.hours,
+      offerMiles: o.miles,
+      offerDrive: o.drive,
+      offerLeaveBy: o.leaveBy,
+      offerFrequency: o.frequency,
+      offerScope: o.scope.map((text) => ({ text })),
+      offerExtras: o.extras.map((text) => ({ text })),
+      payClient: this.money(o.client),
+      payFee: this.money(o.fee),
+      payNet: this.money(o.pay),
+      payRate: this.money(o.pay / o.hours) + " an hour",
+      countdown: this.clock(left),
+      expiryInk: urgent ? "#a30c24" : "#201e1d",
+      expiryEdge: urgent ? "#e01030" : "rgba(32,30,29,.4)",
+      expiryFill: urgent ? "rgba(224,16,48,.08)" : "transparent",
+      offerTabs: OFFERS.map((x, n) => ({
+        label: "Offer " + (n + 1),
+        bg: n === i ? "#201e1d" : "transparent",
+        ink: n === i ? "#fff" : "#201e1d",
+        select: () => this.setOffer(n)
+      })),
+      showDecide: !decided && !this.state.decline,
+      showDecline: !decided && Boolean(this.state.decline),
+      showAccepted: decided === "accepted",
+      showDeclined: decided === "declined",
+      declinedReason: chosen || "no reason given",
+      reasons: REASONS.map((label) => ({
+        label,
+        edge: chosen === label ? "#201e1d" : "rgba(32,30,29,.4)",
+        bg: chosen === label ? "rgba(32,30,29,.06)" : "#fff",
+        ink: chosen === label ? "#201e1d" : "rgba(32,30,29,.8)",
+        dot: chosen === label ? "#e01030" : "transparent",
+        dotEdge: chosen === label ? "#e01030" : "rgba(32,30,29,.45)",
+        select: () => this.setState({ reason: label })
+      })),
+      confirmLabel: chosen ? "Confirm decline" : "Pick a reason first",
+      confirmFill: chosen ? "#201e1d" : "rgba(32,30,29,.12)",
+      confirmInk: chosen ? "#fff" : "rgba(32,30,29,.72)",
+      confirmCursor: chosen ? "pointer" : "not-allowed",
+      acceptOffer: () => this.setState({ decided: "accepted", decline: false }),
+      openDecline: () => this.setState({ decline: true }),
+      cancelDecline: () => this.setState({ decline: false, reason: null }),
+      confirmDecline: () => { if (this.state.reason) this.setState({ decided: "declined", decline: false }); },
+      resetOffer: () => this.setState({ decided: null, decline: false, reason: null })
+    };
+  }
+
+  weekVals() {
+    const w = Math.max(0, Math.min(WEEKS.length - 1, this.state.week || 0));
+    const wk = WEEKS[w];
+    const first = w === 0, last = w === WEEKS.length - 1;
+    // OFFERS is the live pending set — the same two the map and YOUR STATUS report,
+    // whichever week is on screen. Only money, hours, hero and the job list page.
+    const pending = OFFERS.length;
+    const offerDays = OFFERS.map((o) => o.when.split(" · ")[0]).join(" and ");
+    return {
+      weekLabel: wk.label,
+      weekLabelShort: wk.short,
+      weekNote: wk.note,
+      weekValue: "£" + wk.value.toFixed(2),
+      weekValueInk: wk.value ? "#201e1d" : "rgba(32,30,29,.5)",
+      weekHours: wk.hours,
+      weekHoursInk: wk.hours === "0" ? "rgba(32,30,29,.5)" : "#201e1d",
+      nextValue: last ? "—" : "£" + WEEKS[w + 1].value.toFixed(2),
+      nextValueInk: (!last && WEEKS[w + 1].value) ? "#201e1d" : "rgba(32,30,29,.5)",
+      nextValueNote: last ? "no week loaded" : "confirmed in " + WEEKS[w + 1].short,
+      offersCount: pending || "0",
+      offersNote: pending ? pending + " awaiting your reply" : "none awaiting reply",
+      offersEdge: pending ? "#e01030" : "#2d2b2a",
+      offersInk: pending ? "#a30c24" : "rgba(32,30,29,.5)",
+      offersLine: (pending === 2 ? "Two offers are" : pending + " offer is") + " waiting on your reply — " + offerDays + ".",
+      weekHasOffers: pending > 0,
+      weekHasJob: Boolean(wk.hero),
+      weekNoJob: !wk.hero,
+      heroBadge: wk.hero ? wk.hero.badge : wk.emptyBadge,
+      heroTitle: wk.hero ? wk.hero.title : wk.emptyTitle,
+      heroArea: wk.hero ? wk.hero.area : "",
+      heroHours: wk.hero ? wk.hero.hours : "",
+      heroPay: wk.hero ? wk.hero.pay : "",
+      heroEmptyLine: wk.emptyLine || "",
+      weekJobs: wk.jobs,
+      weekDays: wk.days.map((state, n) => ({
+        name: DAYS[n],
+        fill: state === 2 ? "#e01030" : (state === 1 ? "rgba(224,16,48,.12)" : "rgba(32,30,29,.1)"),
+        ring: state === 2 ? "inset 0 0 0 3px #201e1d" : (state === 1 ? "inset 0 0 0 2px #e01030" : "none"),
+        ink: state === 0 ? "rgba(32,30,29,.72)" : "#201e1d",
+        aria: DAYS[n] + " " + wk.label + " — " +
+          (state === 2 ? "one clean booked. Open jobs near you"
+            : state === 1 ? "an offer awaiting your reply. Open jobs near you"
+            : "nothing booked. Open jobs near you")
+      })),
+      prevWeek: () => this.setState((st) => ({ week: Math.max(0, (st.week || 0) - 1) })),
+      nextWeek: () => this.setState((st) => ({ week: Math.min(WEEKS.length - 1, (st.week || 0) + 1) })),
+      prevEdge: first ? "rgba(32,30,29,.25)" : "#201e1d",
+      prevInk: first ? "rgba(32,30,29,.4)" : "#201e1d",
+      prevCursor: first ? "not-allowed" : "pointer",
+      nextEdge: last ? "rgba(32,30,29,.25)" : "#201e1d",
+      nextInk: last ? "rgba(32,30,29,.4)" : "#201e1d",
+      nextCursor: last ? "not-allowed" : "pointer"
+    };
+  }
+
+  jobVals() {
+    const stage = this.state.stage || 0;
+    const stamps = this.state.stamps || {};
+    const ticked = this.state.ticked || {};
+    const flat = [];
+    ROOMS.forEach((room, ri) => room.items.forEach((label, ii) => flat.push({ key: ri + "-" + ii, label, ri })));
+    const doneCount = flat.filter((t) => ticked[t.key]).length;
+    const allTicked = doneCount === flat.length;
+    const finished = stage >= STAGES.length - 1;
+    const working = stage >= 3;
+    const unresolved = flat.length - doneCount;
+    const status = STAGES[stage].status;
+
+    /* Everything below is asked of the shared module rather than restated here,
+     * so an upstream label or rule change reaches this screen automatically. */
+    const label = (st) => (BOOKING ? BOOKING.activeJobStatusLabels[st] : FALLBACK_LABEL[st]) || "";
+    const action = BOOKING
+      ? BOOKING.activeJobAction("cleaner",
+          { status },
+          { status, totalTasks: flat.length, resolvedTasks: doneCount },
+          { checked: true, canStartJourney: true })
+      : { label: FALLBACK_ACTION[status] || "", enabled: status !== "cleaning-in-progress" || allTicked };
+    /* The real rule: ticking is possible only while cleaning is in progress. */
+    const canTick = BOOKING ? BOOKING.taskCanBeUpdated("cleaner", status) : status === "cleaning-in-progress";
+
+    const checks = [{ label: allTicked ? "All " + flat.length + " tasks resolved" : action.label, ok: allTicked }];
+    const ready = working && allTicked;
+    const record = { participantRole: "cleaner", status, pricePence: 6800 };
+    const statusLabel = BOOKING ? BOOKING.bookingSummaryStatusLabels[status] : "";
+    const moneyNote = BOOKING
+      ? BOOKING.bookingSummaryMoneyBoundary(record, "cleaner")
+      : "This is your agreed Cleaner pay, not a payout receipt. Transfer status is verified separately after completion.";
+    return {
+      jobStatus: status,
+      jobStatusLabel: statusLabel,
+      jobMoneyNote: moneyNote,
+      stageTitle: label(status),
+      stageNote: STAGES[stage].note,
+      stageAction: action.label,
+      stageHasAction: Boolean(action.label) && status !== "awaiting-review",
+      stageActionBlocked: !action.enabled,
+      stageActionFill: action.enabled ? "#201e1d" : "rgba(32,30,29,.12)",
+      stageActionInk: action.enabled ? "#fff" : "rgba(32,30,29,.72)",
+      stageActionCursor: action.enabled ? "pointer" : "not-allowed",
+      stageCanReset: stage > 0,
+      journey: STAGES.map((st, n) => ({
+        label: label(st.status),
+        time: n === 0 ? "" : (stamps[n] || (n === stage ? "now" : "")),
+        tick: n < stage ? "✓" : "",
+        fill: n < stage ? "#e01030" : (n === stage ? "#201e1d" : "transparent"),
+        ring: n <= stage ? "0" : "2px solid rgba(32,30,29,.3)",
+        railFill: n < stage ? "#e01030" : "rgba(32,30,29,.18)",
+        rail: n === STAGES.length - 1 ? "0px" : "14px",
+        ink: n <= stage ? "#201e1d" : "rgba(32,30,29,.72)"
+      })),
+      advanceStage: () => this.setState((st) => {
+        if (!action.enabled) return null;
+        const next = Math.min(STAGES.length - 1, (st.stage || 0) + 1);
+        const time = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+        return { stage: next, stamps: { ...(st.stamps || {}), [next]: time } };
+      }),
+      resetStage: () => this.setState({ stage: 0, stamps: {} }),
+      taskTotal: flat.length,
+      taskDone: doneCount,
+      taskPct: Math.round((doneCount / flat.length) * 100) + "%",
+      rooms: ROOMS.map((room, ri) => {
+        const items = room.items.map((label, ii) => {
+          const key = ri + "-" + ii;
+          const on = Boolean(ticked[key]);
+          return {
+            label, pressed: on ? "true" : "false",
+            edge: on ? "#e01030" : "rgba(32,30,29,.4)",
+            fill: on ? "#e01030" : "transparent",
+            tickInk: on ? "#fff" : "transparent",
+            ink: on ? "rgba(32,30,29,.72)" : "#201e1d",
+            strike: on ? "line-through" : "none",
+            toggle: () => { if (!canTick) return; this.setState((st) => {
+              const map = { ...(st.ticked || {}) };
+              if (map[key]) delete map[key]; else map[key] = true;
+              return { ticked: map };
+            }); }
+          };
+        });
+        const n = room.items.filter((_, ii) => ticked[ri + "-" + ii]).length;
+        return { name: room.name, items, count: n + "/" + room.items.length,
+          ink: n === room.items.length ? "#a30c24" : "rgba(32,30,29,.72)" };
+      }),
+      taskLocked: !canTick,
+      taskEditable: canTick,
+      taskCursor: canTick ? "pointer" : "default",
+      taskLockNote: finished
+        ? "Submitted as evidence. The checklist locks once cleaning is finished, so it still matches what the Landlord was sent."
+        : "The checklist opens when you start cleaning. Homlle only accepts ticks while the booking is in progress.",
+      tickAll: () => this.setState(() => {
+        const map = {};
+        flat.forEach((t) => { map[t.key] = true; });
+        return { ticked: map };
+      }),
+      clearAll: () => this.setState({ ticked: {} }),
+      finishChecks: checks.map((c) => ({
+        label: c.label,
+        edge: c.ok ? "#e01030" : "rgba(32,30,29,.4)",
+        fill: c.ok ? "#e01030" : "transparent",
+        tickInk: c.ok ? "#fff" : "transparent",
+        ink: c.ok ? "#201e1d" : "rgba(32,30,29,.7)"
+      })),
+      finishTitle: finished ? label("awaiting-review") : (ready ? "Ready to finish" : "Not ready yet"),
+      finishEdge: finished ? "#2d2b2a" : (ready ? "#e01030" : "#2d2b2a"),
+      finishLabel: finished ? "Cleaning complete" : (working ? action.label : "Start cleaning first"),
+      finishFill: ready && !finished ? "#e01030" : "rgba(32,30,29,.12)",
+      finishInk: ready && !finished ? "#fff" : "rgba(32,30,29,.72)",
+      finishCursor: ready && !finished ? "pointer" : "not-allowed",
+      finishJob: () => { if (ready && !finished) this.setState({ stage: STAGES.length - 1 }); },
+      jobFinished: finished
+    };
+  }
+
+  incidentVals() {
+    const chosen = INCIDENTS.find((x) => x.value === this.state.incident);
+    const sent = Boolean(this.state.reported) && Boolean(chosen);
+    return {
+      incident: this.state.incident,
+      incidentOptions: INCIDENTS.map((x) => ({ value: x.value, label: x.label })),
+      incidentPicked: Boolean(chosen),
+      incidentOther: this.state.incident === "other",
+      incidentLabel: chosen ? chosen.label : "",
+      incidentHeading: chosen ? chosen.heading : "",
+      incidentGuidance: chosen ? chosen.text : "",
+      incidentGlyph: chosen && chosen.urgent ? "M12 4l9 16H3zM12 10v4M12 17h.01" : "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 8v.01M12 11v5",
+      incidentInk: chosen && chosen.urgent ? "#a30c24" : "#201e1d",
+      incidentFill: chosen && chosen.urgent ? "rgba(224,16,48,.09)" : "rgba(32,30,29,.06)",
+      reportSent: sent,
+      reportLabel: sent ? "Reported to Homlle" : (chosen ? "Report to Homlle" : "Choose a reason first"),
+      reportFill: chosen ? (sent ? "rgba(32,30,29,.12)" : "#e01030") : "rgba(32,30,29,.12)",
+      reportInk: chosen && !sent ? "#fff" : "rgba(32,30,29,.72)",
+      reportCursor: chosen && !sent ? "pointer" : "not-allowed",
+      pickIncident: (e) => this.setState({ incident: e.target.value, reported: false }),
+      sendReport: () => { if (this.state.incident) this.setState({ reported: true }); },
+      clearReport: () => this.setState({ reported: false, incident: "" })
+    };
+  }
+
+  renderVals() {
+    const r = PAGES[this.state.route] ? this.state.route : "activity";
+    const page = PAGES[r];
+    const on = (key) => (r === key ? "#fff" : "transparent");
+    const ink = (key) => (r === key ? "#201e1d" : "#fff");
+    return {
+      kicker: r === "activity" ? WEEKS[Math.max(0, Math.min(WEEKS.length - 1, this.state.week || 0))].label : page.kicker,
+      pageTitle: page.title,
+      pageSub: page.sub,
+      isActivity: r === "activity",
+      isMap: r === "jobs-map",
+      isMessages: r === "messages",
+      isEarnings: r === "earnings",
+      isPerformance: r === "performance",
+      isProfile: r === "profile",
+      isReviews: r === "reviews",
+      isJob: r === "job",
+      navReviews: (r === "reviews" || r === "performance") ? "#fff" : "transparent",
+      inkReviews: (r === "reviews" || r === "performance") ? "#201e1d" : "#fff",
+      navActivity: on("activity"), inkActivity: ink("activity"),
+      navMap: on("jobs-map"), inkMap: ink("jobs-map"),
+      navMsg: on("messages"), inkMsg: ink("messages"),
+      navPay: on("earnings"), inkPay: ink("earnings"),
+      navPerf: on("performance"), inkPerf: ink("performance"),
+      navProfile: on("profile"), inkProfile: ink("profile"),
+      threads: THREADS.map((t, i) => ({
+        name: t.name, preview: t.preview, when: t.when, initial: t.initial,
+        bg: i === (this.state.thread || 0) ? "rgba(224,16,48,.06)" : "transparent",
+        edge: i === (this.state.thread || 0) ? "4px solid #e01030" : "4px solid transparent",
+        select: () => this.setState({ thread: i })
+      })),
+      chatInitial: THREADS[this.state.thread || 0].initial,
+      chatName: THREADS[this.state.thread || 0].name,
+      chatMessages: THREADS[this.state.thread || 0].messages.map((m) => ({
+        text: m.me || m.them, fromMe: Boolean(m.me), fromThem: Boolean(m.them)
+      })),
+      pickOffer0: () => this.setOffer(0),
+      pickOffer1: () => this.setOffer(1),
+      steps: STEPS.map((st) => ({
+        title: st.title,
+        tick: st.done ? "✓" : "",
+        mark: st.done ? "#ee352c" : "transparent",
+        ring: st.done ? "0" : "2px solid rgba(32,30,29,.32)",
+        state: st.done ? "RECORDED" : "OUTSTANDING"
+      })),
+      ...this.offerVals(),
+      showChrome: !this.state.embedded,
+      ...this.weekVals(),
+      ...this.jobVals(),
+      ...this.incidentVals(),
+      accountNav: ACCOUNT.map((a) => ({ ...a, live: !a.note, inert: Boolean(a.note), ink: a.label === "Logout" ? "#a30c24" : "#201e1d" }))
+    };
+  }
+}
+</script>
+</body>
+</html>

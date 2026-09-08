@@ -314,6 +314,7 @@ const landlordDashboardPaths = new Set([
 ]);
 
 function setSecurityHeaders(response, requestPath = "", cspNonce = "") {
+  const designPreviewPage = requestPath.startsWith("/design-preview/");
   // Stripe is allowed on this one authenticated Landlord route only. Keeping
   // the wider site on the default self-only policy limits third-party code.
   const paymentPage = requestPath === "/landlord/checkout" || requestPath === "/stripe-sandbox";
@@ -329,7 +330,9 @@ function setSecurityHeaders(response, requestPath = "", cspNonce = "") {
   const privateMediaPage = activeJobPage || landlordDashboardPage || journeyPage;
   const activeJobStorage = privateMediaPage && objectStorageOrigins.length ? ` ${objectStorageOrigins.join(" ")}` : "";
   const trustedAccountAvatars = " https://*.googleusercontent.com https://*.fbcdn.net https://platform-lookaside.fbsbx.com";
-  response.setHeader("Content-Security-Policy", postcodeMapPage
+  response.setHeader("Content-Security-Policy", designPreviewPage
+    ? "default-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'; object-src 'none'"
+    : postcodeMapPage
     ? "default-src 'self'; img-src 'self' data: blob: https://tile.openstreetmap.org; style-src 'self'; script-src 'self'; connect-src 'self' https://api.postcodes.io; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     : paymentPage
     ? "default-src 'self'; img-src 'self' data: blob: https://*.stripe.com; style-src 'self'; script-src 'self' https://js.stripe.com; connect-src 'self' https://api.stripe.com https://r.stripe.com https://m.stripe.network; frame-src https://js.stripe.com https://hooks.stripe.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
@@ -338,7 +341,7 @@ function setSecurityHeaders(response, requestPath = "", cspNonce = "") {
       : `default-src 'self'; img-src 'self' data: blob:${trustedAccountAvatars}; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`);
   response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   response.setHeader("X-Content-Type-Options", "nosniff");
-  response.setHeader("X-Frame-Options", "DENY");
+  response.setHeader("X-Frame-Options", designPreviewPage ? "SAMEORIGIN" : "DENY");
   if (process.env.NODE_ENV === "production") response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   response.setHeader("Permissions-Policy", landlordDashboardPage || journeyPage
     ? "camera=(self), microphone=(self), geolocation=()"

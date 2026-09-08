@@ -1,0 +1,23 @@
+
+  html, body { margin: 0; height: 100%; background: #eceaea; }
+  #map { position: absolute; inset: 0; font-family: 'Archivo', system-ui, sans-serif; }
+  /* Brand treatment: tiles read as the design system's black-and-white imagery,
+     so the only colour on the map is Homlle red. */
+  .leaflet-tile-pane { filter: grayscale(1) contrast(1.04); }
+  .leaflet-container { background: #eceaea; }
+  .leaflet-control-attribution { font-size: 9.5px; font-family: 'Archivo', system-ui, sans-serif; }
+  .job-dot {
+    display: block; width: 12px; height: 12px; border: 2px solid #fff; border-radius: 50%;
+    box-shadow: 0 2px 7px rgba(28,23,22,.3);
+  }
+  .job-dot.offer { background: #e01030; }
+  .job-dot.booked { background: #201e1d; }
+  .map-legend {
+    padding: 9px 11px; border: 2px solid #201e1d; border-radius: 12px; background: #fff;
+    font-size: 11px; font-weight: 700; line-height: 1.5; color: #201e1d;
+  }
+  .map-legend span { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .map-legend i { width: 10px; height: 10px; flex: none; border-radius: 50%; }
+  .leaflet-popup-content-wrapper { border-radius: 14px; border: 2px solid #201e1d; }
+  .leaflet-popup-content { margin: 12px 14px; font-family: 'Archivo', system-ui, sans-serif; font-size: 12.5px; line-height: 1.45; }
+  .leaflet-popup-content strong { display: block; font-size: 13.5px; }
