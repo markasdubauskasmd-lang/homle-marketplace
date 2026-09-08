@@ -572,6 +572,7 @@ el.scanLink.addEventListener("click", async () => {
       : "Your scan is saved. Add the checklist below before continuing.");
   } finally {
     el.scanLink.disabled = false;
+    if (state.step === "service") el.scanLink.focus({ preventScroll: true });
   }
 });
 el.skipScan.addEventListener("click", () => {
