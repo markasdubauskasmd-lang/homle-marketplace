@@ -276,7 +276,7 @@ const mimeTypes = {
 const immutableStaticAssets = new Set([
   "/landing-f56e7ce9.css",
   "/landing-bacbb863.css",
-  "/landing-0c783ae1.js",
+  "/landing-a97a6ca6.js",
   "/homle-logo-128-4f82ebad.png",
   "/homle-logo-192-c8defd4b.png",
   "/landing/open-plan-living-480-15f06faa.webp",
