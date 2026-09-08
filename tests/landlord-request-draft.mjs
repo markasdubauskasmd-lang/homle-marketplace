@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import vm from "node:vm";
 import { readFile } from "node:fs/promises";
 import { clearLandlordRequestDraft, landlordRequestDraftLifetimeMs, readLandlordRequestDraft, saveLandlordRequestDraft } from "../public/landlord-request-draft.js";
 
@@ -45,3 +46,26 @@ assert(script.includes("properties.some((property) => property.propertyId === dr
 assert(script.includes("requestForm.elements.scopeReviewed.checked = false") && !script.includes("fields.scopeReviewed"), "Checklist approval is restored without a fresh Landlord review.");
 
 console.log("landlord request draft tests passed");
+
+ 
+// Execute the actual dashboard recovery handler under a different account's
+// property list. Rejecting the old property must not restore private text.
+{
+  const draftValues = new Map();
+  const draftStorage = { getItem: key => draftValues.get(key) ?? null, setItem: (key, value) => draftValues.set(key, value), removeItem: key => draftValues.delete(key) };
+  saveLandlordRequestDraft(draftStorage, { fields: { propertyId, cleaningType: "regular-domestic", tasks: "Kitchen: Private prior account task", specialInstructions: "Private prior account note" } });
+  const controls = Object.fromEntries(["propertyId", "requestedDate", "requestedTime", "durationMinutes", "cleaningType", "frequency", "budget", "specialInstructions", "transcript", "tasks", "scopeReviewed"].map(name => [name, { value: "", checked: false }]));
+  const recoveryContext = vm.createContext({
+    requestRecoveryChecked: false, requestDirty: false,
+    window: { sessionStorage: draftStorage }, readLandlordRequestDraft,
+    properties: [{ propertyId: "22222222-2222-4222-8222-222222222222" }],
+    requestForm: { elements: controls }, propertySelect: { value: "" },
+    cleaningTypeSelect: { dataset: {} }, renderTaskPreview() {},
+    requestRecoveryStatus: { dataset: {} }
+  });
+  vm.runInContext(script.slice(script.indexOf("function restoreWorkingRequest()"), script.indexOf("function element(", script.indexOf("function restoreWorkingRequest()"))), recoveryContext);
+  recoveryContext.restoreWorkingRequest();
+  assert.equal(recoveryContext.propertySelect.value, "");
+  assert.equal(controls.tasks.value, "", "Previous account's private tasks were restored into the manual form.");
+  assert.equal(controls.specialInstructions.value, "", "Previous account's private notes were restored into the manual form.");
+}
