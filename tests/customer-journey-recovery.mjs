@@ -222,6 +222,11 @@ console.log("Customer invitation contract passed: empty capacity, declined exact
   assert.equal(focused, "typed-input", "Same-step refresh stole focus from an input");
   assert.equal(history.at(-2).mode, "none");
   assert.equal(history.at(-1).mode, "replace");
+  state.confirming = true;
+  context.show("when");
+  assert.equal(state.step, "service", "Pending confirmation allowed a direct step transition");
+  context.show("done");
+  assert.equal(state.step, "done", "Pending confirmation blocked its completion");
   console.log("Journey step focus passed: forward/back/history target the revealed heading; initial and same-step updates preserve focus.");
 }
 
@@ -346,15 +351,16 @@ console.log("Customer invitation contract passed: empty capacity, declined exact
 
 // Optional photos use the existing submission contract. Test the actual final
 // handler, with explicit fixture services and no real requests or invitations.
-function confirmationHarness({ matchingReady = true, mediaReady = false, photos = [], uploadError = null, submitStatus = "searching-for-cleaner" } = {}) {
+function confirmationHarness({ matchingReady = true, mediaReady = false, photos = [], uploadError = null, submitStatus = "searching-for-cleaner", csrfRecovery = async () => "fixture-csrf" } = {}) {
   const calls = [];
   const state = { signedIn: true, confirming: false, step: "checkout", scanRooms: [],
     scanPhotos: [...photos], capabilities: { matchingReady, mediaReady }, draft: {} };
-  const el = Object.fromEntries(["confirm", "checkoutState", "cleanerPhotoPreview", "doneTitle", "doneBody", "propertySignIn"].map(key => [key, {}]));
+  const el = Object.fromEntries(["back", "confirm", "checkoutState", "cleanerPhotoPreview", "doneTitle", "doneBody", "propertySignIn", "propertyType"].map(key => [key, { disabled: false }]));
   el.cleanerPhotoPreview.checked = true; // Stale UI consent cannot authorize absent photos.
   const ctx = vm.createContext({
     state, el,
-    recoverCsrf: async () => "fixture-csrf",
+    recoverCsrf: csrfRecovery,
+    $$: () => [el.confirm, el.cleanerPhotoPreview, el.propertyType],
     createOrRecoverProperty: async () => "fixture-property",
     createOrRecoverRequest: async () => { calls.push({ kind: "save" }); return { requestId: "fixture-request" }; },
     saveStructuredScanWithRetry: async () => true,
@@ -365,7 +371,7 @@ function confirmationHarness({ matchingReady = true, mediaReady = false, photos 
     discardDraft: () => calls.push({ kind: "discard" }),
     show: step => { state.step = step; }
   });
-  vm.runInContext(section("async function confirmJourney()", "async function loadCapabilities()"), ctx);
+  vm.runInContext(section("function lockConfirmationControls()", "async function loadCapabilities()"), ctx);
   return { ctx, calls, state, el };
 }
 {
@@ -409,3 +415,56 @@ for (const options of [
   assert.equal(state.step, "checkout", "Unverified submission looked successful");
 }
 console.log("Manual fallback submission passed: optional photos, no implicit preview consent, draft-only mode, upload order/failure retention, verified submission and double-click lock.");
+
+
+// Delay the account response while exercising the actual Back/history wiring.
+// The pending save owns its reviewed scope; failure must release all controls.
+for (const fail of [false, true]) {
+  let settle, backHandler, historyHandler;
+  const { ctx, calls, state, el } = confirmationHarness({
+    matchingReady: false, csrfRecovery: () => new Promise((resolve, reject) => {
+      settle = () => fail ? reject(new Error("Account response failed")) : resolve("fixture-csrf");
+    })
+  });
+  el.cleanerPhotoPreview.disabled = true; // Preserve an already unavailable control.
+  let reads = 0;
+  const history = [];
+  el.back.addEventListener = (_name, handler) => { backHandler = handler; };
+  Object.assign(ctx, {
+    window: { addEventListener: (_name, handler) => { historyHandler = handler; } },
+    readCurrentStep: () => { reads++; },
+    previousStep: () => "cleaner",
+    stepIndex: () => 1,
+    syncJourneyHistory: (step, mode) => history.push({ step, mode })
+  });
+  vm.runInContext(section('el.back.addEventListener(', "restoreDraft();"), ctx);
+  const pending = ctx.confirmJourney();
+  assert.equal(state.confirming, true);
+  for (const control of [el.back, el.confirm, el.cleanerPhotoPreview, el.propertyType]) {
+    assert.equal(control.disabled, true, "A pending request left a scope control enabled");
+  }
+  backHandler();
+  historyHandler({ state: { journeyStep: "when" } });
+  assert.equal(state.step, "checkout", "Pending confirmation allowed a scope edit step");
+  assert.equal(reads, 0);
+  assert.deepEqual(history, [{ step: "checkout", mode: "replace" }]);
+  assert.equal(calls.length, 0, "The deferred account response was bypassed");
+  settle();
+  await pending;
+  assert.equal(state.confirming, false);
+  assert.equal(el.back.disabled, false);
+  assert.equal(el.propertyType.disabled, false);
+  assert.equal(el.cleanerPhotoPreview.disabled, true, "Recovery enabled an unavailable choice");
+  assert.equal(state.step, fail ? "checkout" : "done");
+  if (fail) {
+    assert.equal(calls.length, 0);
+    assert.equal(el.confirm.disabled, false);
+    backHandler();
+    assert.equal(state.step, "cleaner", "Failed confirmation left Back locked");
+    assert.equal(reads, 1, "Recovered Back did not preserve current answers");
+    historyHandler({ state: { journeyStep: "when" } });
+    assert.equal(state.step, "when", "Recovered history remained locked");
+    assert.equal(reads, 2, "Recovered history did not preserve current answers");
+  }
+}
+console.log("Pending confirmation passed: scope controls and Back/history lock before await, and failure restores editing without enabling unavailable choices.");

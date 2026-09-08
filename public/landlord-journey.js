@@ -328,6 +328,7 @@ function syncJourneyHistory(stepId, mode) {
 }
 
 function show(stepId, historyMode = "push") {
+  if (state.confirming && stepId !== "done") return;
   const changedStep = state.step !== stepId;
   state.step = stepId;
   let activeSection = null;
@@ -381,6 +382,7 @@ function setChecklistError(message, focus = false) {
 }
 
 function goNext() {
+  if (state.confirming) return;
   if (state.step === "results" && !validatePremiumChecklist()) return;
   readCurrentStep();
   if (state.step === "postcode" && state.supplyPending) return toast("Checking coverage for this property…");
@@ -1946,6 +1948,15 @@ async function inviteSelectedCleaner(csrf, requestId) {
   return { invited: true, reason: usedAlternative ? `${initiallySelectedCleanerName} was unavailable for this paid booking. ${cleanerName} now has the exact ${exactPriceLabel(price)} offer to accept or decline.` : `${cleanerName} has the exact ${exactPriceLabel(price)} offer to accept or decline.` };
 }
 
+function lockConfirmationControls() {
+  const controls = [...new Set([el.back, ...$$('[data-step="checkout"] input, [data-step="checkout"] select, [data-step="checkout"] textarea, [data-step="checkout"] button')])];
+  const disabledStates = controls.map(control => [control, control.disabled]);
+  for (const [control] of disabledStates) control.disabled = true;
+  return () => {
+    for (const [control, disabled] of disabledStates) control.disabled = disabled;
+  };
+}
+
 async function confirmJourney() {
   if (state.confirming) return;
   if (state.scanRooms.length) {
@@ -1957,6 +1968,7 @@ async function confirmJourney() {
     state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
   }
   state.confirming = true;
+  const restoreControls = lockConfirmationControls();
   el.confirm.disabled = true;
   el.checkoutState.hidden = false;
   el.checkoutState.textContent = "Checking your private account…";
@@ -2020,6 +2032,7 @@ async function confirmJourney() {
     el.propertySignIn.hidden = !signInRequired;
   } finally {
     state.confirming = false;
+    restoreControls();
     if (state.step !== "done") el.confirm.disabled = !state.signedIn;
   }
 }
@@ -2123,6 +2136,7 @@ el.accessRetry.addEventListener("click", async () => {
   if (await openAuthenticatedJourney()) show(state.step, "replace");
 });
 el.back.addEventListener("click", () => {
+  if (state.confirming) return;
   readCurrentStep();
   const previous = previousStep(state.step);
   // Replace rather than push: going back in the app should not leave a forward
@@ -2131,6 +2145,10 @@ el.back.addEventListener("click", () => {
 });
 
 window.addEventListener("popstate", (event) => {
+  if (state.confirming) {
+    syncJourneyHistory(state.step, "replace");
+    return;
+  }
   const stepId = event.state?.journeyStep;
   if (typeof stepId !== "string" || stepIndex(stepId) < 0 || stepId === state.step) return;
   // Keep whatever was typed on the step being left, exactly as the in-app

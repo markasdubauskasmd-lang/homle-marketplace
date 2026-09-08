@@ -167,7 +167,8 @@ assert(/el\.back\.addEventListener[\s\S]{0,420}show\(previous, "replace"\)/.test
 assert(script.includes('show(state.step, "replace")') && !/[^,]\bshow\(state\.step\)/.test(script), "The first render pushes a history entry, so the first Back press lands on the step it started from.");
 // Back must not be a way to lose an answer: the step being left is read first,
 // exactly as the in-app control does.
-assert(/popstate[\s\S]{0,320}readCurrentStep\(\)/.test(script), "A Back press abandons whatever was typed on the step being left.");
+const historyHandler = script.slice(script.indexOf('window.addEventListener("popstate"'), script.indexOf("restoreDraft();"));
+assert(historyHandler.includes("readCurrentStep();") && historyHandler.indexOf("readCurrentStep();") < historyHandler.indexOf('show(stepId, "none")'), "A Back press abandons whatever was typed on the step being left.");
 
 // The scan is an interstitial in the journey, not a dead end.
 assert(page.includes("data-scan-link") && script.includes("openRoomScan"), "The journey never offers the room scan.");
