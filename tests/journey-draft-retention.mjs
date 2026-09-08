@@ -78,3 +78,38 @@ assert.ok(
 );
 
 console.log("Journey draft retention tests passed: the 30-minute promise is stated on all three pages that make it, the shared lifetime matches it, and the booking journey stamps its draft, refuses one that is expired, unstamped, over-long or future-dated, and discards it in every case.");
+
+
+// The property check must not carry another account's private draft into a new session.
+{
+  const { default: vm } = await import("node:vm");
+  const now = Date.now();
+  let stored = JSON.stringify({ step: "results", savedAt: now, expiresAt: now + landlordRequestDraftLifetimeMs,
+    draft: { propertyId: "account-a-property", durationMinutes: 120, tasks: ["Kitchen: Synthetic account A task"],
+      transcript: "Synthetic account A access note" } });
+  const state = { step: "postcode", draft: { propertyId: "", durationMinutes: 120, tasks: [], transcript: "" }, properties: [] };
+  const context = vm.createContext({ state, Date, JSON, Number, draftKey: "homle_journey_draft",
+    landlordRequestDraftLifetimeMs, durationChoices: [120],
+    sessionStorage: { getItem: () => stored, setItem: (_key, value) => { stored = value; }, removeItem: () => { stored = null; } },
+    stepIndex: step => ["postcode", "service", "results", "when", "cleaner", "checkout"].indexOf(step),
+    normalisedPostcode: value => value ? { full: value } : null,
+    el: { accessRetry: {}, accessSignIn: {}, accessTitle: {}, accessCopy: {}, accessGate: {}, journeyShell: [] },
+    loadAccount: async () => {
+      state.properties = [{ propertyId: "account-b-property", exactAddress: { postcode: "SW1A 1AA" } }];
+      return { status: "ready" };
+    },
+    location: { replace() { throw new Error("Unexpected redirect"); } },
+    showJourneyAccessFailure() { throw new Error("Unexpected access failure"); }
+  });
+  const section = (from, until) => journey.slice(journey.indexOf(from), journey.indexOf(until, journey.indexOf(from)));
+  vm.runInContext(section("function saveDraft()", "// A finished room scan hands its checklist here.")
+    + section("function setRequestScopeValue(", "function currentNoteLines(")
+    + section("async function openAuthenticatedJourney()", "/* ── Wiring"), context);
+  vm.runInContext("restoreDraft()", context);
+  assert.equal(await vm.runInContext("openAuthenticatedJourney()", context), true);
+  console.log(JSON.stringify({ propertyCleared: state.draft.propertyId === "", oldTasksRetained: state.draft.tasks.length,
+    oldNotesRetained: state.draft.transcript.includes("account A"), oldNotesResaved: String(stored).includes("account A") }));
+  assert.equal(state.draft.tasks.length, 0, "Previous account's tasks survive account/property rejection");
+  assert.equal(state.draft.transcript, "", "Previous account's private note survives account/property rejection");
+  assert(!String(stored).includes("account A"), "Previous account's private draft was persisted again");
+}
