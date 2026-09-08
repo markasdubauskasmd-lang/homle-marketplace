@@ -201,6 +201,7 @@ const SCENARIOS = [
 
 const VIEWPORTS = [
   { label: "phone", width: 390, height: 844 },
+  { label: "tablet", width: 768, height: 1024 },
   { label: "desktop", width: 1440, height: 900 }
 ];
 
