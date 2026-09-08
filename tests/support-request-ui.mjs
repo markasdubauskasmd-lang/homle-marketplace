@@ -139,9 +139,9 @@ if (resolveChromiumPath()) {
     return null;
   `);
   try {
-    for (const width of [390, 1280]) {
+    for (const width of [390, 768, 1280, 1440]) {
       failOlder = true;
-      await browser.setViewport({ width, height: 844, mobile: width === 390 });
+      await browser.setViewport({ width, height: width === 768 ? 1024 : width === 1440 ? 900 : 844, mobile: width === 390 });
       await browser.goto(`${server.origin}/landlord-help.html`);
       await waitFor(`document.querySelectorAll('.support-request-card').length === 25 && !document.querySelector('[data-support-more]').hidden`);
       await browser.evaluate(`
