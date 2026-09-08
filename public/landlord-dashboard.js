@@ -297,6 +297,7 @@ function bindWorkingRequestOwner(account, { allowChange = false } = {}) {
     renderTaskPreview();
     if (!allowChange) throw new Error("Your account changed. Reload the workspace before continuing.");
   }
+  if (!owner && !allowChange) throw new Error("The secure account identity is unavailable.");
   requestDraftOwner = owner;
 }
 
