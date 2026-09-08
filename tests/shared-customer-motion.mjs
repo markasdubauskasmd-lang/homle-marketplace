@@ -23,7 +23,7 @@ const extraFiles = { ...fixtures.endpoints(),
     bookingId: id, status: "cleaning-in-progress", sharingState: "stopped", propertyName: "Synthetic property" } }),
   ["/api/marketplace/bookings/" + id + "/cleaning-progress"]: JSON.stringify({ ok: true, progress: {
     bookingId: id, status: "cleaning-in-progress", totalTasks: 0, resolvedTasks: 0, tasks: [], photos: [] } }),
-  ["/api/marketplace/bookings/" + id + "/messages"]: JSON.stringify({ ok: true, messages: [], hasMore: false }),
+  ["/api/marketplace/bookings/" + id + "/messages"]: JSON.stringify({ ok: true, bookingId: id, messages: [], hasMore: false }),
   ["/api/marketplace/bookings/" + id + "/dispute"]: JSON.stringify({ ok: true, dispute: null }),
   ["/api/marketplace/bookings/" + id + "/events"]: () => ({ status: 204, body: "" })
 };
@@ -33,7 +33,7 @@ const rows = [];
 async function waitFor(expression) {
   const deadline = Date.now() + 12000;
   while (!(await browser.evaluate(expression))) {
-    if (Date.now() > deadline) throw new Error("Renderer not ready: " + expression);
+    if (Date.now() > deadline) throw new Error("Renderer not ready: " + expression + "\\n" + await browser.evaluate("document.body.innerText") + "\\n" + JSON.stringify(browser.pageErrors));
     await new Promise(r => setTimeout(r, 50));
   }
 }
