@@ -32,4 +32,10 @@ dialog { overscroll-behavior: contain; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  /* These existing customer document classes exclude approved Home and Cleaner.
+     Higher specificity keeps the shared root fade from overriding this preference. */
+  html:has(> body:is(.customer-theme, .journey-page, .scan-page, .homle-landlord-support, .booking-payment-page))::view-transition-old(root),
+  html:has(> body:is(.customer-theme, .journey-page, .scan-page, .homle-landlord-support, .booking-payment-page))::view-transition-new(root) {
+    animation-duration: .001ms;
+  }
 }
