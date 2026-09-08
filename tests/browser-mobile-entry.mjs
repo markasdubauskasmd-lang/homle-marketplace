@@ -248,6 +248,19 @@ try {
         assert(state.reduced===reduce,label+": motion preference not applied");
         assert(state.text.length>10,label+": missing section content");
         if(reduce) assert(state.animations===0,label+": CSS animations still running");
+        if(reduce && stage==="detail") {
+          const still=await browser.evaluate(`
+            const video=document.querySelector("[data-detail-video]");
+            const poster=video.getAttribute("poster");
+            if(!poster) return {poster,decoded:false};
+            const image=new Image(); image.src=poster; await image.decode();
+            return {poster,decoded:image.naturalWidth>0,src:video.getAttribute("src"),paused:video.paused,
+              videoRequests:performance.getEntriesByType("resource").filter(r=>/\\.mp4(?:$|\\?)/.test(r.name)).length};
+          `);
+          assert(still.poster==="/landing/dark-kitchen-1600-f930f4ce.webp" && still.decoded &&
+            still.src===null && still.paused && still.videoRequests===0,
+            label+": static poster missing or reduced-motion video loaded: "+JSON.stringify(still));
+        }
         await writeFile(new URL("home-"+stage+"-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
       }
     }
