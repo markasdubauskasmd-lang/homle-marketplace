@@ -80,36 +80,94 @@ assert.ok(
 console.log("Journey draft retention tests passed: the 30-minute promise is stated on all three pages that make it, the shared lifetime matches it, and the booking journey stamps its draft, refuses one that is expired, unstamped, over-long or future-dated, and discards it in every case.");
 
 
-// The property check must not carry another account's private draft into a new session.
+
+
+// Execute recovery against the existing authenticated session response.
 {
   const { default: vm } = await import("node:vm");
-  const now = Date.now();
-  let stored = JSON.stringify({ step: "results", savedAt: now, expiresAt: now + landlordRequestDraftLifetimeMs,
-    draft: { propertyId: "account-a-property", durationMinutes: 120, tasks: ["Kitchen: Synthetic account A task"],
-      transcript: "Synthetic account A access note" } });
-  const state = { step: "postcode", draft: { propertyId: "", durationMinutes: 120, tasks: [], transcript: "" }, properties: [] };
-  const context = vm.createContext({ state, Date, JSON, Number, draftKey: "homle_journey_draft",
-    landlordRequestDraftLifetimeMs, durationChoices: [120],
-    sessionStorage: { getItem: () => stored, setItem: (_key, value) => { stored = value; }, removeItem: () => { stored = null; } },
-    stepIndex: step => ["postcode", "service", "results", "when", "cleaner", "checkout"].indexOf(step),
-    normalisedPostcode: value => value ? { full: value } : null,
-    el: { accessRetry: {}, accessSignIn: {}, accessTitle: {}, accessCopy: {}, accessGate: {}, journeyShell: [] },
-    loadAccount: async () => {
-      state.properties = [{ propertyId: "account-b-property", exactAddress: { postcode: "SW1A 1AA" } }];
-      return { status: "ready" };
-    },
-    location: { replace() { throw new Error("Unexpected redirect"); } },
-    showJourneyAccessFailure() { throw new Error("Unexpected access failure"); }
-  });
-  const section = (from, until) => journey.slice(journey.indexOf(from), journey.indexOf(until, journey.indexOf(from)));
-  vm.runInContext(section("function saveDraft()", "// A finished room scan hands its checklist here.")
-    + section("function setRequestScopeValue(", "function currentNoteLines(")
-    + section("async function openAuthenticatedJourney()", "/* ── Wiring"), context);
-  vm.runInContext("restoreDraft()", context);
-  assert.equal(await vm.runInContext("openAuthenticatedJourney()", context), true);
-  console.log(JSON.stringify({ propertyCleared: state.draft.propertyId === "", oldTasksRetained: state.draft.tasks.length,
-    oldNotesRetained: state.draft.transcript.includes("account A"), oldNotesResaved: String(stored).includes("account A") }));
-  assert.equal(state.draft.tasks.length, 0, "Previous account's tasks survive account/property rejection");
-  assert.equal(state.draft.transcript, "", "Previous account's private note survives account/property rejection");
-  assert(!String(stored).includes("account A"), "Previous account's private draft was persisted again");
+  const { journeyAccountState } = await import("../public/landlord-journey-model.js");
+  const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
+  const initial = {
+    step: "postcode", signedIn: false, draftOwner: "", properties: [], confirming: false,
+    draft: { propertyId: "", durationMinutes: 120, tasks: [], transcript: "", serviceCode: "" },
+    scanPhotos: [], scanRooms: [], scanPremiumPlan: { options: [], groups: [], baseTasks: [] },
+    scanPremiumSelected: [], scanSessionId: "", scanCorrections: [], scanReview: null,
+    scanInstructions: [], scanNoteEdits: {}, scanGeneralNote: "", scanMeasurements: []
+  };
+  const storedDraft = (ownerId=A, age=1000) => ({ ownerId, step: "results", savedAt: Date.now()-age,
+    expiresAt: Date.now()-age+landlordRequestDraftLifetimeMs,
+    draft: { propertyId: A, durationMinutes: 120, tasks: ["Kitchen: private synthetic task"], transcript: "Private synthetic access note" } });
+  function harness(stored, owner=A) {
+    const values = new Map(stored == null ? [] : [["homle_journey_draft", typeof stored === "string" ? stored : JSON.stringify(stored)]]);
+    const state = structuredClone(initial), responses = { owner, failure: false }, calls = [];
+    const el = { accessRetry: {}, accessSignIn: {}, accessTitle: {}, accessCopy: {}, accessGate: {},
+      journeyShell: [{ hidden: true }] };
+    const context = vm.createContext({ state, el, Date, JSON, Number, Object, draftKey: "homle_journey_draft",
+      landlordRequestDraftLifetimeMs, durationChoices: [120], journeyAccountState,
+      sessionStorage: { getItem:k=>values.get(k)||null, setItem:(k,v)=>values.set(k,v), removeItem:k=>values.delete(k) },
+      stepIndex:s=>["postcode","service","results","when","cleaner","checkout"].indexOf(s),
+      normalisedPostcode:value=>value?{ full:value }:null,
+      renderServices(){}, toast(){}, closeMeasure(){ calls.push("close-measure"); },
+      suggestedDurationMinutes:()=>120, saveCsrf:()=>true,
+      requestJson:async path=>{
+        calls.push(path);
+        if(responses.failure) throw Object.assign(new Error("Synthetic offline"),{statusCode:503});
+        const account={userId:responses.owner,roles:["landlord"]};
+        if(path.endsWith("/auth/session")) return {csrfToken:"synthetic-csrf",account};
+        if(path.endsWith("/account")) return {account};
+        if(path.endsWith("/properties")) return {properties:[{propertyId:responses.owner,exactAddress:{postcode:"SW1A 1AA"}}]};
+        throw new Error("Unexpected request "+path);
+      },
+      location:{replace(){throw new Error("Unexpected redirect");}}
+    });
+    const section=(from,to)=>journey.slice(journey.indexOf(from),journey.indexOf(to,journey.indexOf(from)));
+    vm.runInContext(section("const emptyPrivateJourney =", "// Core account")
+      + section("async function recoverCsrf()", "// The journey is long enough")
+      + section("function saveDraft()", "/* ── Navigation")
+      + section("function setRequestScopeValue(", "function currentNoteLines(")
+      + section("async function loadAccount()", "/* ── Wiring"),context);
+    return {state,values,responses,calls,el,run:code=>vm.runInContext(code,context)};
+  }
+  const same=harness(storedDraft());
+  same.run("restoreDraft()");
+  assert.equal(same.state.draft.tasks.length,0,"Private draft restored before authenticated ownership");
+  assert.equal(await same.run("openAuthenticatedJourney()"),true);
+  assert.equal(same.state.draft.tasks[0],"Kitchen: private synthetic task");
+  same.run("saveDraft()");
+  assert.equal(JSON.parse(same.values.get("homle_journey_draft")).ownerId,A);
+  assert.equal(same.state.step,"results");
+
+  for(const stored of [storedDraft(A),storedDraft(undefined),{...storedDraft(A),ownerId:undefined},
+    storedDraft(B,1800001),"{corrupt", {...storedDraft(B),expiresAt:Date.now()+3600000}]) {
+    const other=harness(stored,B);
+    await other.run("openAuthenticatedJourney()");
+    assert.equal(other.state.draft.tasks.length,0);
+    assert.equal(other.state.draft.transcript,"");
+    assert(!String(other.values.get("homle_journey_draft")).includes("Private synthetic"));
+  }
+  const failed=harness(storedDraft());
+  failed.responses.failure=true;
+  assert.equal(await failed.run("openAuthenticatedJourney()"),false);
+  assert.equal(failed.state.draft.tasks.length,0);
+  assert.equal(failed.el.journeyShell[0].hidden,true);
+
+  same.state.scanPhotos=[{url:"synthetic-private-photo"}];
+  same.state.scanRooms=[{name:"Private room"}];
+  same.responses.owner=B;
+  let wrote=false;
+  await assert.rejects(async()=>{await same.run("recoverCsrf()");wrote=true;},/account changed/);
+  assert.equal(wrote,false,"Mutation continued with a different account");
+  assert.equal(same.state.scanPhotos.length,0);
+  assert.equal(same.state.scanRooms.length,0);
+  assert.equal(same.state.draft.tasks.length,0);
+  assert.equal(same.values.has("homle_journey_draft"),false);
+  assert.equal(same.el.journeyShell[0].hidden,true);
+  assert.equal(await same.run("openAuthenticatedJourney()"),true);
+  assert.equal(same.state.draftOwner,B);
+  const legacy=harness(null,A);
+  legacy.values.set("homle_scan_result",JSON.stringify({tasks:["Private prior scan"],transcript:"Private prior scan"}));
+  await legacy.run("openAuthenticatedJourney()");
+  assert.equal(legacy.state.draft.tasks.length,0);
+  assert.equal(legacy.values.has("homle_scan_result"),false);
 }
+console.log("Actual journey owner recovery passed: pre-auth isolation, same owner, changed owner, legacy/expired/corrupt data, session failure, pending mutation and scan handoff.");
