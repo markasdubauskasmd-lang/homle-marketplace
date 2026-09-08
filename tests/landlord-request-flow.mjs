@@ -307,9 +307,9 @@ function enginePriceFor(run, cleaningType) {
 
 try {
   // Exercise actual form recovery independently of the request-write scenarios.
-  for (const width of [390, 1280]) {
+  for (const width of [390, 768, 1280, 1440]) {
     recoveryOwner = "11111111-1111-4111-8111-111111111111";
-    await browser.setViewport({ width, height: 844, mobile: width === 390 });
+    await browser.setViewport({ width, height: width === 768 ? 1024 : width === 1440 ? 900 : 844, mobile: width === 390 });
     await browser.goto(server.origin + "/landlord/requests");
     assert(await browser.evaluate(waitForWorkspace), "Recovery workspace did not open.");
     await browser.evaluate(`
@@ -330,7 +330,7 @@ try {
     assert(await browser.evaluate('return ![...document.querySelector("[data-request-form]").elements].some(el => String(el.value).includes("Private recovery")) && !sessionStorage.getItem("homleLandlordRequestDraftV1");'), "Private manual scope crossed accounts.");
   }
   recoveryOwner = "11111111-1111-4111-8111-111111111111";
-  proved.push("390/1280 manual recovery preserves same-owner tasks/notes and discards changed-owner property-free drafts");
+  proved.push("390/768/1280/1440 manual recovery preserves same-owner tasks/notes and discards changed-owner property-free drafts");
   for (const run of RUNS) {
     await browser.setViewport({ width: 1440, height: 900, mobile: false });
     await browser.goto(`${server.origin}/landlord/requests`);
