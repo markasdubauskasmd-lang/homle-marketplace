@@ -127,7 +127,7 @@ const files = {
   "/api/marketplace/landlord/care-summary": { ok: false, error: "Synthetic history unavailable" },
   // The journey's access gate calls this through recoverCsrf; without it the
   // gate never opens and only the locked state would be measured.
-  "/api/marketplace/auth/session": { ok: true, csrfToken: "measurement-token" },
+  "/api/marketplace/auth/session": { ok: true, csrfToken: "measurement-token", account: { userId: "11111111-1111-4111-8111-111111111111", roles: ["landlord"], selectedRole: "landlord" } },
   /* Checkout renders its state panel, not its payment card, unless it is opened
      on a real booking whose frozen total the server confirms. "not-started" is
      the state that draws the whole card and its prepare action; Stripe itself
