@@ -260,6 +260,12 @@ export async function launchBrowser({ headless = true } = {}) {
         screenHeight: validatedHeight
       }, sessionId);
     },
+    async setReducedMotion(reduce) {
+      if (typeof reduce !== "boolean") throw new TypeError("Reduced motion must be a boolean.");
+      await send("Emulation.setEmulatedMedia", {
+        features: [{ name: "prefers-reduced-motion", value: reduce ? "reduce" : "no-preference" }]
+      }, sessionId);
+    },
     async goto(url) {
       await send("Page.navigate", { url }, sessionId);
       // Polls for readiness rather than racing a lifecycle event, because a
