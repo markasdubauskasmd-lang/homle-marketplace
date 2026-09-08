@@ -220,6 +220,44 @@ try {
   }
   await browser.setReducedMotion(false);
 
+  // Measure exact foreground/background colors in original rendered states.
+  // Pointer hover is exercised through input, not by rewriting styles.
+  const contrastRows = [];
+  for (const viewport of [{width:390,height:844},{width:768,height:1024},{width:1440,height:900}]) {
+    await browser.setViewport({...viewport,mobile:false});
+    for (const route of Object.keys(reviewDocuments)) {
+      await browser.goto(server.origin + route);
+      const selector = accountRoutes.includes(route) ? ".ae-crumbs li[aria-current]" : ".back-link, .button-secondary";
+      const hover = !accountRoutes.includes(route);
+      if (hover) await browser.hover(selector);
+      const contrast = await browser.evaluate(`
+        await document.fonts.ready;
+        const el=document.querySelector(${JSON.stringify(selector)});
+        if(!el) throw new Error("Contrast target missing");
+        el.scrollIntoView({block:"center",behavior:"instant"});
+        await new Promise(resolve=>setTimeout(resolve,250));
+        const style=getComputedStyle(el),rect=el.getBoundingClientRect();
+        const rgb=value=>{
+          const match=value.match(/^rgba?\\(([^)]+)\\)$/);
+          if(!match) throw new Error("Unsupported color "+value);
+          const parts=match[1].split(",").map(Number);
+          if(parts.length===4&&parts[3]!==1) throw new Error("Nonopaque color "+value);
+          return parts.slice(0,3).map(n=>n/255);
+        };
+        const lum=value=>rgb(value).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((sum,n,i)=>sum+n*[.2126,.7152,.0722][i],0);
+        if(Number(style.opacity)!==1||!rect.width||!rect.height) throw new Error("Contrast target not fully displayed");
+        const a=lum(style.color),b=lum(style.backgroundColor),size=parseFloat(style.fontSize),weight=parseFloat(style.fontWeight);
+        return {text:el.textContent.trim(),foreground:style.color,background:style.backgroundColor,size,weight,
+          ratio:(Math.max(a,b)+.05)/(Math.min(a,b)+.05),minimum:size>=24||(size>=18.6667&&weight>=700)?3:4.5,hover:el.matches(":hover")};
+      `);
+      assert(!hover || contrast.hover,route+": real pointer hover not active");
+      contrastRows.push({route,width:viewport.width,state:hover?"hover":"current step",...contrast});
+      await writeFile(new URL("contrast-"+route.slice(1)+"-"+viewport.width+".png",captureRoot),await browser.screenshot());
+    }
+  }
+  console.log("Customer control contrast "+JSON.stringify(contrastRows));
+  assert(contrastRows.every(row=>row.ratio>=row.minimum),"Customer control contrast failures: "+JSON.stringify(contrastRows.filter(row=>row.ratio<row.minimum)));
+
   assert(browser.pageErrors.length === 0,
     `The fast account-entry path threw in Chromium: ${browser.pageErrors.join(" | ")}`);
 } catch (error) {
