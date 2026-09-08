@@ -70,6 +70,21 @@ function renderBreakdown(reviews) {
 createCleanerPage("perf", async ({ showFeedback }) => {
   const profileResult = await requestJson("/api/marketplace/cleaner/profile").catch(() => null);
   const profile = profileResult?.profile && typeof profileResult.profile === "object" ? profileResult.profile : null;
+  const badges = document.querySelector('[data-workspace-badges]');
+  if (badges) {
+    if (!profileResult) badges.textContent = 'Verification status could not be loaded. Refresh to try again.';
+    else badges.replaceChildren(...[
+      ['Identity', profile?.identityCheckStatus === 'verified'],
+      ['Background check', profile?.backgroundCheckStatus === 'verified']
+    ].map(([label, verified]) => {
+      const card = element('div', 'hw-badge');
+      card.dataset.verified = String(verified);
+      card.append(element('strong', '', label), element('span', '', verified ? 'Verified by Homlle' : 'Not verified yet'));
+      return card;
+    }), element('a', 'hw-badge-link', 'Review your registration →'));
+    const registration = badges.querySelector('a');
+    if (registration) registration.href = '/cleaner/onboarding';
+  }
   const completed = Number(profile?.completedJobCount) || 0;
   const reviewCount = Number(profile?.reviewCount) || 0;
   const rating = reviewCount > 0 && Number.isFinite(profile?.averageRating) ? Number(profile.averageRating) : null;

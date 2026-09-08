@@ -8,15 +8,112 @@
   <title>Cleaner payouts | Homle</title>
   <link rel="icon" href="/homle-logo.png" type="image/png">
   <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
-  <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <script src="/cleaner-payouts.js?v=20260716-1" type="module"></script>
+  <link rel="stylesheet" href="/styles.css?v=20260728-3"><link rel="stylesheet" href="/homle-cleaner.css?v=20260810-4">
+  <script src="/cleaner-payouts.js?v=20260908-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/notification-badge.js?v=20260716-1" type="module"></script>
+<link rel="stylesheet" href="/homlle-activity.css?v=20260908-1">
+<link rel="stylesheet" href="/cleaner-workspace-design.css?v=20260908-1">
+<script src="/cleaner-workspace-design.js?v=20260908-1" type="module"></script>
 </head>
-<body class="account-page cleaner-payout-page cleaner-workspace-page">
+<body class="account-page cleaner-payout-page cleaner-workspace-page homlle-activity-page homlle-workspace-design">
   <a class="skip-link" href="#payout-main">Skip to payout setup</a>
-  <header class="site-header cleaner-site-header"><div class="shell nav-wrap"><div class="workspace-brand"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" alt="" width="40" height="40"><span>Homle</span></a><span class="workspace-identity-pill cleaner-workspace-pill">Cleaner</span></div><nav class="directory-nav cleaner-dashboard-nav" aria-label="Cleaner navigation"><a href="/cleaner/dashboard">Jobs</a><a href="/notifications" data-notification-link aria-label="Updates">Updates<span class="notification-nav-count" data-notification-count hidden></span></a></nav><details class="account-menu" data-account-menu hidden><summary aria-label="Open Cleaner account menu"><span class="account-avatar" data-account-avatar aria-hidden="true">H</span></summary><div class="account-menu-panel"><p class="eyebrow">Cleaner account</p><strong data-account-name>Your account</strong><small data-account-email></small><a href="/cleaner/dashboard" data-account-dashboard>Open Cleaner dashboard</a><button class="account-sign-out" type="button" data-account-sign-out data-sign-out-destination="/login?intent=work">Sign out</button><small class="account-menu-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small></div></details></div></header>
-  <main id="payout-main" class="shell cleaner-payout-main">
+
+  <div class="hc">    <aside class="hc-side cleaner-site-header">
+      <div class="hc-brand">
+        <div class="hc-brand-mark" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 4 4.5 10.5V20h15v-9.5z" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path><path d="M10 20v-5h4v5" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"></path></svg>
+        </div>
+        <div>
+          <div class="hc-brand-name">Homle</div>
+          <div class="hc-brand-role">CLEANER</div>
+        </div>
+      </div>
+
+      <nav class="hc-nav" aria-label="Cleaner navigation">
+        <a class="hc-nav-item" href="/cleaner/dashboard" aria-current="page">
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Activity</span>
+          <span class="hc-nav-dot" data-cleaner-pending-dot hidden></span>
+        </a>
+        <a class="hc-nav-item" href="/cleaner/schedule">
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v15H4zM4 10h16M8 3v5M16 3v5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">My Schedule</span>
+        </a>
+        <!--
+          Jobs Map and Performance are in the design's sidebar but have nothing behind
+          them: MAP_PROVIDER is none (and the design's own map page needs Leaflet plus
+          OpenStreetMap tiles, which the CSP blocks), and Homle records no on-time,
+          response-rate or rebook metrics. They keep the design's position and icon but
+          are inert and marked disabled rather than shipped as links to nowhere.
+        -->
+        <a class="hc-nav-item" href="/cleaner/jobs-map">
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-4-4-7-7.5-7-11a7 7 0 0 1 14 0c0 3.5-3 7-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Jobs Map</span>
+        </a>
+        <a class="hc-nav-item" href="/cleaner/messages" data-notification-link data-notification-label="Messages">
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Messages</span>
+          <span class="notification-nav-count" data-notification-count hidden></span>
+        </a>
+        <a class="hc-nav-item" href="/cleaner/payouts" data-cleaner-payout-link hidden>
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5.5A4 4 0 0 0 9 9v6c0 2-.8 3-2.5 4H17M7 12h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Earnings</span>
+        </a>
+        <a class="hc-nav-item" href="/cleaner/reviews">
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.7 6.3.9-4.5 4.4 1 6.3-5.5-3-5.5 3 1-6.3L3 9.6l6.3-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Reviews</span>
+        </a>
+        <a class="hc-nav-item" href="/cleaner/performance">
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Performance</span>
+        </a>
+        <a class="hc-nav-item" href="/cleaner/onboarding">
+          <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6v4H9zM15 5h4v16H5V5h4M9 12h6M9 16h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="hc-nav-label">Onboarding</span>
+        </a>
+
+        <a class="hc-nav-cta" href="/cleaner/onboarding" data-cleaner-profile-link>Continue setup <span aria-hidden="true">↗</span></a>
+
+        <details class="hc-nav-group" data-onboarding-group open>
+          <summary class="hc-nav-group-summary">
+            <span class="hc-nav-group-label">ONBOARDING</span>
+            <span class="hc-nav-chevron" aria-hidden="true">▾</span>
+          </summary>
+          <div data-onboarding-nav></div>
+        </details>
+
+        <details class="hc-nav-group" data-account-group>
+          <summary class="hc-nav-group-summary" aria-label="Account menu"><svg class="ha-account-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+            <svg class="ha-account-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+            <span class="hc-nav-group-label">ACCOUNT</span>
+            <span class="hc-nav-chevron" aria-hidden="true">▾</span>
+          </summary>
+          <div data-account-nav>
+            <a class="hc-nav-item" href="/cleaner/dashboard">
+              <span class="hc-nav-label">Availability</span>
+            </a>
+            <a class="hc-nav-item" href="/notifications" data-notification-link>
+              <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16v-5a6 6 0 1 1 12 0v5l2 3H4zM10 19a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span class="hc-nav-label">Messages</span>
+              <span class="notification-nav-count" data-notification-count hidden></span>
+            </a>
+            <a class="hc-nav-item" href="/cleaner/profile/preview">
+              <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v13H3zM7 11a2 2 0 1 0 4 0 2 2 0 0 0-4 0M6 15.5c.7-1.3 1.8-2 3-2s2.3.7 3 2M15 10h4M15 13h3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span class="hc-nav-label">Public profile</span>
+            </a>
+            <a class="hc-nav-item" href="/cleaner/dashboard" data-cleaner-public-profile hidden>
+              <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <span class="hc-nav-label">Public directory</span>
+            </a>
+          </div>
+          <small class="hc-account-nav-status" data-account-sign-out-status role="status" aria-live="polite" hidden></small>
+        </details>
+      </nav>
+
+    </aside>
+
+<main id="payout-main" class="hc-main"><div class="hc-main-inner"><div class="cleaner-payout-main hw-content">
     <section class="cleaner-payout-card" aria-labelledby="payout-title">
       <p class="eyebrow">Cleaner payouts</p>
       <h1 id="payout-title">Get paid without sharing bank details with Homle</h1>
@@ -30,7 +127,7 @@
       <button class="button button-outline" type="button" data-payout-retry hidden>Try again</button>
       <p class="cleaner-payout-note"><strong>Protected:</strong> never enter bank details anywhere on Homle. The next screen must be on <code>connect.stripe.com</code>. During launch testing, no real payment or payout will be made.</p>
     </section>
-  </main>
+<section class="hw-card"><h2>Payouts</h2><div class="hw-rule"></div><p><strong>Secure setup with Stripe</strong></p><p>Stripe holds your bank details and verifies your payout destination.</p><p>Transfers follow approved completed jobs. Timing is shown in your Stripe account.</p></section><section class="hw-card"><h2>Getting paid</h2><div class="hw-rule"></div><p><strong>Payout account</strong></p><p data-workspace-payout-status>Checking…</p><div class="hw-rule"></div><p>Held by <strong>Stripe</strong></p><p>Homlle stores your payout-account reference and readiness status.</p></section></div></div></main></div>
   <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle.</span><a href="/privacy">Privacy notice</a></div></footer>
 </body>
 </html>

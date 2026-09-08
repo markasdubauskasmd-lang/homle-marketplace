@@ -17,6 +17,8 @@ function show(kind, heading, message, { allowAction = false, allowRetry = false,
   state.dataset.kind = kind;
   state.querySelector(".cleaner-payout-mark").textContent = kind === "ready" ? "✓" : kind === "error" ? "!" : "→";
   title.textContent = heading;
+  const summary = document.querySelector("[data-workspace-payout-status]");
+  if (summary) summary.textContent = heading;
   copy.textContent = message;
   action.hidden = !allowAction;
   retry.hidden = !allowRetry;

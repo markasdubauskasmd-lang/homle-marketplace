@@ -13,7 +13,7 @@ import {
   worldPixelFromCoordinate
 } from "./postcode-map-core.js?v=20260805-1";
 
-const localPreview = ["127.0.0.1", "localhost"].includes(location.hostname);
+const localPreview = ["127.0.0.1", "localhost"].includes(location.hostname) && new URLSearchParams(location.search).has("design-preview");
 const mapHost = document.querySelector("[data-area-map]");
 const tileHost = document.querySelector("[data-map-tiles]");
 const pinHost = document.querySelector("[data-map-pins]");
@@ -404,6 +404,12 @@ async function loadRealJobs({ showFeedback }) {
     const bookings = Array.isArray(result.bookings) ? result.bookings : [];
     const available = bookingSummaryBuckets(bookings, "cleaner").pending;
     renderJobs(available);
+    const profileResult = await requestJson('/api/marketplace/cleaner/profile').catch(() => null);
+    const distance = document.querySelector('[data-workspace-travel]');
+    if (distance) {
+      const km = profileResult?.profile?.travelRadiusKm;
+      distance.textContent = Number.isFinite(km) ? 'Maximum distance: ' + Math.round(km * 0.621371) + ' miles' : 'Set your travel distance in Work areas.';
+    }
   } catch (error) {
     renderJobs([]);
     showFeedback(error?.message || "Available jobs could not be loaded. Try again shortly.", "error");

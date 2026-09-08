@@ -6,12 +6,12 @@ import { fileURLToPath } from "node:url";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// The user approved the red Activity dashboard and onboarding home on 8 September 2026.
+// The user approved migrating the Cleaner workspace and onboarding designs on 8 September 2026.
 // Pin that approved frontend and keep the backend boundary intact.
 // Pinning the complete dedicated surface and the shared browser assets it loads
 // makes an accidental change fail in CI before it can be merged or deployed.
-const expectedFileCount = 92;
-const expectedDigest = "0f39c3fd091152c3b4a5d1a9d538c19ce5eb6898c7497f6b2ac73bac6e917ba9";
+const expectedFileCount = 94;
+const expectedDigest = "b7552c5ecb0443104682f0d7cf0477e5f60c02576b650e4e19dc5fea1de16a10";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
