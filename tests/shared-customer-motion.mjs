@@ -109,10 +109,13 @@ try {
           ' && document.querySelector("[data-landlord-panel=home]")?.hidden === ' + (view !== "home") +
           ' && document.querySelector("[data-landlord-workspace]")?.hidden !== true');
         await measure(view, width, reduce);
-        if (view === "bookings") {
+        if (view === "bookings" || view === "home") {
           await browser.evaluate('[...document.querySelectorAll(".landlord-account-menu > summary")].find(el => el.getBoundingClientRect().width > 0).click()');
           await waitFor('[...document.querySelectorAll(".landlord-account-menu[open] .account-menu-panel")].some(el => el.getBoundingClientRect().width > 0 && !el.closest("[hidden]"))');
-          await measure("bookings-menu", width, reduce);
+          const menuDuration = await browser.evaluate('getComputedStyle([...document.querySelectorAll(".landlord-account-menu[open] .account-menu-panel")].find(el => el.getBoundingClientRect().width > 0)).animationDuration');
+          const expectedMenuDuration = reduce && (view !== "home" || width > 700) ? "0s" : width <= 700 ? "0.22s" : "0.2s";
+          assert.equal(menuDuration, expectedMenuDuration, "Account menu motion changed unexpectedly: " + view + " " + width + " reduce=" + reduce);
+          if (view === "bookings") await measure("bookings-menu", width, reduce);
           await browser.evaluate('[...document.querySelectorAll(".landlord-account-menu > summary")].find(el => el.getBoundingClientRect().width > 0).click()');
         }
 
