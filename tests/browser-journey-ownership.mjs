@@ -28,8 +28,8 @@ async function seed(ownerId=A) {
 }
 const results=()=>waitFor('document.querySelector("[data-access-gate]")?.hidden && document.querySelector("[data-step=results]")?.hidden === false');
 try {
- for(const width of [390,1280]) {
-  await browser.setViewport({width,height:844,mobile:width===390}); owner=A; failSession=false;
+ for(const width of [390,768,1280,1440]) {
+  await browser.setViewport({width,height:width===768?1024:width===1440?900:844,mobile:width===390}); owner=A; failSession=false;
   await seed(); await browser.goto(server.origin+"/landlord/book"); await results();
   assert((await browser.evaluate('document.querySelector("[data-tasks]").value')).includes("Private synthetic"));
   await browser.evaluate('document.querySelector("[data-tasks]").value="Kitchen: Private edited account A task"; document.querySelector("[data-back]").click(); return true;');
@@ -49,4 +49,4 @@ try {
  assert.deepEqual(writes,[]);
  assert.deepEqual(browser.pageErrors,[]);
 } finally {await browser.close(); await server.close();}
-console.log("Browser ownership passed at 390/1280: same-owner edit/back/reload, changed owner, failed session; no private request writes.");
+console.log("Browser ownership passed at 390/768/1280/1440: same-owner edit/back/reload, changed owner, failed session; no private request writes.");
