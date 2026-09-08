@@ -277,18 +277,30 @@ try {
               const deadline = Date.now() + 5000;
               for (;;) {
                 const running = document.getAnimations().filter(animation =>
-                  ["running", "pending"].includes(animation.playState) &&
+                  (animation.playState === "running" || animation.pending) &&
                   Number.isFinite(animation.effect?.getComputedTiming().endTime));
-                if (!running.length) break;
+                const dialogsSettled = [...document.querySelectorAll("dialog[open]")].every(dialog =>
+                  Number(getComputedStyle(dialog).opacity) === 1);
+                if (!running.length && dialogsSettled) break;
                 if (Date.now() > deadline) throw new Error("Customer entrance animations did not settle before capture");
                 await new Promise(resolve => setTimeout(resolve, 25));
               }
               await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
               return true;
             `);
+            // Native modal dialogs occupy the viewport. Full-page capture changes the
+            // capture geometry and can restart their entrance animation.
+            if (view === "requests") {
+              const settled = await browser.evaluate(`
+                const dialog = document.querySelector("[data-request-builder-dialog]");
+                return { modal: dialog.matches(":modal"), opacity: getComputedStyle(dialog).opacity };
+              `);
+              assert(settled.modal && settled.opacity === "1",
+                where + ": manual dialog is not fully visible before capture: " + JSON.stringify(settled));
+            }
             const captureRoot = new URL("../test-artifacts/customer-responsive/", import.meta.url);
             await mkdir(captureRoot, { recursive: true });
-            await writeFile(new URL(view + "-" + viewport.width + ".png", captureRoot), await browser.screenshot({ fullPage: true }));
+            await writeFile(new URL(view + "-" + viewport.width + ".png", captureRoot), await browser.screenshot({ fullPage: view !== "requests" }));
           }
           if (view === "messages" && scenario.key === "booking confirmed") {
             const header = await browser.evaluate(`
