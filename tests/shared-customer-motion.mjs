@@ -110,10 +110,10 @@ try {
           ' && document.querySelector("[data-landlord-workspace]")?.hidden !== true');
         await measure(view, width, reduce);
         if (view === "bookings") {
-          await browser.evaluate('document.querySelector(".landlord-account-menu > summary").click()');
-          await waitFor('document.querySelector(".landlord-account-menu")?.open === true');
+          await browser.evaluate('[...document.querySelectorAll(".landlord-account-menu > summary")].find(el => el.getBoundingClientRect().width > 0).click()');
+          await waitFor('[...document.querySelectorAll(".landlord-account-menu[open] .account-menu-panel")].some(el => el.getBoundingClientRect().width > 0 && !el.closest("[hidden]"))');
           await measure("bookings-menu", width, reduce);
-          await browser.evaluate('document.querySelector(".landlord-account-menu > summary").click()');
+          await browser.evaluate('[...document.querySelectorAll(".landlord-account-menu > summary")].find(el => el.getBoundingClientRect().width > 0).click()');
         }
 
         if (view === "account") {
