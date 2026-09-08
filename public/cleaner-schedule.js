@@ -4,6 +4,7 @@ import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260729-6";
 import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260805-2";
+import { activityRecords, activityDateKey, renderActivityFeature, renderActivityWeek, connectActivityNavigation } from "./homlle-activity.js?v=20260908-1";
 
 const gate = document.querySelector("[data-schedule-gate]");
 const gateTitle = document.querySelector("[data-schedule-gate-title]");
@@ -24,6 +25,9 @@ const dashboardShell = document.querySelector("[data-cleaner-dashboard]");
 const mainInner = document.querySelector(".hc-main-inner");
 const upcomingSection = document.querySelector(".hc-upcoming");
 const timeOffSection = document.querySelector(".hc-schedule-time-off");
+const activityRedesign = document.body.classList.contains("homlle-activity-page");
+let selectedDayKey = "";
+if (activityRedesign) connectActivityNavigation();
 
 // The schedule belongs to Activity even when the live job feed is unavailable.
 // Keep it outside the guarded dashboard payload so the page never collapses to
@@ -42,6 +46,7 @@ const londonKeyFormat = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Lon
 const bookingIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 let bookings = [];
+let bookingRevision = 0;
 let weekOffset = 0;
 let loading = false;
 let savedAvailabilityData = {};
@@ -176,6 +181,16 @@ function renderWeek() {
   const days = weekDays(weekOffset);
   const todayKey = londonKey(new Date().toISOString());
   weekLabel.textContent = `${rangeFormat.format(days[0])} – ${rangeFormat.format(days[6])}`;
+  if (activityRedesign) {
+    document.querySelector("[data-activity-week]").textContent = weekLabel.textContent;
+    renderActivityWeek({ records: bookings, days, selectedDay: selectedDayKey, onSelect: (key) => {
+      selectedDayKey = selectedDayKey === key ? "" : key;
+      renderAll();
+      grid.querySelector(`[data-day="${key}"]`)?.focus();
+    }});
+    renderActivityFeature(bookings, days, selectedDayKey);
+    return;
+  }
 
   grid.replaceChildren(...days.map((date) => {
     const key = londonKey(date.toISOString());
@@ -267,6 +282,10 @@ function roomIllustration(label, index) {
 function renderJobImages(booking) {
   const gallery = element("div", "hc-activity-job-images");
   const urls = bookingPhotoUrls(booking);
+  if (activityRedesign && urls.length === 0) {
+    gallery.append(element("div", "ha-property-unavailable", "No property photo supplied"));
+    return gallery;
+  }
   const labels = Array.isArray(booking.imageLabels) && booking.imageLabels.length ? booking.imageLabels : ["Property", "Room", "Clean details"];
   for (let index = 0; index < 3; index += 1) {
     const frame = element("div", "hc-activity-job-image");
@@ -317,7 +336,12 @@ function renderBookingActions(booking) {
 
 function renderUpcoming() {
   const buckets = bookingSummaryBuckets(bookings, "cleaner");
-  const upcoming = [...buckets.active, ...buckets.upcoming];
+  const upcoming = [...buckets.active, ...buckets.upcoming]
+    .filter((booking) => !activityRedesign || !selectedDayKey || activityDateKey(booking.scheduledStartAt) === selectedDayKey)
+    .sort((a, b) => Date.parse(a.scheduledStartAt) - Date.parse(b.scheduledStartAt));
+  if (activityRedesign) upcomingEmpty.textContent = selectedDayKey
+    ? "No confirmed cleans on this day. Choose another day or show all upcoming cleans."
+    : "No confirmed cleans yet. Review available jobs in your areas to find your next clean.";
   upcomingEmpty.hidden = upcoming.length > 0;
   upcomingList.replaceChildren(...upcoming.map((booking) => {
     const row = element("article", "hc-activity-job-card");
@@ -422,15 +446,18 @@ async function loadSchedule() {
     gate.hidden = true;
     view.hidden = false;
 
+    const requestedRevision = bookingRevision;
     const [bookingResult, availabilitySection] = await Promise.all([
       requestJson("/api/marketplace/bookings?limit=50"),
       loadOnboardingForm(requestJson, "availability", timeOffForm).catch(() => null)
     ]);
     const liveBookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
-    previewMode = liveBookings.length === 0;
-    bookings = previewMode ? previewBookings() : liveBookings;
+    previewMode = !activityRedesign && liveBookings.length === 0;
+    if (!activityRedesign || requestedRevision === bookingRevision) {
+      bookings = activityRedesign ? activityRecords(liveBookings) : previewMode ? previewBookings() : liveBookings;
+    }
     view.dataset.preview = previewMode ? "true" : "false";
-    setTimeOffConnected(true);
+    setTimeOffConnected(!activityRedesign || Boolean(availabilitySection));
     savedAvailabilityData = availabilitySection?.data || {};
     if (timeOffStatus) timeOffStatus.textContent = availabilitySection
       ? "Holiday mode and unavailable dates are saved separately from confirmed jobs."
@@ -443,14 +470,28 @@ async function loadSchedule() {
     if (error.code === "browser-offline") showGate("You are offline.", "Reconnect to load your current schedule.", { allowRetry: true });
     else if (error.statusCode === 401) showGate("Sign in as a Cleaner to open your schedule.", "Jobs are private to the assigned Cleaner account.", { allowSignIn: true });
     else if (error.statusCode === 403) showGate("This account cannot open the Cleaner schedule.", "Use a Cleaner account selected during onboarding.", { allowSignIn: true });
+    else if (activityRedesign) showGate("Your schedule could not be loaded.", "Try again to see your real bookings and weekly totals.", { allowRetry: true });
     else showPreviewSchedule("Live jobs are not connected yet. The examples below preview the Activity schedule; no work has been accepted or changed.");
   } finally {
     loading = false;
   }
 }
 
-document.querySelector("[data-week-prev]").addEventListener("click", () => { weekOffset -= 1; renderAll(); });
-document.querySelector("[data-week-next]").addEventListener("click", () => { weekOffset += 1; renderAll(); });
+document.querySelector("[data-week-prev]").addEventListener("click", () => { selectedDayKey = ""; weekOffset -= 1; renderAll(); });
+document.querySelector("[data-week-next]").addEventListener("click", () => { selectedDayKey = ""; weekOffset += 1; renderAll(); });
+document.querySelector("[data-activity-show-all]")?.addEventListener("click", () => {
+  selectedDayKey = "";
+  renderAll();
+  document.querySelector("[data-week-label]")?.closest(".hc-week")?.querySelector("button")?.focus();
+});
+// Reflect an accepted or declined invitation without waiting for a page reload.
+document.addEventListener("homlle:cleaner-bookings", (event) => {
+  if (!activityRedesign || !Array.isArray(event.detail?.bookings)) return;
+  bookingRevision += 1;
+  bookings = activityRecords(event.detail.bookings);
+  previewMode = false;
+  renderAll();
+});
 timeOffForm?.addEventListener("submit", saveTimeOff);
 retry.addEventListener("click", loadSchedule);
 window.addEventListener("offline", updateNetworkStatus);

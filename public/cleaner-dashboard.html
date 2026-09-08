@@ -14,12 +14,13 @@
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/homle-cleaner.css?v=20260807-1">
-  <script src="/cleaner-dashboard.js?v=20260729-2" type="module"></script>
-  <script src="/cleaner-schedule.js?v=20260807-1" type="module"></script>
+  <link rel="stylesheet" href="/homlle-activity.css?v=20260908-1">
+  <script src="/cleaner-dashboard.js?v=20260908-1" type="module"></script>
+  <script src="/cleaner-schedule.js?v=20260908-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
-<body class="cleaner-workspace-page cleaner-dashboard-page">
+<body class="cleaner-workspace-page cleaner-dashboard-page homlle-activity-page">
   <a class="hc-skip" href="#cleaner-dashboard-main">Skip to Cleaner dashboard</a>
 
   <div class="hc">
@@ -87,8 +88,9 @@
           <div data-onboarding-nav></div>
         </details>
 
-        <details class="hc-nav-group" data-account-group open>
-          <summary class="hc-nav-group-summary">
+        <details class="hc-nav-group" data-account-group>
+          <summary class="hc-nav-group-summary" aria-label="Account menu">
+            <svg class="ha-account-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
             <span class="hc-nav-group-label">ACCOUNT</span>
             <span class="hc-nav-chevron" aria-hidden="true">▾</span>
           </summary>
@@ -223,14 +225,11 @@
 
               <div class="hc-page-head">
                 <div>
-                  <h2 class="hc-page-title" id="activity-schedule-title">Activity schedule</h2>
+                  <p class="ha-eyebrow" data-activity-week>This week</p>
+                  <h1 class="hc-page-title" id="activity-schedule-title">Activity schedule</h1>
                   <p class="hc-page-sub">See selected work by week, then review every clean's price, area, type and property images below.</p>
                 </div>
-                <div class="hc-weeknav">
-                  <button class="hc-weeknav-btn" type="button" data-week-prev aria-label="Previous week">←</button>
-                  <span class="hc-weeknav-label" data-week-label>This week</span>
-                  <button class="hc-weeknav-btn" type="button" data-week-next aria-label="Next week">→</button>
-                </div>
+                <a class="ha-account-link" href="/cleaner/profile/preview" aria-label="Your account"><span class="hc-avatar" data-account-avatar aria-hidden="true">H</span><span>Your account</span></a>
               </div>
 
               <ul class="hc-tiles">
@@ -256,8 +255,18 @@
                 </li>
               </ul>
 
-              <div class="hc-week">
-                <div class="hc-week-grid" data-week-grid></div>
+              <div class="ha-overview">
+                <article class="ha-feature" data-activity-feature aria-label="Featured clean"></article>
+                <section class="hc-week" aria-label="Weekly overview">
+                  <div class="hc-weeknav">
+                    <span class="hc-weeknav-label" data-week-label>This week</span>
+                    <button class="hc-weeknav-btn" type="button" data-week-prev aria-label="Previous week">←</button>
+                    <button class="hc-weeknav-btn" type="button" data-week-next aria-label="Next week">→</button>
+                  </div>
+                  <div class="hc-week-grid" data-week-grid></div>
+                  <p class="ha-week-note" data-activity-week-note>Select a day to see your cleans.</p>
+                  <button class="ha-text-button" data-activity-show-all type="button" hidden>Show all upcoming cleans</button>
+                </section>
               </div>
 
               <section class="hc-schedule-time-off" aria-labelledby="schedule-time-off-title">
@@ -291,6 +300,7 @@
                     <h3 id="selected-work-title">Upcoming cleans</h3>
                     <p>Your confirmed work will appear here in date order.</p>
                   </div>
+                  <a class="ha-earnings-link" href="/cleaner/payouts">Earnings ↗</a>
                 </div>
                 <div class="hc-upcoming-empty" data-upcoming-empty>Nothing booked yet — accept a pending job from your Activity page to build your schedule.</div>
                 <div data-upcoming-list></div>

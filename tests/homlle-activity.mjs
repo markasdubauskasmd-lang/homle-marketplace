@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {activityDateKey,activityRecords,activityFeatureBooking,activityPhotoUrl} from '../public/homlle-activity.js';
+const base={bookingId:'11111111-1111-4111-8111-111111111111',participantRole:'cleaner',status:'confirmed',scheduledStartAt:'2026-09-08T09:00:00Z',scheduledEndAt:'2026-09-08T12:00:00Z',pricePence:6800};
+const active={...base,bookingId:'22222222-2222-4222-8222-222222222222',status:'cleaning-in-progress',scheduledStartAt:'2026-09-08T11:00:00Z'};
+const records=[base,{...base,preview:true},{...base,participantRole:'landlord'},{...base,bookingId:'example'},active];
+assert.deepEqual(activityRecords(records),[base,active]);
+assert.equal(activityFeatureBooking(records,['2026-09-08']),active,'In-progress work takes precedence over a later/unstarted clean');
+assert.equal(activityFeatureBooking(records,['2026-09-09']),null);
+assert.equal(activityFeatureBooking(records,['2026-09-08'],'2026-09-09'),null);
+for(const status of ['pending-cleaner-acceptance','completed','cancelled','disputed','awaiting-review'])assert.equal(activityFeatureBooking([{...base,status}],['2026-09-08']),null,status+' must not appear as the next clean');
+assert.equal(activityDateKey('2026-09-08T23:30:00Z'),'2026-09-09','Calendar day uses London time');
+assert.equal(activityDateKey('invalid'),'');
+assert.equal(activityPhotoUrl({...base,images:['https://untrusted.example/property.jpg','/private-photo.jpg']},'https://homlle.com'),'https://homlle.com/private-photo.jpg');
+assert.equal(activityPhotoUrl({...base,images:['javascript:alert(1)','data:image/svg+xml,bad','https://homlle.com.attacker.test/x']},'https://homlle.com'),'');
+console.log('Activity design model passed: real Cleaner records only, active-job priority, selected days, London dates and same-origin property photos.');

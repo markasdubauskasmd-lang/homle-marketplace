@@ -17,6 +17,7 @@ const declineCancel = document.querySelector("[data-decline-cancel]");
 const networkStatus = document.querySelector("[data-cleaner-network-status]");
 let accountRecord = null;
 let bookings = [];
+let bookingsAvailable = false;
 let selectedDeclineBookingId = "";
 let loading = false;
 let responding = false;
@@ -396,6 +397,9 @@ function renderBookings() {
   renderWorkOverview(cleanerDashboardSummary(cleanerProfile, availabilityWindows, bookings, payoutStatus), marketplaceCapabilities, buckets);
   renderNextAction(buckets, cleanerProfile, payoutStatus, availabilityWindows, marketplaceCapabilities);
   updateInvitationDeadlines();
+  if (bookingsAvailable && document.body.classList.contains("homlle-activity-page")) {
+    document.dispatchEvent(new CustomEvent("homlle:cleaner-bookings", { detail: { bookings } }));
+  }
 }
 
 function dashboardMoney(pence) {
@@ -636,6 +640,7 @@ async function loadOptionalPayoutStatus() {
 async function refreshBookings() {
   const result = await requestJson("/api/marketplace/bookings?limit=50");
   bookings = Array.isArray(result.bookings) ? result.bookings : [];
+  bookingsAvailable = true;
   renderBookings();
 }
 
@@ -763,7 +768,10 @@ async function loadDashboard() {
     const failures = [bookingResult, profileResult, availabilityResult].filter((result) => result.status === "rejected");
     const authorizationFailure = failures.find((result) => [401, 403].includes(result.reason?.statusCode));
     if (authorizationFailure) throw authorizationFailure.reason;
-    if (bookingResult.status === "fulfilled") bookings = Array.isArray(bookingResult.value.bookings) ? bookingResult.value.bookings : [];
+    if (bookingResult.status === "fulfilled") {
+      bookings = Array.isArray(bookingResult.value.bookings) ? bookingResult.value.bookings : [];
+      bookingsAvailable = true;
+    }
     if (profileResult.status === "fulfilled") cleanerProfile = profileResult.value.profile && typeof profileResult.value.profile === "object" ? profileResult.value.profile : null;
     if (payoutResult.status === "fulfilled") payoutStatus = payoutResult.value;
     if (availabilityResult.status === "fulfilled") availabilityWindows = Array.isArray(availabilityResult.value.availability) ? availabilityResult.value.availability : [];
@@ -774,7 +782,8 @@ async function loadDashboard() {
       geocodingReady: healthResult.status === "fulfilled" && healthResult.value?.marketplace?.geocodingReady === true
     });
     document.querySelector("[data-cleaner-payout-link]").hidden = payoutStatus == null;
-    document.querySelector("[data-cleaner-profile-link]").textContent = cleanerProfile?.profileCompletionPercent === 100 ? "Edit profile" : "Complete your profile";
+    const profileLink = document.querySelector("[data-cleaner-profile-link]");
+    if (profileLink) profileLink.textContent = cleanerProfile?.profileCompletionPercent === 100 ? "Edit profile" : "Complete your profile";
     renderAccountAvatar(account, cleanerProfile?.profilePhotoUrl);
     renderBookings();
     showFeedback(failures.length ? "Your Cleaner account is open, but some job or profile details could not be refreshed. Nothing was accepted, declined or changed. Try again to load the complete dashboard." : "", failures.length ? "error" : "info");

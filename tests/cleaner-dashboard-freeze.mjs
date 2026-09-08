@@ -6,12 +6,12 @@ import { fileURLToPath } from "node:url";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// This is deliberately a content boundary, not a visual assertion. The active
-// product objective says the Cleaner Dashboard must remain exactly as it is.
+// The user approved the red Activity dashboard design on 8 September 2026.
+// Pin that approved frontend and keep the backend boundary intact.
 // Pinning the complete dedicated surface and the shared browser assets it loads
 // makes an accidental change fail in CI before it can be merged or deployed.
-const expectedFileCount = 89;
-const expectedDigest = "88e64c24bac4e2b7eef7ac9524adb04a578ac9c21207c3d881a905c0bb382620";
+const expectedFileCount = 91;
+const expectedDigest = "4d41e8e9646a3e9f58b37657811f7a2345e367e3388d95537d00295cc8c5b433";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
@@ -21,6 +21,8 @@ const sharedBrowserDependencies = Object.freeze([
   "public/active-job-model.js",
   "public/booking-summary-model.js",
   "public/homle-logo.png",
+  "public/homlle-activity.css",
+  "public/homlle-activity.js",
   "public/notification-badge.js",
   "public/notification-inbox-model.js",
   "public/postcode-map-core.js",
