@@ -1,6 +1,22 @@
 import assert from "node:assert/strict";
+import vm from "node:vm";
 import { readFile } from "node:fs/promises";
 import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
+
+const scrollSource = await readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8");
+let homeHidden = false, reducePreference = false;
+const scrollContext = vm.createContext({
+  document: { querySelector: () => ({ hidden: homeHidden }) },
+  matchMedia: () => ({ matches: reducePreference })
+});
+vm.runInContext(scrollSource.slice(scrollSource.indexOf("function customerScrollBehavior()"), scrollSource.indexOf("function element(")), scrollContext);
+for (homeHidden of [false, true]) for (reducePreference of [false, true]) {
+  assert.equal(scrollContext.customerScrollBehavior(), homeHidden && reducePreference ? "instant" : "smooth");
+}
+const explicitScrollCalls = [...scrollSource.matchAll(/scrollIntoView\(\{ behavior: ([^,]+)/g)];
+assert.equal(explicitScrollCalls.length, 12);
+assert(explicitScrollCalls.every(call => call[1] === "customerScrollBehavior()"), "A dashboard scroll bypasses the current preference.");
+
 if (!resolveChromiumPath()) {
   if (process.env.CI) throw new Error("Shared customer motion requires Chromium.");
   process.exit(0);
