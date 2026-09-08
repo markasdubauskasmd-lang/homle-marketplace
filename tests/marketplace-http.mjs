@@ -553,6 +553,7 @@ assert(missingLandlordBootstrap.response.statusCode === 401
   && cleanerLandlordBootstrap.response.statusCode === 403
   && landlordBootstrap.response.statusCode === 200
   && landlordBootstrap.body.account.displayName === "Landlord Example"
+  && landlordBootstrap.body.account.userId === sessions.landlord.user_id
   && landlordBootstrap.body.profile.organisationName === "Example PM"
   && Array.isArray(landlordBootstrap.body.properties)
   && landlordBootstrap.body.archivedProperties[0].name === "Archived flat"
