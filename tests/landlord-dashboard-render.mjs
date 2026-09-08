@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
 import {
   chromiumExecutableCandidates,
   launchBrowser,
@@ -201,6 +201,7 @@ const SCENARIOS = [
 
 const VIEWPORTS = [
   { label: "phone", width: 390, height: 844 },
+  { label: "tablet", width: 768, height: 1024 },
   { label: "desktop", width: 1440, height: 900 }
 ];
 
@@ -269,6 +270,26 @@ try {
           assert(view_.overflow <= 1,
             `${where}: the page scrolls sideways by ${view_.overflow}px.`);
 
+          if (scenario.key === "booking confirmed" && [768, 1440].includes(viewport.width)) {
+            await browser.evaluate(`
+              await document.fonts.ready;
+              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              const deadline = Date.now() + 5000;
+              for (;;) {
+                const running = document.getAnimations().filter(animation =>
+                  ["running", "pending"].includes(animation.playState) &&
+                  Number.isFinite(animation.effect?.getComputedTiming().endTime));
+                if (!running.length) break;
+                if (Date.now() > deadline) throw new Error("Customer entrance animations did not settle before capture");
+                await new Promise(resolve => setTimeout(resolve, 25));
+              }
+              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              return true;
+            `);
+            const captureRoot = new URL("../test-artifacts/customer-responsive/", import.meta.url);
+            await mkdir(captureRoot, { recursive: true });
+            await writeFile(new URL(view + "-" + viewport.width + ".png", captureRoot), await browser.screenshot({ fullPage: true }));
+          }
           checked.push(where);
         }
       }

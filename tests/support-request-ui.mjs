@@ -139,9 +139,10 @@ if (resolveChromiumPath()) {
     return null;
   `);
   try {
-    for (const width of [390, 1280]) {
+    for (const width of [390, 768, 1280, 1440]) {
+      const readsBeforeScenario = olderReads;
       failOlder = true;
-      await browser.setViewport({ width, height: 844, mobile: width === 390 });
+      await browser.setViewport({ width, height: width === 768 ? 1024 : width === 1440 ? 900 : 844, mobile: width === 390 });
       await browser.goto(`${server.origin}/landlord-help.html`);
       await waitFor(`document.querySelectorAll('.support-request-card').length === 25 && !document.querySelector('[data-support-more]').hidden`);
       await browser.evaluate(`
@@ -162,7 +163,7 @@ if (resolveChromiumPath()) {
       failOlder = false;
       await browser.evaluate(`document.querySelector('[data-support-more]').click(); return null;`);
       await waitFor(`document.querySelectorAll('.support-request-card').length === 26 && document.querySelector('[data-support-more]').hidden`);
-      assert.equal(olderReads, width === 390 ? 2 : 4, "Repeated clicks launched overlapping history reads");
+      assert.equal(olderReads - readsBeforeScenario, 2, "Repeated clicks launched overlapping history reads");
       const history = await browser.evaluate(`return {
         answer: document.querySelector('[data-support-list]').textContent.includes('Answer for request 26'),
         subject: document.querySelector('[name="subject"]').value,

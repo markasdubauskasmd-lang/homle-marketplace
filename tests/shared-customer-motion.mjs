@@ -68,8 +68,8 @@ async function measure(name, width, reduce) {
   rows.push({ name, width, reduce, ...result });
 }
 try {
-  for (const width of [390, 1280]) {
-    await browser.setViewport({ width, height: 844, mobile: width === 390 });
+  for (const width of [390, 768, 1280, 1440]) {
+    await browser.setViewport({ width, height: width === 768 ? 1024 : width === 1440 ? 900 : 844, mobile: width === 390 });
     for (const reduce of [false, true]) {
       await browser.setReducedMotion(reduce);
       role = "landlord";
