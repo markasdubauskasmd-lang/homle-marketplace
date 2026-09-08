@@ -94,9 +94,9 @@ console.log("Journey draft retention tests passed: the 30-minute promise is stat
     scanPremiumSelected: [], scanSessionId: "", scanCorrections: [], scanReview: null,
     scanInstructions: [], scanNoteEdits: {}, scanGeneralNote: "", scanMeasurements: []
   };
-  const storedDraft = (ownerId=A, age=1000) => ({ ownerId, step: "results", savedAt: Date.now()-age,
-    expiresAt: Date.now()-age+landlordRequestDraftLifetimeMs,
-    draft: { propertyId: A, durationMinutes: 120, tasks: ["Kitchen: private synthetic task"], transcript: "Private synthetic access note" } });
+  const storedDraft = (ownerId=A, age=1000) => { const savedAt=Date.now()-age; return { ownerId, step: "results", savedAt,
+    expiresAt: savedAt+landlordRequestDraftLifetimeMs,
+    draft: { propertyId: A, durationMinutes: 120, tasks: ["Kitchen: private synthetic task"], transcript: "Private synthetic access note" } }; };
   function harness(stored, owner=A) {
     const values = new Map(stored == null ? [] : [["homle_journey_draft", typeof stored === "string" ? stored : JSON.stringify(stored)]]);
     const state = structuredClone(initial), responses = { owner, failure: false }, calls = [];
