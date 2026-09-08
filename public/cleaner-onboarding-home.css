@@ -30,3 +30,4 @@ body.homlle-onboarding-home .oh-white{color:#201e1d}
 body.homlle-onboarding-home .oh-progress .hc-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 body.homlle-onboarding-home [data-preview-liquid-indicator]{display:none}
 body.homlle-onboarding-home .oh-hero{overflow:hidden}
+html body.cleaner-onboarding-page.homlle-onboarding-home .hc-side.cleaner-site-header[data-preview-sidebar]:not(.is-preview-expanded) [data-onboarding-nav] > .hc-preview-liquid-indicator[data-preview-liquid-indicator]{display:none!important}
