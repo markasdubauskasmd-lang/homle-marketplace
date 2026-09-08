@@ -1,0 +1,32 @@
+/* Selected onboarding home; existing step forms retain their shared styles. */
+body.homlle-onboarding-home .hc-main{background:linear-gradient(105deg,#ff0034 5%,#ee1635 28%,#f3dddd 65%,#fff 96%);overflow-y:auto}
+body.homlle-onboarding-home .hc-main-inner{padding:0;max-width:none;background:transparent}
+body.homlle-onboarding-home .hc-introduction-hero{display:none}
+body.homlle-onboarding-home .hc-bell{display:none}
+body.homlle-onboarding-home .oh-hero{display:grid;grid-template-columns:1fr 1fr;gap:34px;min-height:810px;padding:36px 38px 0 54px;box-sizing:border-box;font-family:Archivo,system-ui,sans-serif}
+.oh-copy{color:#fff;padding-top:14px;min-width:0}
+.oh-eyebrow{font-size:12px;font-weight:800;letter-spacing:.16em;margin:0 0 14px}
+.oh-copy>.oh-eyebrow{font-size:21px}
+.oh-copy h1{font-family:Archivo,system-ui,sans-serif;font-size:clamp(38px,4vw,56px);font-weight:850;line-height:1.02;letter-spacing:-.035em;margin:30px 0 26px;color:#fff}
+.oh-intro{font-size:19px;font-weight:650;line-height:1.45;max-width:370px;color:#fff}
+.oh-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}
+.oh-button{display:inline-flex;align-items:center;justify-content:center;min-height:50px;padding:12px 22px;border-radius:99px;background:#201e1d;color:#fff;font-size:14px;font-weight:800;text-decoration:none}
+.oh-button:hover,.oh-next:hover{background:#333;color:#fff;text-decoration:none}
+.oh-white{background:#fff;color:#201e1d}.oh-white:hover{background:#eee;color:#201e1d}
+.oh-benefits{margin-top:42px;max-width:310px}.oh-benefits ul{list-style:none;margin:0;padding:0}.oh-benefits li{border-top:1px solid #ffffff85;padding:20px 0;font-size:22px;font-weight:750}
+.oh-right{display:flex;flex-direction:column;min-width:0;justify-content:space-between}
+.oh-progress{background:#ebe8e8;border:4px solid #302e2d;border-radius:25px;padding:25px;color:#201e1d;position:relative;z-index:1}
+.oh-panel-heading{display:flex;justify-content:space-between;gap:12px;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.oh-panel-heading>span:last-child{color:#666}
+.oh-progress-row{display:flex;align-items:center;gap:24px;margin:14px 0 22px}.oh-count{font-size:70px;line-height:1;font-weight:850;white-space:nowrap}.oh-count small{font-size:25px;color:#888}.oh-progress-body{flex:1;min-width:0}.oh-segments{display:flex;gap:4px}.oh-segments span{height:14px;flex:1;background:#cac7c7}.oh-segments span[data-done=true]{background:#e90030}.oh-progress-body p{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;font-size:12px;margin:10px 0 0}.oh-progress-body p>span{color:#666}
+.oh-preparation{border-top:1px solid #aaa;padding-top:18px}.oh-documents{display:flex;gap:10px;flex-wrap:wrap}.oh-documents span{border:1px solid #999;border-radius:15px;padding:12px;font-size:13px;font-weight:700}.oh-preparation>p:last-child{font-size:13px;line-height:1.5;color:#595454;margin:13px 0 23px}
+.oh-next{display:flex;align-items:center;gap:14px;background:#201e1d;color:white;padding:22px 18px;border-radius:18px;text-decoration:none}.oh-next>span{font-size:11px;font-weight:800;letter-spacing:.1em}.oh-next>span:first-child{color:#ff5a76}.oh-next>span:last-child{margin-left:auto;white-space:nowrap}.oh-next strong{font-size:20px}
+.oh-team{display:block;width:110%;max-width:none;margin:10px 0 0 -6%;height:auto;object-fit:contain}
+.oh-steps{background:#f3f2f2;padding:32px;border-radius:24px 24px 0 0;scroll-margin-top:20px}.homlle-onboarding-home [hidden]{display:none!important}.homlle-onboarding-home .hc-feedback{margin:20px}.homlle-onboarding-home :is(a,button):focus-visible{outline:3px solid #1672d0;outline-offset:4px}
+@media(max-width:1100px){body.homlle-onboarding-home .oh-hero{padding:28px 24px 0;gap:24px}.oh-progress{padding:18px}.oh-progress-row{gap:12px}.oh-count{font-size:52px}.oh-copy h1{font-size:42px}.oh-next strong{font-size:17px}}
+@media(max-width:750px){body.homlle-onboarding-home .oh-hero{grid-template-columns:1fr;min-height:0;padding:26px 20px 0}.oh-copy h1{font-size:44px}.oh-copy>.oh-eyebrow{font-size:16px}.oh-benefits{margin-top:28px;max-width:none}.oh-benefits ul{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}.oh-benefits li{font-size:17px;padding:16px 0}.oh-team{width:100%;margin:0}.oh-steps{padding:20px}.oh-progress-row{gap:14px}.oh-count{font-size:60px}body.homlle-onboarding-home .hc-main{background:linear-gradient(135deg,#ff0034,#ed1b3b 40%,#f4dede 75%,#fff)}}
+body.homlle-onboarding-home .oh-button,body.homlle-onboarding-home .oh-next{color:#fff}
+body.homlle-onboarding-home .oh-white{color:#201e1d}
+body.homlle-onboarding-home .oh-progress .hc-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+body.homlle-onboarding-home [data-preview-liquid-indicator]{display:none}
+body.homlle-onboarding-home .oh-hero{overflow:hidden}

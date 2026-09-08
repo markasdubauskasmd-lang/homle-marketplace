@@ -33,6 +33,14 @@ function stepIcon(name) {
 
 const localDesignPreview = ["127.0.0.1", "localhost"].includes(location.hostname)
   && new URLSearchParams(location.search).has("design-preview");
+const onboardingHome = ["/cleaner/onboarding", "/cleaner/registration"].includes(location.pathname);
+if (onboardingHome) {
+  document.body.classList.add("homlle-onboarding-home");
+  document.querySelector("[data-registration-overview]").hidden = false;
+  document.querySelector("[data-personal-details]").hidden = true;
+  const home = document.querySelector(".hc-brand-mark");
+  if (home) { home.href = "/cleaner/onboarding"; home.setAttribute("aria-label", "Onboarding home"); }
+}
 const introductionPage = location.pathname === "/cleaner/introduction";
 
 if (introductionPage) {
@@ -172,9 +180,21 @@ if (!localDesignPreview) createCleanerPage("reg", async (context) => {
     onboardingSections: onboardingResult.status === "fulfilled" && Array.isArray(onboardingResult.value.sections) ? onboardingResult.value.sections : []
   });
 
-  setText("[data-reg-percent]", `${progress.percent}%`);
-  setText("[data-reg-remaining]", String(progress.remaining));
-  setText("[data-reg-status]", applicationStatusLabel({ profile }, progress));
+  const completeReads = [profileResult, availabilityResult, payoutResult, onboardingResult].every(result => result.status === "fulfilled");
+  if (onboardingHome) {
+    const name = context.account.displayName?.trim().split(/\s+/)[0];
+    setText("[data-oh-name]", name ? ", " + name : "");
+    const next = progress.steps.find(step => !step.done && step.href) || progress.steps.find(step => step.key === "review");
+    setText("[data-oh-done]", completeReads ? String(progress.doneCount) : "—");
+    setText("[data-oh-next-title]", completeReads ? (next?.title || "Review your application") : "Review your application");
+    for (const link of document.querySelectorAll("[data-oh-continue], [data-oh-next]")) link.href = completeReads && next?.href ? next.href : "#onboarding-steps";
+    document.querySelector("[data-oh-segments]").replaceChildren(...progress.steps.map(step => { const segment = element("span", ""); segment.dataset.done = String(completeReads && step.done); return segment; }));
+    if (!completeReads) context.showFeedback("Some saved progress could not be loaded. Refresh to see your latest application status.");
+    renderCleanerNav(progress);
+  }
+  setText("[data-reg-percent]", onboardingHome && !completeReads ? "Unavailable" : `${progress.percent}%`);
+  setText("[data-reg-remaining]", onboardingHome && !completeReads ? "—" : String(progress.remaining));
+  setText("[data-reg-status]", onboardingHome && !completeReads ? "Refresh needed" : applicationStatusLabel({ profile }, progress));
   const track = document.querySelector("[data-reg-track]");
   const fill = document.querySelector("[data-reg-fill]");
   if (track) track.setAttribute("aria-valuenow", String(progress.percent));

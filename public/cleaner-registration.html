@@ -15,7 +15,8 @@
 <link rel="stylesheet" href="/homle-cleaner.css?v=20260810-4">
 <link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260817-sharp-visuals-1">
 <link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260817-sharp-visuals-1">
-<script src="/cleaner-registration.js?v=20260817-introduction-elements-1" type="module"></script>
+<link rel="stylesheet" href="/cleaner-onboarding-home.css?v=20260908-1">
+<script src="/cleaner-registration.js?v=20260908-home-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -151,29 +152,26 @@
           </div>
 
         <div data-registration-overview hidden>
-        <div class="hc-page-head">
-          <div>
-            <h1 class="hc-page-title">Complete registration</h1>
-            <p class="hc-page-sub">Work through each step. Homle saves as you go, so you can stop and come back.</p>
-          </div>
-          <span class="hc-status-chip" data-reg-status>Checking…</span>
-        </div>
-
-        <section class="hc-card">
-          <div class="hc-card-head">
-            <div class="hc-card-head-body">
-              <div class="hc-card-title-row">
-                <h3 class="hc-h3">Onboarding progress</h3>
-              </div>
-              <p class="hc-card-sub">You're <span data-reg-percent>0%</span> of the way there. <span data-reg-remaining>—</span> steps left to go live.</p>
+          <section class="oh-hero" aria-labelledby="oh-title">
+            <div class="oh-copy">
+              <p class="oh-eyebrow">HOMLLE · ONBOARDING</p>
+              <h1 id="oh-title">Welcome<span data-oh-name></span>.<br>Let's get you<br>job-ready.</h1>
+              <p class="oh-intro">Fourteen steps to get ready for your first booking. Homlle saves each one as you go.</p>
+              <div class="oh-actions"><a class="oh-button" data-oh-continue href="/cleaner/personal-details">Continue registration ↗</a><a class="oh-button oh-white" href="#onboarding-steps">See all 14 steps</a></div>
+              <div class="oh-benefits"><p class="oh-eyebrow">WHY HOMLLE</p><ul><li>Work your own hours</li><li>Manage your earnings</li><li>Your areas only</li><li>Jobs matched to you</li></ul></div>
             </div>
-          </div>
-          <div class="hc-progress" role="progressbar" aria-labelledby="hc-reg-label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-reg-track>
-            <div class="hc-progress-fill" data-reg-fill></div>
-          </div>
-          <p class="hc-sr" id="hc-reg-label">Registration progress</p>
-        </section>
-
+            <div class="oh-right">
+              <section class="oh-progress" aria-label="Application progress">
+                <div class="oh-panel-heading"><span>APPLICATION</span><span data-reg-status>Checking…</span></div>
+                <div class="oh-progress-row"><strong class="oh-count"><span data-oh-done>—</span><small>/14</small></strong><div class="oh-progress-body"><div class="oh-segments" data-oh-segments aria-hidden="true"></div><p><strong>steps recorded</strong><span><span data-reg-remaining>—</span> to go · saves as you go</span></p></div></div>
+                <p class="hc-sr" id="hc-reg-label">Registration progress <span data-reg-percent>—</span></p><div class="hc-sr" role="progressbar" aria-labelledby="hc-reg-label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-reg-track><span data-reg-fill></span></div>
+                <div class="oh-preparation"><p class="oh-eyebrow">HAVE THESE TO HAND</p><div class="oh-documents"><span>Photo ID</span><span>Insurance certificate</span><span>Bank details</span></div><p>Identity and background checks are confirmed by Homlle. Bank details are collected securely by Stripe.</p></div>
+                <a class="oh-next" data-oh-next href="/cleaner/personal-details"><span>NEXT</span><strong data-oh-next-title>Loading your progress…</strong><span>OPEN ↗</span></a>
+              </section>
+              <img class="oh-team" src="/design-preview/assets/homlle-team-hd.png" alt="The Homlle cleaning and beauty team">
+            </div>
+          </section>
+          <div id="onboarding-steps" class="oh-steps">
         <div class="hc-section-head">
           <h3 class="hc-h3">Your steps</h3>
           <span class="hc-section-note">Every step in the Homle Cleaner registration</span>
@@ -186,6 +184,7 @@
           nowhere.
         -->
         <div class="hc-reg-list" data-reg-steps></div>
+        </div>
         </div>
 
           <div class="hc-personal-layout" data-personal-details hidden>

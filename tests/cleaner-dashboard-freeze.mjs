@@ -6,12 +6,12 @@ import { fileURLToPath } from "node:url";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// The user approved the red Activity dashboard design on 8 September 2026.
+// The user approved the red Activity dashboard and onboarding home on 8 September 2026.
 // Pin that approved frontend and keep the backend boundary intact.
 // Pinning the complete dedicated surface and the shared browser assets it loads
 // makes an accidental change fail in CI before it can be merged or deployed.
-const expectedFileCount = 91;
-const expectedDigest = "4d41e8e9646a3e9f58b37657811f7a2345e367e3388d95537d00295cc8c5b433";
+const expectedFileCount = 92;
+const expectedDigest = "5dcfeb6a043e4749e292de76f05243ea2bed37b662448bb4840a951f709cd16f";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
