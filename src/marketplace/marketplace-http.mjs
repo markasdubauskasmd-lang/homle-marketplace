@@ -400,7 +400,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const supportPage = value(5, { supportRequests: [] });
           sendJson(response, 200, {
             ok: true,
-            account: { displayName: context.account.displayName, email: context.account.email, avatarUrl: context.account.avatarUrl, selectedRole: context.account.selectedRole, roles: context.actor.roles },
+            account: { userId: context.actor.userId, displayName: context.account.displayName, email: context.account.email, avatarUrl: context.account.avatarUrl, selectedRole: context.account.selectedRole, roles: context.actor.roles },
             profile: value(0, { organisationName: null, biography: "" }),
             properties: value(1, []),
             archivedProperties: value(2, []),

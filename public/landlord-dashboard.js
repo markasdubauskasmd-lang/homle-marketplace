@@ -238,6 +238,7 @@ const readinessRecoveryDelaysMs = Object.freeze([2_000, 6_000]);
 const safeReadWakeRetryDelayMs = 1_000;
 let readinessRecoveryTimer = null;
 let requestRecoveryChecked = false;
+let requestDraftOwner = "";
 let requestRecoveryTimer = null;
 let manualQuoteTimer = null;
 let manualQuoteGeneration = 0;
@@ -278,13 +279,35 @@ function saveCsrf(token) {
   } catch { return false; }
 }
 
+function bindWorkingRequestOwner(account, { allowChange = false } = {}) {
+  const owner = typeof account?.userId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(account.userId) ? account.userId : "";
+  if (requestDraftOwner && requestDraftOwner !== owner) {
+    window.clearTimeout(requestRecoveryTimer);
+    clearLandlordRequestDraft(window.sessionStorage);
+    requestForm.reset();
+    currentRequestDraft = null;
+    generatedChecklist = [];
+    generatedChecklistSource = "";
+    assistedSummaryTranscript = "";
+    tasksManuallyEdited = false;
+    requestDirty = false;
+    requestRecoveryChecked = false;
+    requestDraftOwner = "";
+    closeRequestPhotoDialog();
+    renderTaskPreview();
+    if (!allowChange) throw new Error("Your account changed. Reload the workspace before continuing.");
+  }
+  if (!owner && !allowChange) throw new Error("The secure account identity is unavailable.");
+  requestDraftOwner = owner;
+}
+
 function requestDraftFields() {
   return Object.fromEntries(["propertyId", "requestedDate", "requestedTime", "durationMinutes", "cleaningType", "frequency", "budget", "specialInstructions", "transcript", "tasks"].map((name) => [name, requestForm.elements[name]?.value || ""]));
 }
 
 function rememberWorkingRequest() {
   if (!requestDirty) return;
-  try { saveLandlordRequestDraft(window.sessionStorage, { fields: requestDraftFields() }); } catch {}
+  try { saveLandlordRequestDraft(window.sessionStorage, { fields: requestDraftFields(), ownerId: requestDraftOwner }); } catch {}
 }
 
 function scheduleWorkingRequestRecovery() {
@@ -296,7 +319,7 @@ function restoreWorkingRequest() {
   if (requestRecoveryChecked) return;
   requestRecoveryChecked = true;
   let draft = null;
-  try { draft = readLandlordRequestDraft(window.sessionStorage); } catch {}
+  try { draft = readLandlordRequestDraft(window.sessionStorage, Date.now(), requestDraftOwner); } catch {}
   if (!draft) return;
   const propertyAvailable = properties.some((property) => property.propertyId === draft.fields.propertyId);
   for (const name of ["requestedDate", "requestedTime", "durationMinutes", "cleaningType", "frequency", "budget", "specialInstructions", "transcript", "tasks"]) {
@@ -312,6 +335,13 @@ function restoreWorkingRequest() {
   requestRecoveryStatus.textContent = propertyAvailable || !draft.fields.propertyId
     ? "Your unfinished room walkthrough was recovered from this tab. Review every bullet before saving."
     : "Your unfinished walkthrough was recovered, but its saved property is no longer available. Choose a property and review every bullet.";
+}
+
+function customerScrollBehavior() {
+  // Keep the approved Home interaction unchanged; other views honor the OS preference.
+  const outsideHome = document.querySelector('[data-landlord-panel="home"]')?.hidden === true;
+  return outsideHome && globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+    ? "instant" : "smooth";
 }
 
 function element(name, className, text) {
@@ -339,7 +369,7 @@ function renderBookCleanChooser() {
       bookCleanPropertyId = property.propertyId;
       bookCleanStep.textContent = "Step 2 of 2 · choose a method";
       renderBookCleanChooser();
-      bookCleanMethods.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      bookCleanMethods.scrollIntoView({ behavior: customerScrollBehavior(), block: "nearest" });
     });
     bookCleanPlaces.append(button);
   }
@@ -378,7 +408,7 @@ function beginManualCleanFromChooser() {
   selectWorkspaceTab("requests", { historyMode: "push" });
   propertySelect.value = property.propertyId;
   applySuggestedCleaningType();
-  requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  requestForm.scrollIntoView({ behavior: customerScrollBehavior(), block: "start" });
   requestForm.elements.requestedDate.focus({ preventScroll: true });
 }
 
@@ -1298,7 +1328,7 @@ function selectWorkspaceTab(name, { historyMode = "" } = {}) {
   if (mode === "push") history.pushState({ landlordTab: selected }, "", url);
   if (mode === "replace") history.replaceState({ landlordTab: selected }, "", url);
   if (selected === "places") {
-    requestAnimationFrame(() => document.querySelector("[data-places-section]")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    requestAnimationFrame(() => document.querySelector("[data-places-section]")?.scrollIntoView({ behavior: customerScrollBehavior(), block: "start" }));
   }
 }
 
@@ -1316,7 +1346,7 @@ function continueBookingStart() {
     if (properties.length === 1) propertySelect.value = properties[0].propertyId;
   }
   applySuggestedCleaningType();
-  requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
+  requestForm.scrollIntoView({ behavior: customerScrollBehavior(), block: "start" });
   (propertySelect.value ? requestForm.elements.requestedDate : propertySelect).focus({ preventScroll: true });
 }
 
@@ -1398,6 +1428,7 @@ async function recoverCsrf(target, action) {
   try {
     const result = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("This browser could not keep the renewed secure editing token.");
+    bindWorkingRequestOwner(result.account);
     return result.csrfToken;
   } catch (error) {
     showFeedback(target, error?.code === "browser-offline" ? error.message : `Your secure session could not be recovered. Sign in again before ${action}.`);
@@ -1553,7 +1584,7 @@ function focusCleaningRequest(requestId) {
   const card = [...document.querySelectorAll("[data-cleaning-request-id]")].find((item) => item.dataset.cleaningRequestId === requestId);
   if (!card) return;
   card.classList.add("landlord-linked-record-focus");
-  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  card.scrollIntoView({ behavior: customerScrollBehavior(), block: "center" });
   card.setAttribute("tabindex", "-1");
   card.focus({ preventScroll: true });
   window.setTimeout(() => card.classList.remove("landlord-linked-record-focus"), 1800);
@@ -1836,7 +1867,7 @@ function openPropertyArchive(property) {
       ? "This property has an active cleaning request. View or cancel it on the property card, then delete the property."
       : "This property has active cleaning work. Use the action shown on the property card before deleting it.");
     propertyStatus.focus({ preventScroll: true });
-    linkedWork?.scrollIntoView({ behavior: "smooth", block: "center" });
+    linkedWork?.scrollIntoView({ behavior: customerScrollBehavior(), block: "center" });
     linkedWork?.classList.add("landlord-linked-record-focus");
     window.setTimeout(() => linkedWork?.classList.remove("landlord-linked-record-focus"), 1800);
     return;
@@ -1995,7 +2026,7 @@ function openRequestScan(requestId) {
   const details = [...document.querySelectorAll("[data-request-scan-id]")].find((item) => item.dataset.requestScanId === requestId);
   if (!details) return false;
   details.open = true;
-  details.scrollIntoView({ behavior: "smooth", block: "start" });
+  details.scrollIntoView({ behavior: customerScrollBehavior(), block: "start" });
   details.querySelector('select[name="roomName"]')?.focus({ preventScroll: true });
   return true;
 }
@@ -4127,6 +4158,7 @@ async function loadWorkspace() {
     if (!access.ready) return access.reason === "different-workspace"
       ? showState(`Your ${access.label} workspace is active.`, "Properties, room scans and cleaning requests are in your Landlord workspace. Switch this verified account back to it to continue.", { kind: "authentication", workspaceDestination: "/onboarding?intent=book", workspaceLabel: "Landlord", workspaceActionLabel: "Switch to Landlord workspace" })
       : showState("This account has no Landlord workspace.", "Sign in through Book a clean to create the separate property workspace.", { kind: "authentication", allowSignIn: true });
+    bindWorkingRequestOwner(account, { allowChange: true });
     setLandlordDisplayName(account.displayName || "Landlord");
     renderAccountAvatar(account);
     state.hidden = true;
@@ -4257,7 +4289,7 @@ async function saveProperty(event) {
     if (bookingStart && !updating) {
       selectWorkspaceTab("requests");
       propertySelect.value = result.property.propertyId;
-      requestForm.scrollIntoView({ behavior: "smooth", block: "start" });
+      requestForm.scrollIntoView({ behavior: customerScrollBehavior(), block: "start" });
       requestForm.elements.requestedDate.focus({ preventScroll: true });
     }
   } catch (error) { showFeedback(propertyFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this property. Sign in again." : error.message); }
@@ -4682,7 +4714,7 @@ document.querySelectorAll("[data-open-landlord-section]").forEach((link) => link
   selectWorkspaceTab(selected, { historyMode: "push" });
   const accountMenu = link.closest("[data-account-menu]");
   if (accountMenu) accountMenu.open = false;
-  document.querySelector(`[data-landlord-panel="${selected}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  document.querySelector(`[data-landlord-panel="${selected}"]`)?.scrollIntoView({ behavior: customerScrollBehavior(), block: "start" });
 }));
 
 /**
@@ -4695,7 +4727,7 @@ function openPersonalAccountDetails({ focus = false } = {}) {
   const personal = document.querySelector('[data-account-section="personal"]');
   if (!personal) return;
   personal.open = true;
-  personal.scrollIntoView({ behavior: "smooth", block: "start" });
+  personal.scrollIntoView({ behavior: customerScrollBehavior(), block: "start" });
   if (focus) personal.querySelector("input, textarea, button")?.focus({ preventScroll: true });
 }
 
@@ -4728,7 +4760,7 @@ document.querySelectorAll("[data-open-request-tab]").forEach((button) => button.
   resetRequestContinuation();
   // The builder is an overlay now, so it is already in view and scrolling the
   // page behind it would move the reader away from where they were.
-  if (requestBuilderPanel && !requestBuilderDialog) requestBuilderPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (requestBuilderPanel && !requestBuilderDialog) requestBuilderPanel.scrollIntoView({ behavior: customerScrollBehavior(), block: "start" });
 }));
 
 bookCleanOpen?.addEventListener("click", openBookCleanChooser);
@@ -4878,7 +4910,7 @@ requestCompleteNext.addEventListener("click", () => {
   setLandlordSectionExpanded(upcomingSectionToggle, true);
   const requestCard = [...document.querySelectorAll("[data-cleaning-request-id]")]
     .find((card) => card.dataset.cleaningRequestId === completedRequestId);
-  (requestCard || requestList).scrollIntoView({ behavior: "smooth", block: "start" });
+  (requestCard || requestList).scrollIntoView({ behavior: customerScrollBehavior(), block: "start" });
   requestCard?.querySelector(".landlord-dispatch-action .button")?.focus({ preventScroll: true });
 });
 window.addEventListener("beforeunload", (event) => { rememberWorkingRequest(); if (propertyDirty || requestDirty || landlordProfileDirty) event.preventDefault(); });

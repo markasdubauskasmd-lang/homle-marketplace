@@ -1,6 +1,22 @@
 import assert from "node:assert/strict";
+import vm from "node:vm";
 import { readFile } from "node:fs/promises";
 import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
+
+const scrollSource = await readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8");
+let homeHidden = false, reducePreference = false;
+const scrollContext = vm.createContext({
+  document: { querySelector: () => ({ hidden: homeHidden }) },
+  matchMedia: () => ({ matches: reducePreference })
+});
+vm.runInContext(scrollSource.slice(scrollSource.indexOf("function customerScrollBehavior()"), scrollSource.indexOf("function element(")), scrollContext);
+for (homeHidden of [false, true]) for (reducePreference of [false, true]) {
+  assert.equal(scrollContext.customerScrollBehavior(), homeHidden && reducePreference ? "instant" : "smooth");
+}
+const explicitScrollCalls = [...scrollSource.matchAll(/scrollIntoView\(\{ behavior: ([^,]+)/g)];
+assert.equal(explicitScrollCalls.length, 12);
+assert(explicitScrollCalls.every(call => call[1] === "customerScrollBehavior()"), "A dashboard scroll bypasses the current preference.");
+
 if (!resolveChromiumPath()) {
   if (process.env.CI) throw new Error("Shared customer motion requires Chromium.");
   process.exit(0);
@@ -30,6 +46,7 @@ const extraFiles = { ...fixtures.endpoints(),
 const server = await serveStatic({ extraFiles });
 const browser = await launchBrowser();
 const rows = [];
+const scrollRows = [];
 async function waitFor(expression) {
   const deadline = Date.now() + 12000;
   while (!(await browser.evaluate(expression))) {
@@ -51,8 +68,8 @@ async function measure(name, width, reduce) {
   rows.push({ name, width, reduce, ...result });
 }
 try {
-  for (const width of [390, 1280]) {
-    await browser.setViewport({ width, height: 844, mobile: width === 390 });
+  for (const width of [390, 768, 1280, 1440]) {
+    await browser.setViewport({ width, height: width === 768 ? 1024 : width === 1440 ? 900 : 844, mobile: width === 390 });
     for (const reduce of [false, true]) {
       await browser.setReducedMotion(reduce);
       role = "landlord";
@@ -62,6 +79,16 @@ try {
           ' && document.querySelector("[data-landlord-panel=home]")?.hidden === ' + (view !== "home") +
           ' && document.querySelector("[data-landlord-workspace]")?.hidden !== true');
         await measure(view, width, reduce);
+        if (view === "account") {
+          const calls = await browser.evaluate(`
+            const calls = [], original = Element.prototype.scrollIntoView;
+            Element.prototype.scrollIntoView = function(options) { calls.push(options); };
+            try { document.querySelector("[data-account-personal-toggle]").click(); }
+            finally { Element.prototype.scrollIntoView = original; }
+            return calls;
+          `);
+          scrollRows.push({width, reduce, calls});
+        }
       }
       for (role of ["landlord", "cleaner"]) {
         await browser.goto(server.origin + "/bookings/" + id);
@@ -72,6 +99,12 @@ try {
     }
   }
   console.log(JSON.stringify(rows));
+  console.log(JSON.stringify({scrollRows}));
+  for (const row of scrollRows) {
+    assert.equal(row.calls.length, 1, "Edit profile did not scroll to its details.");
+    assert.equal(row.calls[0].behavior, row.reduce ? "instant" : "smooth", "Explicit account scroll ignores reduced motion.");
+    assert.equal(row.calls[0].block, "start");
+  }
   const seconds = value => Number.parseFloat(value) * (value.endsWith("ms") ? .001 : 1);
   const failures = rows.filter(r => r.reduce && !["home", "tracking-cleaner"].includes(r.name)
     && [r.old, r.next].some(value => seconds(value) > .001));

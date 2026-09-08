@@ -161,9 +161,9 @@ if (resolveChromiumPath()) {
     return null;
   `);
   try {
-    for (const width of [390, 1280]) {
+    for (const width of [390, 768, 1280, 1440]) {
       marked = false; failRefresh = false; failSession = true;
-      await browser.setViewport({ width, height: 844, mobile: width === 390 });
+      await browser.setViewport({ width, height: width === 768 ? 1024 : width === 1440 ? 900 : 844, mobile: width === 390 });
       await browser.goto(`${server.origin}/notifications.html`);
       await waitFor(`!document.querySelector('[data-notification-content]').hidden`);
       const initialTime = Date.now();

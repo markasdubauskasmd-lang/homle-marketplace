@@ -32,6 +32,8 @@ body.customer-document :is(.legal-main p, .legal-main li, .account-card p) {
   overflow-wrap: anywhere;
 }
 body.customer-document .eyebrow { color: var(--customer-muted); font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+/* Use the existing legal-notice spacing for account privacy feedback too. */
+body.customer-document .account-message { margin: 24px 0 34px; padding: 18px; }
 body.customer-document .legal-main .notice,
 body.customer-document .account-message {
   background: var(--customer-active);

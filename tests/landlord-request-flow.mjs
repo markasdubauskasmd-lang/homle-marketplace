@@ -195,6 +195,7 @@ function paymentEndpoint({ method, body }) {
   return { body: { ok: true, payment: paymentView() } };
 }
 
+let recoveryOwner = "11111111-1111-4111-8111-111111111111";
 const staticFiles = {
   "/landlord/requests": dashboardHtml,
   "/landlord/bookings": dashboardHtml,
@@ -222,7 +223,7 @@ const server = await serveStatic({
     ...staticFiles,
     "/api/marketplace/landlord/bootstrap": () => ({ body: {
       ok: true,
-      account: { roles: ["landlord"], selectedRole: "landlord", displayName: "Journey Landlord", email: "landlord@example.com" },
+      account: { userId: recoveryOwner, roles: ["landlord"], selectedRole: "landlord", displayName: "Journey Landlord", email: "landlord@example.com" },
       profile: { organisationName: null, biography: "" },
       properties: PROPERTIES,
       archivedProperties: [],
@@ -305,6 +306,31 @@ function enginePriceFor(run, cleaningType) {
 }
 
 try {
+  // Exercise actual form recovery independently of the request-write scenarios.
+  for (const width of [390, 768, 1280, 1440]) {
+    recoveryOwner = "11111111-1111-4111-8111-111111111111";
+    await browser.setViewport({ width, height: width === 768 ? 1024 : width === 1440 ? 900 : 844, mobile: width === 390 });
+    await browser.goto(server.origin + "/landlord/requests");
+    assert(await browser.evaluate(waitForWorkspace), "Recovery workspace did not open.");
+    await browser.evaluate(`
+      const now = Date.now();
+      sessionStorage.setItem("homleLandlordRequestDraftV1", JSON.stringify({
+        version: 2, ownerId: "11111111-1111-4111-8111-111111111111",
+        fields: { tasks: "Kitchen: Private recovery task", specialInstructions: "Private recovery note" },
+        savedAt: now, expiresAt: now + 1800000
+      })); return true;
+    `);
+    await browser.goto(server.origin + "/landlord/requests");
+    assert(await browser.evaluate(waitForWorkspace), "Same-owner workspace did not reopen.");
+    assert(await browser.evaluate('document.querySelector("[data-request-form]").elements.tasks.value === "Kitchen: Private recovery task"'), "Same-owner property-free task was not recovered.");
+    assert(await browser.evaluate('document.querySelector("[data-request-form]").elements.specialInstructions.value === "Private recovery note"'), "Same-owner private note was not recovered.");
+    recoveryOwner = "22222222-2222-4222-8222-222222222222";
+    await browser.goto(server.origin + "/landlord/requests");
+    assert(await browser.evaluate(waitForWorkspace), "Changed-owner workspace did not reopen.");
+    assert(await browser.evaluate('return ![...document.querySelector("[data-request-form]").elements].some(el => String(el.value).includes("Private recovery")) && !sessionStorage.getItem("homleLandlordRequestDraftV1");'), "Private manual scope crossed accounts.");
+  }
+  recoveryOwner = "11111111-1111-4111-8111-111111111111";
+  proved.push("390/768/1280/1440 manual recovery preserves same-owner tasks/notes and discards changed-owner property-free drafts");
   for (const run of RUNS) {
     await browser.setViewport({ width: 1440, height: 900, mobile: false });
     await browser.goto(`${server.origin}/landlord/requests`);

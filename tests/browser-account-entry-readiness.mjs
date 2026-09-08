@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
 import {
   launchBrowser,
   resolveChromiumPath,
@@ -16,8 +16,14 @@ if (!resolveChromiumPath()) {
 
 const accountHtml = await readFile(new URL("../public/account.html", import.meta.url), "utf8");
 const healthDelayMs = 4_000;
+const accountRoutes = ["/login", "/signup", "/forgot-password", "/reset-password", "/verify-email", "/verify-facebook"];
+const reviewDocuments = Object.fromEntries(accountRoutes.map(route => [route, accountHtml]));
+for (const name of ["privacy", "terms", "facebook-data-deletion"]) {
+  reviewDocuments["/" + name] = await readFile(new URL("../public/" + name + ".html", import.meta.url), "utf8");
+}
 const server = await serveStatic({
   extraFiles: {
+    ...reviewDocuments,
     "/login": accountHtml,
     "/forgot-password": accountHtml,
     "/api/auth/providers": () => ({
@@ -132,6 +138,44 @@ try {
   assert(explicitEntry.title === "Sign in to work as a Cleaner"
       && explicitEntry.googleHref === "/api/marketplace/auth/google/start?intent=work",
   `Explicit Cleaner intent was not preserved: ${JSON.stringify(explicitEntry)}.`);
+
+  // Original full documents, with synthetic provider availability and no writes.
+  // Missing-token pages exercise recovery presentation, not provider completion.
+  const captureRoot = new URL("../test-artifacts/customer-responsive/", import.meta.url);
+  await mkdir(captureRoot, { recursive: true });
+  for (const viewport of [{width:390,height:844},{width:768,height:1024},{width:1440,height:900}]) {
+    await browser.setViewport({...viewport,mobile:viewport.width===390});
+    for (const route of Object.keys(reviewDocuments)) {
+      await browser.goto(server.origin + route);
+      const layout = await browser.evaluate(`
+        await document.fonts.ready;
+        const deadline=Date.now()+6000;
+        for (;;) {
+          const state=document.querySelector("[data-account-state]");
+          const animations=document.getAnimations().filter(a=>(a.playState==="running"||a.pending)&&Number.isFinite(a.effect?.getComputedTiming().endTime));
+          if ((!state || state.dataset.state!=="checking") && !animations.length) break;
+          if(Date.now()>deadline) throw new Error("Public page did not settle");
+          await new Promise(resolve=>setTimeout(resolve,25));
+        }
+        const main=document.querySelector("main");
+        const visible=el=>{const r=el.getBoundingClientRect();return r.width>0&&r.height>0&&getComputedStyle(el).visibility!=="hidden";};
+        const headings=[...document.querySelectorAll("h1,h2")].filter(visible);
+        return {width:innerWidth,overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+          text:main?.innerText.trim(),headings:headings.map(el=>el.textContent.trim()),
+          clippedControls:[...document.querySelectorAll("main input,main button,main select")].filter(visible).filter(el=>{
+            const r=el.getBoundingClientRect();return r.left < -1 || r.right > document.documentElement.clientWidth+1;
+          }).map(el=>el.getAttribute("aria-label")||el.textContent.trim()||el.type)};
+      `);
+      const label=route+" "+viewport.width;
+      assert(layout.width===viewport.width && layout.overflow<=1,label+": horizontal overflow "+JSON.stringify(layout));
+      assert(layout.text?.length>40 && layout.headings.length>0,label+": missing main content");
+      assert(layout.clippedControls.length===0,label+": clipped controls "+JSON.stringify(layout.clippedControls));
+      assert(!/\bundefined\b|\bNaN\b|\[object Object\]/.test(layout.text),label+": invalid values reached the page");
+      await writeFile(new URL("public-"+route.slice(1)+"-"+viewport.width+".png",captureRoot),await browser.screenshot());
+      console.log("Public responsive document "+label+" "+JSON.stringify(layout.headings));
+    }
+  }
+
   assert(browser.pageErrors.length === 0,
     `The fast account-entry path threw in Chromium: ${browser.pageErrors.join(" | ")}`);
 } catch (error) {

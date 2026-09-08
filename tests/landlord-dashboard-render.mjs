@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
 import {
   chromiumExecutableCandidates,
   launchBrowser,
@@ -201,6 +201,7 @@ const SCENARIOS = [
 
 const VIEWPORTS = [
   { label: "phone", width: 390, height: 844 },
+  { label: "tablet", width: 768, height: 1024 },
   { label: "desktop", width: 1440, height: 900 }
 ];
 
@@ -269,6 +270,61 @@ try {
           assert(view_.overflow <= 1,
             `${where}: the page scrolls sideways by ${view_.overflow}px.`);
 
+          if (scenario.key === "booking confirmed" && [768, 1440].includes(viewport.width)) {
+            await browser.evaluate(`
+              await document.fonts.ready;
+              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              const deadline = Date.now() + 5000;
+              for (;;) {
+                const running = document.getAnimations().filter(animation =>
+                  (animation.playState === "running" || animation.pending) &&
+                  Number.isFinite(animation.effect?.getComputedTiming().endTime));
+                const dialogsSettled = [...document.querySelectorAll("dialog[open]")].every(dialog =>
+                  Number(getComputedStyle(dialog).opacity) === 1);
+                if (!running.length && dialogsSettled) break;
+                if (Date.now() > deadline) throw new Error("Customer entrance animations did not settle before capture");
+                await new Promise(resolve => setTimeout(resolve, 25));
+              }
+              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              return true;
+            `);
+            // Native modal dialogs occupy the viewport. Full-page capture changes the
+            // capture geometry and can restart their entrance animation.
+            if (view === "requests") {
+              const settled = await browser.evaluate(`
+                const dialog = document.querySelector("[data-request-builder-dialog]");
+                return { modal: dialog.matches(":modal"), opacity: getComputedStyle(dialog).opacity };
+              `);
+              assert(settled.modal && settled.opacity === "1",
+                where + ": manual dialog is not fully visible before capture: " + JSON.stringify(settled));
+            }
+            const captureRoot = new URL("../test-artifacts/customer-responsive/", import.meta.url);
+            await mkdir(captureRoot, { recursive: true });
+            await writeFile(new URL(view + "-" + viewport.width + ".png", captureRoot), await browser.screenshot({ fullPage: view !== "requests" }));
+          }
+          if (view === "messages" && scenario.key === "booking confirmed") {
+            const header = await browser.evaluate(`
+              const head = document.querySelector("[data-messages-head]");
+              const name = head.querySelector("[data-messages-head-name]");
+              const link = head.querySelector("[data-messages-head-booking]");
+              const textRange = document.createRange(); textRange.selectNodeContents(name);
+              const text = textRange.getBoundingClientRect(), button = link.getBoundingClientRect();
+              return {textLeft:text.left,textRight:text.right,textWidth:text.width,
+                buttonLeft:button.left,buttonRight:button.right,headRight:head.getBoundingClientRect().right};
+            `);
+            assert(header.textWidth > 0 && header.textRight <= header.buttonLeft &&
+              header.buttonRight <= header.headRight, where + ": booking link overlaps conversation identity: " + JSON.stringify(header));
+          }
+          if (view === "requests" && scenario.key === "booking confirmed") {
+            console.log("Manual dialog capture diagnostic " + viewport.width + " " + JSON.stringify(await browser.evaluate(`
+              return [...document.querySelectorAll("dialog[open]")].map(dialog => ({
+                className:dialog.className,modal:dialog.matches(":modal"),opacity:getComputedStyle(dialog).opacity,
+                backdrop:getComputedStyle(dialog,"::backdrop").backgroundColor,
+                ancestors:(()=>{const result=[];for(let el=dialog;el;el=el.parentElement){const s=getComputedStyle(el);result.push({tag:el.tagName,classes:el.className,opacity:s.opacity,filter:s.filter,visibility:s.visibility});}return result;})(),
+                centerHit:document.elementFromPoint(innerWidth/2,innerHeight/2)?.outerHTML.slice(0,220)
+              }));
+            `)));
+          }
           checked.push(where);
         }
       }

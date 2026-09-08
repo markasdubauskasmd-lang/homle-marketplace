@@ -68,8 +68,8 @@ if (resolveChromiumPath()) {
   } });
   const browser = await launchBrowser();
   try {
-    for (const width of [390, 1280]) {
-      await browser.setViewport({ width, height: 844, mobile: width === 390 });
+    for (const width of [390, 768, 1280, 1440]) {
+      await browser.setViewport({ width, height: width === 768 ? 1024 : width === 1440 ? 900 : 844, mobile: width === 390 });
       await browser.goto(`${server.origin}/landlord-checkout.html?bookingId=${bookingId}`);
       await browser.evaluate(`
         const deadline = Date.now() + 5000;
