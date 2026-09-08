@@ -278,7 +278,8 @@ function discardDraft() {
   try { sessionStorage.removeItem(draftKey); } catch {}
 }
 
-function restoreDraft(owner = state.draftOwner) {
+function restoreDraft() {
+  const owner = state.draftOwner;
   if (!owner) return;
   try {
     const stored = JSON.parse(sessionStorage.getItem(draftKey) || "null");
