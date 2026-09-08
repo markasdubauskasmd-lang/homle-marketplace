@@ -495,7 +495,7 @@ body.account-entry .ae-crumbs li {
 }
 body.account-entry .ae-crumbs li[aria-current] {
   background: var(--customer-active);
-  color: var(--customer-accent);
+  color: var(--customer-accent-dark);
 }
 
 /* ── Footer ───────────────────────────────────────────────────────────── */
