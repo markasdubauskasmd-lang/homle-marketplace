@@ -238,6 +238,7 @@ const readinessRecoveryDelaysMs = Object.freeze([2_000, 6_000]);
 const safeReadWakeRetryDelayMs = 1_000;
 let readinessRecoveryTimer = null;
 let requestRecoveryChecked = false;
+let requestDraftOwner = "";
 let requestRecoveryTimer = null;
 let manualQuoteTimer = null;
 let manualQuoteGeneration = 0;
@@ -278,13 +279,34 @@ function saveCsrf(token) {
   } catch { return false; }
 }
 
+function bindWorkingRequestOwner(account, { allowChange = false } = {}) {
+  const owner = typeof account?.userId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(account.userId) ? account.userId : "";
+  if (requestDraftOwner && requestDraftOwner !== owner) {
+    window.clearTimeout(requestRecoveryTimer);
+    clearLandlordRequestDraft(window.sessionStorage);
+    requestForm.reset();
+    currentRequestDraft = null;
+    generatedChecklist = [];
+    generatedChecklistSource = "";
+    assistedSummaryTranscript = "";
+    tasksManuallyEdited = false;
+    requestDirty = false;
+    requestRecoveryChecked = false;
+    requestDraftOwner = "";
+    closeRequestPhotoDialog();
+    renderTaskPreview();
+    if (!allowChange) throw new Error("Your account changed. Reload the workspace before continuing.");
+  }
+  requestDraftOwner = owner;
+}
+
 function requestDraftFields() {
   return Object.fromEntries(["propertyId", "requestedDate", "requestedTime", "durationMinutes", "cleaningType", "frequency", "budget", "specialInstructions", "transcript", "tasks"].map((name) => [name, requestForm.elements[name]?.value || ""]));
 }
 
 function rememberWorkingRequest() {
   if (!requestDirty) return;
-  try { saveLandlordRequestDraft(window.sessionStorage, { fields: requestDraftFields() }); } catch {}
+  try { saveLandlordRequestDraft(window.sessionStorage, { fields: requestDraftFields(), ownerId: requestDraftOwner }); } catch {}
 }
 
 function scheduleWorkingRequestRecovery() {
@@ -296,7 +318,7 @@ function restoreWorkingRequest() {
   if (requestRecoveryChecked) return;
   requestRecoveryChecked = true;
   let draft = null;
-  try { draft = readLandlordRequestDraft(window.sessionStorage); } catch {}
+  try { draft = readLandlordRequestDraft(window.sessionStorage, Date.now(), requestDraftOwner); } catch {}
   if (!draft) return;
   const propertyAvailable = properties.some((property) => property.propertyId === draft.fields.propertyId);
   for (const name of ["requestedDate", "requestedTime", "durationMinutes", "cleaningType", "frequency", "budget", "specialInstructions", "transcript", "tasks"]) {
@@ -1398,6 +1420,7 @@ async function recoverCsrf(target, action) {
   try {
     const result = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("This browser could not keep the renewed secure editing token.");
+    bindWorkingRequestOwner(result.account);
     return result.csrfToken;
   } catch (error) {
     showFeedback(target, error?.code === "browser-offline" ? error.message : `Your secure session could not be recovered. Sign in again before ${action}.`);
@@ -4127,6 +4150,7 @@ async function loadWorkspace() {
     if (!access.ready) return access.reason === "different-workspace"
       ? showState(`Your ${access.label} workspace is active.`, "Properties, room scans and cleaning requests are in your Landlord workspace. Switch this verified account back to it to continue.", { kind: "authentication", workspaceDestination: "/onboarding?intent=book", workspaceLabel: "Landlord", workspaceActionLabel: "Switch to Landlord workspace" })
       : showState("This account has no Landlord workspace.", "Sign in through Book a clean to create the separate property workspace.", { kind: "authentication", allowSignIn: true });
+    bindWorkingRequestOwner(account, { allowChange: true });
     setLandlordDisplayName(account.displayName || "Landlord");
     renderAccountAvatar(account);
     state.hidden = true;
