@@ -73,6 +73,8 @@ async function measure(name, width, reduce) {
       const findings = [];
       let inspected = 0;
       for (const el of document.querySelectorAll("body,body *")) {
+        const closedDetails = el.closest("details:not([open])");
+        if (closedDetails && !closedDetails.querySelector(":scope > summary")?.contains(el)) continue;
         const rect = el.getBoundingClientRect();
         if (!rect.width || !rect.height || getComputedStyle(el).visibility === "hidden") continue;
         for (const pseudo of [null,"::before","::after"]) {
@@ -107,6 +109,13 @@ try {
           ' && document.querySelector("[data-landlord-panel=home]")?.hidden === ' + (view !== "home") +
           ' && document.querySelector("[data-landlord-workspace]")?.hidden !== true');
         await measure(view, width, reduce);
+        if (view === "bookings") {
+          await browser.evaluate('document.querySelector(".landlord-account-menu > summary").click()');
+          await waitFor('document.querySelector(".landlord-account-menu")?.open === true');
+          await measure("bookings-menu", width, reduce);
+          await browser.evaluate('document.querySelector(".landlord-account-menu > summary").click()');
+        }
+
         if (view === "account") {
           const calls = await browser.evaluate(`
             const calls = [], original = Element.prototype.scrollIntoView;
