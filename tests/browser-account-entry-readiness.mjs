@@ -170,7 +170,7 @@ try {
       assert(layout.width===viewport.width && layout.overflow<=1,label+": horizontal overflow "+JSON.stringify(layout));
       assert(layout.text?.length>40 && layout.headings.length>0,label+": missing main content");
       assert(layout.clippedControls.length===0,label+": clipped controls "+JSON.stringify(layout.clippedControls));
-      assert(!/\\bundefined\\b|\\bNaN\\b|\\[object Object\\]/.test(layout.text),label+": invalid values reached the page");
+      assert(!/\bundefined\b|\bNaN\b|\[object Object\]/.test(layout.text),label+": invalid values reached the page");
       await writeFile(new URL("public-"+route.slice(1)+"-"+viewport.width+".png",captureRoot),await browser.screenshot());
       console.log("Public responsive document "+label+" "+JSON.stringify(layout.headings));
     }
