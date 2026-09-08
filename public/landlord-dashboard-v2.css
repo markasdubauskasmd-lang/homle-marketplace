@@ -1863,6 +1863,9 @@ body.landlord-dashboard-page .landlord-account-menu[open] > summary .account-ava
 
 @media (prefers-reduced-motion: reduce) {
   body.landlord-dashboard-page .landlord-account-menu .account-menu-panel { animation: none; }
+  /* Keep the later mobile sheet rule from overriding customer motion preference.
+     The renderer hides Home only on other workspace pages. */
+  body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .landlord-account-menu .account-menu-panel { animation: none; }
   body.landlord-dashboard-page .ld-topbar-avatar,
   body.landlord-dashboard-page .landlord-account-menu > summary .account-avatar { transition: none; }
 }
