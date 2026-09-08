@@ -58,7 +58,7 @@ try {
       role = "landlord";
       for (const view of views) {
         await browser.goto(server.origin + "/landlord/" + view);
-        await waitFor('location.pathname === ' + JSON.stringify("/landlord/" + view) +
+        await waitFor('location.pathname === ' + JSON.stringify("/landlord/" + (view === "properties" ? "bookings" : view)) +
           ' && document.querySelector("[data-landlord-panel=home]")?.hidden === ' + (view !== "home") +
           ' && document.querySelector("[data-landlord-workspace]")?.hidden !== true');
         await measure(view, width, reduce);
