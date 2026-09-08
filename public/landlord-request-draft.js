@@ -1,7 +1,7 @@
 import { containsSensitiveAccessDetails } from "./access-detail-safety.js";
 
 const landlordRequestDraftKey = "homleLandlordRequestDraftV1";
-const landlordRequestDraftVersion = 1;
+const landlordRequestDraftVersion = 2;
 const propertyIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const accessSensitiveFields = Object.freeze(["specialInstructions", "transcript", "tasks"]);
 
@@ -32,26 +32,28 @@ function hasContent(fields) {
   return Object.entries(fields).some(([name, value]) => !["durationMinutes", "frequency"].includes(name) && value.trim());
 }
 
-export function saveLandlordRequestDraft(storage, { fields = {} } = {}, now = Date.now()) {
+export function saveLandlordRequestDraft(storage, { fields = {}, ownerId = "" } = {}, now = Date.now()) {
   if (!storage?.setItem) return null;
+  if (!propertyIdPattern.test(ownerId)) { storage.removeItem?.(landlordRequestDraftKey); return null; }
   const safeFields = cleanFields(fields);
   if (!hasContent(safeFields)) {
     storage.removeItem?.(landlordRequestDraftKey);
     return null;
   }
   const savedAt = Number.isFinite(now) ? now : Date.now();
-  const draft = { version: landlordRequestDraftVersion, fields: safeFields, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs };
+  const draft = { ownerId, version: landlordRequestDraftVersion, fields: safeFields, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs };
   storage.setItem(landlordRequestDraftKey, JSON.stringify(draft));
   return draft;
 }
 
-export function readLandlordRequestDraft(storage, now = Date.now()) {
+export function readLandlordRequestDraft(storage, now = Date.now(), ownerId = "") {
   if (!storage?.getItem) return null;
   try {
     const value = JSON.parse(storage.getItem(landlordRequestDraftKey) || "null");
     const savedAt = Number(value?.savedAt);
     const expiresAt = Number(value?.expiresAt);
-    const valid = value?.version === landlordRequestDraftVersion
+    const valid = propertyIdPattern.test(ownerId) && value?.ownerId === ownerId
+      && value?.version === landlordRequestDraftVersion
       && Number.isFinite(savedAt)
       && Number.isFinite(expiresAt)
       && expiresAt === savedAt + landlordRequestDraftLifetimeMs
@@ -66,7 +68,7 @@ export function readLandlordRequestDraft(storage, now = Date.now()) {
       storage.removeItem?.(landlordRequestDraftKey);
       return null;
     }
-    return { fields, savedAt, expiresAt };
+    return { ownerId, fields, savedAt, expiresAt };
   } catch {
     storage.removeItem?.(landlordRequestDraftKey);
     return null;
