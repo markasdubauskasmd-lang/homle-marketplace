@@ -380,6 +380,12 @@ try {
   assert(cleanerTrainingText.includes("Homle Academy") && cleanerTrainingText.includes("data-training-modules") && cleanerTrainingText.includes("3 active required learning modules") && cleanerTrainingText.includes("Only required training is active for now") && cleanerTrainingText.includes("nothing is started or recorded on this preview") && !cleanerTrainingText.includes("Sadie Fletcher"), "The Cleaner Academy lost its private, honest required-module catalogue design.");
   assert(cleanerContractsText.includes("Contracts &amp; agreements") && cleanerContractsText.includes("data-contract-list") && cleanerContractsText.includes("Sign outstanding") && cleanerContractsText.includes("Signing is not connected") && !cleanerContractsText.includes("Sadie") && !cleanerContractsText.includes("86.157.44.102"), "The Cleaner Contracts page lost its private, honest agreements design.");
   assert(cleanerAvailabilityPage.status === 308 && cleanerAvailabilityPage.headers.get("location") === "/cleaner/jobs-map" && cleanerAvailabilityPage.headers.get("cache-control") === "no-store", "The removed Cleaner Availability page does not redirect safely to first-come available jobs.");
+  // Every onboarding destination must serve the migrated flow directly.
+  for (const route of ["personal-details","business-details","banking","identity-verification","right-to-work","background-checks","work-areas","experience","insurance","equipment","documents","training","contracts","review-submit","onboarding","introduction"]) {
+    const page = await fetch(base + '/cleaner/' + route, { redirect: 'manual' });
+    const html = await page.text();
+    assert(page.status === 200 && html.includes('homlle-onboarding-flow') && html.includes('/cleaner-onboarding-flow.css?v=') && html.includes('/cleaner-onboarding-flow.js?v='), 'Onboarding design missing at ' + route);
+  }
   const dedicatedReviews = await fetch(base + '/cleaner/reviews', { redirect: 'manual' });
   const dedicatedReviewsText = await dedicatedReviews.text();
   assert(dedicatedReviews.status === 200 && dedicatedReviewsText.includes('data-reviews-gate') && dedicatedReviewsText.includes('cleaner-workspace-design.js'), 'Reviews must serve its own migrated page without redirecting to Performance.');

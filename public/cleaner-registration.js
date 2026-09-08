@@ -33,7 +33,7 @@ function stepIcon(name) {
 
 const localDesignPreview = ["127.0.0.1", "localhost"].includes(location.hostname)
   && new URLSearchParams(location.search).has("design-preview");
-const onboardingHome = ["/cleaner/onboarding", "/cleaner/registration"].includes(location.pathname);
+const onboardingHome = ["/cleaner/onboarding", "/cleaner/registration", "/cleaner/introduction"].includes(location.pathname);
 if (onboardingHome) {
   document.body.classList.add("homlle-onboarding-home");
   document.querySelector("[data-registration-overview]").hidden = false;
@@ -41,7 +41,7 @@ if (onboardingHome) {
   const home = document.querySelector(".hc-brand-mark");
   if (home) { home.href = "/cleaner/onboarding"; home.setAttribute("aria-label", "Onboarding home"); }
 }
-const introductionPage = location.pathname === "/cleaner/introduction";
+const introductionPage = location.pathname === "/cleaner/introduction" && !onboardingHome;
 
 if (introductionPage) {
   document.body.classList.add("cleaner-onboarding-introduction-page");

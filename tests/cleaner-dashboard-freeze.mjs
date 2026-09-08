@@ -10,8 +10,8 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // Pin that approved frontend and keep the backend boundary intact.
 // Pinning the complete dedicated surface and the shared browser assets it loads
 // makes an accidental change fail in CI before it can be merged or deployed.
-const expectedFileCount = 94;
-const expectedDigest = "b7552c5ecb0443104682f0d7cf0477e5f60c02576b650e4e19dc5fea1de16a10";
+const expectedFileCount = 96;
+const expectedDigest = "a8c82077ffe9e357335ba4b69903b2217e937071f89d8b32fd7d500a7a352131";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
