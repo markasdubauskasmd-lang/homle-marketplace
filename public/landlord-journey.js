@@ -107,6 +107,7 @@ const state = {
   step: "postcode",
   capabilities: { mediaReady: false, matchingReady: false },
   signedIn: false,
+  draftOwner: "",
   properties: [],
   scanPhotos: [],
   // The structured reading — per-object condition, soiling, confidence and
@@ -156,6 +157,32 @@ const state = {
   cleanersPending: false,
   confirming: false
 };
+
+const emptyPrivateJourney = JSON.stringify(Object.fromEntries(
+  ["draft", "scanPhotos", "scanRooms", "scanPremiumPlan", "scanPremiumSelected", "scanSessionId",
+    "scanCorrections", "scanReview", "scanInstructions", "scanNoteEdits", "scanGeneralNote", "scanMeasurements"]
+    .map(key => [key, state[key]])
+));
+
+function bindJourneyOwner(account) {
+  const owner = typeof account?.userId === "string" ? account.userId : "";
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(owner)
+      || journeyAccountState(account) !== "ready") {
+    throw new Error("Your secure account could not be checked.");
+  }
+  if (state.draftOwner === owner) return;
+  if (state.draftOwner) {
+    Object.assign(state, JSON.parse(emptyPrivateJourney), { step: "postcode", signedIn: false, properties: [], draftOwner: "" });
+    discardDraft();
+    try { sessionStorage.removeItem("homle_scan_result"); } catch {}
+    closeMeasure();
+    showJourneyAccessFailure("Your secure account changed.");
+    el.accessRetry.disabled = false;
+    throw Object.assign(new Error("Your secure account changed."), { code: "journey-account-changed" });
+  }
+  state.draftOwner = owner;
+  restoreDraft(owner);
+}
 
 // Core account and mutation requests receive the full mobile allowance. The
 // readiness and directory reads below are advisory: they must never hold the
@@ -225,6 +252,7 @@ async function recoverCsrf() {
     body: "{}"
   });
   if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("This browser could not keep the renewed secure editing token.");
+  bindJourneyOwner(result.account);
   return result.csrfToken;
 }
 
@@ -239,9 +267,10 @@ async function recoverCsrf() {
 // product stated a retention limit it did not keep. The lifetime is imported
 // rather than restated so there is one number to change.
 function saveDraft() {
+  if (!state.draftOwner) return;
   try {
     const savedAt = Date.now();
-    sessionStorage.setItem(draftKey, JSON.stringify({ step: state.step, draft: state.draft, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs }));
+    sessionStorage.setItem(draftKey, JSON.stringify({ ownerId: state.draftOwner, step: state.step, draft: state.draft, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs }));
   } catch {}
 }
 
@@ -249,9 +278,11 @@ function discardDraft() {
   try { sessionStorage.removeItem(draftKey); } catch {}
 }
 
-function restoreDraft() {
+function restoreDraft(owner = state.draftOwner) {
+  if (!owner) return;
   try {
     const stored = JSON.parse(sessionStorage.getItem(draftKey) || "null");
+    if (stored && stored.ownerId !== owner) return discardDraft();
     const savedAt = Number(stored?.savedAt);
     const expiresAt = Number(stored?.expiresAt);
     // A draft with no stamp predates this and cannot be shown to be inside the
@@ -269,11 +300,12 @@ function restoreDraft() {
     for (const key of ["propertyDraftId", "requestId"]) {
       if (!/^[0-9a-f-]{36}$/i.test(state.draft[key] || "")) state.draft[key] = "";
     }
-  } catch {}
+  } catch { discardDraft(); }
 }
 
 // A finished room scan hands its checklist here.
 function adoptScan() {
+  if (!state.draftOwner) return false;
   let scan = null;
   try {
     const stored = sessionStorage.getItem("homle_scan_result");
@@ -281,7 +313,8 @@ function adoptScan() {
     sessionStorage.removeItem("homle_scan_result");
     scan = JSON.parse(stored);
   } catch { return false; }
-  // Compatibility with old text-only handoffs is harmless, but a cached legacy
+  if (scan?.ownerId !== state.draftOwner) return false;
+  // Owner-verified text-only handoffs can resume, but a cached legacy
   // scanner may have written private room photographs into this value. Purge
   // and refuse that shape rather than bringing persisted photos into a booking.
   if (Array.isArray(scan?.photos) && scan.photos.length) return false;
@@ -2030,6 +2063,7 @@ async function confirmJourney() {
       : "The checklist is on your dashboard. Review and submit it there when the required services are available. Nothing was sent to a Cleaner and no payment was taken.");
     show("done");
   } catch (error) {
+    if (error?.code === "journey-account-changed") return;
     const signInRequired = error?.code === "sign-in-required" || error?.code === "authentication-required" || error?.statusCode === 401;
     el.checkoutState.textContent = signInRequired
       ? "Your session ended while you were preparing this request. Sign in in the new tab, return here and press confirm again. Your room photos and answers remain in this tab."
@@ -2118,6 +2152,8 @@ async function openAuthenticatedJourney() {
     if (stepIndex(state.step) > 0) state.step = "postcode";
     saveDraft();
   }
+  if (adoptScan()) toast("Your scan is here. Check the checklist before continuing.");
+  renderServices();
   el.accessGate.hidden = true;
   el.journeyShell.forEach((section) => { section.hidden = false; });
   return true;
