@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
 import {
   chromiumExecutableCandidates,
   launchBrowser,
@@ -270,6 +270,11 @@ try {
           assert(view_.overflow <= 1,
             `${where}: the page scrolls sideways by ${view_.overflow}px.`);
 
+          if (scenario.key === "booking confirmed" && [768, 1440].includes(viewport.width)) {
+            const captureRoot = new URL("../test-artifacts/customer-responsive/", import.meta.url);
+            await mkdir(captureRoot, { recursive: true });
+            await writeFile(new URL(view + "-" + viewport.width + ".png", captureRoot), await browser.screenshot({ fullPage: true }));
+          }
           checked.push(where);
         }
       }
