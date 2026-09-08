@@ -47,6 +47,7 @@ const server = await serveStatic({ extraFiles });
 const browser = await launchBrowser();
 const rows = [];
 const scrollRows = [];
+const descendantRows = [];
 async function waitFor(expression) {
   const deadline = Date.now() + 12000;
   while (!(await browser.evaluate(expression))) {
@@ -66,6 +67,35 @@ async function measure(name, width, reduce) {
   `);
   assert.equal(result.reduced, reduce);
   rows.push({ name, width, reduce, ...result });
+  if (reduce && !["home", "tracking-cleaner"].includes(name)) {
+    const descendants = await browser.evaluate(`
+      const seconds = value => value.split(",").map(v => parseFloat(v) * (v.trim().endsWith("ms") ? .001 : 1));
+      const findings = [];
+      let inspected = 0;
+      for (const el of document.querySelectorAll("body,body *")) {
+        const closedDetails = el.closest("details:not([open])");
+        if (closedDetails && !closedDetails.querySelector(":scope > summary")?.contains(el)) continue;
+        const rect = el.getBoundingClientRect();
+        if (!rect.width || !rect.height || getComputedStyle(el).visibility === "hidden") continue;
+        for (const pseudo of [null,"::before","::after"]) {
+          const style = getComputedStyle(el,pseudo);
+          if (pseudo && ["none","normal"].includes(style.content)) continue;
+          inspected++;
+          const label = el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + "." + [...el.classList].join(".") + (pseudo || "");
+          if (style.animationName !== "none" && seconds(style.animationDuration).some(n => n > .00001))
+            findings.push({label,kind:"animation",name:style.animationName,duration:style.animationDuration});
+          const properties = style.transitionProperty.split(",").map(p => p.trim());
+          const durations = seconds(style.transitionDuration);
+          if (properties.some((p,i) => /^(all|transform|translate|scale|rotate|width|height|top|left|right|bottom)$/.test(p) && durations[i % durations.length] > .00001))
+            findings.push({label,kind:"movement transition",properties,duration:style.transitionDuration});
+        }
+      }
+      return {inspected,findings};
+    `);
+    assert(descendants.inspected > 10, "Missing rendered customer content: " + name);
+    descendantRows.push({name,width,...descendants});
+  }
+
 }
 try {
   for (const width of [390, 768, 1280, 1440]) {
@@ -79,6 +109,16 @@ try {
           ' && document.querySelector("[data-landlord-panel=home]")?.hidden === ' + (view !== "home") +
           ' && document.querySelector("[data-landlord-workspace]")?.hidden !== true');
         await measure(view, width, reduce);
+        if (view === "bookings" || view === "home") {
+          await browser.evaluate('[...document.querySelectorAll(".landlord-account-menu > summary")].find(el => el.getBoundingClientRect().width > 0).click()');
+          await waitFor('[...document.querySelectorAll(".landlord-account-menu[open] .account-menu-panel")].some(el => el.getBoundingClientRect().width > 0 && !el.closest("[hidden]"))');
+          const menuDuration = await browser.evaluate('getComputedStyle([...document.querySelectorAll(".landlord-account-menu[open] .account-menu-panel")].find(el => el.getBoundingClientRect().width > 0)).animationDuration');
+          const expectedMenuDuration = reduce && (view !== "home" || width > 700) ? "0s" : width <= 700 ? "0.22s" : "0.2s";
+          assert.equal(menuDuration, expectedMenuDuration, "Account menu motion changed unexpectedly: " + view + " " + width + " reduce=" + reduce);
+          if (view === "bookings") await measure("bookings-menu", width, reduce);
+          await browser.evaluate('[...document.querySelectorAll(".landlord-account-menu > summary")].find(el => el.getBoundingClientRect().width > 0).click()');
+        }
+
         if (view === "account") {
           const calls = await browser.evaluate(`
             const calls = [], original = Element.prototype.scrollIntoView;
@@ -100,6 +140,8 @@ try {
   }
   console.log(JSON.stringify(rows));
   console.log(JSON.stringify({scrollRows}));
+  console.log(JSON.stringify({descendantRows}));
+  assert.deepEqual(descendantRows.filter(row => row.findings.length), [], "Rendered customer descendants ignore reduced motion");
   for (const row of scrollRows) {
     assert.equal(row.calls.length, 1, "Edit profile did not scroll to its details.");
     assert.equal(row.calls[0].behavior, row.reduce ? "instant" : "smooth", "Explicit account scroll ignores reduced motion.");
