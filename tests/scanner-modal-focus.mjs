@@ -43,8 +43,8 @@ window.ready = true;
 const server = await serveStatic({ extraFiles: { "/scanner-focus-fixture": fixture } });
 const browser = await launchBrowser();
 try {
-  for (const width of [390, 1280]) {
-    await browser.setViewport({ width, height: 844, mobile: width === 390 });
+  for (const width of [390, 768, 1280, 1440]) {
+    await browser.setViewport({ width, height: width === 768 ? 1024 : width === 1440 ? 900 : 844, mobile: width === 390 });
     await browser.goto(server.origin + "/scanner-focus-fixture");
     assert(await browser.evaluate("return window.ready === true;"));
     assert(await browser.evaluate('return document.getElementById("opener").inert;'));
@@ -95,4 +95,4 @@ try {
   }
   assert.deepEqual(browser.pageErrors, []);
 } finally { await browser.close(); await server.close(); }
-console.log("Scanner focus passed at 390/1280: Tab wrap, active layers, disabled/hidden controls, dynamic background inertness, restoration, reopen and actual cancellation opener focus.");
+console.log("Scanner focus passed at 390/768/1280/1440: Tab wrap, active layers, disabled/hidden controls, dynamic background inertness, restoration, reopen and actual cancellation opener focus.");
