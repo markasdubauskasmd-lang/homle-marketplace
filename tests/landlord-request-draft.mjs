@@ -85,3 +85,30 @@ assert(script.includes("requestForm.elements.scopeReviewed.checked = false") && 
   assert.equal(readLandlordRequestDraft(storage, now, ownerA), null, "Legacy unowned draft survived.");
 }
 console.log("Manual draft ownership passed: same account, different account, property-free, missing owner, legacy and expiry.");
+
+{
+  const scopeControls = { tasks: { value: "Private current task" }, specialInstructions: { value: "Private current note" } };
+  const ownerContext = vm.createContext({
+    requestDraftOwner: propertyId, requestRecoveryTimer: 1, requestRecoveryChecked: true,
+    requestDirty: true, currentRequestDraft: { requestId: "old" },
+    generatedChecklist: ["old"], generatedChecklistSource: "old", assistedSummaryTranscript: "old", tasksManuallyEdited: true,
+    window: { sessionStorage: storage, clearTimeout() {} }, clearLandlordRequestDraft,
+    requestForm: { reset() { for (const field of Object.values(scopeControls)) field.value = ""; } },
+    closeRequestPhotoDialog() {}, renderTaskPreview() {}
+  });
+  vm.runInContext(script.slice(script.indexOf("function bindWorkingRequestOwner("), script.indexOf("function requestDraftFields()")), ownerContext);
+  ownerContext.bindWorkingRequestOwner({ userId: propertyId });
+  assert.equal(scopeControls.tasks.value, "Private current task", "Same-owner token recovery discarded edits.");
+  saveLandlordRequestDraft(storage, { ownerId: propertyId, fields: { tasks: "Private current task" } });
+  assert.throws(() => ownerContext.bindWorkingRequestOwner({ userId: "22222222-2222-4222-8222-222222222222" }), /account changed/);
+  assert.equal(scopeControls.tasks.value, "");
+  assert.equal(scopeControls.specialInstructions.value, "");
+  assert.equal(ownerContext.currentRequestDraft, null);
+  assert.equal(ownerContext.generatedChecklist.length, 0);
+  assert.equal(ownerContext.assistedSummaryTranscript, "");
+  assert.equal(values.size, 0);
+  assert.throws(() => ownerContext.bindWorkingRequestOwner({}), /identity is unavailable/);
+  ownerContext.bindWorkingRequestOwner({ userId: propertyId }, { allowChange: true });
+  assert.equal(ownerContext.requestDraftOwner, propertyId);
+}
+console.log("Actual owner binding passed: same-owner editing, changed-session cleanup and missing identity.");
