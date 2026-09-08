@@ -229,6 +229,26 @@ try {
       await browser.setReducedMotion(reduce);
       await browser.goto(server.origin+"/home.html");
       await browser.evaluate(`await document.fonts.ready; await new Promise(resolve=>setTimeout(resolve,250)); return true;`);
+
+      // Text may clip inside overflow:hidden even when the document fits.
+      if(!reduce) {
+        for(const fraction of [0,0.25,0.5,0.75,1]) {
+          const bounds=await browser.evaluate(`
+            const section=document.querySelector('[data-stage="open"]');
+            const top=scrollY+section.getBoundingClientRect().top;
+            window.scrollTo({top:top+Math.max(0,section.offsetHeight-innerHeight)*${fraction},behavior:"instant"});
+            await new Promise(resolve=>setTimeout(resolve,300));
+            return [...section.querySelectorAll(".ci-eyebrow,.ci-hero-l1,.ci-hero-l2,.ci-hero-l3")].map(el=>{
+              const range=document.createRange();range.selectNodeContents(el);
+              const rect=range.getBoundingClientRect();
+              return {text:el.textContent.trim(),left:rect.left,right:rect.right,width:rect.width,viewport:document.documentElement.clientWidth};
+            });
+          `);
+          assert(bounds.length===4, "Hero text measurement missed an element");
+          assert(bounds.every(b=>b.width>0&&b.left>=15&&b.right<=b.viewport+1),
+            "Hero text clips at "+viewport.width+" scroll="+fraction+": "+JSON.stringify(bounds));
+        }
+      }
       const stages=await browser.evaluate(`return [...document.querySelectorAll("[data-stage]")].map(el=>el.dataset.stage);`);
       assert(JSON.stringify(stages)===JSON.stringify(["open","scan","manual","detail","join"]),"Landing sections changed: "+JSON.stringify(stages));
       for(const stage of stages) {
