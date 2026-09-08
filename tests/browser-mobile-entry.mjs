@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from "node:fs/promises";
 import {
   chromiumExecutableCandidates,
   launchBrowser,
@@ -217,6 +218,40 @@ try {
     `The closing Log in link is missing or too small to tap: ${JSON.stringify(closing.login)}.`);
   assert(closing.footerLinks.length === 6 && closing.footerLinks.some((link) => link.href === "/landlord/help") && closing.footerLinks.every((link) => link.height >= 44),
     `The mobile footer links are missing or too small to tap: ${JSON.stringify(closing.footerLinks)}.`);
+
+
+  // Review original landing sections at all requested sizes in both motion modes.
+  const captureRoot=new URL("../test-artifacts/customer-responsive/",import.meta.url);
+  await mkdir(captureRoot,{recursive:true});
+  for(const viewport of [{width:390,height:844},{width:768,height:1024},{width:1440,height:900}]) {
+    await browser.setViewport({...viewport,mobile:viewport.width===390});
+    for(const reduce of [false,true]) {
+      await browser.setReducedMotion(reduce);
+      await browser.goto(server.origin+"/home.html");
+      await browser.evaluate(`await document.fonts.ready; await new Promise(resolve=>setTimeout(resolve,250)); return true;`);
+      const stages=await browser.evaluate(`return [...document.querySelectorAll("[data-stage]")].map(el=>el.dataset.stage);`);
+      assert(JSON.stringify(stages)===JSON.stringify(["open","scan","manual","detail","join"]),"Landing sections changed: "+JSON.stringify(stages));
+      for(const stage of stages) {
+        const state=await browser.evaluate(`
+          const section=document.querySelector('[data-stage="${stage}"]');
+          const rect=section.getBoundingClientRect();
+          const y=scrollY+rect.top+(${reduce}?0:Math.max(0,rect.height-innerHeight)*0.65);
+          window.scrollTo({top:y,behavior:"instant"});
+          await new Promise(resolve=>setTimeout(resolve,300));
+          return {width:innerWidth,overflow:document.documentElement.scrollWidth-document.documentElement.clientWidth,
+            reduced:matchMedia("(prefers-reduced-motion: reduce)").matches,
+            text:section.innerText.trim(),
+            animations:document.getAnimations().filter(a=>a.playState==="running"||a.pending).length};
+        `);
+        const label=stage+" "+viewport.width+" reduce="+reduce;
+        assert(state.width===viewport.width&&state.overflow<=1,label+": horizontal overflow "+JSON.stringify(state));
+        assert(state.reduced===reduce,label+": motion preference not applied");
+        assert(state.text.length>10,label+": missing section content");
+        if(reduce) assert(state.animations===0,label+": CSS animations still running");
+        await writeFile(new URL("home-"+stage+"-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
+      }
+    }
+  }
 
   assert(browser.pageErrors.length === 0,
     `The mobile account entry threw in Chromium: ${browser.pageErrors.join(" | ")}`);
