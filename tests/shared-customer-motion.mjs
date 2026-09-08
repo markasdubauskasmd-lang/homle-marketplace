@@ -30,6 +30,7 @@ const extraFiles = { ...fixtures.endpoints(),
 const server = await serveStatic({ extraFiles });
 const browser = await launchBrowser();
 const rows = [];
+const scrollRows = [];
 async function waitFor(expression) {
   const deadline = Date.now() + 12000;
   while (!(await browser.evaluate(expression))) {
@@ -62,6 +63,16 @@ try {
           ' && document.querySelector("[data-landlord-panel=home]")?.hidden === ' + (view !== "home") +
           ' && document.querySelector("[data-landlord-workspace]")?.hidden !== true');
         await measure(view, width, reduce);
+        if (view === "account") {
+          const calls = await browser.evaluate(`
+            const calls = [], original = Element.prototype.scrollIntoView;
+            Element.prototype.scrollIntoView = function(options) { calls.push(options); };
+            try { document.querySelector("[data-account-personal-toggle]").click(); }
+            finally { Element.prototype.scrollIntoView = original; }
+            return calls;
+          `);
+          scrollRows.push({width, reduce, calls});
+        }
       }
       for (role of ["landlord", "cleaner"]) {
         await browser.goto(server.origin + "/bookings/" + id);
@@ -72,6 +83,12 @@ try {
     }
   }
   console.log(JSON.stringify(rows));
+  console.log(JSON.stringify({scrollRows}));
+  for (const row of scrollRows) {
+    assert.equal(row.calls.length, 1, "Edit profile did not scroll to its details.");
+    assert.equal(row.calls[0].behavior, row.reduce ? "instant" : "smooth", "Explicit account scroll ignores reduced motion.");
+    assert.equal(row.calls[0].block, "start");
+  }
   const seconds = value => Number.parseFloat(value) * (value.endsWith("ms") ? .001 : 1);
   const failures = rows.filter(r => r.reduce && !["home", "tracking-cleaner"].includes(r.name)
     && [r.old, r.next].some(value => seconds(value) > .001));
