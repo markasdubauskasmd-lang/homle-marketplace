@@ -38,12 +38,12 @@ try {
   await browser.evaluate('document.querySelector("[data-tasks]").value="Kitchen: Private edited account A task"; document.querySelector("[data-back]").click(); return true;');
   await waitFor('document.querySelector("[data-step=service]")?.hidden === false');
   motionRows.push(await inspectCustomerMotion(browser, "journey-service " + width));
-  await browser.evaluate('window.motionCameraRequests=0; navigator.mediaDevices.getUserMedia=async()=>{window.motionCameraRequests++;throw new Error("Camera disabled in motion check");}; document.querySelector("[data-scan-link]").click(); return true;');
+  await browser.evaluate('window.motionCameraRequests=0; navigator.mediaDevices.getUserMedia=async()=>{window.motionCameraRequests++;throw new DOMException("Camera disabled in motion check","NotAllowedError");}; document.querySelector("[data-scan-link]").click(); return true;');
   await waitFor('document.querySelector(".scan-overlay [data-hub]")?.hidden === false');
-  motionRows.push(await inspectCustomerMotion(browser, "scanner-room-picker " + width));
+  motionRows.push(await inspectCustomerMotion(browser, "scanner-room-picker-camera-denied " + width));
   await browser.evaluate('document.querySelector(".scan-overlay [data-hub] [data-close]").click(); return true;');
   await waitFor('!document.querySelector(".scan-overlay")');
-  assert.equal(await browser.evaluate("window.motionCameraRequests"),0,"Room-picker motion check requested camera");
+  assert.equal(await browser.evaluate("window.motionCameraRequests"),1,"Expected the initial camera attempt to hit the denying fixture");
   await browser.goto(server.origin+"/landlord/book");
   await waitFor('document.querySelector("[data-access-gate]")?.hidden && document.querySelector("[data-step=service]")?.hidden === false');
   await browser.evaluate('document.querySelector("[data-skip-scan]").click(); return true;'); await results();
