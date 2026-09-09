@@ -15,8 +15,8 @@
 <link rel="stylesheet" href="/homle-cleaner.css?v=20260810-4">
 <link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260817-sharp-visuals-1">
 <link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260817-sharp-visuals-1">
-<link rel="stylesheet" href="/cleaner-onboarding-home.css?v=20260909-profession-1">
-<script src="/cleaner-registration.js?v=20260909-profession-1" type="module"></script>
+<link rel="stylesheet" href="/cleaner-onboarding-home.css?v=20260909-picker-1">
+<script src="/cleaner-registration.js?v=20260909-picker-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 <link rel="stylesheet" href="/cleaner-onboarding-flow.css?v=20260909-1">
@@ -161,8 +161,15 @@
               <p class="oh-intro">Fourteen steps to get ready for your first booking. Homlle saves each one as you go.</p>
               <form class="oh-profession" data-oh-profession-form>
                 <p id="oh-profession-help">Let’s get started — first select the profession you’re joining as below, then click “Start/Continue Registration”.</p>
-                <label for="oh-profession">Your profession</label>
-                <select id="oh-profession" name="serviceType" required disabled aria-describedby="oh-profession-help"><option value="">Select your profession</option><option value="cleaner">Cleaner</option><option value="beautician">Beautician</option></select>
+                <label id="oh-profession-label" for="oh-profession-trigger">Your profession</label>
+                <select id="oh-profession" name="serviceType" hidden disabled aria-hidden="true" tabindex="-1"><option value="">Select your profession</option><option value="cleaner">Cleaner</option><option value="beautician">Beautician</option></select>
+                <div class="oh-picker" data-oh-picker>
+                  <button id="oh-profession-trigger" class="oh-picker-trigger" type="button" role="combobox" aria-labelledby="oh-profession-label oh-profession-value" aria-describedby="oh-profession-help" aria-required="true" aria-haspopup="listbox" aria-expanded="false" aria-controls="oh-profession-options" disabled><span class="oh-picker-icon" aria-hidden="true">✦</span><span id="oh-profession-value">Select your profession</span><span class="oh-picker-chevron" aria-hidden="true">⌄</span></button>
+                  <div id="oh-profession-options" class="oh-picker-options" role="listbox" aria-labelledby="oh-profession-label" hidden>
+                    <div id="oh-option-cleaner" class="oh-picker-option" role="option" aria-selected="false" data-profession="cleaner"><span class="oh-picker-icon" aria-hidden="true">⌂</span><span><strong>Cleaner</strong><small>Homes, rentals &amp; workplaces</small></span><span class="oh-picker-check" aria-hidden="true">✓</span></div>
+                    <div id="oh-option-beautician" class="oh-picker-option" role="option" aria-selected="false" data-profession="beautician"><span class="oh-picker-icon" aria-hidden="true">✧</span><span><strong>Beautician</strong><small>Beauty, grooming &amp; personal care</small></span><span class="oh-picker-check" aria-hidden="true">✓</span></div>
+                  </div>
+                </div>
                 <div class="oh-actions"><button class="oh-button" data-oh-continue type="submit" disabled>Start/Continue Registration ↗</button></div>
                 <p class="oh-profession-status" data-oh-profession-status role="status" aria-live="polite">Loading your saved profession…</p>
               </form>
@@ -179,20 +186,7 @@
               <img class="oh-team" src="/design-preview/assets/homlle-team-hd.png" alt="The Homlle cleaning and beauty team">
             </div>
           </section>
-          <div id="onboarding-steps" class="oh-steps">
-        <div class="hc-section-head">
-          <h3 class="hc-h3">Your steps</h3>
-          <span class="hc-section-note">Every step in the Homle Cleaner registration</span>
-        </div>
-        <!--
-          One card per step from the design's own STEPS/TITLES tables. Steps Homle can
-          record link to the screen that edits them. Design-matched reference and insurance
-          screens remain explicitly outstanding until their secure storage and verification
-          services exist; unsupported steps are marked as not open yet rather than linking
-          nowhere.
-        -->
-        <div class="hc-reg-list" data-reg-steps></div>
-        </div>
+
         </div>
 
           <div class="hc-personal-layout" data-personal-details hidden>

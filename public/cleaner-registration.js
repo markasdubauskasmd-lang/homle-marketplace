@@ -188,7 +188,7 @@ if (!localDesignPreview) createCleanerPage("reg", async (context) => {
     const next = progress.steps.find(step => !step.done && step.href) || progress.steps.find(step => step.key === "review");
     setText("[data-oh-done]", completeReads ? String(progress.doneCount) : "—");
     setText("[data-oh-next-title]", completeReads ? (next?.title || "Review your application") : "Review your application");
-    for (const link of document.querySelectorAll("[data-oh-next]")) link.href = completeReads && next?.href ? next.href : "#onboarding-steps";
+    for (const link of document.querySelectorAll("[data-oh-next]")) link.href = completeReads && next?.href ? next.href : "#oh-profession-help";
     document.querySelector("[data-oh-segments]").replaceChildren(...progress.steps.map(step => { const segment = element("span", ""); segment.dataset.done = String(completeReads && step.done); return segment; }));
     if (!completeReads) context.showFeedback("Some saved progress could not be loaded. Refresh to see your latest application status.");
     const professionForm = document.querySelector('[data-oh-profession-form]');
@@ -199,6 +199,60 @@ if (!localDesignPreview) createCleanerPage("reg", async (context) => {
     const savedProfession = ['cleaner', 'beautician'].includes(business?.data?.serviceType) ? business.data.serviceType : '';
     profession.value = savedProfession;
     profession.disabled = !completeReads;
+    const picker = professionForm.querySelector('[data-oh-picker]');
+    const trigger = picker.querySelector('[role="combobox"]');
+    const optionsPanel = picker.querySelector('[role="listbox"]');
+    const options = [...optionsPanel.querySelectorAll('[role="option"]')];
+    let activeOption = 0;
+    const closePicker = () => {
+      optionsPanel.hidden = true;
+      trigger.setAttribute('aria-expanded', 'false');
+      trigger.removeAttribute('aria-activedescendant');
+    };
+    const highlightOption = index => {
+      activeOption = (index + options.length) % options.length;
+      options.forEach((option, i) => option.classList.toggle('is-active', i === activeOption));
+      trigger.setAttribute('aria-activedescendant', options[activeOption].id);
+    };
+    const openPicker = () => {
+      if (trigger.disabled) return;
+      optionsPanel.hidden = false;
+      trigger.setAttribute('aria-expanded', 'true');
+      highlightOption(Math.max(0, options.findIndex(option => option.dataset.profession === profession.value)));
+    };
+    const updatePicker = () => {
+      const selected = options.find(option => option.dataset.profession === profession.value);
+      picker.querySelector('#oh-profession-value').textContent = selected?.querySelector('strong').textContent || 'Select your profession';
+      trigger.querySelector('.oh-picker-icon').textContent = selected?.querySelector('.oh-picker-icon').textContent || '✦';
+      options.forEach(option => option.setAttribute('aria-selected', String(option === selected)));
+      trigger.disabled = profession.disabled;
+    };
+    const chooseOption = option => {
+      profession.value = option.dataset.profession;
+      trigger.removeAttribute('aria-invalid');
+      updatePicker();
+      closePicker();
+      trigger.focus();
+      professionStatus.textContent = 'Your choice will be saved when you continue.';
+    };
+    trigger.addEventListener('click', () => optionsPanel.hidden ? openPicker() : closePicker());
+    options.forEach(option => {
+      option.addEventListener('pointerdown', event => event.preventDefault());
+      option.addEventListener('click', () => chooseOption(option));
+    });
+    trigger.addEventListener('keydown', event => {
+      const isOpen = !optionsPanel.hidden;
+      if (['ArrowDown', 'ArrowUp', 'Home', 'End', 'Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+        if (!isOpen) { openPicker(); return; }
+        if (event.key === 'Enter' || event.key === ' ') chooseOption(options[activeOption]);
+        else highlightOption(event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : activeOption + (event.key === 'ArrowUp' ? -1 : 1));
+      } else if (event.key === 'Escape' || event.key === 'Tab') closePicker();
+      else if (/^[cb]$/i.test(event.key)) { openPicker(); highlightOption(event.key.toLowerCase() === 'c' ? 0 : 1); }
+    });
+    document.addEventListener('pointerdown', event => { if (!picker.contains(event.target)) closePicker(); });
+    picker.addEventListener('focusout', event => { if (!picker.contains(event.relatedTarget)) closePicker(); });
+    updatePicker();
     continueButton.disabled = !completeReads;
     professionStatus.textContent = completeReads ? (savedProfession ? 'Your saved profession is selected.' : 'Your choice will be saved when you continue.') : 'Refresh to load your saved registration before continuing.';
     let savingProfession = false;
@@ -206,11 +260,19 @@ if (!localDesignPreview) createCleanerPage("reg", async (context) => {
     professionForm.addEventListener('submit', async event => {
       event.preventDefault();
       if (!completeReads || savingProfession || !professionForm.reportValidity()) return;
-      if (!['cleaner', 'beautician'].includes(profession.value)) return;
+      if (!['cleaner', 'beautician'].includes(profession.value)) {
+        professionStatus.textContent = 'Please select your profession to continue.';
+        trigger.setAttribute('aria-invalid', 'true');
+        trigger.focus();
+        openPicker();
+        return;
+      }
       savingProfession = true;
       continueButton.disabled = true;
       const selectedProfession = profession.value;
       profession.disabled = true;
+      closePicker();
+      updatePicker();
       professionStatus.textContent = 'Saving your profession…';
       try {
         if (selectedProfession !== savedProfession) {
@@ -220,6 +282,7 @@ if (!localDesignPreview) createCleanerPage("reg", async (context) => {
       } catch (error) {
         professionStatus.textContent = error.message || 'Your profession could not be saved. Please try again.';
         profession.disabled = false;
+        updatePicker();
         continueButton.disabled = false;
         savingProfession = false;
       }
