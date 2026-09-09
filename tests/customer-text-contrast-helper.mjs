@@ -41,9 +41,38 @@ export async function inspectCustomerText(browser, label) {
       if(enforced)targeted++;
       if(ratio+0.000001<minimum)findings.push({enforced,tag:el.tagName.toLowerCase(),className:el.className,text:text.slice(0,120),foreground:style.color,background:bg.slice(0,3).map(n=>Math.round(n*255)),ratio,minimum,size,weight});
     }
-    return {inspected,targeted,findings,excluded};
+    // Diagnostic input boundaries: the strongest visible border/fill cue against
+    // the surrounding solid surface. Shadows/native indicators need separate review.
+    const controls=[];
+    const contrast=(a,b)=>{const x=lum(a),y=lum(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
+    const surface=start=>{
+      let bg=[0,0,0,0],done=false;
+      for(let el=start;el;el=el.parentElement){
+        const s=getComputedStyle(el);
+        if(Number(s.opacity)!==1||s.filter!=="none"||s.mixBlendMode!=="normal")return null;
+        if(!done){if(s.backgroundImage!=="none")return null;bg=over(bg,rgba(s.backgroundColor));done=bg[3]>=1;}
+      }
+      return over(bg,[1,1,1,1]);
+    };
+    for(const el of document.querySelectorAll("input,textarea,select")){
+      if(el.matches('input[type="hidden"],input[type="checkbox"],input[type="radio"],input[type="range"],input[type="color"],input[type="file"],input[type="submit"],input[type="button"],input[type="reset"]'))continue;
+      if(el.closest(":disabled,[aria-disabled=true],[inert]")||(modal&&!modal.contains(el)))continue;
+      const s=getComputedStyle(el),r=el.getBoundingClientRect();
+      if(!r.width||!r.height||s.visibility!=="visible"||el.closest("details:not([open])"))continue;
+      const outside=surface(el.parentElement),inside=surface(el);
+      if(!outside||!inside){controls.push({tag:el.tagName.toLowerCase(),id:el.id,className:el.className,excluded:"non-solid or composited effect"});continue;}
+      const borders=["Top","Right","Bottom","Left"].filter(side=>parseFloat(s["border"+side+"Width"])>0&&!["none","hidden"].includes(s["border"+side+"Style"])).map(side=>contrast(over(rgba(s["border"+side+"Color"]),inside),outside));
+      const fill=contrast(inside,outside);
+      const boundary=Math.max(fill,...borders);
+      const focusVisible=el.matches(":focus-visible");
+      const outline=parseFloat(s.outlineWidth)>0&&!["none","hidden"].includes(s.outlineStyle)?contrast(over(rgba(s.outlineColor),outside),outside):null;
+      controls.push({tag:el.tagName.toLowerCase(),type:el.type||"",id:el.id,className:el.className,empty:!el.value,readOnly:!!el.readOnly,boundary,fill,borders,focusVisible,outline,shadow:s.boxShadow!=="none",appearance:s.appearance});
+    }
+    return {inspected,targeted,findings,excluded,controls};
   `);
-  console.log("Customer text contrast "+JSON.stringify({label,...result}));
+  const {controls,...textResult}=result;
+  console.log("Customer text contrast "+JSON.stringify({label,...textResult}));
+  console.log("Customer input contrast "+JSON.stringify({label,controls}));
   assert.deepEqual(result.findings.filter(item=>item.enforced), [], label+": customer status text must meet its contrast threshold");
   return result;
 }
