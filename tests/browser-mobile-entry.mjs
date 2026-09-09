@@ -294,6 +294,21 @@ try {
           assert([layout.copy,layout.phone,layout.readout].every(r=>r.left>=0&&r.right<=viewport.width),
             "Still scanner panel clips horizontally");
         }
+        if(stage==="manual" && viewport.width<=1080) {
+          const manual=await browser.evaluate(`
+            const grid=document.querySelector(".ci-manual-grid");grid.scrollTop=0;
+            const title=document.querySelector(".ci-manual-h2").getBoundingClientRect();
+            const nav=document.querySelector(".ci-nav").getBoundingClientRect();
+            const area=grid.getBoundingClientRect();
+            grid.scrollTop=grid.scrollHeight;
+            const card=document.querySelector(".ci-mcard").getBoundingClientRect();
+            const scroll=grid.scrollTop;grid.scrollTop=0;
+            return {titleTop:title.top,navBottom:nav.bottom,bottom:area.bottom,cardBottom:card.bottom,cardWidth:card.width,scroll};
+          `);
+          assert(manual.titleTop>=manual.navBottom,"Manual heading hidden behind navigation at "+viewport.width+": "+JSON.stringify(manual));
+          if(viewport.width>720) assert(manual.cardWidth>0&&manual.cardBottom<=manual.bottom+1,
+            "Manual illustration bottom cannot be reached at "+viewport.width+": "+JSON.stringify(manual));
+        }
         const label=stage+" "+viewport.width+" reduce="+reduce;
         if(reduce) targetRows.push(await inspectCustomerMotion(browser,"public-home-"+stage+" "+viewport.width));
         assert(state.width===viewport.width&&state.overflow<=1,label+": horizontal overflow "+JSON.stringify(state));
