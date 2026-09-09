@@ -37,7 +37,7 @@ export async function inspectCustomerText(browser, label) {
       const size=parseFloat(style.fontSize),weight=parseFloat(style.fontWeight);
       const minimum=size>=24||(size>=18.6667&&weight>=700)?3:4.5;
       inspected++;
-      const enforced=el.matches('body.homle-workspace :is(.hw-feedback,.support-feedback), body.account-entry .account-feedback, body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) :is(.account-menu-identity em,.ld-account-identity-copy > div span:first-child), body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) :is(.brand span,.account-footer a,.active-job-stages .current span)');
+      const enforced=el.matches('body.ci-body :is(.ci-meter-end,.ci-hud-views,.ci-hud-views span,.ci-eyebrow-acc,.ci-beat-title,.ci-tel-price b,.ci-mstep-k,.ci-mstep-k span,.ci-mback,.ci-basket-hours span), body.homle-workspace :is(.hw-feedback,.support-feedback), body.account-entry .account-feedback, body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) :is(.account-menu-identity em,.ld-account-identity-copy > div span:first-child), body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) :is(.brand span,.account-footer a,.active-job-stages .current span)');
       if(enforced)targeted++;
       if(ratio+0.000001<minimum)findings.push({enforced,tag:el.tagName.toLowerCase(),className:el.className,text:text.slice(0,120),foreground:style.color,background:bg.slice(0,3).map(n=>Math.round(n*255)),ratio,minimum,size,weight});
     }
