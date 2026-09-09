@@ -251,6 +251,24 @@ try {
             "Hero text clips at "+viewport.width+" scroll="+fraction+": "+JSON.stringify(bounds));
         }
       }
+      if(!reduce && viewport.width<=1080) {
+        const transforms=new Set();
+        for(const fraction of [0,.125,.25,.375,.5,.625,.75,.875,1]) {
+          const state=await browser.evaluate(`
+            const section=document.querySelector('[data-stage="scan"]');
+            const top=scrollY+section.getBoundingClientRect().top;
+            window.scrollTo({top:top+Math.max(0,section.offsetHeight-innerHeight)*${fraction},behavior:"instant"});
+            await new Promise(resolve=>setTimeout(resolve,650));
+            const rect=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right};};
+            return {copy:rect(".ci-scan-copy"),phone:rect(".ci-phone"),readout:rect(".ci-readout"),transform:document.querySelector(".ci-phone").style.transform};
+          `);
+          transforms.add(state.transform);
+          assert(state.phone.top>=state.copy.bottom+12&&state.readout.top>=state.phone.bottom+12,
+            "Animated scanner panels overlap at "+viewport.width+" progress="+fraction+": "+JSON.stringify(state));
+          assert(state.phone.left>=0&&state.phone.right<=viewport.width,"Animated phone clips horizontally at "+viewport.width);
+        }
+        assert(transforms.size>3,"The mobile scanner animation stopped moving");
+      }
       const stages=await browser.evaluate(`return [...document.querySelectorAll("[data-stage]")].map(el=>el.dataset.stage);`);
       assert(JSON.stringify(stages)===JSON.stringify(["open","scan","manual","detail","join"]),"Landing sections changed: "+JSON.stringify(stages));
       for(const stage of stages) {
@@ -296,9 +314,19 @@ try {
             label+": static poster missing or reduced-motion video loaded: "+JSON.stringify(still));
         }
         await writeFile(new URL("home-"+stage+"-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
-        if(reduce && stage==="scan" && viewport.width<=1080) {
+        if(stage==="scan" && viewport.width<=1080) {
+          if(!reduce) {
+            const endState=await browser.evaluate(`
+              const section=document.querySelector('[data-stage="scan"]');
+              window.scrollTo({top:scrollY+section.getBoundingClientRect().top+section.offsetHeight-innerHeight,behavior:"instant"});
+              await new Promise(resolve=>setTimeout(resolve,900));
+              return [...document.querySelectorAll(".ci-readout > div")].map(el=>{const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,opacity:Number(getComputedStyle(el).opacity),height:innerHeight};});
+            `);
+            assert(endState.length===5&&endState.every(r=>r.top>=72&&r.bottom<=r.height+1&&r.opacity>.95),
+              "Completed mobile scanner results are not visible: "+JSON.stringify(endState));
+          }
           await browser.evaluate(`const r=document.querySelector(".ci-readout").getBoundingClientRect();window.scrollTo({top:scrollY+r.bottom-innerHeight+24,behavior:"instant"});await new Promise(resolve=>setTimeout(resolve,100));return true;`);
-          await writeFile(new URL("home-scan-results-"+viewport.width+"-reduced.png",captureRoot),await browser.screenshot());
+          await writeFile(new URL("home-scan-results-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
         }
       }
       const footerState=await browser.evaluate(`
