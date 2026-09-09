@@ -1,3 +1,4 @@
+import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
@@ -17,6 +18,7 @@ const server=await serveStatic({extraFiles:{
   "/api/marketplace/cleaning-requests":({method})=>{writes.push(method);return {status:503,body:{error:"No real writes"}};}
 }});
 const browser=await launchBrowser();
+const motionRows=[];
 async function waitFor(code) { const end=Date.now()+12000; while(!await browser.evaluate(code)) { if(Date.now()>end)throw new Error("Not ready: "+code+" "+await browser.evaluate("document.body.innerText")); await new Promise(r=>setTimeout(r,50)); } }
 async function seed(ownerId=A) {
  await browser.goto(server.origin+"/owner-seed");
@@ -31,9 +33,17 @@ try {
  for(const width of [390,768,1280,1440]) {
   await browser.setViewport({width,height:width===768?1024:width===1440?900:844,mobile:width===390}); owner=A; failSession=false;
   await seed(); await browser.goto(server.origin+"/landlord/book"); await results();
+  motionRows.push(await inspectCustomerMotion(browser, "journey-results " + width));
   assert((await browser.evaluate('document.querySelector("[data-tasks]").value')).includes("Private synthetic"));
   await browser.evaluate('document.querySelector("[data-tasks]").value="Kitchen: Private edited account A task"; document.querySelector("[data-back]").click(); return true;');
   await waitFor('document.querySelector("[data-step=service]")?.hidden === false');
+  motionRows.push(await inspectCustomerMotion(browser, "journey-service " + width));
+  await browser.evaluate('window.motionCameraRequests=0; navigator.mediaDevices.getUserMedia=async()=>{window.motionCameraRequests++;throw new Error("Camera disabled in motion check");}; document.querySelector("[data-scan-link]").click(); return true;');
+  await waitFor('document.querySelector(".scan-overlay [data-hub]")?.hidden === false');
+  motionRows.push(await inspectCustomerMotion(browser, "scanner-room-picker " + width));
+  await browser.evaluate('document.querySelector(".scan-overlay [data-hub] [data-close]").click(); return true;');
+  await waitFor('!document.querySelector(".scan-overlay")');
+  assert.equal(await browser.evaluate("window.motionCameraRequests"),0,"Room-picker motion check requested camera");
   await browser.goto(server.origin+"/landlord/book");
   await waitFor('document.querySelector("[data-access-gate]")?.hidden && document.querySelector("[data-step=service]")?.hidden === false');
   await browser.evaluate('document.querySelector("[data-skip-scan]").click(); return true;'); await results();
@@ -41,12 +51,15 @@ try {
   owner=B; await browser.goto(server.origin+"/landlord/book");
   await waitFor('document.querySelector("[data-access-gate]")?.hidden && document.querySelector("[data-step=postcode]")?.hidden === false');
   assert.equal(await browser.evaluate('return [...document.querySelectorAll("input,textarea")].some(e=>e.value.includes("Private")) || sessionStorage.getItem("homle_journey_draft")?.includes("Private") || false;'),false);
+  motionRows.push(await inspectCustomerMotion(browser, "journey-new-owner-entry " + width));
   owner=A; await seed(); failSession=true; await browser.goto(server.origin+"/landlord/book");
   await waitFor('document.querySelector("[data-access-retry]")?.hidden === false');
   assert.equal(await browser.evaluate('return [...document.querySelectorAll("input,textarea")].some(e=>e.value.includes("Private"));'),false);
+  motionRows.push(await inspectCustomerMotion(browser, "journey-session-error " + width));
   failSession=false;
  }
  assert.deepEqual(writes,[]);
+ assertCustomerMotion(motionRows);
  assert.deepEqual(browser.pageErrors,[]);
 } finally {await browser.close(); await server.close();}
 console.log("Browser ownership passed at 390/768/1280/1440: same-owner edit/back/reload, changed owner, failed session; no private request writes.");
