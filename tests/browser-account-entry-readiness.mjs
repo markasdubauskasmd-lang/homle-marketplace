@@ -173,6 +173,10 @@ try {
       assert(layout.clippedControls.length===0,label+": clipped controls "+JSON.stringify(layout.clippedControls));
       assert(!/\bundefined\b|\bNaN\b|\[object Object\]/.test(layout.text),label+": invalid values reached the page");
       await writeFile(new URL("public-"+route.slice(1)+"-"+viewport.width+".png",captureRoot),await browser.screenshot());
+      if (route === "/signup") {
+        await browser.evaluate('document.querySelector(".account-footer").scrollIntoView({block:"end",behavior:"instant"}); return true;');
+        await writeFile(new URL("targets-account-footer-"+viewport.width+".png",captureRoot),await browser.screenshot());
+      }
       console.log("Public responsive document "+label+" "+JSON.stringify(layout.headings));
     }
   }
