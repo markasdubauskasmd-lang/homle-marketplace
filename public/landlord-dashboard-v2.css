@@ -3627,3 +3627,6 @@ body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .pac-dot.
   body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .landlord-account-menu[open]::before { z-index: 50; }
   body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .landlord-account-menu .account-menu-panel { z-index: 51; }
 }
+
+/* Keep the approved Home unchanged; strengthen existing account badge text elsewhere. */
+body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) :is(.account-menu-identity em, .ld-account-identity-copy > div span:first-child) { color: #2a7047; }
