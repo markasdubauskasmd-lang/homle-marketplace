@@ -37,6 +37,8 @@ try {
   await seed(); await browser.goto(server.origin+"/landlord/book"); await results();
   motionRows.push(await inspectCustomerMotion(browser, "journey-results " + width));
   assert((await browser.evaluate('document.querySelector("[data-tasks]").value')).includes("Private synthetic"));
+  await browser.evaluate('document.querySelector("[data-tasks]").scrollIntoView({block:"center",behavior:"instant"}); return true;');
+  await writeFile(new URL("fields-journey-results-"+width+".png",captureRoot),await browser.screenshot());
   await browser.evaluate('document.querySelector("[data-tasks]").value="Kitchen: Private edited account A task"; document.querySelector("[data-back]").click(); return true;');
   await waitFor('document.querySelector("[data-step=service]")?.hidden === false');
   motionRows.push(await inspectCustomerMotion(browser, "journey-service " + width));
