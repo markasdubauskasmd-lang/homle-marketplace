@@ -5,7 +5,7 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 
 const [page, css, script, homeScript, server] = await Promise.all([
   readFile(new URL("../public/home.html", import.meta.url), "utf8"),
-  readFile(new URL("../public/landing-3f606a74.css", import.meta.url), "utf8"),
+  readFile(new URL("../public/landing-99672ef1.css", import.meta.url), "utf8"),
   readFile(new URL("../public/landing-a97a6ca6.js", import.meta.url), "utf8"),
   readFile(new URL("../public/home.js", import.meta.url), "utf8"),
   readFile(new URL("../server.mjs", import.meta.url), "utf8")
@@ -37,7 +37,7 @@ for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", 
 
 /* ── The design is actually wired in ────────────────── */
 
-assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-3f606a74.css"') && page.includes('src="/landing-a97a6ca6.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
+assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-99672ef1.css"') && page.includes('src="/landing-a97a6ca6.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
 assert(page.includes('<link rel="sitemap" type="application/xml" href="/sitemap.xml">'), "The public landing page does not advertise Homlle's canonical sitemap.");
 assert(page.includes('<link rel="canonical" href="https://homlle.com/">') && page.includes('<meta property="og:url" content="https://homlle.com/">'), "The public landing page does not declare the exact canonical production URL.");
 for (const metadata of [
@@ -58,9 +58,9 @@ for (const metadata of [
 ]) assert(page.includes(metadata), `The public landing page is missing share metadata: ${metadata}`);
 assert(!page.includes("onrender.com"), "The public landing metadata exposes the infrastructure preview hostname.");
 assert(!page.includes('/landing.css?') && !page.includes('/landing.js?'), "The landing page regressed to stable code URLs that must be revalidated on every visit.");
-assert(createHash("sha256").update(css).digest("hex") === "3f606a74b8ff0620fc64dd9033ef4ee274d89108e807f4d6504f465bbda8d0d6", "The landing stylesheet changed without receiving a new content-addressed filename.");
+assert(createHash("sha256").update(css).digest("hex") === "99672ef1475feed6e12d61df68d31cd211163b1001e7a73fe0216c0ff0e2b089", "The landing stylesheet changed without receiving a new content-addressed filename.");
 assert(createHash("sha256").update(script).digest("hex") === "a97a6ca67737ba22d3db54e20c805a8b42c2ea2a72d8625c9ca925ab94f31057", "The landing animation script changed without receiving a new content-addressed filename.");
-assert(server.includes('"/landing-3f606a74.css"') && server.includes('"/landing-a97a6ca6.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
+assert(server.includes('"/landing-99672ef1.css"') && server.includes('"/landing-a97a6ca6.js"'), "The landing code is not isolated inside the immutable public-asset allow-list.");
 assert(page.includes("data-phone-source") && script.includes("this.phoneSource") && script.includes("ANGLE_WEBP"), "The phone view cannot update its visible WebP source as the scan story changes angle.");
 assert(page.includes('src="/home.js?v=20260906-1"') && page.includes('src="/account-menu.js?v=20260729-1"'), "The landing page still advertises stale shared or account-menu assets, so browsers can miss the latest navigation.");
 
