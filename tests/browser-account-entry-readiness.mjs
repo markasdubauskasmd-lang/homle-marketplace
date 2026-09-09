@@ -1,3 +1,4 @@
+import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import {
   launchBrowser,
@@ -176,6 +177,7 @@ try {
     }
   }
 
+  const targetRows = [];
   // Inspect original document descendants, including pseudo-elements and
   // controls below the fold. This complements root-transition checks.
   await browser.setReducedMotion(true);
@@ -216,8 +218,10 @@ try {
       assert(motion.inspected > 10, route + ": original document not inspected");
       assert(motion.findings.length === 0, route + " " + viewport.width + ": descendant motion " + JSON.stringify(motion.findings));
       console.log("Public descendant motion " + route + " " + viewport.width + ": " + motion.inspected + " elements/pseudo-elements");
+      targetRows.push(await inspectCustomerMotion(browser, "public-target " + route + " " + viewport.width));
     }
   }
+  assertCustomerMotion(targetRows);
   await browser.setReducedMotion(false);
 
   // Measure exact foreground/background colors in original rendered states.
