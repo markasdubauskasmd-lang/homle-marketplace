@@ -1,3 +1,4 @@
+import { inspectCustomerText } from "./customer-text-contrast-helper.mjs";
 import assert from "node:assert/strict";
 
 // Inspect the current real document state; preserve the caller's preference.
@@ -61,6 +62,7 @@ export async function inspectCustomerMotion(browser, label) {
     `);
     assert(result.reduced && result.inspected > 10, label + ": original page not inspected");
     console.log("Customer state motion " + JSON.stringify({label,...result}));
+    await inspectCustomerText(browser, label);
     return {label,...result};
   } finally { await browser.setReducedMotion(previous); }
 }
