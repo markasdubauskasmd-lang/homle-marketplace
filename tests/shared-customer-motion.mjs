@@ -1,3 +1,4 @@
+import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
 import assert from "node:assert/strict";
 import vm from "node:vm";
 import { readFile } from "node:fs/promises";
@@ -48,6 +49,7 @@ const browser = await launchBrowser();
 const rows = [];
 const scrollRows = [];
 const descendantRows = [];
+const targetRows = [];
 async function waitFor(expression) {
   const deadline = Date.now() + 12000;
   while (!(await browser.evaluate(expression))) {
@@ -94,6 +96,7 @@ async function measure(name, width, reduce) {
     `);
     assert(descendants.inspected > 10, "Missing rendered customer content: " + name);
     descendantRows.push({name,width,...descendants});
+    targetRows.push(await inspectCustomerMotion(browser, "workspace-target " + name + " " + width));
   }
 
 }
@@ -141,6 +144,7 @@ try {
   console.log(JSON.stringify(rows));
   console.log(JSON.stringify({scrollRows}));
   console.log(JSON.stringify({descendantRows}));
+  assertCustomerMotion(targetRows);
   assert.deepEqual(descendantRows.filter(row => row.findings.length), [], "Rendered customer descendants ignore reduced motion");
   for (const row of scrollRows) {
     assert.equal(row.calls.length, 1, "Edit profile did not scroll to its details.");
