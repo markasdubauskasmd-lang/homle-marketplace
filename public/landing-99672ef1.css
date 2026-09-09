@@ -1,0 +1,1997 @@
+/*
+ * Homle landing page — "Cinematic" scroll design.
+ *
+ * The design was handed off as a Claude Design bundle whose every element carried
+ * an inline style attribute. This site sends `style-src 'self'` with no
+ * 'unsafe-inline', so inline style attributes are dropped by the browser and the
+ * page would render unstyled. Everything below is that inline styling lifted into
+ * real rules, one class per design element, in source order.
+ *
+ * Scroll progress is published by landing.js as `--p` on each [data-stage]
+ * section: 0 when the section's sticky panel first pins, 1 when it unpins.
+ * Anything that reads `var(--p)` animates purely from that, with no JS writes.
+ * The JS only sets transforms it cannot express declaratively (the room walk).
+ */
+
+
+
+
+/*
+ * The design called for Instrument Serif and IBM Plex Mono. Neither is vendored
+ * here and the CSP forbids fetching them from Google Fonts, so both fall back to
+ * system stacks: a transitional serif for the italic accent words, and the
+ * platform UI monospace for the small caps-and-tracking labels.
+ */
+:root {
+  --ci-bg: #0a0a0a;
+  --ci-ink: #f4f2ee;
+  --ci-acc: #e11b22;
+  --ci-sans: "DM Sans", system-ui, sans-serif;
+  --ci-serif: var(--ci-sans);
+  --ci-mono: var(--ci-sans);
+}
+
+html.ci-html {
+  scroll-behavior: smooth;
+  background: var(--ci-bg);
+}
+
+body.ci-body {
+  margin: 0;
+  background: #f7f6f5;
+  color: var(--ci-ink);
+  font-family: var(--ci-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.ci-body img { display: block; }
+.ci-body :where(a) { color: var(--ci-ink); text-decoration: none; }
+.ci-body :where(a:hover) { color: var(--ci-acc); }
+
+.ci-skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 200;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 12px 20px;
+  background: var(--ci-ink);
+  color: #101010;
+  font-weight: 700;
+  border-radius: 0 0 10px 0;
+}
+.ci-skip:focus {
+  left: 0;
+  color: #101010;
+}
+
+.ci-body :focus-visible {
+  outline: 2px solid var(--ci-acc);
+  outline-offset: 3px;
+}
+
+@keyframes ci-cue {
+  0%, 100% { transform: translateY(0); opacity: .45; }
+  50% { transform: translateY(10px); opacity: 1; }
+}
+
+.ci-root {
+  position: relative;
+  background: var(--ci-bg);
+}
+
+/* ---------------------------------------------------------------- nav ---- */
+
+.ci-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 18px 40px;
+
+  --ci-ink: #1a1a1a;
+
+  background: #ffffff;
+
+  border-bottom: 1px solid #efedeb;
+}
+
+.ci-brand {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--ci-ink);
+}
+.ci-brand:hover { color: var(--ci-ink); }
+
+.ci-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  display: block;
+  box-shadow: 0 8px 24px rgba(225, 27, 34, .35);
+}
+
+.ci-brand-name {
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: -.02em;
+}
+
+.ci-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.ci-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  font-size: 12.5px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #666666;
+}
+.ci-nav-links a { display: inline-flex; align-items: center; min-height: 44px; color: inherit; }
+
+.ci-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+/*
+ * Log in is plain text in the design. Left at its natural size that is a 15px
+ * tap target on a phone, so it carries padding to reach the 44px minimum without
+ * changing how it looks; the negative margin keeps it from growing the nav bar.
+ */
+.ci-login {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 10px;
+  margin: -10px 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: .02em;
+  color: #666666;
+  text-decoration: none;
+  transition: color .3s ease;
+}
+.ci-login[hidden] { display: none; }
+.ci-login:hover { color: var(--ci-ink); }
+
+.ci-signup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 12px 24px 12px 22px;
+  border-radius: 11px;
+  border: 1px solid var(--ci-acc);
+  background: var(--ci-acc);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  text-decoration: none;
+  transition: background .3s ease, border-color .3s ease;
+}
+.ci-signup:hover {
+  background: #c4151b;
+  border-color: #c4151b;
+  color: #fff;
+}
+/*
+ * Every arrow and chevron on an entry link is drawn here, never in the markup.
+ * home.js rewrites [data-book-entry] / [data-cleaner-entry] with textContent,
+ * which would delete a real child node — a pseudo-element survives it.
+ */
+.ci-signup::after {
+  content: "\2197";
+  font-family: var(--ci-mono);
+  font-size: 12px;
+  color: var(--ci-acc);
+}
+
+/*
+ * One Sign up action, two explicit account intents. <details> keeps the role
+ * choice keyboard- and touch-operable without adding a second navigation
+ * screen; account-menu.js hides the whole control after session recovery.
+ */
+.ci-signup-menu { position: relative; }
+.ci-signup-menu[hidden] { display: none; }
+.ci-signup-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.ci-signup-menu > summary::-webkit-details-marker { display: none; }
+.ci-signup-menu[open] > .ci-signup {
+  background: #c4151b;
+  border-color: #c4151b;
+}
+.ci-signup-menu > .ci-signup::after { transition: transform .22s ease; }
+.ci-signup-menu[open] > .ci-signup::after { transform: rotate(90deg); }
+.ci-signup-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 4;
+  width: min(310px, calc(100vw - 32px));
+  box-sizing: border-box;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #e7e4e0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transform-origin: top right;
+  animation: ci-signup-open .2s ease-out both;
+}
+.ci-signup-panel a {
+  display: grid;
+  gap: 4px;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: var(--ci-ink);
+  transition: background .18s ease, color .18s ease;
+}
+.ci-signup-panel a:hover,
+.ci-signup-panel a:focus-visible {
+  background: rgba(244, 242, 238, .1);
+  color: var(--ci-ink);
+}
+.ci-signup-panel strong { font-size: 14px; }
+.ci-signup-panel span {
+  color: #666666;
+  font-size: 12px;
+  line-height: 1.35;
+}
+@keyframes ci-signup-open {
+  from { opacity: 0; transform: translateY(-7px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/*
+ * Signed-in account menu. account-menu.js unhides this and fills it in when a
+ * session is found, and home.js hides the "Log in" link at the same time. The
+ * old landing page got these styles from styles.css; this page does not load it,
+ * so the menu is restyled here for the dark surface.
+ */
+.ci-account { position: relative; }
+.ci-account[hidden] { display: none; }
+
+.ci-account > summary {
+  list-style: none;
+  cursor: pointer;
+  display: block;
+}
+.ci-account > summary::-webkit-details-marker { display: none; }
+
+.ci-account .account-avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--ci-acc);
+  color: #0a0a0a;
+  font-weight: 800;
+  font-size: 15px;
+  border: 1px solid rgba(244, 242, 238, .25);
+}
+
+.ci-account .account-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 12px);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 244px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid #e7e4e0;
+  box-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
+  text-align: left;
+
+  color: #1a1a1a;
+}
+.ci-account .eyebrow {
+  margin: 0;
+  font-family: var(--ci-mono);
+  font-size: 9.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #666666;
+}
+.ci-account .account-menu-panel strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+.ci-account .account-menu-panel small {
+  font-size: 12.5px;
+  color: #666666;
+  word-break: break-word;
+}
+.ci-account .account-menu-panel a {
+  margin-top: 8px;
+  padding: 11px 16px;
+  border-radius: 11px;
+  background: var(--ci-acc);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13.5px;
+  text-align: center;
+}
+.ci-account .account-menu-panel a:hover { color: #fff; }
+.ci-account .account-sign-out {
+  padding: 10px 16px;
+  border-radius: 11px;
+  border: 1px solid #e11b22;
+  background: transparent;
+  color: #e11b22;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ci-account .account-sign-out:hover { border-color: rgba(244, 242, 238, .5); }
+.ci-account .account-menu-status[hidden] { display: none; }
+
+/* ------------------------------------------------------------ act: open -- */
+
+.ci-open { position: relative; height: 320vh; }
+
+.ci-open-pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  min-height: 520px;
+  overflow: hidden;
+  background: var(--ci-bg);
+}
+
+.ci-hero-stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+/* Framed room that grows to full bleed. JS drives the scale and changes the
+   radius only once near the end; animating a rounded clip every frame makes a
+   full-screen photograph repaint while the visitor scrolls. */
+.ci-hero-frame {
+  position: relative;
+  width: 52vw;
+  height: 34.67vw;
+  overflow: hidden;
+  border-radius: 14px;
+  transform-origin: 50% 50%;
+  backface-visibility: hidden;
+  will-change: transform;
+  contain: layout paint;
+  isolation: isolate;
+  box-shadow: 0 40px 90px rgba(0, 0, 0, .55);
+}
+
+.ci-hero-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The dirty half is wiped away left-to-right as --p runs 0 -> 1.
+
+   The separate dirty photograph already contains the mess. Move that
+   already-rasterised layer instead of rebuilding a polygon and a four-stage
+   colour filter around it on every scroll frame. The image counter-travels, so
+   the room itself stays visually fixed and only the reveal boundary moves. */
+.ci-hero-dirty {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  transform: translate3d(calc(var(--p, 1) * 118%), 0, 0);
+  will-change: transform;
+  contain: paint;
+}
+
+.ci-hero-dirty .ci-hero-img {
+  transform: translate3d(calc(var(--p, 1) * -118%), 0, 0);
+  will-change: transform;
+}
+
+.ci-hero-grime {
+  display: none;
+}
+
+.ci-wipe-glow,
+.ci-wipe-edge {
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  left: 0;
+  right: 0;
+  transform: translate3d(calc(var(--p, 1) * 118%), 0, 0) skewX(-12deg);
+  will-change: transform, opacity;
+  contain: paint;
+  opacity: calc(1 - var(--p, 1) * var(--p, 1));
+  pointer-events: none;
+}
+.ci-wipe-glow::before,
+.ci-wipe-edge::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.ci-wipe-glow::before {
+  left: -14%;
+  width: 200px;
+  background: linear-gradient(90deg,
+    rgba(225, 27, 34, 0),
+    rgba(225, 27, 34, .2) 52%,
+    rgba(255, 255, 255, .18) 80%,
+    rgba(225, 27, 34, 0));
+}
+.ci-wipe-edge::before {
+  left: -6%;
+  width: 1px;
+  background: #fff3f3;
+  box-shadow: 0 0 34px 10px rgba(225, 27, 34, .55);
+}
+
+.ci-hero-veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    rgba(10, 10, 10, .5),
+    rgba(10, 10, 10, .18) 45%,
+    rgba(10, 10, 10, .72));
+  opacity: calc(.3 + var(--p, 1) * .7);
+}
+
+.ci-hero-copy {
+  --ci-hero-gutter: 44px;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 88px var(--ci-hero-gutter) 24px;
+}
+
+/* Legibility scrim for type set over the photograph.
+ *
+ * `.ci-hero-veil` darkens the frame by `.3 + progress * .7`, so it is at its
+ * weakest at the very first paint — the one frame every visitor sees. Measured
+ * against the rendered pixels there, the worst regions of the headline reached
+ * 1.3:1 and the italic "clearly." 1.0:1 against WCAG's 3:1 for large text, and
+ * the standfirst 1.6:1 against 4.5:1. Mean contrast was fine; it is the bright
+ * cushions and pale stone the words cross that make them disappear.
+ *
+ * This sits between the image and the words only, so the photograph keeps its
+ * presence everywhere the copy is not, and it does not move with scroll — the
+ * words stay readable through the whole wipe.
+ */
+.ci-hero-copy::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg,
+    rgba(8, 8, 9, .58) 0%,
+    rgba(8, 8, 9, .78) 38%,
+    rgba(8, 8, 9, .78) 72%,
+    rgba(8, 8, 9, .42) 100%);
+}
+
+/* Lift the words above the scrim they sit on. */
+.ci-hero-copy > * { position: relative; }
+
+.ci-eyebrow {
+  margin: 0 0 26px;
+  font-family: var(--ci-mono);
+  font-size: 11px;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: rgba(244, 242, 238, .66);
+  transform: translateX(max(calc(16px - var(--ci-hero-gutter)), calc(var(--p, 0) * -3vw)));
+}
+
+.ci-hero-title {
+  margin: 0;
+  font-weight: 800;
+  font-size: clamp(46px, 9vw, 150px);
+  line-height: .86;
+  letter-spacing: -.045em;
+}
+.ci-hero-title span { display: block; }
+.ci-hero-l1 { transform: translateX(max(calc(16px - var(--ci-hero-gutter)), calc(var(--p, 0) * -8vw))); }
+.ci-hero-l2 {
+  padding-left: 14vw;
+  transform: translateX(calc(var(--p, 0) * 12vw));
+}
+.ci-hero-l3 {
+  font-family: var(--ci-serif);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: -.02em;
+  color: var(--ci-acc);
+  transform: translateX(max(calc(16px - var(--ci-hero-gutter)), calc(var(--p, 0) * -5vw)));
+}
+
+.ci-hero-sub {
+  max-width: 400px;
+  margin: 38px 0 0;
+  font-size: 17px;
+  line-height: 1.5;
+  color: rgba(244, 242, 238, .72);
+  transform: translateY(calc(var(--p, 0) * 2vh));
+}
+
+.ci-hero-cta {
+  display: flex;
+  gap: 12px;
+  margin-top: 34px;
+  pointer-events: auto;
+}
+
+/* Launch button drops in on a spring once the wipe is underway. */
+.ci-launch {
+  position: relative;
+  display: inline-flex;
+  opacity: 0;
+  transform: translateY(150px) scale(.86);
+  transition: opacity .45s ease, transform 1.05s cubic-bezier(.14, .9, .2, 1.04);
+  will-change: transform, opacity;
+}
+.ci-launch.is-on {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.ci-launch-tail {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 3px;
+  height: calc(clamp(0, (var(--p, 1) - .04) * 16, 1) * 120px);
+  transform: translateX(-50%);
+  background: linear-gradient(180deg,
+    rgba(225, 27, 34, 0),
+    rgba(225, 27, 34, .5) 60%,
+    rgba(255, 240, 240, .85));
+  filter: blur(1px);
+  opacity: calc(
+    clamp(0, (var(--p, 1) - .04) * 16, 1) *
+    (1 - clamp(0, (var(--p, 1) - .16) * 7, 1))
+  );
+  pointer-events: none;
+}
+
+.ci-btn-primary {
+  padding: 17px 28px;
+  border-radius: 11px;
+  background: var(--ci-acc);
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+  box-shadow: none;
+}
+.ci-btn-primary:hover { color: #fff;
+  background: #c4151b;
+}
+.ci-btn-primary::after,
+.ci-btn-lg::after { content: " \2192"; white-space: pre; }
+
+.ci-scrollcue {
+  position: absolute;
+  right: 44px;
+  bottom: 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  font-family: var(--ci-mono);
+  font-size: 10px;
+  letter-spacing: .24em;
+  text-transform: uppercase;
+  color: rgba(244, 242, 238, .5);
+  pointer-events: none;
+}
+
+.ci-meter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 10.5px;
+  letter-spacing: .2em;
+  color: rgba(244, 242, 238, .55);
+}
+.ci-meter-track {
+  position: relative;
+  width: min(22vw, 170px);
+  height: 1px;
+  background: rgba(244, 242, 238, .22);
+}
+.ci-meter-track i {
+  position: absolute;
+  inset: 0;
+  width: calc(var(--p, 1) * 100%);
+  background: var(--ci-acc);
+}
+.ci-meter-end { color: var(--ci-ink); }
+
+.ci-cue-line {
+  width: 1px;
+  height: 48px;
+  background: linear-gradient(180deg, rgba(244, 242, 238, .5), transparent);
+  animation: ci-cue 2.2s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------ act: scan -- */
+
+.ci-scan { position: relative; height: 520vh; }
+
+.ci-scan-pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  min-height: 560px;
+  overflow: hidden;
+  background: var(--ci-bg);
+  perspective: 2200px;
+  perspective-origin: 50% 48%;
+}
+
+/* Room plate: five angles cross-faded as the walk moves between beats. */
+.ci-room {
+  position: absolute;
+  inset: -9%;
+  width: 118%;
+  height: 118%;
+  opacity: calc(.66 + var(--p, 0) * .3);
+  filter: brightness(calc(.96 + var(--p, 0) * .1)) saturate(calc(.95 + var(--p, 0) * .1));
+  will-change: transform, opacity;
+}
+.ci-room img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity .9s ease;
+}
+.ci-room img[data-angle="1"] { opacity: 1; }
+
+.ci-room-veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(78% 70% at 50% 46%, rgba(10, 10, 10, .12), rgba(10, 10, 10, .66));
+  opacity: calc(1 - var(--p, 0) * .22);
+}
+
+.ci-room-light {
+  position: absolute;
+  width: 62vw;
+  height: 62vh;
+  left: -14%;
+  top: -6%;
+  background: radial-gradient(closest-side,
+    rgba(225, 27, 34, .16),
+    rgba(225, 27, 34, .05) 46%,
+    transparent 72%);
+  opacity: calc(.2 + (1 - var(--p, 0)) * .42);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.ci-room-grid {
+  position: absolute;
+  inset: -6%;
+  width: 112%;
+  height: 112%;
+  background:
+    repeating-linear-gradient(90deg, rgba(225, 27, 34, .14) 0 1px, transparent 1px 68px),
+    repeating-linear-gradient(0deg, rgba(225, 27, 34, .1) 0 1px, transparent 1px 68px);
+  -webkit-mask-image: linear-gradient(96deg, transparent 8%, #000 34%, #000 62%, transparent 88%);
+  mask-image: linear-gradient(96deg, transparent 8%, #000 34%, #000 62%, transparent 88%);
+  opacity: calc(.14 + var(--p, 0) * .3);
+  pointer-events: none;
+}
+
+/* Detection box that flies between the thing being read at each beat. */
+.ci-beat-box {
+  position: absolute;
+  left: 8%;
+  top: 26%;
+  width: 32%;
+  height: 48%;
+  border: 1.5px solid rgba(225, 27, 34, .75);
+  border-radius: 12px;
+  box-shadow: 0 0 60px rgba(225, 27, 34, .22), 0 0 0 1px rgba(225, 27, 34, .14) inset;
+  background: linear-gradient(180deg, rgba(225, 27, 34, .09), rgba(225, 27, 34, .02));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    left 1.1s cubic-bezier(.32, .72, .26, 1),
+    top 1.1s cubic-bezier(.32, .72, .26, 1),
+    width 1.1s cubic-bezier(.32, .72, .26, 1),
+    height 1.1s cubic-bezier(.32, .72, .26, 1),
+    opacity .6s ease;
+}
+
+.ci-phone-stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  perspective: 1700px;
+  perspective-origin: 50% 46%;
+}
+
+.ci-phone {
+  position: relative;
+  width: clamp(232px, 19vw, 308px);
+  aspect-ratio: 9 / 19;
+  max-height: 72vh;
+  border-radius: 44px;
+  background: #141414;
+  border: 1px solid rgba(244, 242, 238, .2);
+  box-shadow: 0 70px 150px rgba(0, 0, 0, .85), 0 0 90px rgba(225, 27, 34, .1);
+  padding: 10px;
+  box-sizing: border-box;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.ci-phone-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 35px;
+  overflow: hidden;
+  background: #0c0c0c;
+  perspective: 900px;
+}
+
+.ci-phone-view {
+  position: absolute;
+  inset: -20%;
+  width: 140%;
+  height: 140%;
+  object-fit: cover;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.ci-phone-veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10, 10, 10, .12), rgba(10, 10, 10, .44));
+}
+
+.ci-reticle {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+}
+.ci-reticle-tl { top: 52px; left: 16px; border-top: 1.5px solid rgba(244, 242, 238, .6); border-left: 1.5px solid rgba(244, 242, 238, .6); border-radius: 6px 0 0 0; }
+.ci-reticle-tr { top: 52px; right: 16px; border-top: 1.5px solid rgba(244, 242, 238, .6); border-right: 1.5px solid rgba(244, 242, 238, .6); border-radius: 0 6px 0 0; }
+.ci-reticle-bl { bottom: 104px; left: 16px; border-bottom: 1.5px solid rgba(244, 242, 238, .6); border-left: 1.5px solid rgba(244, 242, 238, .6); border-radius: 0 0 0 6px; }
+.ci-reticle-br { bottom: 104px; right: 16px; border-bottom: 1.5px solid rgba(244, 242, 238, .6); border-right: 1.5px solid rgba(244, 242, 238, .6); border-radius: 0 0 6px 0; }
+
+.ci-scanline {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 16%;
+  height: 1px;
+  background: rgba(255, 235, 235, .75);
+  box-shadow: 0 0 18px 5px rgba(225, 27, 34, .45);
+  will-change: transform;
+}
+
+.ci-hud-top {
+  position: absolute;
+  top: 11px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.ci-hud-pill {
+  flex: none;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: rgba(16, 16, 16, .66);
+  border: 1px solid rgba(244, 242, 238, .16);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: rgba(244, 242, 238, .9);
+}
+
+.ci-hud-room {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 25px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(16, 16, 16, .7);
+  border: 1px solid rgba(244, 242, 238, .14);
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--ci-ink);
+}
+.ci-hud-room i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ci-acc);
+}
+
+.ci-hud-torch i {
+  width: 3px;
+  height: 9px;
+  border-radius: 2px;
+  background: rgba(244, 242, 238, .85);
+  box-shadow: 0 0 6px rgba(255, 255, 255, .5);
+}
+
+.ci-hud-zoom {
+  flex: none;
+  display: grid;
+  place-items: center;
+  height: 25px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(16, 16, 16, .66);
+  border: 1px solid rgba(244, 242, 238, .16);
+  font-family: var(--ci-mono);
+  font-size: 9px;
+  color: var(--ci-ink);
+}
+
+.ci-hud-levels {
+  flex: none;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: rgba(16, 16, 16, .66);
+  border: 1px solid rgba(244, 242, 238, .16);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1.5px;
+  padding-bottom: 8px;
+}
+.ci-hud-levels i { width: 2px; background: rgba(244, 242, 238, .8); }
+.ci-hud-levels i:nth-child(1) { height: 4px; }
+.ci-hud-levels i:nth-child(2) { height: 7px; }
+.ci-hud-levels i:nth-child(3) { height: 10px; }
+
+.ci-hud-count {
+  flex: none;
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.05;
+  padding: 5px 7px;
+  border-radius: 7px;
+  background: var(--ci-ink);
+  color: #101010;
+}
+.ci-hud-count b { font-size: 11px; }
+.ci-hud-count span { font-size: 8px; letter-spacing: .04em; }
+
+.ci-hud-status {
+  position: absolute;
+  top: 44px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(14, 14, 14, .8);
+  border: 1px solid rgba(244, 242, 238, .1);
+}
+.ci-hud-views {
+  font-family: var(--ci-mono);
+  font-size: 7.5px;
+  letter-spacing: .12em;
+  color: var(--ci-ink);
+  white-space: nowrap;
+}
+.ci-hud-msg {
+  font-size: 9px;
+  color: rgba(244, 242, 238, .92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ci-hud-bar {
+  flex: none;
+  position: relative;
+  width: 38px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(244, 242, 238, .2);
+  margin-left: auto;
+}
+.ci-hud-bar i {
+  position: absolute;
+  inset: 0;
+  width: calc(var(--p, 0) * 100%);
+  border-radius: 2px;
+  background: rgba(244, 242, 238, .85);
+}
+
+/* Telemetry chips: revealed in order as the scan progresses past data-at. */
+.ci-tel {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .5s ease, transform .5s ease;
+}
+.ci-tel.is-on {
+  opacity: 1;
+  transform: none;
+}
+
+.ci-tel-frame {
+  position: absolute;
+  left: 7%;
+  right: 7%;
+  top: 47%;
+  height: 15%;
+  border: 1.5px solid rgba(225, 27, 34, .85);
+  border-radius: 11px;
+  box-shadow: 0 0 24px rgba(225, 27, 34, .28) inset;
+}
+
+.ci-tel-spotted {
+  position: absolute;
+  left: 7%;
+  right: 7%;
+  top: 63.5%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(10, 10, 10, .82);
+  border: 1px solid rgba(244, 242, 238, .1);
+}
+.ci-tel-spotted span {
+  font-family: var(--ci-mono);
+  font-size: 8px;
+  letter-spacing: .14em;
+  color: rgba(244, 242, 238, .9);
+}
+.ci-tel-spotted i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ci-acc);
+  margin-left: auto;
+}
+
+.ci-chip {
+  position: absolute;
+  font-family: var(--ci-mono);
+  font-size: 8.5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(10, 10, 10, .8);
+  border: 1px solid rgba(244, 242, 238, .18);
+}
+.ci-chip-acc { border-color: rgba(225, 27, 34, .34); }
+.ci-chip-floor { left: 7%; top: 31%; }
+.ci-chip-kitchen { right: 7%; top: 38%; }
+.ci-chip-sink { right: 7%; top: 44.5%; }
+.ci-chip-worktop { left: 7%; top: 24.5%; }
+
+.ci-tel-price {
+  position: absolute;
+  left: 7%;
+  right: 7%;
+  top: 78.5%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: var(--ci-acc);
+  color: #fff;
+}
+.ci-tel-price span {
+  font-family: var(--ci-mono);
+  font-size: 7.5px;
+  letter-spacing: .14em;
+  opacity: .75;
+}
+.ci-tel-price b { font-size: 13px; letter-spacing: -.01em; }
+
+.ci-phone-hint {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 71%;
+  margin: 0;
+  text-align: center;
+  font-size: 8.5px;
+  line-height: 1.35;
+  color: rgba(244, 242, 238, .62);
+}
+
+.ci-beat-label {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 110px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: rgba(10, 10, 10, .8);
+  border: 1px solid rgba(244, 242, 238, .1);
+  text-align: center;
+  font-size: 8.5px;
+  line-height: 1.4;
+  color: rgba(244, 242, 238, .9);
+  transition: opacity .35s ease;
+}
+
+.ci-shutter-row {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 28px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.ci-shutter-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.ci-shutter-side > span:first-child {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(20, 20, 20, .72);
+  border: 1px solid rgba(244, 242, 238, .16);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: rgba(244, 242, 238, .9);
+}
+.ci-shutter-mic > span:first-child {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 8px;
+}
+.ci-shutter-mic i {
+  width: 6px;
+  height: 10px;
+  border-radius: 3px;
+  background: rgba(244, 242, 238, .9);
+  box-shadow: 0 5px 0 -3.5px rgba(244, 242, 238, .9);
+}
+.ci-shutter-cap {
+  font-family: var(--ci-mono);
+  font-size: 7px;
+  letter-spacing: .18em;
+  color: rgba(244, 242, 238, .5);
+}
+
+.ci-shutter {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(244, 242, 238, .9);
+  display: grid;
+  place-items: center;
+  margin-bottom: 12px;
+}
+.ci-shutter i {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--ci-acc);
+  box-shadow: 0 0 26px rgba(225, 27, 34, .5);
+}
+
+.ci-tel-done {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 8.5%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(244, 242, 238, .94);
+  color: #101010;
+  text-align: center;
+  font-family: var(--ci-mono);
+  font-size: 7.5px;
+  letter-spacing: .16em;
+}
+
+.ci-phone-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 26px;
+  font-size: 8px;
+  color: rgba(244, 242, 238, .5);
+}
+.ci-phone-foot span { border-bottom: 1px solid rgba(244, 242, 238, .3); }
+
+.ci-phone-notch {
+  position: absolute;
+  top: 23px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 48px;
+  height: 5px;
+  border-radius: 5px;
+  background: var(--ci-bg);
+}
+
+.ci-scan-copy {
+  position: absolute;
+  left: 44px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 26vw;
+  pointer-events: none;
+}
+
+.ci-eyebrow-acc {
+  margin: 0 0 18px;
+  font-family: var(--ci-mono);
+  font-size: 11px;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  color: var(--ci-ink);
+}
+
+.ci-h2 {
+  margin: 0 0 26px;
+  font-weight: 700;
+  font-size: clamp(34px, 4.6vw, 76px);
+  line-height: 1.1;
+  letter-spacing: -.02em;
+}
+.ci-ital {
+  font-family: var(--ci-serif);
+  font-style: normal;
+  font-weight: 400;
+  color: var(--ci-acc);
+}
+
+.ci-lede {
+  margin: 0;
+  max-width: 320px;
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: rgba(244, 242, 238, .7);
+}
+
+.ci-beat-title {
+  margin: 26px 0 0;
+  font-family: var(--ci-mono);
+  font-size: 11px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--ci-ink);
+  transition: opacity .35s ease;
+}
+
+.ci-readout {
+  position: absolute;
+  right: 44px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  width: 282px;
+}
+
+.ci-card {
+  padding: 17px 19px;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid #e7e4e0;
+
+  color: #1a1a1a;
+
+  box-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
+}
+.ci-card-k {
+  margin: 0 0 4px;
+  font-family: var(--ci-mono);
+  font-size: 9.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #666666;
+}
+.ci-card-v {
+  margin: 0;
+  font-weight: 700;
+  font-size: 20px;
+}
+
+.ci-card-price {
+  padding: 19px;
+  border-radius: 20px;
+  background: var(--ci-acc);
+  color: #fff;
+}
+.ci-card-price .ci-card-k { color: inherit; opacity: .7; }
+.ci-card-price .ci-card-v {
+  font-weight: 800;
+  font-size: 38px;
+  letter-spacing: -.03em;
+}
+
+/* ---------------------------------------------------------- act: manual -- */
+
+.ci-manual { position: relative; height: 420vh; }
+
+.ci-manual-pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  min-height: 520px;
+  overflow: hidden;
+  background: #0e0e0d;
+}
+
+.ci-manual-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: .16;
+  filter: grayscale(.5) brightness(.8);
+}
+
+.ci-manual-veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(80% 70% at 30% 40%, rgba(14, 14, 13, .55), rgba(14, 14, 13, .96));
+}
+
+.ci-manual-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(240px, .72fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(24px, 3.4vw, 72px);
+  padding: 0 clamp(20px, 3.4vw, 64px);
+}
+
+.ci-manual-h2 {
+  margin: 0 0 24px;
+  font-weight: 700;
+  font-size: clamp(34px, 4.6vw, 74px);
+  line-height: 1.1;
+  letter-spacing: -.02em;
+}
+
+.ci-manual-lede {
+  margin: 0 0 26px;
+  max-width: 380px;
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: rgba(244, 242, 238, .72);
+}
+
+.ci-ticks {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin-bottom: 30px;
+}
+.ci-tick {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14.5px;
+  color: rgba(244, 242, 238, .82);
+}
+.ci-tick span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ci-acc);
+}
+
+.ci-manual-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.ci-btn-lg {
+  padding: 19px 32px;
+  border-radius: 11px;
+  background: var(--ci-acc);
+  color: #fff;
+  font-weight: 600;
+  font-size: 16.5px;
+
+  box-shadow: none;
+}
+.ci-btn-lg:hover { color: #fff;
+  background: #c4151b;
+}
+.ci-btn-ghost {
+  padding: 12px 16px;
+  border-radius: 11px;
+  border: 1px solid #e11b22;
+  font-weight: 600;
+  font-size: 16.5px;
+
+  color: #e11b22;
+
+  background: #fff;
+}
+
+.ci-mwrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+/* The booking card is authored at 620px and scaled to fit by JS .measure(). */
+.ci-mcard {
+  position: relative;
+  flex: none;
+  width: 620px;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid rgba(10, 10, 10, .08);
+  box-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
+  padding: 24px;
+  box-sizing: border-box;
+  color: #1a1a1a;
+  transform-origin: 50% 50%;
+}
+
+.ci-mcard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 210px;
+  gap: 22px;
+  align-items: start;
+}
+
+.ci-mcol {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ci-mdots { display: flex; gap: 6px; }
+.ci-mdots i {
+  height: 4px;
+  width: 30px;
+  border-radius: 4px;
+  background: #e2e1dd;
+  transition: background .4s ease;
+}
+.ci-mdots i.is-on { background: var(--ci-acc); }
+
+.ci-mhead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ci-mstep-k {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: #666;
+}
+.ci-mstep-t {
+  margin: 0;
+  font-weight: 800;
+  font-size: 23px;
+  letter-spacing: -.02em;
+  color: #141414;
+}
+
+.ci-mfield {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ci-mfield-k {
+  font-size: 13px;
+  font-weight: 600;
+  color: #3a3833;
+}
+.ci-mselect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-radius: 11px;
+  background: #fbf9f5;
+  border: 1px solid rgba(10, 10, 10, .13);
+  font-size: 14px;
+  color: #4a4742;
+}
+.ci-mselect i {
+  font-style: normal;
+  font-size: 10px;
+  color: #8a8681;
+}
+
+.ci-moptions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* Step rows animate in with the same reveal as the scan telemetry. */
+.ci-mstep {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .5s ease, transform .5s ease;
+}
+.ci-mstep.is-on {
+  opacity: 1;
+  transform: none;
+}
+
+.ci-mopt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid rgba(10, 10, 10, .07);
+}
+.ci-mopt-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #fbe4e0;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+}
+.ci-mopt-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ci-mopt-name {
+  font-weight: 700;
+  font-size: 14.5px;
+  color: #1a1a1a;
+}
+.ci-mopt-note {
+  font-size: 12.5px;
+  color: #6e6a66;
+}
+.ci-mopt-tag {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 7px;
+  background: #f6de86;
+  color: #4a3b10;
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+.ci-mnote {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: #6e6a66;
+}
+
+.ci-mnav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+.ci-mback {
+  padding: 12px 26px;
+  border-radius: 999px;
+  background: #efeeea;
+  color: #666;
+  font-weight: 700;
+  font-size: 14.5px;
+}
+.ci-mnext {
+  padding: 12px 30px;
+  border-radius: 11px;
+  background: var(--ci-acc);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14.5px;
+
+  box-shadow: none;
+}
+
+.ci-basket {
+  border-radius: 14px;
+  background: #f7f4ee;
+  border: 1px solid rgba(10, 10, 10, .07);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ci-basket-t {
+  margin: 0;
+  text-align: center;
+  font-weight: 800;
+  font-size: 15px;
+  color: #141414;
+}
+.ci-basket-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.ci-basket-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #fbe4e0;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+}
+.ci-basket-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+.ci-basket-hours {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: #4a4742;
+}
+.ci-basket-hours > span:empty {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ci-acc);
+}
+.ci-basket-rule {
+  height: 1px;
+  background: rgba(10, 10, 10, .09);
+}
+.ci-basket-note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #6e6a66;
+}
+
+/* ---------------------------------------------------------- act: detail -- */
+
+.ci-detail { position: relative; height: 400vh; }
+
+.ci-detail-pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  min-height: 640px;
+  overflow: hidden;
+  background: var(--ci-bg);
+}
+
+.ci-detail-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform:
+    scale(calc(1.28 - var(--p, 0) * .2))
+    translate(calc(var(--p, 0) * -1.6%), calc(var(--p, 0) * 1%));
+  transform-origin: 44% 58%;
+  filter: saturate(.9) brightness(.82);
+  will-change: transform;
+}
+
+.ci-detail-veil {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(58% 50% at 42% 56%, transparent, rgba(10, 10, 10, .74));
+}
+
+.ci-detail-copy {
+  position: absolute;
+  left: 44px;
+  bottom: 52px;
+  pointer-events: none;
+}
+.ci-detail-copy .ci-eyebrow-acc { margin: 0 0 14px; }
+.ci-detail-h2 {
+  margin: 0;
+  font-weight: 700;
+  font-size: clamp(34px, 5.2vw, 84px);
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  max-width: 15ch;
+}
+.ci-detail-h2 .ci-ital { color: inherit; }
+
+/* ------------------------------------------------------------ act: join -- */
+
+.ci-join { position: relative; height: 220vh; }
+
+.ci-join-pin {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  min-height: 430px;
+  overflow: hidden;
+  background: #f7f6f5;
+  display: grid;
+  place-items: center;
+
+  color: #1a1a1a;
+}
+
+.ci-join-glow {
+  position: absolute;
+  width: 120vw;
+  height: 120vh;
+  background: radial-gradient(closest-side,
+    rgba(225, 27, 34, .2),
+    rgba(225, 27, 34, .05) 45%,
+    transparent 72%);
+  transform: scale(calc(.6 + var(--p, 1) * .55));
+  opacity: calc(.25 + var(--p, 1) * .5);
+  pointer-events: none;
+}
+
+.ci-join-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: min(88px, 11vh) 40px min(40px, 5vh);
+}
+
+.ci-join-eyebrow {
+  margin: 0 0 min(34px, 3.4vh);
+  font-family: var(--ci-mono);
+  font-size: 11px;
+  letter-spacing: .3em;
+  text-transform: uppercase;
+  color: #666666;
+  opacity: calc(var(--p, 1) * 2.4);
+  transform: translateY(calc((1 - var(--p, 1)) * 18px));
+}
+
+.ci-join-h2 {
+  margin: 0;
+  font-weight: 700;
+  font-size: clamp(36px, 6vw, 72px);
+  line-height: 1.1;
+  letter-spacing: -.05em;
+}
+.ci-join-h2 span { display: block; }
+.ci-join-l1 {
+  opacity: calc(var(--p, 1) * 3);
+  transform: translateY(calc((1 - var(--p, 1)) * 90px));
+}
+.ci-join-l2 {
+  font-family: var(--ci-serif);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: -.02em;
+  color: var(--ci-acc);
+  opacity: calc((var(--p, 1) - .12) * 3);
+  transform: translateY(calc((1 - var(--p, 1)) * 130px));
+}
+
+.ci-join-rule {
+  display: block;
+  height: 2px;
+  width: min(62vw, 760px);
+  margin: min(44px, 4vh) 0 min(46px, 4.4vh);
+  background: var(--ci-acc);
+  transform: scaleX(calc((var(--p, 1) - .18) * 1.6));
+  transform-origin: 50% 50%;
+}
+
+.ci-join-btn {
+  position: relative;
+  display: inline-flex;
+  opacity: 0;
+  transform: translateY(120px) scale(.88);
+  transition: opacity .45s ease, transform 1s cubic-bezier(.14, .9, .2, 1.04);
+  will-change: transform, opacity;
+}
+.ci-join-btn.is-on {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.ci-join-tail {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 3px;
+  height: 96px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg,
+    rgba(225, 27, 34, 0),
+    rgba(225, 27, 34, .5) 60%,
+    rgba(255, 240, 240, .85));
+  filter: blur(1px);
+  opacity: calc(
+    clamp(0, (var(--p, 1) - .26) * 12, 1) *
+    (1 - clamp(0, (var(--p, 1) - .42) * 6, 1))
+  );
+  pointer-events: none;
+}
+
+.ci-btn-join {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: min(22px, 2.4vh) min(40px, 4vw);
+  border-radius: 11px;
+  background: var(--ci-acc);
+  color: #fff;
+  font-weight: 700;
+  font-size: clamp(16px, min(1.5vw, 2.4vh), 21px);
+  letter-spacing: -.01em;
+  text-decoration: none;
+  box-shadow: none;
+}
+.ci-btn-join:hover { color: #fff;
+  background: #c4151b;
+}
+.ci-btn-join::after { content: "\2197"; font-size: 16px; }
+
+.ci-join-foot {
+  margin: min(30px, 2.8vh) 0 0;
+  font-size: 14px;
+  color: #666666;
+  opacity: calc((var(--p, 1) - .4) * 3);
+}
+.ci-join-foot a {
+  min-width: 44px;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: #666666;
+}
+
+/* -------------------------------------------------------------- footer --- */
+
+.ci-footer {
+  position: relative;
+  z-index: 2;
+  padding: 44px;
+  background: #ffffff;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+
+  color: #1a1a1a;
+
+  border-top: 1px solid #efedeb;
+}
+.ci-footer-mark {
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: .2em;
+}
+.ci-footer-note {
+  margin: 0;
+  font-family: var(--ci-mono);
+  font-size: 10.5px;
+  letter-spacing: .1em;
+  color: #666666;
+}
+.ci-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  font-size: 13px;
+}
+.ci-footer-links a {
+  min-width: 44px;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: #666666;
+}
+.ci-footer-links a:hover { color: var(--ci-acc); }
+
+/* ------------------------------------------------------------ responsive - */
+
+/*
+ * Below the tablet break the two- and three-column acts stack, the sticky
+ * panels stop competing for width, and the scroll distances shorten so the
+ * page does not become an endless swipe on a phone.
+ */
+@media (max-width: 1080px) {
+  .ci-nav { padding: 14px 20px; }
+  .ci-nav-links { display: none; }
+
+  .ci-hero-frame { width: 78vw; height: 52vw; }
+  .ci-hero-copy { --ci-hero-gutter: 20px; padding: 76px var(--ci-hero-gutter) 24px; }
+  .ci-hero-l2 { padding-left: 8vw; }
+  .ci-scrollcue { right: 20px; bottom: 20px; }
+
+  .ci-scan { height: 460vh; }
+  .ci-scan-copy {
+    left: 20px;
+    right: 20px;
+    bottom: auto;
+    top: 84px;
+    max-width: none;
+    justify-content: flex-start;
+  }
+  .ci-scan-copy .ci-h2 { margin-bottom: 12px; }
+  .ci-scan-copy .ci-lede { display: none; }
+  .ci-readout {
+    right: 20px;
+    left: 20px;
+    top: auto;
+    bottom: 20px;
+    width: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .ci-readout .ci-card,
+  .ci-readout .ci-card-price { flex: 1 1 140px; padding: 10px 12px; }
+  .ci-readout .ci-card-v { font-size: 15px; }
+  .ci-readout .ci-card-price .ci-card-v { font-size: 22px; }
+
+  .ci-manual-grid {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: 20px;
+    padding: 76px 20px 24px;
+    overflow-y: auto;
+  }
+  .ci-manual-h2 { margin-bottom: 14px; }
+  .ci-manual-lede { margin-bottom: 16px; }
+  .ci-ticks { margin-bottom: 18px; }
+
+  .ci-detail-copy { left: 20px; bottom: 32px; }
+
+  .ci-footer { padding: 32px 20px; }
+}
+
+@media (max-width: 720px) {
+  .ci-signup { padding: 10px 16px; font-size: 12.5px; }
+  .ci-hero-frame { width: 88vw; height: 58vw; }
+  .ci-hero-sub { font-size: 15px; margin-top: 24px; }
+  .ci-meter-track { width: 26vw; }
+
+  /* The manual act's card is authored at desktop width; hide the mock and keep
+     the copy and the two real calls to action, which are what matter on a phone. */
+  .ci-mwrap { display: none; }
+  .ci-manual-grid { padding-top: 84px; }
+
+
+  .ci-footer { justify-content: flex-start; }
+}
+
+/*
+ * Reduced motion: the page still tells its story, it just does not move.
+ * landing.js checks the same query and skips the scroll loop entirely, so
+ * every act renders at its finished state rather than its starting one.
+ */
+@media (prefers-reduced-motion: reduce) {
+  html.ci-html { scroll-behavior: auto; }
+  .ci-body *,
+  .ci-body *::before,
+  .ci-body *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .ci-launch,
+  .ci-join-btn {
+    opacity: 1;
+    transform: none;
+  }
+  .ci-tel,
+  .ci-mstep {
+    opacity: 1;
+    transform: none;
+  }
+  .ci-mdots i { background: var(--ci-acc); }
+  .ci-wipe-glow,
+  .ci-wipe-edge,
+  .ci-launch-tail,
+  .ci-join-tail,
+  .ci-cue-line { display: none; }
+  .ci-hero-dirty { transform: translate3d(118%, 0, 0); }
+  .ci-beat-box { opacity: .9; }
+  .ci-join-eyebrow,
+  .ci-join-l1,
+  .ci-join-l2,
+  .ci-join-foot { opacity: 1; transform: none; }
+  .ci-join-rule { transform: scaleX(1); }
+}
+
+/* Small-screen still layouts need document flow instead of overlapping sticky layers. */
+@media (max-width: 1080px) and (prefers-reduced-motion: reduce) {
+  .ci-scan { height: auto; }
+  .ci-scan-pin { position: relative; height: auto; min-height: 100vh; display: grid; gap: 24px; padding: 104px 20px 24px; }
+  .ci-scan-copy { position: relative; inset: auto; order: 1; }
+  .ci-phone-stage { position: relative; inset: auto; order: 2; }
+  .ci-readout { position: relative; inset: auto; order: 3; }
+}

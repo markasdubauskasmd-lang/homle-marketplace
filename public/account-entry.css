@@ -207,7 +207,7 @@ body.account-entry .account-feedback {
 body.account-entry .account-feedback[data-kind="error"] {
   border-color: oklch(0.58 0.19 25 / .35);
   background: oklch(0.58 0.19 25 / .07);
-  color: var(--customer-accent);
+  color: #c4151b;
 }
 
 /* ── Provider buttons ─────────────────────────────────────────────────── */

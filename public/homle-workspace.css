@@ -37,6 +37,8 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 body.homle-workspace {
+  --homle-ws-success-ink: #2a7047;
+  --homle-ws-warn-ink: #8b5a00;
   min-height: 100vh;
   margin: 0;
   background: var(--homle-ws-canvas, #f7f6f5);

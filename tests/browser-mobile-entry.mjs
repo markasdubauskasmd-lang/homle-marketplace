@@ -251,6 +251,24 @@ try {
             "Hero text clips at "+viewport.width+" scroll="+fraction+": "+JSON.stringify(bounds));
         }
       }
+      if(!reduce && viewport.width<=1080) {
+        const transforms=new Set();
+        for(const fraction of [0,.125,.25,.375,.5,.625,.75,.875,1]) {
+          const state=await browser.evaluate(`
+            const section=document.querySelector('[data-stage="scan"]');
+            const top=scrollY+section.getBoundingClientRect().top;
+            window.scrollTo({top:top+Math.max(0,section.offsetHeight-innerHeight)*${fraction},behavior:"instant"});
+            await new Promise(resolve=>setTimeout(resolve,650));
+            const rect=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right};};
+            return {copy:rect(".ci-scan-copy"),phone:rect(".ci-phone"),readout:rect(".ci-readout"),transform:document.querySelector(".ci-phone").style.transform};
+          `);
+          transforms.add(state.transform);
+          assert(state.phone.top>=state.copy.bottom+12&&state.readout.top>=state.phone.bottom+12,
+            "Animated scanner panels overlap at "+viewport.width+" progress="+fraction+": "+JSON.stringify(state));
+          assert(state.phone.left>=0&&state.phone.right<=viewport.width,"Animated phone clips horizontally at "+viewport.width);
+        }
+        assert(transforms.size>3,"The mobile scanner animation stopped moving");
+      }
       const stages=await browser.evaluate(`return [...document.querySelectorAll("[data-stage]")].map(el=>el.dataset.stage);`);
       assert(JSON.stringify(stages)===JSON.stringify(["open","scan","manual","detail","join"]),"Landing sections changed: "+JSON.stringify(stages));
       for(const stage of stages) {
@@ -265,6 +283,32 @@ try {
             text:section.innerText.trim(),
             animations:document.getAnimations().filter(a=>a.playState==="running"||a.pending).length};
         `);
+        if(reduce && stage==="scan" && viewport.width<=1080) {
+          const layout=await browser.evaluate(`
+            const rect=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right};};
+            return {copy:rect(".ci-scan-copy"),phone:rect(".ci-phone-stage"),readout:rect(".ci-readout"),nav:rect(".ci-nav")};
+          `);
+          assert(layout.copy.top>=layout.nav.bottom, "Still scanner heading is behind the navigation at "+viewport.width);
+          assert(layout.phone.top>=layout.copy.bottom+20 && layout.readout.top>=layout.phone.bottom+20,
+            "Still scanner panels overlap at "+viewport.width+": "+JSON.stringify(layout));
+          assert([layout.copy,layout.phone,layout.readout].every(r=>r.left>=0&&r.right<=viewport.width),
+            "Still scanner panel clips horizontally");
+        }
+        if(stage==="manual" && viewport.width<=1080) {
+          const manual=await browser.evaluate(`
+            const grid=document.querySelector(".ci-manual-grid");grid.scrollTop=0;
+            const title=document.querySelector(".ci-manual-h2").getBoundingClientRect();
+            const nav=document.querySelector(".ci-nav").getBoundingClientRect();
+            const area=grid.getBoundingClientRect();
+            grid.scrollTop=grid.scrollHeight;
+            const card=document.querySelector(".ci-mcard").getBoundingClientRect();
+            const scroll=grid.scrollTop;grid.scrollTop=0;
+            return {titleTop:title.top,navBottom:nav.bottom,bottom:area.bottom,cardBottom:card.bottom,cardWidth:card.width,scroll};
+          `);
+          assert(manual.titleTop>=manual.navBottom,"Manual heading hidden behind navigation at "+viewport.width+": "+JSON.stringify(manual));
+          if(viewport.width>720) assert(manual.cardWidth>0&&manual.cardBottom<=manual.bottom+1,
+            "Manual illustration bottom cannot be reached at "+viewport.width+": "+JSON.stringify(manual));
+        }
         const label=stage+" "+viewport.width+" reduce="+reduce;
         if(reduce) targetRows.push(await inspectCustomerMotion(browser,"public-home-"+stage+" "+viewport.width));
         assert(state.width===viewport.width&&state.overflow<=1,label+": horizontal overflow "+JSON.stringify(state));
@@ -285,7 +329,34 @@ try {
             label+": static poster missing or reduced-motion video loaded: "+JSON.stringify(still));
         }
         await writeFile(new URL("home-"+stage+"-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
+        if(stage==="scan" && viewport.width<=1080) {
+          if(!reduce) {
+            const endState=await browser.evaluate(`
+              const section=document.querySelector('[data-stage="scan"]');
+              window.scrollTo({top:scrollY+section.getBoundingClientRect().top+section.offsetHeight-innerHeight,behavior:"instant"});
+              await new Promise(resolve=>setTimeout(resolve,900));
+              return [...document.querySelectorAll(".ci-readout > div")].map(el=>{const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,opacity:Number(getComputedStyle(el).opacity),height:innerHeight};});
+            `);
+            assert(endState.length===5&&endState.every(r=>r.top>=72&&r.bottom<=r.height+1&&r.opacity>.95),
+              "Completed mobile scanner results are not visible: "+JSON.stringify(endState));
+          }
+          await browser.evaluate(`const r=document.querySelector(".ci-readout").getBoundingClientRect();window.scrollTo({top:scrollY+r.bottom-innerHeight+24,behavior:"instant"});await new Promise(resolve=>setTimeout(resolve,100));return true;`);
+          await writeFile(new URL("home-scan-results-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
+        }
       }
+      const footerState=await browser.evaluate(`
+        window.scrollTo({top:document.documentElement.scrollHeight,behavior:"instant"});
+        await new Promise(resolve=>setTimeout(resolve,300));
+        const number=document.querySelector("[data-mhours]");
+        const box=number.getBoundingClientRect();
+        const style=getComputedStyle(number);
+        return {footerLinks:[...document.querySelectorAll(".ci-footer-links a")].map(el=>{const r=el.getBoundingClientRect();return {text:el.textContent.trim(),left:r.left,right:r.right,top:r.top,bottom:r.bottom};}),
+          width:innerWidth,height:innerHeight,number:{text:number.textContent,width:box.width,background:style.backgroundColor}};
+      `);
+      assert(footerState.footerLinks.length===6,"Homepage footer links missing");
+      assert(footerState.footerLinks.every(r=>r.left>=0&&r.right<=footerState.width&&r.top>=0&&r.bottom<=footerState.height),"Homepage footer links clipped at "+viewport.width);
+      if(viewport.width>720) assert(footerState.number.width>5&&footerState.number.background==="rgba(0, 0, 0, 0)","Illustrative hour count inherited the decorative dot style");
+      await writeFile(new URL("home-footer-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
     }
   }
 
