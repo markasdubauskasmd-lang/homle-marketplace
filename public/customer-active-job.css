@@ -3,6 +3,8 @@
    match the initial /login marker or a Cleaner workspace. Keep shared assets frozen. */
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) { --green: #e11b22; --green-dark: #1a1a1a; --orange: #e11b22; --muted: #666; --line: #e7e4e0; --homle-line: #e7e4e0; --homle-line-soft: #efedeb; --homle-muted: #666; --homle-success: #2e9e63; font-family: "DM Sans", system-ui, -apple-system, sans-serif; color: #1a1a1a; background: #f7f6f5; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) :is(h1,h2,h3,h4,button,input,select,textarea) { font-family: inherit; }
+body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-header .brand span { color: #1a1a1a; }
+body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .account-footer a { color: #cfc4c7; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-header { background: #fff; border-bottom: 1px solid #efedeb; box-shadow: none; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-header nav a { font-size: 14.5px; font-weight: 600; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-main { padding-top: 32px; }
@@ -17,7 +19,7 @@ body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .act
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-stages li::before { background: #e7e4e0; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-stages span { border-color: #e7e4e0; background: #fff; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-stages .complete span { background: #e11b22; border-color: #e11b22; color: #fff; }
-body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-stages .current span { background: #fdecec; border-color: #e11b22; color: #e11b22; box-shadow: 0 0 0 5px #fdecec; }
+body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-stages .current span { background: #fdecec; border-color: #e11b22; color: #c4151b; box-shadow: 0 0 0 5px #fdecec; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-stages :is(.complete,.current)::before { background: #e11b22; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-location-surface { background: #f7f6f5; border-color: #e7e4e0; border-radius: 12px; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-location-surface::before, body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-location-surface::after { background: #e7e4e0; }
