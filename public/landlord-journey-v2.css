@@ -193,7 +193,7 @@ body.journey-page .rail-lbl {
   text-transform: uppercase;
   color: var(--homle-ws-dim, #6b6b6b);
 }
-body.journey-page .rail-back { color: var(--homle-ws-muted, #666666); border-radius: 9px; }
+body.journey-page .rail-back { width: 44px; height: 44px; color: var(--homle-ws-muted, #666666); border-radius: 9px; }
 body.journey-page .rail-back:hover { color: var(--homle-ws-accent-dark, #c4151b); }
 
 /* The workspace's focus contract, for everything the rail and steps contain. */

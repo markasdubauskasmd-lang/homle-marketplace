@@ -92,6 +92,7 @@ body.homle-workspace .hw-sidebar-inner {
   padding: 22px 16px 20px;
 }
 body.homle-workspace .hw-brand {
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 11px;
@@ -246,8 +247,8 @@ body.homle-workspace .hw-topbar-actions { display: flex; align-items: center; ga
 body.homle-workspace .hw-bell {
   position: relative;
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   border: 1px solid var(--homle-ws-border, #e7e4e0);
   border-radius: 999px;
@@ -283,7 +284,8 @@ body.homle-workspace .hw-bell-count {
   line-height: 1.5;
   text-align: center;
 }
-body.homle-workspace .hw-mobile-brand { display: none; }
+body.homle-workspace .hw-mobile-brand { display: none; min-width: 44px; min-height: 44px; place-items: center; }
+body.homle-workspace .account-menu summary { min-width: 44px; min-height: 44px; }
 
 /* ── Mobile tab bar ──────────────────────────────────────────────────────── */
 
@@ -391,6 +393,7 @@ body.homle-workspace label { display: block; margin-top: 14px; font-size: 13.5px
 body.homle-workspace label.checkbox,
 body.homle-workspace label:has(> input[type="checkbox"]),
 body.homle-workspace label:has(> input[type="radio"]) {
+  min-height: 44px;
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   gap: 10px;
