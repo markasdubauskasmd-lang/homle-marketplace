@@ -315,6 +315,16 @@ try {
         }
         await writeFile(new URL("home-"+stage+"-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
         if(stage==="scan" && viewport.width<=1080) {
+          if(!reduce) {
+            const endState=await browser.evaluate(`
+              const section=document.querySelector('[data-stage="scan"]');
+              window.scrollTo({top:scrollY+section.getBoundingClientRect().top+section.offsetHeight-innerHeight,behavior:"instant"});
+              await new Promise(resolve=>setTimeout(resolve,900));
+              return [...document.querySelectorAll(".ci-readout > div")].map(el=>{const r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,opacity:Number(getComputedStyle(el).opacity),height:innerHeight};});
+            `);
+            assert(endState.length===5&&endState.every(r=>r.top>=72&&r.bottom<=r.height+1&&r.opacity>.95),
+              "Completed mobile scanner results are not visible: "+JSON.stringify(endState));
+          }
           await browser.evaluate(`const r=document.querySelector(".ci-readout").getBoundingClientRect();window.scrollTo({top:scrollY+r.bottom-innerHeight+24,behavior:"instant"});await new Promise(resolve=>setTimeout(resolve,100));return true;`);
           await writeFile(new URL("home-scan-results-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
         }
