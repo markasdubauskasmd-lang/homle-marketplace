@@ -37,3 +37,5 @@ html body.homlle-onboarding-flow .hc-main .hc-academy-card{border:3px solid #2d2
 html body.homlle-onboarding-flow .hc-main :is(.hc-review-summary,.hc-review-item,.hc-work-panel){background:#f3f2f2;border-color:#aaa;box-shadow:none}
 html body.homlle-onboarding-flow:not(.homlle-onboarding-home) .hc-main button.hc-documents-drop{border-radius:22px}
 html body.homlle-onboarding-flow .hc-main .hc-documents-card{border:3px solid #2d2b2a;border-radius:22px;box-shadow:none}
+
+.hc-personal-grid-two{grid-template-columns:repeat(2,minmax(0,1fr))}

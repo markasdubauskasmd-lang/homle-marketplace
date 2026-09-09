@@ -19,7 +19,7 @@
 <script src="/cleaner-registration.js?v=20260908-flow-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
-<link rel="stylesheet" href="/cleaner-onboarding-flow.css?v=20260908-1">
+<link rel="stylesheet" href="/cleaner-onboarding-flow.css?v=20260909-1">
 <script src="/cleaner-onboarding-flow.js?v=20260908-1" type="module"></script>
 </head>
 <body class="cleaner-workspace-page cleaner-onboarding-page homlle-onboarding-flow" data-cleaner-shell="onboarding">
@@ -309,18 +309,17 @@
               <form class="hc-personal-form" data-personal-form novalidate>
                 <fieldset class="hc-personal-section">
                   <legend>Your details</legend>
-                  <div class="hc-personal-grid hc-personal-grid-four">
+                  <div class="hc-personal-grid hc-personal-grid-two">
                     <label><span>First name <b aria-hidden="true">*</b></span><input name="firstName" autocomplete="given-name" maxlength="60" required></label>
-                    <label><span>Middle name</span><input name="middleName" autocomplete="additional-name" maxlength="60"></label>
                     <label><span>Last name <b aria-hidden="true">*</b></span><input name="lastName" autocomplete="family-name" maxlength="60" required></label>
-                    <label><span>Preferred name</span><input name="preferredName" autocomplete="nickname" maxlength="60"></label>
                   </div>
                   <div class="hc-personal-grid hc-personal-grid-three">
                     <label><span>Date of birth <b aria-hidden="true">*</b></span><input name="dateOfBirth" type="date" autocomplete="bday" required></label>
                     <label><span>Gender (optional)</span><select name="gender"><option value="">Select</option><option>Prefer not to say</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Self-describe</option></select></label>
                     <label><span>Nationality <b aria-hidden="true">*</b></span><select name="nationality" autocomplete="country-name" required><option value="">Select</option><option>British</option><option>Irish</option><option>Other</option><option>Prefer not to say</option></select></label>
+                  </div>
+                  <div class="hc-personal-grid hc-personal-grid-two">
                     <label><span>Mobile number <b aria-hidden="true">*</b></span><input name="mobileNumber" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" required></label>
-                    <label><span>Alternative phone</span><input name="alternativePhone" type="tel" inputmode="tel" maxlength="30"></label>
                     <label><span>Email address <b aria-hidden="true">*</b></span><input name="email" type="email" autocomplete="email" readonly required></label>
                   </div>
                 </fieldset>

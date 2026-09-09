@@ -7,11 +7,12 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // The user approved migrating the Cleaner workspace and onboarding designs on 8 September 2026.
+// User approved removing three optional Personal details fields on 9 September 2026.
 // Pin that approved frontend and keep the backend boundary intact.
 // Pinning the complete dedicated surface and the shared browser assets it loads
 // makes an accidental change fail in CI before it can be merged or deployed.
 const expectedFileCount = 96;
-const expectedDigest = "acac9c6573206e36e6fd172fd33fc6d803728ac844169bff05fb8403904c614d";
+const expectedDigest = "629750e01c10027e411a1275f3f75c3b163fe0f3b1e021106d87ea8f1cc631d2";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
