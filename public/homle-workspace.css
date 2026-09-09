@@ -429,7 +429,7 @@ body.homle-workspace textarea {
   min-height: 46px;
   margin-top: 6px;
   padding: 12px 14px;
-  border: 1px solid var(--homle-ws-border, #e7e4e0);
+  border: 1px solid #8a8a8a;
   border-radius: var(--homle-ws-radius-field, 12px);
   background: #fbfaf9;
   color: inherit;

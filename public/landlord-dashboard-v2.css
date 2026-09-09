@@ -662,6 +662,7 @@ body.landlord-dashboard-page .ld-account-section .landlord-profile-form .button 
   box-shadow: none;
 }
 body.landlord-dashboard-page .ld-account-section .landlord-profile-form fieldset { display: grid; gap: 16px; }
+body.landlord-dashboard-page .ld-account-section .landlord-profile-form :is(input, textarea) { border-color: #8a8a8a; }
 
 body.landlord-dashboard-page .ld-acct-rows {
   display: block;

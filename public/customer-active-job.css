@@ -38,7 +38,7 @@ body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .but
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .button:hover { background: #c4151b; border-color: #c4151b; color: #fff; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .button-outline { background: #fff; color: #e11b22; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .button-outline:hover { background: #fdecec; border-color: #e11b22; color: #e11b22; }
-body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) :is(input:not([type=radio]):not([type=checkbox]),select,textarea) { border: 1px solid #e1deda; border-radius: 11px; background: #fff; color: #1a1a1a; font-size: 14.5px; }
+body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) :is(input:not([type=radio]):not([type=checkbox]),select,textarea) { border: 1px solid #8a8a8a; border-radius: 11px; background: #fff; color: #1a1a1a; font-size: 14.5px; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) :is(input,select,textarea):focus { border-color: #e11b22; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) :is(a,button,input,select,textarea,summary):focus-visible { outline: 3px solid #2456e6; outline-offset: 2px; }
 body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .active-job-dialog { border: 1px solid #e7e4e0; border-radius: 16px; }
