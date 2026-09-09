@@ -127,9 +127,9 @@ function hydrateExperience(form, currentProfile, experienceData = {}, businessDa
   if (select instanceof HTMLSelectElement) select.value = experienceData.yearsExperience == null
     ? originalYearsBucket
     : String(experienceData.yearsExperience);
-  const serviceType = serviceTypes.has(experienceData.serviceType)
-    ? experienceData.serviceType
-    : (serviceTypes.has(businessData.serviceType) ? businessData.serviceType : "cleaner");
+  const serviceType = serviceTypes.has(businessData.serviceType)
+    ? businessData.serviceType
+    : (serviceTypes.has(experienceData.serviceType) ? experienceData.serviceType : "cleaner");
   const serviceControl = form.elements.namedItem("serviceType");
   if (serviceControl instanceof RadioNodeList) serviceControl.value = serviceType;
   const storedSpecialisms = Array.isArray(experienceData.specialisms)

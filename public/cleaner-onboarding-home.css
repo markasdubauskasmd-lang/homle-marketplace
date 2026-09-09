@@ -31,3 +31,6 @@ body.homlle-onboarding-home .oh-progress .hc-sr{position:absolute;width:1px;heig
 body.homlle-onboarding-home [data-preview-liquid-indicator]{display:none}
 body.homlle-onboarding-home .oh-hero{overflow:hidden}
 html body.cleaner-onboarding-page.homlle-onboarding-home .hc-side.cleaner-site-header[data-preview-sidebar]:not(.is-preview-expanded) [data-onboarding-nav] > .hc-preview-liquid-indicator[data-preview-liquid-indicator]{display:none!important}
+
+.oh-profession{max-width:460px;margin-top:26px}.oh-profession>p{font-size:16px;line-height:1.5}.oh-profession label{display:block;font-size:14px;font-weight:750;margin-bottom:8px}.oh-profession select{display:block;width:100%;min-height:50px;border:2px solid #201e1d;border-radius:12px;background:#fff;color:#201e1d;padding:12px;font:600 16px Archivo,system-ui,sans-serif}.oh-profession .oh-actions{margin-top:16px}.oh-profession button{border:0;cursor:pointer}.oh-profession :disabled{opacity:.65;cursor:wait}.oh-profession .oh-profession-status{font-size:13px;min-height:20px}.oh-profession select:focus-visible{outline:3px solid #126bc1;outline-offset:3px}
+html body.homlle-onboarding-home .oh-profession label{color:#fff;margin:0 0 8px}html body.homlle-onboarding-home .oh-profession{background:transparent;padding:0;border:0}

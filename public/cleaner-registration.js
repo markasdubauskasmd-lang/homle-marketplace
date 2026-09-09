@@ -1,3 +1,4 @@
+import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
 import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260807-2";
 import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260816-restore-1";
 import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260816-restore-1";
@@ -7,7 +8,7 @@ import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=
 import { setupRightToWork } from "./cleaner-right-to-work.js?v=20260808-1";
 import { setupBackgroundChecks } from "./cleaner-background-checks.js?v=20260728-1";
 import { setupWorkAreas } from "./cleaner-work-areas.js?v=20260807-1";
-import { setupExperience } from "./cleaner-experience.js?v=20260805-1";
+import { setupExperience } from "./cleaner-experience.js?v=20260909-1";
 import { setupInsurance } from "./cleaner-insurance.js?v=20260810-3";
 import { setupBanking } from "./cleaner-banking.js?v=20260729-1";
 import { setupEquipment } from "./cleaner-equipment.js?v=20260807-1";
@@ -187,9 +188,42 @@ if (!localDesignPreview) createCleanerPage("reg", async (context) => {
     const next = progress.steps.find(step => !step.done && step.href) || progress.steps.find(step => step.key === "review");
     setText("[data-oh-done]", completeReads ? String(progress.doneCount) : "—");
     setText("[data-oh-next-title]", completeReads ? (next?.title || "Review your application") : "Review your application");
-    for (const link of document.querySelectorAll("[data-oh-continue], [data-oh-next]")) link.href = completeReads && next?.href ? next.href : "#onboarding-steps";
+    for (const link of document.querySelectorAll("[data-oh-next]")) link.href = completeReads && next?.href ? next.href : "#onboarding-steps";
     document.querySelector("[data-oh-segments]").replaceChildren(...progress.steps.map(step => { const segment = element("span", ""); segment.dataset.done = String(completeReads && step.done); return segment; }));
     if (!completeReads) context.showFeedback("Some saved progress could not be loaded. Refresh to see your latest application status.");
+    const professionForm = document.querySelector('[data-oh-profession-form]');
+    const profession = professionForm.elements.namedItem('serviceType');
+    const continueButton = professionForm.querySelector('[data-oh-continue]');
+    const professionStatus = professionForm.querySelector('[data-oh-profession-status]');
+    const business = onboardingResult.status === 'fulfilled' ? onboardingResult.value.sections?.find(section => section.section === 'business') : null;
+    const savedProfession = ['cleaner', 'beautician'].includes(business?.data?.serviceType) ? business.data.serviceType : '';
+    profession.value = savedProfession;
+    profession.disabled = !completeReads;
+    continueButton.disabled = !completeReads;
+    professionStatus.textContent = completeReads ? (savedProfession ? 'Your saved profession is selected.' : 'Your choice will be saved when you continue.') : 'Refresh to load your saved registration before continuing.';
+    let savingProfession = false;
+    document.querySelector('[data-oh-next]')?.addEventListener('click', event => { event.preventDefault(); professionForm.requestSubmit(); });
+    professionForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!completeReads || savingProfession || !professionForm.reportValidity()) return;
+      if (!['cleaner', 'beautician'].includes(profession.value)) return;
+      savingProfession = true;
+      continueButton.disabled = true;
+      const selectedProfession = profession.value;
+      profession.disabled = true;
+      professionStatus.textContent = 'Saving your profession…';
+      try {
+        if (selectedProfession !== savedProfession) {
+          await saveOnboardingForm(requestJson, 'business', professionForm, { status: 'draft', extra: { ...(business?.data || {}), serviceType: selectedProfession } });
+        }
+        location.assign(next?.href || '/cleaner/personal-details');
+      } catch (error) {
+        professionStatus.textContent = error.message || 'Your profession could not be saved. Please try again.';
+        profession.disabled = false;
+        continueButton.disabled = false;
+        savingProfession = false;
+      }
+    });
     renderCleanerNav(progress);
   }
   setText("[data-reg-percent]", onboardingHome && !completeReads ? "Unavailable" : `${progress.percent}%`);
