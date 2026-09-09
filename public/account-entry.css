@@ -399,6 +399,11 @@ body.account-entry .account-form-link {
   color: var(--customer-muted);
 }
 body.account-entry .account-form-link a { color: var(--customer-muted); }
+body.account-entry .account-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
 
 body.account-entry .account-role {
   display: block;
