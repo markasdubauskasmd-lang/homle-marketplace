@@ -150,6 +150,7 @@ const motionRows = [];
       await browser.goto(`${server.origin}/landlord-help.html`);
       await waitFor(`document.querySelectorAll('.support-request-card').length === 25 && !document.querySelector('[data-support-more]').hidden`);
       motionRows.push(await inspectCustomerMotion(browser, "support-history " + width));
+      await browser.evaluate('await Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => {}))); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); return true;');
       await writeFile(new URL("targets-support-"+width+".png",captureRoot),await browser.screenshot());
       await browser.evaluate(`
         document.querySelector('[name="subject"]').value = 'Unsent property question';
