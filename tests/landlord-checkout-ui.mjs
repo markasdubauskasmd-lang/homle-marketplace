@@ -1,3 +1,4 @@
+import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { bookingIdFromSearch, formatPaymentAmount, paymentPresentation, paymentRetryStorageKey } from "../public/landlord-checkout-model.js";
@@ -67,6 +68,7 @@ if (resolveChromiumPath()) {
     }
   } });
   const browser = await launchBrowser();
+const motionRows = [];
   try {
     for (const width of [390, 768, 1280, 1440]) {
       await browser.setViewport({ width, height: width === 768 ? 1024 : width === 1440 ? 900 : 844, mobile: width === 390 });
@@ -90,23 +92,27 @@ if (resolveChromiumPath()) {
           feedbackVisible: document.querySelector('[data-payment-feedback]').checkVisibility() };
       `);
       const beforeSession = sessionCalls;
+      motionRows.push(await inspectCustomerMotion(browser, "checkout-ready " + width));
       const beforeWrites = paymentWrites.length;
       failSession = true;
       const failed = await attempt();
       assert.equal(sessionCalls - beforeSession, 1, `${width}px: repeated clicks started overlapping session recovery`);
       assert.equal(paymentWrites.length, beforeWrites, "Failed session recovery sent a payment action");
       assert(failed.lockedImmediately && !failed.disabled && !failed.busy && failed.feedbackVisible && failed.feedback.includes("could not be recovered"), "Session failure did not unlock checkout and explain recovery");
+      motionRows.push(await inspectCustomerMotion(browser, "checkout-session-error " + width));
 
       failSession = false;
       const recovered = await attempt();
       assert.equal(sessionCalls - beforeSession, 2, "Retry did not perform exactly one session recovery");
       assert.equal(paymentWrites.length - beforeWrites, 1, "Repeated clicks sent duplicate payment preparations");
       assert(recovered.lockedImmediately && !recovered.disabled && !recovered.busy && recovered.feedbackVisible && recovered.feedback.includes("Payment provider unavailable"), "Provider failure did not leave a visible, retryable checkout");
+      motionRows.push(await inspectCustomerMotion(browser, "checkout-provider-error " + width));
       await attempt();
       assert.equal(paymentWrites.length - beforeWrites, 2, "A deliberate retry did not send one payment preparation");
       assert.equal(paymentWrites.at(-1).idempotencyKey, paymentWrites.at(-2).idempotencyKey, "A deliberate retry changed the booking's idempotency key");
     }
     assert.deepEqual(browser.pageErrors, [], "Checkout raised an unhandled browser error");
+    assertCustomerMotion(motionRows);
   } finally {
     await browser.close();
     await server.close();

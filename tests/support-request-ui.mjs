@@ -1,3 +1,4 @@
+import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
@@ -130,6 +131,7 @@ if (resolveChromiumPath()) {
     }
   } });
   const browser = await launchBrowser();
+const motionRows = [];
   const waitFor = async (condition) => browser.evaluate(`
     const deadline = Date.now() + 5000;
     while (!(${condition})) {
@@ -145,6 +147,7 @@ if (resolveChromiumPath()) {
       await browser.setViewport({ width, height: width === 768 ? 1024 : width === 1440 ? 900 : 844, mobile: width === 390 });
       await browser.goto(`${server.origin}/landlord-help.html`);
       await waitFor(`document.querySelectorAll('.support-request-card').length === 25 && !document.querySelector('[data-support-more]').hidden`);
+      motionRows.push(await inspectCustomerMotion(browser, "support-history " + width));
       await browser.evaluate(`
         document.querySelector('[name="subject"]').value = 'Unsent property question';
         document.querySelector('[name="description"]').value = 'Please preserve this unsent detailed support question.';
@@ -160,6 +163,7 @@ if (resolveChromiumPath()) {
       };`);
       assert.equal(failed.count, 25); assert.equal(failed.busy, "false"); assert(failed.feedback);
       assert.equal(failed.draft, "Please preserve this unsent detailed support question.");
+      motionRows.push(await inspectCustomerMotion(browser, "support-history-error " + width));
       failOlder = false;
       await browser.evaluate(`document.querySelector('[data-support-more]').click(); return null;`);
       await waitFor(`document.querySelectorAll('.support-request-card').length === 26 && document.querySelector('[data-support-more]').hidden`);
@@ -172,6 +176,7 @@ if (resolveChromiumPath()) {
       assert(history.answer, "The older answer stayed unreachable");
       assert.equal(history.subject, "Unsent property question");
       assert.equal(history.overflow, false, `${width}px history overflowed the viewport`);
+      motionRows.push(await inspectCustomerMotion(browser, "support-history-recovered " + width));
       await browser.evaluate(`document.querySelector('[data-support-refresh]').click(); return null;`);
       await waitFor(`document.querySelectorAll('.support-request-card').length === 25 && !document.querySelector('[data-support-more]').hidden`);
       assert.equal(await browser.evaluate(`document.querySelector('[name="subject"]').value`), "Unsent property question");
@@ -187,6 +192,8 @@ if (resolveChromiumPath()) {
     `);
     await waitFor(`document.querySelector('[data-support-form-feedback]').dataset.kind === 'success'`);
     assert.equal(writes, 1, "Submission while history was loading was lost or duplicated");
+    motionRows.push(await inspectCustomerMotion(browser, "support-synthetic-success 1440"));
+    assertCustomerMotion(motionRows);
     assert(await browser.evaluate(`document.querySelector('.support-request-card').textContent.includes('Unsent property question')`), "History after sending omitted the newly created request");
     assert.deepEqual(browser.pageErrors, []);
   } finally { await browser.close(); await server.close(); }
