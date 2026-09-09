@@ -30,7 +30,7 @@ export async function inspectCustomerMotion(browser, label) {
               }
             }
           }
-          if (effective.width < 43.5 || effective.height < 43.5)
+          if (effective.width < 44 || effective.height < 44)
             targetFindings.push({tag:el.tagName.toLowerCase(),name:(el.getAttribute("aria-label") || el.textContent?.trim() || el.name || el.type || "").slice(0,100),
               className:el.className,source:targetSource,width:effective.width,height:effective.height});
         }
