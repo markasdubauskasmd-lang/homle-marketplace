@@ -277,6 +277,7 @@ const immutableStaticAssets = new Set([
   "/landing-f56e7ce9.css",
   "/landing-a7335043.css",
   "/landing-4a1b2271.css",
+  "/landing-3f606a74.css",
   "/landing-a97a6ca6.js",
   "/homle-logo-128-4f82ebad.png",
   "/homle-logo-192-c8defd4b.png",

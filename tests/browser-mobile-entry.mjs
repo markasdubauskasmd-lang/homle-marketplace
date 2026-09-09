@@ -286,6 +286,19 @@ try {
         }
         await writeFile(new URL("home-"+stage+"-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
       }
+      const footerState=await browser.evaluate(`
+        window.scrollTo({top:document.documentElement.scrollHeight,behavior:"instant"});
+        await new Promise(resolve=>setTimeout(resolve,300));
+        const number=document.querySelector("[data-mhours]");
+        const box=number.getBoundingClientRect();
+        const style=getComputedStyle(number);
+        return {footerLinks:[...document.querySelectorAll(".ci-footer-links a")].map(el=>{const r=el.getBoundingClientRect();return {text:el.textContent.trim(),left:r.left,right:r.right,top:r.top,bottom:r.bottom};}),
+          width:innerWidth,height:innerHeight,number:{text:number.textContent,width:box.width,background:style.backgroundColor}};
+      `);
+      assert(footerState.footerLinks.length===6,"Homepage footer links missing");
+      assert(footerState.footerLinks.every(r=>r.left>=0&&r.right<=footerState.width&&r.top>=0&&r.bottom<=footerState.height),"Homepage footer links clipped at "+viewport.width);
+      if(viewport.width>720) assert(footerState.number.width>5&&footerState.number.background==="rgba(0, 0, 0, 0)","Illustrative hour count inherited the decorative dot style");
+      await writeFile(new URL("home-footer-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
     }
   }
 
