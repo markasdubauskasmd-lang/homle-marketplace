@@ -66,7 +66,7 @@ export async function inspectCustomerText(browser, label) {
       const boundary=Math.max(fill,...borders);
       const focusVisible=el.matches(":focus-visible");
       const outline=parseFloat(s.outlineWidth)>0&&!["none","hidden"].includes(s.outlineStyle)?contrast(over(rgba(s.outlineColor),outside),outside):null;
-      controls.push({tag:el.tagName.toLowerCase(),type:el.type||"",id:el.id,className:el.className,empty:!el.value,readOnly:!!el.readOnly,boundary,fill,borders,focusVisible,outline,shadow:s.boxShadow!=="none",appearance:s.appearance});
+      controls.push({enforced:el.matches('body.support-page.homle-landlord-support .support-card :is(input,select,textarea)'),tag:el.tagName.toLowerCase(),type:el.type||"",id:el.id,className:el.className,empty:!el.value,readOnly:!!el.readOnly,boundary,fill,borders,focusVisible,outline,shadow:s.boxShadow!=="none",appearance:s.appearance});
     }
     return {inspected,targeted,findings,excluded,controls};
   `);
@@ -74,5 +74,6 @@ export async function inspectCustomerText(browser, label) {
   console.log("Customer text contrast "+JSON.stringify({label,...textResult}));
   console.log("Customer input contrast "+JSON.stringify({label,controls}));
   assert.deepEqual(result.findings.filter(item=>item.enforced), [], label+": customer status text must meet its contrast threshold");
+  assert.deepEqual(controls.filter(item=>item.enforced&&item.boundary<3), [], label+": landlord support input boundaries must reach 3:1");
   return result;
 }
