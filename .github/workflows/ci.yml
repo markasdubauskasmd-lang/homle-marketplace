@@ -84,8 +84,14 @@ jobs:
         run: |
           sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends postgresql-client-16
+          # This database job needs Ubuntu dependencies and PostgreSQL only.
+          # Unrelated preinstalled browser repositories must not block its tests.
+          ci_apt_sources="$(mktemp -d)"
+          chmod 755 "$ci_apt_sources"
+          cp /etc/apt/sources.list.d/ubuntu.sources "$ci_apt_sources/ubuntu.sources"
+          cp /etc/apt/sources.list.d/pgdg.list "$ci_apt_sources/pgdg.list"
+          sudo apt-get -o Dir::Etc::sourcelist=/dev/null -o Dir::Etc::sourceparts="$ci_apt_sources" update
+          sudo apt-get -o Dir::Etc::sourcelist=/dev/null -o Dir::Etc::sourceparts="$ci_apt_sources" install -y --no-install-recommends postgresql-client-16
           psql --version
       - name: Enable pnpm via corepack
         run: |
