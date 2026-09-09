@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260817-sharp-visuals-1">
 <link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260817-sharp-visuals-1">
 <link rel="stylesheet" href="/cleaner-onboarding-home.css?v=20260908-1">
-<script src="/cleaner-registration.js?v=20260908-flow-1" type="module"></script>
+<script src="/cleaner-registration.js?v=20260909-business-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 <link rel="stylesheet" href="/cleaner-onboarding-flow.css?v=20260909-1">
@@ -408,40 +408,11 @@
             <section class="hc-personal-card hc-business-card" data-business-details hidden aria-labelledby="cleaner-business-title">
               <header class="hc-personal-head">
                 <h1 id="cleaner-business-title">Business details</h1>
-                <p>Choose the services you want to offer and how you’ll operate.</p>
+                <p>Tell us how you’ll operate your business.</p>
               </header>
 
               <form class="hc-business-form" data-business-form>
-                <fieldset class="hc-business-section">
-                  <legend>Your service</legend>
-                  <p class="hc-business-question">What are you joining Homle as?</p>
-                  <div class="hc-business-service-choices">
-                    <label>
-                      <input type="radio" name="serviceType" value="cleaner" checked>
-                      <span>
-                        <svg class="hc-business-service-icon" viewBox="0 0 48 48" aria-hidden="true">
-                          <path d="M17 8h14l2 8H15l2-8Z"></path>
-                          <path d="M16 16h16l3 22H13l3-22Z"></path>
-                          <path d="M20 22v9m5-9v9m5-9v9"></path>
-                          <path d="m8 12 2 2 4-5"></path>
-                        </svg>
-                        <span class="hc-business-service-copy"><strong>Cleaner</strong><small>Home, rental and workplace cleaning services</small></span>
-                      </span>
-                    </label>
-                    <label>
-                      <input type="radio" name="serviceType" value="beautician">
-                      <span>
-                        <svg class="hc-business-service-icon" viewBox="0 0 48 48" aria-hidden="true">
-                          <path d="M15 32 31 16l5 5-16 16-7 2 2-7Z"></path>
-                          <path d="m29 18 5 5"></path>
-                          <path d="m12 10 1.5 3.5L17 15l-3.5 1.5L12 20l-1.5-3.5L7 15l3.5-1.5L12 10Z"></path>
-                          <path d="m36 8 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1L36 8Z"></path>
-                        </svg>
-                        <span class="hc-business-service-copy"><strong>Beautician</strong><small>Beauty, grooming and personal-care services</small></span>
-                      </span>
-                    </label>
-                  </div>
-                </fieldset>
+                <input type="hidden" name="serviceType" disabled>
 
                 <fieldset class="hc-business-section">
                   <legend>How you’ll work</legend>

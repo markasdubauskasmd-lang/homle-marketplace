@@ -102,6 +102,12 @@ export async function setupBusinessDetails({ account, showFeedback, requestJson 
   const progress = onboardingProgress({ account, profile, payoutState, availabilityCount });
   renderRail(progress);
 
+  if (onboardingResult.status !== "fulfilled") {
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit) submit.disabled = true;
+    showFeedback("Your saved business details could not be loaded. Refresh before editing so your profession is preserved.", "error");
+    return;
+  }
   const storage = safeSessionStorage();
   const saved = onboardingResult.status === "fulfilled" && onboardingResult.value.section?.data
     ? normalizedDraft(onboardingResult.value.section.data)
@@ -109,7 +115,10 @@ export async function setupBusinessDetails({ account, showFeedback, requestJson 
   const serviceControl = form.elements.namedItem("serviceType");
   const businessControl = form.elements.namedItem("businessType");
   const businessNameControl = form.elements.namedItem("businessName");
-  if (serviceControl instanceof RadioNodeList) serviceControl.value = saved.serviceType;
+  if (serviceControl instanceof HTMLInputElement) {
+    serviceControl.value = saved.serviceType;
+    serviceControl.disabled = false;
+  }
   if (businessControl instanceof RadioNodeList) businessControl.value = saved.businessType;
   if (businessNameControl instanceof HTMLInputElement) businessNameControl.value = saved.businessName;
   setBusinessPresentation(form, saved);
