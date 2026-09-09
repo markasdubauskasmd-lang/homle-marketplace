@@ -221,7 +221,10 @@ try {
       targetRows.push(await inspectCustomerMotion(browser, "public-target " + route + " " + viewport.width));
     }
   }
-  assertCustomerMotion(targetRows);
+  // Preserve paragraph typography: WCAG2.5.5 explicitly excepts inline prose.
+  // Raw diagnostics above retain these findings; do not claim every link is44px.
+  console.log("Public inline prose target observations " + JSON.stringify(targetRows.map(row=>({label:row.label,findings:row.targetFindings.filter(f=>f.inlineProse)})).filter(row=>row.findings.length)));
+  assertCustomerMotion(targetRows.map(row=>({...row,targetFindings:row.targetFindings.filter(f=>!f.inlineProse)})));
   await browser.setReducedMotion(false);
 
   // Measure exact foreground/background colors in original rendered states.
