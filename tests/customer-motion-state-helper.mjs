@@ -9,12 +9,31 @@ export async function inspectCustomerMotion(browser, label) {
       await document.fonts.ready;
       const seconds = value => value.split(",").map(v => parseFloat(v) * (v.trim().endsWith("ms") ? .001 : 1));
       const findings = [];
+      const targetFindings = [];
+      let targetsInspected = 0;
       let inspected = 0;
       for (const el of document.querySelectorAll("body,body *")) {
         const closed = el.closest("details:not([open])");
         if (closed && !closed.querySelector(":scope > summary")?.contains(el)) continue;
         const rect = el.getBoundingClientRect();
         if (!rect.width || !rect.height || getComputedStyle(el).visibility === "hidden") continue;
+        if (el.matches("button,input:not([type=hidden]),select,textarea,a[href],summary")
+            && !el.matches(":disabled,[aria-disabled=true]")) {
+          targetsInspected++;
+          let effective = {width:rect.width,height:rect.height};
+          let targetSource = "control";
+          if (el.matches("input[type=checkbox],input[type=radio]")) {
+            for (const label of el.labels || []) {
+              const lr = label.getBoundingClientRect();
+              if (lr.width >= effective.width && lr.height >= effective.height) {
+                effective = {width:lr.width,height:lr.height}; targetSource = "associated label";
+              }
+            }
+          }
+          if (effective.width < 43.5 || effective.height < 43.5)
+            targetFindings.push({tag:el.tagName.toLowerCase(),name:(el.getAttribute("aria-label") || el.textContent?.trim() || el.name || el.type || "").slice(0,100),
+              className:el.className,source:targetSource,width:effective.width,height:effective.height});
+        }
         for (const pseudo of [null,"::before","::after"]) {
           const style = getComputedStyle(el,pseudo);
           if (pseudo && ["none","normal"].includes(style.content)) continue;
@@ -28,7 +47,7 @@ export async function inspectCustomerMotion(browser, label) {
             findings.push({label,kind:"movement transition",properties,duration:style.transitionDuration});
         }
       }
-      return {inspected,findings,reduced:matchMedia("(prefers-reduced-motion: reduce)").matches};
+      return {inspected,findings,targetsInspected,targetFindings,reduced:matchMedia("(prefers-reduced-motion: reduce)").matches};
     `);
     assert(result.reduced && result.inspected > 10, label + ": original page not inspected");
     console.log("Customer state motion " + JSON.stringify({label,...result}));
@@ -37,4 +56,5 @@ export async function inspectCustomerMotion(browser, label) {
 }
 export function assertCustomerMotion(rows) {
   assert.deepEqual(rows.filter(row => row.findings.length), [], "Customer state descendants ignore reduced motion");
+  assert.deepEqual(rows.filter(row => row.targetFindings.length), [], "Customer controls below the brief target size");
 }
