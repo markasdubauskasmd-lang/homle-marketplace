@@ -66,7 +66,7 @@ export async function inspectCustomerText(browser, label) {
       const boundary=Math.max(fill,...borders);
       const focusVisible=el.matches(":focus-visible");
       const outline=parseFloat(s.outlineWidth)>0&&!["none","hidden"].includes(s.outlineStyle)?contrast(over(rgba(s.outlineColor),outside),outside):null;
-      controls.push({enforced:el.matches('body.support-page.homle-landlord-support .support-card :is(input,select,textarea)'),tag:el.tagName.toLowerCase(),type:el.type||"",id:el.id,className:el.className,empty:!el.value,readOnly:!!el.readOnly,boundary,fill,borders,focusVisible,outline,shadow:s.boxShadow!=="none",appearance:s.appearance});
+      controls.push({enforced:el.matches('body.homle-workspace :is(input,select,textarea), body.journey-page .inp, body.journey-page .scan-overlay :is(.hub-other-input,.scan-item-editor-name,.voice-txt), body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) :is(input,select,textarea)'),tag:el.tagName.toLowerCase(),type:el.type||"",id:el.id,className:el.className,empty:!el.value,readOnly:!!el.readOnly,boundary,fill,borders,focusVisible,outline,shadow:s.boxShadow!=="none",appearance:s.appearance});
     }
     return {inspected,targeted,findings,excluded,controls};
   `);
@@ -74,6 +74,7 @@ export async function inspectCustomerText(browser, label) {
   console.log("Customer text contrast "+JSON.stringify({label,...textResult}));
   console.log("Customer input contrast "+JSON.stringify({label,controls}));
   assert.deepEqual(result.findings.filter(item=>item.enforced), [], label+": customer status text must meet its contrast threshold");
-  assert.deepEqual(controls.filter(item=>item.enforced&&item.boundary<3), [], label+": landlord support input boundaries must reach 3:1");
+  assert.deepEqual(controls.filter(item=>item.enforced&&item.boundary<3), [], label+": customer input boundaries must reach 3:1");
+  assert.deepEqual(controls.filter(item=>item.enforced&&item.focusVisible&&!(item.outline>=3)), [], label+": focused customer inputs must have a visible 3:1 outline");
   return result;
 }
