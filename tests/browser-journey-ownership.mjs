@@ -38,6 +38,7 @@ try {
   motionRows.push(await inspectCustomerMotion(browser, "journey-results " + width));
   assert((await browser.evaluate('document.querySelector("[data-tasks]").value')).includes("Private synthetic"));
   await browser.evaluate('document.querySelector("[data-tasks]").scrollIntoView({block:"center",behavior:"instant"}); return true;');
+  await browser.evaluate('await Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => {}))); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); return true;');
   await writeFile(new URL("fields-journey-results-"+width+".png",captureRoot),await browser.screenshot());
   await browser.evaluate('document.querySelector("[data-tasks]").value="Kitchen: Private edited account A task"; document.querySelector("[data-back]").click(); return true;');
   await waitFor('document.querySelector("[data-step=service]")?.hidden === false');
