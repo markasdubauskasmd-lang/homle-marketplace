@@ -38,8 +38,9 @@ body.journey-page .scan-overlay :is(.button.ghost, .voice-delete) {
   background: #fff; color: #e11b22; border: 1px solid #e11b22; border-radius: 11px;
 }
 body.journey-page .scan-overlay :is(.hub-other-input, .scan-item-editor-name, .voice-txt) {
-  color: #1a1a1a; background: #fff; border: 1px solid #e7e4e0; border-radius: 11px; font-family: inherit;
+  color: #1a1a1a; background: #fff; border: 1px solid #8a8a8a; border-radius: 11px; font-family: inherit;
 }
+body.journey-page .scan-overlay :is(.hub-other-input, .scan-item-editor-name, .voice-txt):focus-visible { outline: 3px solid #2456e6; outline-offset: 2px; border-color: #e11b22; box-shadow: none; }
 body.journey-page .scan-overlay :is(.hub-other-input, .voice-txt)::placeholder { color: #6b6b6b; }
 body.journey-page .scan-overlay .scan-consent-detail { background: #fdecec; border-color: #e7e4e0; color: #1a1a1a; border-radius: 11px; }
 body.journey-page .scan-overlay .scan-item-condition-options span { background: #fff; color: #1a1a1a; border-color: #e7e4e0; border-radius: 11px; }
