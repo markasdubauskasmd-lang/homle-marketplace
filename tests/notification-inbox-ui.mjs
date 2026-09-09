@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
 import { notificationActionPath, notificationBookingPath, notificationPresentation, notificationUnreadBadge, notificationWorkspace, notificationWorkspacePath } from "../public/notification-inbox-model.js";
 import { notificationDayGroup, notificationGroups, notificationTone } from "../public/notification-inbox-view-model.js";
@@ -152,6 +153,13 @@ if (resolveChromiumPath()) {
     }
   } });
   const browser = await launchBrowser();
+  const targetRows = [];
+  const captureRoot = new URL("../test-artifacts/customer-responsive/", import.meta.url);
+  await mkdir(captureRoot, { recursive: true });
+  const capture = async (name) => {
+    await browser.evaluate(`await Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => {}))); await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); return null;`);
+    await writeFile(new URL("targets-notifications-" + name + ".png", captureRoot), await browser.screenshot());
+  };
   const waitFor = async (condition) => browser.evaluate(`
     const deadline = Date.now() + 5000;
     while (!(${condition})) {
@@ -167,6 +175,8 @@ if (resolveChromiumPath()) {
       await browser.goto(`${server.origin}/notifications.html`);
       await waitFor(`!document.querySelector('[data-notification-content]').hidden`);
       const initialTime = Date.now();
+      targetRows.push(await inspectCustomerMotion(browser, "notifications-ready " + width));
+      await capture("ready-" + width);
       const beforeSessions = sessionCalls;
       const beforeMarks = markCalls;
       const clickRepeatedly = async () => browser.evaluate(`
@@ -180,6 +190,8 @@ if (resolveChromiumPath()) {
       assert(sessionCalls === beforeSessions + 1 && markCalls === beforeMarks, "Failed session recovery was duplicated or still marked updates read");
       assert(await browser.evaluate(`document.querySelector('[data-notification-feedback]').checkVisibility()`), "Session failure is invisible");
       failSession = false;
+      targetRows.push(await inspectCustomerMotion(browser, "notifications-session-error " + width));
+      await capture("session-error-" + width);
       await clickRepeatedly();
       await waitFor(`document.querySelector('[data-notification-feedback]').dataset.kind === 'success'`);
       assert(sessionCalls === beforeSessions + 2 && markCalls === beforeMarks + 1, "Fresh-tab recovery did not send exactly one read action");
@@ -194,6 +206,8 @@ if (resolveChromiumPath()) {
       assert(result.unread === '1 unread' && !result.message.includes('All updates shown here'), "New arrivals were represented as already read");
       assert(result.unreadCards === 1 && result.readCards === 1, "Read and unread cards do not reflect the refreshed server result");
       assert(!result.overflow, `${width}px Updates overflowed the viewport`);
+      targetRows.push(await inspectCustomerMotion(browser, "notifications-recovered " + width));
+      await capture("recovered-" + width);
     }
     marked = false;
     await browser.goto(`${server.origin}/notifications.html`);
@@ -207,11 +221,14 @@ if (resolveChromiumPath()) {
     };`);
     assert(failedRead.gate.includes('read status was saved') && !failedRead.success, "A saved read action plus failed refresh claimed full success or lost the confirmed outcome");
     const marksBeforeRetry = markCalls;
+    targetRows.push(await inspectCustomerMotion(browser, "notifications-refresh-error 1440"));
     failRefresh = false;
     await browser.evaluate(`document.querySelector('[data-notification-retry]').click(); return null;`);
     await waitFor(`!document.querySelector('[data-notification-content]').hidden`);
     assert(markCalls === marksBeforeRetry, "Retrying a failed read repeated the mutation");
+    targetRows.push(await inspectCustomerMotion(browser, "notifications-refresh-recovered 1440"));
+    assertCustomerMotion(targetRows);
     assert(browser.pageErrors.length === 0, browser.pageErrors.join('\n'));
   } finally { await browser.close(); await server.close(); }
-  console.log("Updates browser journey passed at 390px and 1280px: fresh-tab token recovery, repeated clicks, recovery failure, newer unread arrivals and post-mutation refresh failure/retry.");
+  console.log("Updates browser journey passed at 390px, 768px, 1280px and 1440px: fresh-tab token recovery, repeated clicks, recovery failure, newer unread arrivals and post-mutation refresh failure/retry.");
 } else console.log("Updates browser journey SKIPPED: Chromium unavailable.");

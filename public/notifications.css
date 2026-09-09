@@ -42,7 +42,7 @@ body.notifications-page .notification-summary {
 }
 body.notifications-page .notification-summary strong { font-size: 15px; font-weight: 700; }
 body.notifications-page .notification-summary span { color: var(--homle-ws-muted, #666); font-size: 13px; }
-body.notifications-page .notification-toolbar .button { flex: none; min-height: 40px; padding: 9px 16px; }
+body.notifications-page .notification-toolbar .button { flex: none; min-height: 44px; padding: 9px 16px; }
 
 body.notifications-page .notification-groups { margin-top: 22px; }
 body.notifications-page .notification-group + .notification-group { margin-top: 26px; }
@@ -136,7 +136,7 @@ body.notifications-page .notification-action {
   grid-column: 3;
   grid-row: 1 / span 3;
   align-self: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: 9px 16px;
   white-space: nowrap;
 }
