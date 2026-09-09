@@ -5,14 +5,17 @@ export async function inspectCustomerText(browser, label) {
   const result = await browser.evaluate(`
     const canvas=document.createElement("canvas");canvas.width=canvas.height=1;
     const ctx=canvas.getContext("2d",{willReadFrequently:true});
-    const rgba=value=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=value;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data].map((v,i)=>i===3?v/255:v/255);};
+    const rgba=value=>{ctx.clearRect(0,0,1,1);ctx.fillStyle=value;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data].map(v=>v/255);};
     const over=(front,back)=>{const a=front[3]+back[3]*(1-front[3]);return [...[0,1,2].map(i=>a?(front[i]*front[3]+back[i]*back[3]*(1-front[3]))/a:0),a];};
     const lum=c=>c.slice(0,3).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((s,n,i)=>s+n*[.2126,.7152,.0722][i],0);
     let inspected=0;const findings=[],excluded={};
+    const modal=document.querySelector("dialog:modal");
     const omit=reason=>{excluded[reason]=(excluded[reason]||0)+1;};
     for(const el of document.querySelectorAll("body *")){
       const text=[...el.childNodes].filter(n=>n.nodeType===Node.TEXT_NODE).map(n=>n.textContent).join("").trim();
       if(!text||el.matches("script,style,option"))continue;
+      if(modal&&!modal.contains(el)){omit("behind modal");continue;}
+      if(el.closest(":disabled,[aria-disabled=true],[inert]")){omit("inactive control");continue;}
       const rect=el.getBoundingClientRect(),style=getComputedStyle(el);
       if(!rect.width||!rect.height||style.visibility!=="visible")continue;
       const closed=el.closest("details:not([open])");if(closed&&!closed.querySelector(":scope > summary")?.contains(el))continue;
