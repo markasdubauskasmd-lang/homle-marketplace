@@ -59,3 +59,5 @@ body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) .act
     animation-duration: .001ms;
   }
 }
+
+body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) :is(.active-job-header .brand, .active-job-header nav a, .account-footer a) { display: inline-flex; align-items: center; min-height: 44px; }

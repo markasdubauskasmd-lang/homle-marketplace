@@ -1,6 +1,7 @@
+import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
 
 const scrollSource = await readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8");
@@ -48,6 +49,9 @@ const browser = await launchBrowser();
 const rows = [];
 const scrollRows = [];
 const descendantRows = [];
+const targetRows = [];
+const captureRoot = new URL("../test-artifacts/customer-responsive/",import.meta.url);
+await mkdir(captureRoot,{recursive:true});
 async function waitFor(expression) {
   const deadline = Date.now() + 12000;
   while (!(await browser.evaluate(expression))) {
@@ -94,6 +98,33 @@ async function measure(name, width, reduce) {
     `);
     assert(descendants.inspected > 10, "Missing rendered customer content: " + name);
     descendantRows.push({name,width,...descendants});
+    targetRows.push(await inspectCustomerMotion(browser, "workspace-target " + name + " " + width));
+    if (["bookings-menu","requests","tracking-landlord"].includes(name)) {
+      await writeFile(new URL("targets-"+name+"-"+width+".png",captureRoot),await browser.screenshot());
+    }
+    if (name === "bookings-menu") {
+      const visibleHit = await browser.evaluate(`
+        const el=[...document.querySelectorAll(".landlord-account-menu[open] .account-sign-out")].find(el=>el.getBoundingClientRect().width>0);
+        if(!el) return false;
+        el.scrollIntoView({block:"nearest",behavior:"instant"});
+        const r=el.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+        return hit===el||el.contains(hit);
+      `);
+      assert(visibleHit,"Account sheet sign-out is covered at "+width);
+    }
+    if (name === "requests") {
+      const hits = await browser.evaluate(`
+        const buttons = [...document.querySelectorAll(".pac-dot")];
+        return buttons.map(el => {
+          el.scrollIntoView({block:"center",behavior:"instant"});
+          const r=el.getBoundingClientRect();
+          return {name:el.getAttribute("aria-label"),hit:[[2,2],[r.width-2,2],[2,r.height-2],[r.width-2,r.height-2]].every(([x,y])=>{const hit=document.elementFromPoint(r.left+x,r.top+y);return hit===el||el.contains(hit);})};
+        });
+      `);
+      assert.equal(hits.length,5);
+      assert(hits.every(row=>row.hit),"A manual step target corner is blocked: "+JSON.stringify(hits));
+    }
+
   }
 
 }
@@ -128,6 +159,7 @@ try {
             return calls;
           `);
           scrollRows.push({width, reduce, calls});
+          await measure("account-edit", width, reduce);
         }
       }
       for (role of ["landlord", "cleaner"]) {
@@ -141,6 +173,7 @@ try {
   console.log(JSON.stringify(rows));
   console.log(JSON.stringify({scrollRows}));
   console.log(JSON.stringify({descendantRows}));
+  assertCustomerMotion(targetRows);
   assert.deepEqual(descendantRows.filter(row => row.findings.length), [], "Rendered customer descendants ignore reduced motion");
   for (const row of scrollRows) {
     assert.equal(row.calls.length, 1, "Edit profile did not scroll to its details.");

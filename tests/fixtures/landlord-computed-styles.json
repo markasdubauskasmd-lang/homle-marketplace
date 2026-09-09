@@ -1363,7 +1363,7 @@
    "padding-right": "0px",
    "padding-bottom": "0px",
    "padding-left": "0px",
-   "min-height": "auto",
+   "min-height": "44px",
    "outline-style": "none",
    "display": "grid"
   },
@@ -3213,7 +3213,7 @@
    "padding-right": "0px",
    "padding-bottom": "0px",
    "padding-left": "0px",
-   "min-height": "auto",
+   "min-height": "44px",
    "outline-style": "none",
    "display": "grid"
   },
@@ -5063,7 +5063,7 @@
    "padding-right": "0px",
    "padding-bottom": "0px",
    "padding-left": "0px",
-   "min-height": "auto",
+   "min-height": "44px",
    "outline-style": "none",
    "display": "grid"
   },
@@ -5653,7 +5653,7 @@
    "padding-right": "0px",
    "padding-bottom": "0px",
    "padding-left": "0px",
-   "min-height": "auto",
+   "min-height": "44px",
    "outline-style": "none",
    "display": "grid"
   },
@@ -6642,7 +6642,7 @@
    "padding-right": "0px",
    "padding-bottom": "0px",
    "padding-left": "0px",
-   "min-height": "auto",
+   "min-height": "44px",
    "outline-style": "none",
    "display": "grid"
   },
