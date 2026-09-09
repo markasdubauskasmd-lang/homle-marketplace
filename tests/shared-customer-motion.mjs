@@ -102,6 +102,10 @@ async function measure(name, width, reduce) {
     if (["bookings-menu","requests","tracking-landlord","account-edit"].includes(name)) {
       await writeFile(new URL("targets-"+name+"-"+width+".png",captureRoot),await browser.screenshot());
     }
+    if (name === "account-edit") {
+      await browser.evaluate('document.querySelector("[name=biography]").scrollIntoView({block:"center",behavior:"instant"}); return true;');
+      await writeFile(new URL("fields-account-introduction-"+width+".png",captureRoot),await browser.screenshot());
+    }
     if (name === "tracking-landlord") {
       await browser.evaluate('document.querySelector("#active-message-body").scrollIntoView({block:"center",behavior:"instant"}); return true;');
       await writeFile(new URL("fields-tracking-message-"+width+".png",captureRoot),await browser.screenshot());
