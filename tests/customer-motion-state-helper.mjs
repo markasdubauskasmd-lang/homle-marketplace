@@ -32,7 +32,8 @@ export async function inspectCustomerMotion(browser, label) {
           }
           if (effective.width < 44 || effective.height < 44)
             targetFindings.push({tag:el.tagName.toLowerCase(),name:(el.getAttribute("aria-label") || el.textContent?.trim() || el.name || el.type || "").slice(0,100),
-              className:el.className,source:targetSource,width:effective.width,height:effective.height});
+              className:el.className,source:targetSource,width:effective.width,height:effective.height,
+              inlineProse:el.matches("body.customer-document .legal-main p a[href]") && getComputedStyle(el).display === "inline" && el.closest("p").textContent.trim() !== el.textContent.trim()});
         }
         for (const pseudo of [null,"::before","::after"]) {
           const style = getComputedStyle(el,pseudo);

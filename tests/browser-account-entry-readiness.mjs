@@ -1,3 +1,4 @@
+import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import {
   launchBrowser,
@@ -172,10 +173,15 @@ try {
       assert(layout.clippedControls.length===0,label+": clipped controls "+JSON.stringify(layout.clippedControls));
       assert(!/\bundefined\b|\bNaN\b|\[object Object\]/.test(layout.text),label+": invalid values reached the page");
       await writeFile(new URL("public-"+route.slice(1)+"-"+viewport.width+".png",captureRoot),await browser.screenshot());
+      if (route === "/signup") {
+        await browser.evaluate('document.querySelector(".account-footer").scrollIntoView({block:"end",behavior:"instant"}); return true;');
+        await writeFile(new URL("targets-account-footer-"+viewport.width+".png",captureRoot),await browser.screenshot());
+      }
       console.log("Public responsive document "+label+" "+JSON.stringify(layout.headings));
     }
   }
 
+  const targetRows = [];
   // Inspect original document descendants, including pseudo-elements and
   // controls below the fold. This complements root-transition checks.
   await browser.setReducedMotion(true);
@@ -216,8 +222,13 @@ try {
       assert(motion.inspected > 10, route + ": original document not inspected");
       assert(motion.findings.length === 0, route + " " + viewport.width + ": descendant motion " + JSON.stringify(motion.findings));
       console.log("Public descendant motion " + route + " " + viewport.width + ": " + motion.inspected + " elements/pseudo-elements");
+      targetRows.push(await inspectCustomerMotion(browser, "public-target " + route + " " + viewport.width));
     }
   }
+  // Preserve paragraph typography: WCAG2.5.5 explicitly excepts inline prose.
+  // Raw diagnostics above retain these findings; do not claim every link is44px.
+  console.log("Public inline prose target observations " + JSON.stringify(targetRows.map(row=>({label:row.label,findings:row.targetFindings.filter(f=>f.inlineProse)})).filter(row=>row.findings.length)));
+  assertCustomerMotion(targetRows.map(row=>({...row,targetFindings:row.targetFindings.filter(f=>!f.inlineProse)})));
   await browser.setReducedMotion(false);
 
   // Measure exact foreground/background colors in original rendered states.
