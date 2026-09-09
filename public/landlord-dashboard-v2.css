@@ -3610,3 +3610,15 @@ body.landlord-dashboard-page .pac-card-head .pac-reveal:hover {
 @media (max-width: 900px) {
   html:has(body.landlord-dashboard-page) { --scroll-offset-bottom: 96px; }
 }
+
+/* Customer control targets; the approved Home panel keeps its existing geometry. */
+body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) :is(.workspace-brand .brand, .ld-mobile-brand) { min-width: 44px; min-height: 44px; align-items: center; }
+body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .landlord-account-menu > summary { min-width: 44px; min-height: 44px; }
+body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .landlord-account-menu .account-menu-panel > :is(a, button) { min-height: 44px; }
+body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .pac-card-head .pac-reveal { width: 44px; height: 44px; }
+body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .pac-step > a[href="/landlord/help"] { display: inline-flex; align-items: center; min-height: 44px; }
+body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .pac-dots { gap: 4px; }
+body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .pac-dot { flex: 0 0 44px; width: 44px; height: 44px; display: grid; place-items: center; background: transparent; }
+body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .pac-dot::before { content: ""; width: 22px; height: 6px; border-radius: 999px; background: oklch(0.5 0.02 60 / 0.18); }
+body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .pac-dot.is-done::before { background: oklch(0.62 0.19 25 / 0.45); }
+body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .pac-dot.is-current::before { width: 32px; background: var(--ld-coral); }
