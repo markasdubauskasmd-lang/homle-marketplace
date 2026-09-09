@@ -76,3 +76,50 @@ assert.ok(page.includes('name="robots" content="noindex'), "The 404 page is inde
 assert.ok(page.includes('href="/" data-not-found-primary>Go to Homle<'), "The 404 page's markup no longer carries the signed-out destination, so a failed account lookup leaves the primary action pointing nowhere useful.");
 
 console.log("404 page tests passed: the way back resolves correctly for a visitor, a Landlord, a Cleaner, both workspaces of a dual-role account, an administrator and an account with no workspace yet; no reader is offered a support link that would refuse them; and the document keeps its skip link, brand mark and shared design system.");
+
+
+import { mkdir, writeFile } from "node:fs/promises";
+import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
+import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
+
+if(resolveChromiumPath()){
+  let accountMode="landlord";
+  const fixture=await serveStatic({extraFiles:{
+    "/api/marketplace/account":()=>accountMode==="unavailable"
+      ? {status:503,body:{error:"Synthetic account unavailable"}}
+      : {body:{ok:true,account:accountMode==="visitor"?null:{roles:["landlord"],selectedRole:"landlord"}}}
+  }});
+  const browser=await launchBrowser(),rows=[],inlineObservations=[];
+  const root=new URL("../test-artifacts/customer-responsive/",import.meta.url);
+  await mkdir(root,{recursive:true});
+  try{
+    for(const width of [390,768,1440]){
+      await browser.setViewport({width,height:width===768?1024:900});
+      for(const mode of ["landlord","visitor","unavailable"]){
+        accountMode=mode;
+        await browser.goto(fixture.origin+"/not-found.html");
+        await browser.evaluate("await document.fonts.ready; await new Promise(r=>setTimeout(r,250)); return null;");
+        const state=await browser.evaluate(`return {
+          href:document.querySelector("[data-not-found-primary]").getAttribute("href"),
+          help:document.querySelector("[data-not-found-help]").getAttribute("href"),
+          overflow:document.documentElement.scrollWidth>innerWidth
+        };`);
+        assert.equal(state.href,mode==="landlord"?"/landlord/home":"/");
+        assert.equal(state.help,"/landlord/help");
+        assert.equal(state.overflow,false);
+        const row=await inspectCustomerMotion(browser,"404-"+mode+" "+width);
+        // The support link is embedded in a sentence: the same WCAG 2.5.5
+        // inline-prose exception used for legal documents, recorded explicitly.
+        const inline=await browser.evaluate(`const a=document.querySelector("[data-not-found-help]"); return getComputedStyle(a).display==="inline" && a.closest("p").textContent.trim()!==a.textContent.trim();`);
+        const prose=row.targetFindings.filter(f=>inline&&f.tag==="a"&&f.name==="Ask Homle for help");
+        inlineObservations.push({label:row.label,findings:prose});
+        rows.push({...row,targetFindings:row.targetFindings.filter(f=>!prose.includes(f))});
+        await writeFile(new URL("targets-404-"+mode+"-"+width+".png",root),await browser.screenshot());
+      }
+    }
+    console.log("404 inline-prose target observations "+JSON.stringify(inlineObservations));
+    assertCustomerMotion(rows);
+    assert.deepEqual(browser.pageErrors,[]);
+  }finally{await browser.close();await fixture.close();}
+  console.log("404 rendered recovery targets passed at390/768/1440 with documented inline-prose exception.");
+}else console.log("404 rendered recovery targets SKIPPED: Chromium unavailable.");

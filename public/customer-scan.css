@@ -28,6 +28,7 @@ body.journey-page .scan-overlay :is(.hub-room, .hub-chip, .hub-progress) {
   background: #fff; color: #1a1a1a; border: 1px solid #e7e4e0; border-radius: 12px;
 }
 body.journey-page .scan-overlay :is(.hub-room, .hub-chip):hover { background: #fdecec; border-color: #e11b22; }
+body.journey-page .scan-overlay :is(.scan-close, .scan-speech) { width: 44px; height: 44px; }
 body.journey-page .scan-overlay :is(.hub-room-remove, .hub-close) { color: #e11b22; border-color: #e11b22; background: #fff; }
 body.journey-page .scan-overlay :is(.button, .voice-done) {
   border-radius: 11px; background: #e11b22; border: 1px solid #e11b22; color: #fff;

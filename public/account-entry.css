@@ -399,6 +399,11 @@ body.account-entry .account-form-link {
   color: var(--customer-muted);
 }
 body.account-entry .account-form-link a { color: var(--customer-muted); }
+body.account-entry .account-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
 
 body.account-entry .account-role {
   display: block;
@@ -495,7 +500,7 @@ body.account-entry .ae-crumbs li {
 }
 body.account-entry .ae-crumbs li[aria-current] {
   background: var(--customer-active);
-  color: var(--customer-accent);
+  color: var(--customer-accent-dark);
 }
 
 /* ── Footer ───────────────────────────────────────────────────────────── */
