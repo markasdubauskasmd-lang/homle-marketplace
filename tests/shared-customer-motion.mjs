@@ -1,7 +1,7 @@
 import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
 
 const scrollSource = await readFile(new URL("../public/landlord-dashboard.js", import.meta.url), "utf8");
@@ -50,6 +50,8 @@ const rows = [];
 const scrollRows = [];
 const descendantRows = [];
 const targetRows = [];
+const captureRoot = new URL("../test-artifacts/customer-responsive/",import.meta.url);
+await mkdir(captureRoot,{recursive:true});
 async function waitFor(expression) {
   const deadline = Date.now() + 12000;
   while (!(await browser.evaluate(expression))) {
@@ -97,6 +99,9 @@ async function measure(name, width, reduce) {
     assert(descendants.inspected > 10, "Missing rendered customer content: " + name);
     descendantRows.push({name,width,...descendants});
     targetRows.push(await inspectCustomerMotion(browser, "workspace-target " + name + " " + width));
+    if (["bookings-menu","requests","tracking-landlord"].includes(name)) {
+      await writeFile(new URL("targets-"+name+"-"+width+".png",captureRoot),await browser.screenshot());
+    }
   }
 
 }
