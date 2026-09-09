@@ -1,6 +1,6 @@
 import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
 if (!resolveChromiumPath()) { if(process.env.CI) throw new Error("Ownership browser check requires Chromium."); process.exit(0); }
 const A="11111111-1111-4111-8111-111111111111", B="22222222-2222-4222-8222-222222222222";
@@ -19,6 +19,8 @@ const server=await serveStatic({extraFiles:{
 }});
 const browser=await launchBrowser();
 const motionRows=[];
+const captureRoot = new URL("../test-artifacts/customer-responsive/", import.meta.url);
+await mkdir(captureRoot, {recursive:true});
 async function waitFor(code) { const end=Date.now()+12000; while(!await browser.evaluate(code)) { if(Date.now()>end)throw new Error("Not ready: "+code+" "+await browser.evaluate("document.body.innerText")); await new Promise(r=>setTimeout(r,50)); } }
 async function seed(ownerId=A) {
  await browser.goto(server.origin+"/owner-seed");
@@ -38,9 +40,11 @@ try {
   await browser.evaluate('document.querySelector("[data-tasks]").value="Kitchen: Private edited account A task"; document.querySelector("[data-back]").click(); return true;');
   await waitFor('document.querySelector("[data-step=service]")?.hidden === false');
   motionRows.push(await inspectCustomerMotion(browser, "journey-service " + width));
+  await writeFile(new URL("targets-journey-service-"+width+".png",captureRoot),await browser.screenshot());
   await browser.evaluate('window.motionCameraRequests=0; navigator.mediaDevices.getUserMedia=async()=>{window.motionCameraRequests++;throw new DOMException("Camera disabled in motion check","NotAllowedError");}; document.querySelector("[data-scan-link]").click(); return true;');
   await waitFor('document.querySelector(".scan-overlay [data-hub]")?.hidden === false');
   motionRows.push(await inspectCustomerMotion(browser, "scanner-room-picker-camera-denied " + width));
+  await writeFile(new URL("targets-scanner-room-picker-camera-denied-"+width+".png",captureRoot),await browser.screenshot());
   await browser.evaluate('document.querySelector(".scan-overlay [data-hub] [data-close]").click(); return true;');
   await waitFor('!document.querySelector(".scan-overlay")');
   assert.equal(await browser.evaluate("window.motionCameraRequests"),1,"Expected the initial camera attempt to hit the denying fixture");
