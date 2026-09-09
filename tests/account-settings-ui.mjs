@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
 
 const [page, script, styles, server, authenticationHttp, migration, providerSecurityMigration, appleMigration, privacyMigration, grants] = await Promise.all([
   readFile(new URL("../public/settings.html", import.meta.url), "utf8"),
@@ -37,3 +37,92 @@ assert.ok(privacyMigration.includes("privacy_requests_one_active_type_per_user_i
 
 
 console.log("Account settings UI tests passed: fail-closed provider controls, password/social step-up, lockout-safe removal, CSRF, validated navigation, safe rendering, mobile layout and function-only storage.");
+
+import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
+import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
+
+if (resolveChromiumPath()) {
+  let mode = "password", failPrivacy = true, writes = 0;
+  const fixture = await serveStatic({ extraFiles: {
+    "/api/marketplace/account": () => ({body:{ok:true,account:{roles:["landlord"],selectedRole:"landlord"}}}),
+    "/api/marketplace/auth/provider-links": async () => {
+      await new Promise(r => setTimeout(r, 120));
+      if (mode === "unavailable") return {status:503,body:{error:"Synthetic service unavailable"}};
+      return {body:{ok:true,connected:(mode === "social" ? ["google"] : ["password","google"]).map(provider => ({provider,connectedAt:"2026-08-01T10:00:00Z"})),available:{google:true,apple:true,facebook:true}}};
+    },
+    "/api/marketplace/auth/provider-links/apple/start": () => { writes++; return {status:503,body:{error:"Synthetic connection unavailable"}}; },
+    "/api/marketplace/privacy-requests": ({method,body,headers}) => {
+      if (method === "GET") return {body:{ok:true,privacyRequests:[]}};
+      writes++;
+      assert.equal(headers["x-csrf-token"],"settings-fixture-token");
+      if (failPrivacy) return {status:503,body:{error:"Synthetic request unavailable"}};
+      const data=JSON.parse(body);
+      return {body:{ok:true,privacyRequest:{...data,status:"requested",createdAt:"2026-08-01T10:00:00Z"}}};
+    }
+  }});
+  const browser=await launchBrowser(), rows=[];
+  const root=new URL("../test-artifacts/customer-responsive/",import.meta.url);
+  await mkdir(root,{recursive:true});
+  const waitFor=condition=>browser.evaluate(`
+    const end=Date.now()+5000;
+    while(!(${condition})){if(Date.now()>end)throw Error("Settings state timeout");await new Promise(r=>setTimeout(r,20));}
+    return null;
+  `);
+  const click=selector=>browser.evaluate(`document.querySelector(${JSON.stringify(selector)}).click(); return null;`);
+  const check=async(name,width,capture=false)=>{
+    rows.push(await inspectCustomerMotion(browser,"settings-"+name+" "+width));
+    assert.equal(await browser.evaluate("document.documentElement.scrollWidth > innerWidth"),false,name+" overflow");
+    if(capture){
+      await browser.evaluate("await Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))); return null;");
+      await writeFile(new URL("settings-"+name+"-"+width+".png",root),await browser.screenshot());
+    }
+  };
+  try {
+    for(const width of [390,768,1440]){
+      mode="password"; failPrivacy=true;
+      await browser.setViewport({width,height:width===768?1024:900});
+      await browser.goto(fixture.origin+"/settings.html");
+      await waitFor("!document.querySelector('[data-settings-content]').hidden");
+      await browser.evaluate("sessionStorage.setItem('tideway_csrf','settings-fixture-token'); return null;");
+      await check("ready",width,true);
+      await click('[data-connect-provider="apple"]');
+      await check("connect-dialog",width);
+      await browser.evaluate("document.querySelector('[name=password]').value='synthetic-password'; document.querySelector('[data-link-form]').requestSubmit(); return null;");
+      await waitFor("!document.querySelector('[data-link-feedback]').hidden");
+      assert.equal(await browser.evaluate("document.querySelector('[name=password]').value"),"");
+      await check("connect-error",width,true);
+      await click("[data-link-cancel]");
+      await click(".settings-remove-provider");
+      await check("remove-dialog",width);
+      await click("[data-link-cancel]");
+      await click('[data-privacy-action="deletion"]');
+      assert.equal(await browser.evaluate("document.querySelector('[name=confirmDeletion]').required"),true);
+      await check("deletion-dialog",width,true);
+      await click("[data-privacy-cancel]");
+      await click('[data-privacy-action="export"]');
+      await check("export-dialog",width);
+      await click("[data-privacy-submit]");
+      await waitFor("!document.querySelector('[data-privacy-dialog-feedback]').hidden");
+      await check("export-error",width,true);
+      failPrivacy=false;
+      await click("[data-privacy-submit]");
+      await waitFor("!document.querySelector('[data-privacy-dialog]').open");
+      assert.equal(await browser.evaluate("document.querySelector('[data-privacy-action=export]').disabled"),true);
+      await check("export-received",width);
+      mode="social";
+      await browser.goto(fixture.origin+"/settings.html");
+      await waitFor("!document.querySelector('[data-settings-content]').hidden");
+      assert.equal(await browser.evaluate("document.querySelector('[data-step-up-provider=google]').hidden"),false);
+      await check("social-verification",width,true);
+      mode="unavailable";
+      await browser.goto(fixture.origin+"/settings.html");
+      await waitFor("document.querySelector('[data-settings-title]').textContent === 'Account settings are not available yet.'");
+      assert.equal(await browser.evaluate("document.querySelector('[data-settings-content]').hidden"),true);
+      await check("unavailable",width,true);
+    }
+    assert.equal(writes,9,"Only the synthetic connect error and export retry should write");
+    assertCustomerMotion(rows);
+    assert.deepEqual(browser.pageErrors,[]);
+  } finally {await browser.close(); await fixture.close();}
+  console.log("Settings rendered states passed: three widths, real dialogs, synthetic failure/retry and unavailable gates.");
+} else console.log("Settings rendered states SKIPPED: Chromium unavailable.");
