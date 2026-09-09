@@ -40,11 +40,13 @@ try {
   await browser.evaluate('document.querySelector("[data-tasks]").value="Kitchen: Private edited account A task"; document.querySelector("[data-back]").click(); return true;');
   await waitFor('document.querySelector("[data-step=service]")?.hidden === false');
   motionRows.push(await inspectCustomerMotion(browser, "journey-service " + width));
-  await writeFile(new URL("targets-journey-service-"+width+".png",captureRoot),await browser.screenshot());
+  await browser.evaluate('await Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => {}))); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); return true;');
+      await writeFile(new URL("targets-journey-service-"+width+".png",captureRoot),await browser.screenshot());
   await browser.evaluate('window.motionCameraRequests=0; navigator.mediaDevices.getUserMedia=async()=>{window.motionCameraRequests++;throw new DOMException("Camera disabled in motion check","NotAllowedError");}; document.querySelector("[data-scan-link]").click(); return true;');
   await waitFor('document.querySelector(".scan-overlay [data-hub]")?.hidden === false');
   motionRows.push(await inspectCustomerMotion(browser, "scanner-room-picker-camera-denied " + width));
-  await writeFile(new URL("targets-scanner-room-picker-camera-denied-"+width+".png",captureRoot),await browser.screenshot());
+  await browser.evaluate('await Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => {}))); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); return true;');
+      await writeFile(new URL("targets-scanner-room-picker-camera-denied-"+width+".png",captureRoot),await browser.screenshot());
   await browser.evaluate('document.querySelector(".scan-overlay [data-hub] [data-close]").click(); return true;');
   await waitFor('!document.querySelector(".scan-overlay")');
   assert.equal(await browser.evaluate("window.motionCameraRequests"),1,"Expected the initial camera attempt to hit the denying fixture");
