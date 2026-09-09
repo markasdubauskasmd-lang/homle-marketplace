@@ -102,6 +102,16 @@ async function measure(name, width, reduce) {
     if (["bookings-menu","requests","tracking-landlord"].includes(name)) {
       await writeFile(new URL("targets-"+name+"-"+width+".png",captureRoot),await browser.screenshot());
     }
+    if (name === "bookings-menu") {
+      const visibleHit = await browser.evaluate(`
+        const el=[...document.querySelectorAll(".landlord-account-menu[open] .account-sign-out")].find(el=>el.getBoundingClientRect().width>0);
+        if(!el) return false;
+        el.scrollIntoView({block:"nearest",behavior:"instant"});
+        const r=el.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);
+        return hit===el||el.contains(hit);
+      `);
+      assert(visibleHit,"Account sheet sign-out is covered at "+width);
+    }
     if (name === "requests") {
       const hits = await browser.evaluate(`
         const buttons = [...document.querySelectorAll(".pac-dot")];
