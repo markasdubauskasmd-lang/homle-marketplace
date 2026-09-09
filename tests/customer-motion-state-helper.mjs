@@ -18,7 +18,7 @@ export async function inspectCustomerMotion(browser, label) {
         const rect = el.getBoundingClientRect();
         if (!rect.width || !rect.height || getComputedStyle(el).visibility === "hidden") continue;
         if (el.matches("button,input:not([type=hidden]),select,textarea,a[href],summary")
-            && !el.matches(":disabled,[aria-disabled=true]")) {
+            && !el.matches(":disabled,[aria-disabled=true]") && !el.closest("[inert]")) {
           targetsInspected++;
           let effective = {width:rect.width,height:rect.height};
           let targetSource = "control";
