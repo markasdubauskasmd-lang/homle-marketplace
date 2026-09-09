@@ -30,6 +30,15 @@ export async function inspectCustomerMotion(browser, label) {
               }
             }
           }
+          // This existing button stretches its ::after across the entire account row.
+          if (el.matches(".ld-acct-signout")) {
+            const hit = getComputedStyle(el, "::after");
+            if (hit.content !== "none" && hit.position === "absolute" && hit.pointerEvents !== "none"
+                && [hit.top,hit.right,hit.bottom,hit.left].every(value => value === "0px")) {
+              effective = {width:Math.max(effective.width,parseFloat(hit.width)||0),height:Math.max(effective.height,parseFloat(hit.height)||0)};
+              targetSource = "stretched button ::after";
+            }
+          }
           if (effective.width < 44 || effective.height < 44)
             targetFindings.push({tag:el.tagName.toLowerCase(),name:(el.getAttribute("aria-label") || el.textContent?.trim() || el.name || el.type || "").slice(0,100),
               className:el.className,source:targetSource,width:effective.width,height:effective.height,
