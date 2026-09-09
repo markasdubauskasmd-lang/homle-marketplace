@@ -265,6 +265,17 @@ try {
             text:section.innerText.trim(),
             animations:document.getAnimations().filter(a=>a.playState==="running"||a.pending).length};
         `);
+        if(reduce && stage==="scan" && viewport.width<=1080) {
+          const layout=await browser.evaluate(`
+            const rect=selector=>{const r=document.querySelector(selector).getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right};};
+            return {copy:rect(".ci-scan-copy"),phone:rect(".ci-phone-stage"),readout:rect(".ci-readout"),nav:rect(".ci-nav")};
+          `);
+          assert(layout.copy.top>=layout.nav.bottom, "Still scanner heading is behind the navigation at "+viewport.width);
+          assert(layout.phone.top>=layout.copy.bottom+20 && layout.readout.top>=layout.phone.bottom+20,
+            "Still scanner panels overlap at "+viewport.width+": "+JSON.stringify(layout));
+          assert([layout.copy,layout.phone,layout.readout].every(r=>r.left>=0&&r.right<=viewport.width),
+            "Still scanner panel clips horizontally");
+        }
         const label=stage+" "+viewport.width+" reduce="+reduce;
         if(reduce) targetRows.push(await inspectCustomerMotion(browser,"public-home-"+stage+" "+viewport.width));
         assert(state.width===viewport.width&&state.overflow<=1,label+": horizontal overflow "+JSON.stringify(state));
@@ -285,6 +296,10 @@ try {
             label+": static poster missing or reduced-motion video loaded: "+JSON.stringify(still));
         }
         await writeFile(new URL("home-"+stage+"-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());
+        if(reduce && stage==="scan" && viewport.width<=1080) {
+          await browser.evaluate(`const r=document.querySelector(".ci-readout").getBoundingClientRect();window.scrollTo({top:scrollY+r.bottom-innerHeight+24,behavior:"instant"});await new Promise(resolve=>setTimeout(resolve,100));return true;`);
+          await writeFile(new URL("home-scan-results-"+viewport.width+"-reduced.png",captureRoot),await browser.screenshot());
+        }
       }
       const footerState=await browser.evaluate(`
         window.scrollTo({top:document.documentElement.scrollHeight,behavior:"instant"});
