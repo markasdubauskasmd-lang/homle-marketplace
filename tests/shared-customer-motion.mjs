@@ -131,6 +131,7 @@ try {
             return calls;
           `);
           scrollRows.push({width, reduce, calls});
+          await measure("account-edit", width, reduce);
         }
       }
       for (role of ["landlord", "cleaner"]) {
