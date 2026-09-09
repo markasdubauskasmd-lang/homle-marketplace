@@ -1,6 +1,8 @@
 import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, mkdir, writeFile } from "node:fs/promises";
+const captureRoot = new URL("../test-artifacts/customer-responsive/", import.meta.url);
+await mkdir(captureRoot, {recursive:true});
 import { launchBrowser, resolveChromiumPath, serveStatic } from "../tools/browser-harness.mjs";
 import { activeBookingChangeRequestFor, supportCategoryLabels, supportRequestPage, supportRequestPayload, supportStatusLabels } from "../public/landlord-help-model.js";
 import { supportQueueFilter, supportReviewPayload } from "../public/admin-support-model.js";
@@ -148,6 +150,7 @@ const motionRows = [];
       await browser.goto(`${server.origin}/landlord-help.html`);
       await waitFor(`document.querySelectorAll('.support-request-card').length === 25 && !document.querySelector('[data-support-more]').hidden`);
       motionRows.push(await inspectCustomerMotion(browser, "support-history " + width));
+      await writeFile(new URL("targets-support-"+width+".png",captureRoot),await browser.screenshot());
       await browser.evaluate(`
         document.querySelector('[name="subject"]').value = 'Unsent property question';
         document.querySelector('[name="description"]').value = 'Please preserve this unsent detailed support question.';
