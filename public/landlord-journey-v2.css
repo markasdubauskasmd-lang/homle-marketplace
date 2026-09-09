@@ -110,7 +110,7 @@ body.journey-page .field .hint { color: var(--homle-ws-dim, #6b6b6b); font-size:
 body.journey-page .inp {
   min-height: 48px;
   padding: 12px 14px;
-  border: 1px solid var(--homle-ws-border, #e7e4e0);
+  border: 1px solid #8a8a8a;
   border-radius: 12px;
   /* Outlined on paper, as the workspace does, rather than the journey's grey
      fill. 16px is kept from the original: it is what stops iOS zooming the
