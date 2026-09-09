@@ -66,7 +66,7 @@ export async function inspectCustomerText(browser, label) {
       const boundary=Math.max(fill,...borders);
       const focusVisible=el.matches(":focus-visible");
       const outline=parseFloat(s.outlineWidth)>0&&!["none","hidden"].includes(s.outlineStyle)?contrast(over(rgba(s.outlineColor),outside),outside):null;
-      controls.push({enforced:el.matches('body.homle-workspace :is(input,select,textarea), body.journey-page .inp, body.journey-page .scan-overlay :is(.hub-other-input,.scan-item-editor-name,.voice-txt), body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) :is(input,select,textarea)'),tag:el.tagName.toLowerCase(),type:el.type||"",id:el.id,className:el.className,empty:!el.value,readOnly:!!el.readOnly,boundary,fill,borders,focusVisible,outline,shadow:s.boxShadow!=="none",appearance:s.appearance});
+      controls.push({enforced:el.matches('body.landlord-dashboard-page .ld-account-section .landlord-profile-form :is(input,textarea), body.homle-workspace :is(input,select,textarea), body.journey-page .inp, body.journey-page .scan-overlay :is(.hub-other-input,.scan-item-editor-name,.voice-txt), body.active-job-page:has([data-workspace-link][href="/landlord/dashboard"]) :is(input,select,textarea)'),tag:el.tagName.toLowerCase(),type:el.type||"",id:el.id,className:el.className,empty:!el.value,readOnly:!!el.readOnly,boundary,fill,borders,focusVisible,outline,shadow:s.boxShadow!=="none",appearance:s.appearance});
     }
     return {inspected,targeted,findings,excluded,controls};
   `);
