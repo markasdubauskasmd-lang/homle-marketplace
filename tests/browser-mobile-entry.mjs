@@ -1,3 +1,4 @@
+import { inspectCustomerMotion, assertCustomerMotion } from "./customer-motion-state-helper.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 import {
   chromiumExecutableCandidates,
@@ -29,6 +30,7 @@ if (!chromiumPath) {
 const server = await serveStatic();
 const browser = await launchBrowser();
 let failure = null;
+const targetRows = [];
 
 try {
   await browser.setViewport({ width: 390, height: 844 });
@@ -264,6 +266,7 @@ try {
             animations:document.getAnimations().filter(a=>a.playState==="running"||a.pending).length};
         `);
         const label=stage+" "+viewport.width+" reduce="+reduce;
+        if(reduce) targetRows.push(await inspectCustomerMotion(browser,"public-home-"+stage+" "+viewport.width));
         assert(state.width===viewport.width&&state.overflow<=1,label+": horizontal overflow "+JSON.stringify(state));
         assert(state.reduced===reduce,label+": motion preference not applied");
         assert(state.text.length>10,label+": missing section content");
@@ -286,6 +289,7 @@ try {
     }
   }
 
+  assertCustomerMotion(targetRows);
   assert(browser.pageErrors.length === 0,
     `The mobile account entry threw in Chromium: ${browser.pageErrors.join(" | ")}`);
 } catch (error) {
