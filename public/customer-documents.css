@@ -9,6 +9,7 @@ body.customer-document .legal-header {
   border-bottom: 1px solid var(--customer-line);
 }
 body.customer-document .legal-header .shell { gap: 20px; flex-wrap: wrap; }
+body.customer-document .legal-header .brand { min-height: 44px; }
 body.customer-document :is(h1, h2, h3, .brand) {
   font-family: var(--homle-body, "DM Sans", system-ui, sans-serif);
   font-weight: 700;
