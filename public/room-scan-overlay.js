@@ -704,7 +704,11 @@ export function openRoomScan() {
       itemEditorPreviousFocus = trigger instanceof HTMLElement ? trigger : document.activeElement;
       el.itemEditorName.value = current.label;
       const options = el.itemEditorForm.elements["homle-item-condition"];
-      for (const option of options ? [...options] : []) option.checked = option.value === current.condition;
+      // An automatic suggestion is not a customer choice. A name-only edit
+      // must not silently turn an uncertain grade into confirmed evidence.
+      for (const option of options ? [...options] : []) {
+        option.checked = current.conditionConfirmed === true && option.value === current.condition;
+      }
       stopDetection();
       el.itemEditor.hidden = false;
       setScanBackgroundInert(true, el.itemEditor);
