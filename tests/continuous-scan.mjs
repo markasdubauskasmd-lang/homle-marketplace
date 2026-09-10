@@ -449,7 +449,7 @@ assert.match(overlay, /change\.condition = condition/, "The item editor does not
 assert.match(styles, /\.scan-item-condition-options\{[^}]*grid-template-columns:repeat\(2/, "The cleaning-level choices are not presented as large mobile-friendly controls.");
 assert.match(inventoryRender, /grade\.dataset\.grade = "uncertain"/, "An item with no condition has no visible condition-unclear badge.");
 assert.match(inventoryRender, /condition unclear/, "The inventory does not explain that an ungraded item needs review.");
-assert.match(overlay, /conditionReviewAdvice\(inventoryFor\(\)\)\?\.message/, "Live guidance never asks for a closer view when a found item's condition is unresolved.");
+assert.match(overlay, /conditionReviewAdvice\(inventoryFor\(\), \{ canReadAnotherView: keyframeBudget\(\)\.capturedCount < keyframeDefaults\.maxPerRoom \}\)\?\.message/, "Live guidance never asks for a closer view when a found item's condition is unresolved.");
 assert.match(styles, /\.found-grade\[data-grade="uncertain"\]/, "The unresolved-condition badge has no distinct visual treatment.");
 
 /* ── Detected objects glow rather than being boxed ── */
@@ -663,7 +663,7 @@ assert.match(
 );
 assert.match(
   overlay,
-  /const guidance = state\.qualityMessage\s*\|\| state\.framingMessage\s*\|\| conditionReviewAdvice\(inventoryFor\(\)\)\?\.message/,
+  /const guidance = state\.qualityMessage\s*\|\| state\.framingMessage\s*\|\| conditionReviewAdvice\(inventoryFor\(\), \{ canReadAnotherView: keyframeBudget\(\)\.capturedCount < keyframeDefaults\.maxPerRoom \}\)\?\.message/,
   "The live view does not prioritise lighting, motion and distance before unresolved-condition guidance."
 );
 assert.match(
