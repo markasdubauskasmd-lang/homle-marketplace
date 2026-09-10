@@ -192,7 +192,18 @@ function itemNote(detection) {
   return evidence;
 }
 
+function requireReadingShape(payload, collection) {
+  // A malformed response is a failed read, not an empty but successful scan.
+  // Keep valid empty/unknown scans and the existing per-item sanitisation.
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)
+    || typeof payload.condition !== "string"
+    || !Array.isArray(payload[collection]) || !Array.isArray(payload.tasks)) {
+    throw new Error("The room reading had an invalid response shape.");
+  }
+}
+
 function reading(payload) {
+  requireReadingShape(payload, "detections");
   // 'unknown' is carried through as no assessment rather than as a grade, so a
   // photograph that could not be judged never reads as a confident "Light".
   const condition = ["light", "medium", "heavy"].includes(payload?.condition) ? payload.condition : "";
@@ -298,6 +309,7 @@ export const selectionInstructions = [
 const maximumSelectedItems = 12;
 
 function selectionReading(payload, allowedIds) {
+  requireReadingShape(payload, "items");
   const condition = ["light", "medium", "heavy"].includes(payload?.condition) ? payload.condition : "";
   const seen = new Set();
   const items = (Array.isArray(payload?.items) ? payload.items : [])
