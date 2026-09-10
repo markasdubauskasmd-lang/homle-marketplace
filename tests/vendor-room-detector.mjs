@@ -83,3 +83,28 @@ assert(model.weightsManifest[0].weights.some((weight) => weight.quantization?.dt
 assert(detectorProvenance.model === "ssdlite_mobilenet_v2" && detectorProvenance.library["@tensorflow/tfjs-core"], "The vendored detector no longer records where it came from.");
 
 console.log("Vendored room detector tests passed: quantisation accurate to half a bucket, constants and integers preserved, small tensors left alone, layout accounted for byte by byte, and a self-contained same-origin model.");
+
+// COCO-SSD switches to CPU for NMS after WebGL inference. Exercise the real
+// vendored backend: a mock setBackend would hide a missing registration.
+{
+  const { default: vm } = await import("node:vm");
+  const context = vm.createContext({ console, setTimeout, clearTimeout, document: {}, TextEncoder, TextDecoder });
+  context.window = context;
+  context.self = context;
+  vm.runInContext(await readFile(new URL("../public/vendor/tfjs-4.22.0/tf-core.min.js", import.meta.url), "utf8"), context);
+  vm.runInContext(await readFile(new URL("../public/vendor/tfjs-cpu-4.22.0/tf-backend-cpu.min.js", import.meta.url), "utf8"), context);
+  const indices = await vm.runInContext(`(async () => {
+    await tf.setBackend("cpu");
+    await tf.ready();
+    const boxes = tf.tensor2d([[0,0,1,1], [0,0,1,1], [2,2,3,3]]);
+    const scores = tf.tensor1d([.9,.8,.7]);
+    const kept = tf.image.nonMaxSuppression(boxes, scores, 12, .62, .62);
+    const result = Array.from(kept.dataSync());
+    boxes.dispose(); scores.dispose(); kept.dispose();
+    return result;
+  })()`, context);
+  assert(JSON.stringify(indices) === "[0,2]", "The shipped CPU backend cannot suppress duplicate boxes while retaining a separate object.");
+  const overlay = await readFile(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
+  const fallback = overlay.slice(overlay.indexOf('if (!(hasWebGpu && await trySetBackend(runtime, "webgpu")))'), overlay.indexOf("await runtime.ready();"));
+  assert(fallback.includes('await loadDetectorScript("/vendor/tfjs-cpu-4.22.0/tf-backend-cpu.min.js")'), "WebGL fallback does not load its CPU postprocessing dependency.");
+}
