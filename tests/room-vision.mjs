@@ -265,3 +265,27 @@ assert(roomReadingRoute.includes("const readingStartedAt = Date.now()")
   "Room-reading latency is defined but no longer observed on both success and failure paths.");
 
 console.log("Room vision tests passed: optional capability, photograph-only bounded requests, malformed-box rejection, honest empty readings, selected-item naming that cannot invent an item or a coordinate, no invented measurement and clean failure for every provider fault.");
+
+
+// Malformed envelopes must fail so the route can offer retry, not claim an empty scan.
+for (const collection of ["detections", "items"]) {
+  const valid = {condition:"unknown", [collection]:[], tasks:[]};
+  const run = async (payload) => {
+    const vision = createAnthropicRoomVision({apiKey:"synthetic-key",client:stub(jsonReply(payload))});
+    return collection === "detections"
+      ? vision.readRoom({image:pixel,roomName:"Kitchen"})
+      : vision.readSelectedItems({image:pixel,roomName:"Kitchen",items:[{id:"a",label:"Sink"}]});
+  };
+  for (const payload of [null,[],{},false,42,"unreadable",
+    {condition:"heavy"}, {...valid,condition:null}, {...valid,condition:7},
+    {...valid,[collection]:null}, {...valid,[collection]:{}}, {...valid,tasks:null},
+    {...valid,tasks:"Clean everything"},
+    ...Object.keys(valid).map(key=>Object.fromEntries(Object.entries(valid).filter(([name])=>name!==key)))]) {
+    assert(await rejects(()=>run(payload),"invalid response shape"), collection + ": malformed response was accepted as success");
+  }
+  const empty = await run(valid);
+  assert(empty.condition === "" && empty[collection].length === 0 && empty.tasks.length === 0,
+    collection + ": a valid unknown empty reading was rejected or given a grade");
+  const withTask = await run({...valid,tasks:["Wipe the table"]});
+  assert(withTask.tasks[0] === "Wipe the table", collection + ": valid tasks were lost");
+}
