@@ -265,3 +265,67 @@ assert(page.includes("data-measure-photo") && page.includes("data-measure-refs")
   "The measure dialog's elements are missing from the journey page.");
 
 console.log("Customer scan-review checks passed.");
+
+
+// Execute the actual async refresh function with controlled completion order.
+{
+  const { default: vm } = await import("node:vm");
+  const start = script.indexOf("async function refreshScanReview()");
+  const refreshSource = script.slice(start, script.indexOf("// What the customer currently sees:", start));
+  const tick = () => new Promise(resolve => setImmediate(resolve));
+  const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
+  function harness() {
+    const requests = [], renders = [];
+    const context = {
+      scanReviewRequestVersion: 0, reviewHost: { hidden: false },
+      state: { scanRooms: [{ name: "Kitchen", objects: [] }], scanReview: null },
+      loadPricingConfig: async () => {}, recoverCsrf: async () => "synthetic",
+      requestJson(url, options) { const pending = deferred(); requests.push({ ...pending, body: JSON.parse(options.body) }); return pending.promise; },
+      scanReview: value => value
+    };
+    context.correctedScanRooms = () => context.state.scanRooms;
+    context.renderReview = () => renders.push(context.state.scanReview);
+    vm.createContext(context); vm.runInContext(refreshSource, context);
+    return { context, requests, renders, refresh: () => context.refreshScanReview() };
+  }
+  {
+    const h = harness();
+    const old = h.refresh(); await tick();
+    const latest = h.refresh(); await tick();
+    h.requests[1].resolve({ scan: { version: "latest" } }); await latest;
+    h.requests[0].resolve({ scan: { version: "old" } }); await old;
+    assert(h.context.state.scanReview.version === "latest" && h.renders.length === 1, "A late earlier response overwrote the latest correction.");
+  }
+  {
+    const h = harness();
+    const old = h.refresh(); await tick();
+    const latest = h.refresh(); await tick();
+    h.requests[1].reject(new Error("offline")); await latest;
+    h.requests[0].resolve({ scan: { version: "old" } }); await old;
+    assert(h.context.state.scanReview === null && !h.renders.length, "A failed latest request let stale success resurrect an old assessment.");
+  }
+  for (const replacement of [[], [{ name: "Bedroom", objects: [] }]]) {
+    const h = harness(), old = h.refresh(); await tick();
+    h.context.state.scanRooms = replacement;
+    h.requests[0].resolve({ scan: { version: "old room" } }); await old;
+    assert(!h.renders.length, "A previous scan response appeared after the room set was replaced.");
+  }
+  for (const dependency of ["loadPricingConfig", "recoverCsrf"]) {
+    const h = harness(), slow = deferred();
+    let calls = 0;
+    h.context[dependency] = () => ++calls === 1 ? slow.promise : Promise.resolve("synthetic");
+    const old = h.refresh(); await tick();
+    const latest = h.refresh(); await tick();
+    assert(h.requests.length === 1, "The latest review was blocked by an older dependency wait.");
+    h.requests[0].resolve({ scan: { version: "latest" } }); await latest;
+    slow.resolve("synthetic"); await old;
+    assert(h.requests.length === 1 && h.context.state.scanReview.version === "latest", "A stale dependency completion sent another obsolete review.");
+  }
+  {
+    const h = harness(), old = h.refresh(); await tick();
+    const latest = h.refresh(); await tick();
+    h.requests[1].resolve({ scan: { version: "latest" } }); await latest;
+    h.requests[0].reject(new Error("old failure")); await old;
+    assert(h.context.state.scanReview.version === "latest" && !h.context.reviewHost.hidden, "An old failure affected the current review.");
+  }
+}
