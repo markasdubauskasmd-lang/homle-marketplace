@@ -1455,6 +1455,26 @@ function usefulness(item) {
   return weight + generic + corrected + sure;
 }
 
+// Shared by the live overlay and replay tests: convert a provider reading once,
+// keeping object identity distinct from condition evidence and user dismissals.
+export function walkingReadingItems(reading, roomName, dismissed = new Set()) {
+  return (Array.isArray(reading?.detections) ? reading.detections : [])
+    .filter((detection) => detection && inventoryKey(detection.label))
+    .filter((detection) => !implausibleForRoom(detection.label, roomName))
+    .filter((detection) => !dismissed.has(inventoryKey(detection.label)))
+    .map((detection) => ({
+      label: detection.label,
+      score: Number.isFinite(detection.confidence) ? detection.confidence : 0.5,
+      conditionConfidence: conditionEvidenceConfidence(detection),
+      condition: detection.condition || "",
+      soiling: Array.isArray(detection.soiling) ? detection.soiling : [],
+      note: detection.note || "",
+      x: detection.x, y: detection.y,
+      width: detection.width, height: detection.height,
+      source: "read"
+    }));
+}
+
 export function mergeRoomInventory(existing, incoming, { now = 0, limit = inventoryLimit } = {}) {
   const merged = new Map();
   for (const item of Array.isArray(existing) ? existing : []) {

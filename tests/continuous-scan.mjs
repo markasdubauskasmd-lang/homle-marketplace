@@ -8,7 +8,7 @@ import {
   signatureDistance, walkingReadIsBlocked, conditionReviewAdvice, conditionTag, movementAdvice,
   objectFramingAdvice, savedDetectionFromInventoryItem, usableLiveBoxes,
   signatureChangeSpread, movementSpreadThreshold,
-  conditionNeedsReview, cleanConditionReviewThreshold, recommendedAction, usableDetections
+  conditionNeedsReview, cleanConditionReviewThreshold, recommendedAction, usableDetections, walkingReadingItems
 } from "../public/room-scan-model.js";
 
 // The scan used to be one shutter press per room, so whatever was not in that one
@@ -434,7 +434,8 @@ assert.match(overlay, /state\.keyframeCanvas/, "Keyframes are drawn on the share
 
 // The inventory has to reach the saved room, or it is a display that vanishes.
 assert.match(overlay, /mergeInventoryIntoSavedDetections\(room\.detections, walked\)/, "Items found while walking are not folded into the saved room, so the checklist would still only know what was in the single confirmation frame.");
-assert.match(overlay, /soiling: Array\.isArray\(detection\.soiling\) \? detection\.soiling : \[\]/, "Walking reads discard structured soiling before it reaches the inventory.");
+assert.deepEqual(walkingReadingItems({ detections: [{ label: "Sink", soiling: ["grease"] }] }, "Kitchen")[0].soiling, ["grease"], "Walking reads discard structured soiling before it reaches the inventory.");
+assert.deepEqual(walkingReadingItems({ detections: [{ label: "Sink", soiling: null }] }, "Kitchen")[0].soiling, [], "Malformed soiling must normalize to an empty list.");
 
 // Labels come back from a reader looking at photographs of a stranger's home.
 const inventoryRender = overlay.slice(overlay.indexOf("function renderInventory"), overlay.indexOf("function inventoryFor"));
@@ -564,7 +565,7 @@ assert.match(overlay, /const conditionRank = \{ light: 1, medium: 2, heavy: 3 \}
 /* ── Corrections survive the reads that follow them ── */
 
 assert.match(overlay, /state\.dismissed/, "Removing an item leaves no record, so the next reading merges it straight back and the removal looks broken.");
-assert.match(overlay, /dismissed\.has\(inventoryKey\(detection\?\.label\)\)/, "A reading in flight can re-add an item the Landlord has just removed.");
+assert.deepEqual(walkingReadingItems({ detections: [{ label: "Sink" }] }, "Kitchen", new Set(["sink"])), [], "A reading in flight can re-add an item the Landlord has just removed.");
 
 /* ── A read that outlives its room lands nowhere ── */
 
@@ -667,7 +668,7 @@ assert.match(
 );
 assert.match(
   overlay,
-  /score: Number\.isFinite\(detection\.confidence\)[\s\S]{0,240}conditionConfidence: Number\.isFinite\(detection\.conditionConfidence\)/,
+  /const found = walkingReadingItems\(reading, roomName, dismissed\)/,
   "Walking reads collapse object-label and condition confidence before the room inventory can use them independently."
 );
 assert.equal((overlay.match(/getImageData\(/g) || []).length, 1, "Uneven exposure added another synchronous camera readback.");
@@ -836,3 +837,25 @@ for (const condition of ["clean", "light", "medium", "heavy"]) {
   }
 }
 assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Legacy combined confidence compatibility was lost");
+
+
+// Exercise the exact conversion called by the overlay, through inventory and save.
+{
+  const detection={label:"Sink",confidence:.99,condition:"clean",conditionConfidence:null,x:5,y:5,width:20,height:20};
+  const found=walkingReadingItems({detections:[detection,{...detection,label:"Floor"},{...detection,label:"Bed"},null]},"Kitchen",new Set(["floor"]));
+  assert.equal(found.length,1,"Dismissed/implausible/malformed observations leaked into the inventory");
+  assert.equal(found[0].score,.99);
+  assert.equal(found[0].conditionConfidence,null,"Overlay conversion borrowed object confidence");
+  const inventory=mergeRoomInventory([],found,{now:1});
+  const saved=mergeInventoryIntoSavedDetections([],inventory);
+  assert.equal(saved.length,1);
+  assert.equal(saved[0].conditionConfidence,null,"Save invented condition evidence");
+  assert.equal(conditionNeedsReview(saved[0]),true,"Uncertain live reading became settled after save");
+  const correction=correctInventoryItem(inventory,inventory[0].key,{condition:"light"});
+  const reread=mergeRoomInventory(correction,found,{now:2});
+  assert.equal(reread[0].condition,"light","A reread overwrote the customer's condition correction");
+  assert.equal(conditionNeedsReview(mergeInventoryIntoSavedDetections([],reread)[0]),false);
+  const legacy={...detection};delete legacy.conditionConfidence;
+  assert.equal(walkingReadingItems({detections:[legacy]},"Kitchen")[0].conditionConfidence,.99);
+  assert.deepEqual(walkingReadingItems({detections:null},"Kitchen"),[]);
+}

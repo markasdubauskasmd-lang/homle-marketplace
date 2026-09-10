@@ -19,6 +19,7 @@ import {
   roomCoverageProgress,
   walkingReadIsBlocked,
   mergeRoomInventory,
+  walkingReadingItems,
   mergeSavedDetections,
   mergeInventoryIntoSavedDetections,
   inventoryDisplayLabel,
@@ -2565,29 +2566,7 @@ export function openRoomScan() {
           state.diagnostics.lastReadMs = Date.now() - readStartedAt;
           state.diagnostics.lastReadFailure = "";
           const dismissed = state.dismissed.get(transcriptKey(roomName)) || new Set();
-          const found = (reading?.detections || [])
-            // The room filter applies to what a reader names too. It is a better
-            // reader than COCO, but "oven" in a bedroom is still wrong.
-            .filter((detection) => !implausibleForRoom(detection?.label, roomName))
-            // Something the Landlord removed stays removed. Merging it back is the
-            // fastest way to make a correction feel ignored.
-            .filter((detection) => !dismissed.has(inventoryKey(detection?.label)))
-            .map((detection) => ({
-              label: detection.label,
-              // The reader's own confidence, not a constant. An item it was
-              // unsure about must not sort above one it was certain of, and the
-              // list is ordered by how sure the room is.
-              score: Number.isFinite(detection.confidence) ? detection.confidence : 0.5,
-              conditionConfidence: Number.isFinite(detection.conditionConfidence)
-                ? detection.conditionConfidence
-                : Number.isFinite(detection.confidence) ? detection.confidence : null,
-              condition: detection.condition || "",
-              soiling: Array.isArray(detection.soiling) ? detection.soiling : [],
-              note: detection.note || "",
-              x: detection.x, y: detection.y,
-              width: detection.width, height: detection.height,
-              source: "read"
-            }));
+          const found = walkingReadingItems(reading, roomName, dismissed);
           // Tasks and condition are kept even when no new object was named — a
           // second angle on the same room still tells us how dirty it is.
           rememberWalkEvidence(roomName, reading);
