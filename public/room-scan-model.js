@@ -1404,6 +1404,14 @@ export function inventoryKey(label) {
 
 export const inventoryLimit = 40;
 
+// A grouped row cannot assign one object's grade to other visible objects.
+// Keep the group unresolved across later partial views until the user confirms.
+function reviewMixedConditions(item) {
+  if (!item?.conditionMixed || item.conditionConfirmed === true) return item;
+  return { ...item, condition: "", conditionConfidence: null,
+    note: "Conditions differ — check each item." };
+}
+
 // A quantity is trusted only when one frame showed several non-overlapping boxes
 // with the same label. Seeing "Chair" in three different walking reads is not
 // proof of three chairs — it is usually one chair seen from three angles. Seeing
@@ -1516,10 +1524,12 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     const label = item.label;
     const score = Number.isFinite(item?.score) ? item.score : 0;
     const quantity = simultaneousQuantity(group, key);
+    const grades = new Set(group.map(item => item.condition).filter(grade => ["clean", "light", "medium", "heavy"].includes(grade)));
+    const conditionMixed = quantity > 1 && grades.size > 1;
     const current = merged.get(key);
     if (!current) {
       merged.set(key, {
-        key, label, score, quantity, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false,
+        key, label, score, quantity, conditionMixed, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false,
         condition: String(evidence?.condition || ""), note: String(evidence?.note || ""),
         conditionConfidence: conditionEvidenceConfidence(evidence),
         conditionConfirmed: evidence?.conditionConfirmed === true,
@@ -1556,6 +1566,7 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       // time the camera turned back towards it. Keep only the largest simultaneous
       // count one frame actually proved.
       quantity: Math.max(itemQuantity(current), quantity),
+      conditionMixed: current.conditionMixed === true || conditionMixed,
       lastSeenAt: now,
       // The better-evidenced look at the same object wins its condition too. A
       // glimpse from the doorway should not overwrite a close pass that actually
@@ -1592,7 +1603,7 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     // true, unactionable, and occupying a slot on a phone screen.
     .sort((a, b) => (usefulness(b) - usefulness(a)) || (b.sightings - a.sightings) || a.label.localeCompare(b.label, "en"))
     .slice(0, limit)
-    .map((item) => Object.freeze(item)));
+    .map((item) => Object.freeze(reviewMixedConditions(item))));
 }
 
 // A walking read can see an object that is outside the final confirmation frame.
@@ -1620,6 +1631,7 @@ export function savedDetectionFromInventoryItem(item) {
     confidence: confidenceValue(item?.score) ?? 0,
     conditionConfidence: conditionEvidenceConfidence(item),
     conditionConfirmed: item?.conditionConfirmed === true,
+    conditionMixed: item?.conditionMixed === true,
     soiling: Object.freeze((Array.isArray(item?.soiling) ? item.soiling : [])
       .map((kind) => String(kind || "").trim().slice(0, 16))
       .filter(Boolean)
@@ -1687,15 +1699,16 @@ export function mergeSavedDetections(existing, incoming) {
     merged.set(key, {
       ...base,
       condition: conditionSource.condition || "",
+      conditionMixed: current.conditionMixed === true || detection.conditionMixed === true,
       conditionConfidence: conditionEvidenceConfidence(conditionSource),
       note: String(conditionSource.note || ""),
       soiling: Object.freeze(Array.isArray(conditionSource.soiling) ? conditionSource.soiling.slice(0, 4) : [])
     });
   }
-  return Object.freeze([...merged.entries()].map(([key, detection]) => Object.freeze({
+  return Object.freeze([...merged.entries()].map(([key, detection]) => Object.freeze(reviewMixedConditions({
     ...detection,
     quantity: Math.min(20, Math.max(existingCounts.get(key) || 0, incomingCounts.get(key) || 0, 1))
-  })).slice(0, inventoryLimit));
+  }))).slice(0, inventoryLimit));
 }
 
 export function mergeInventoryIntoSavedDetections(existing, inventory) {
@@ -1724,6 +1737,7 @@ export function correctInventoryItem(items, key, change = {}) {
       // assessment for this booking.
       conditionConfidence: regraded ? 1 : conditionEvidenceConfidence(item),
       conditionConfirmed: Boolean(regraded) || item.conditionConfirmed === true,
+      conditionMixed: regraded ? false : item.conditionMixed === true,
       // Renaming is itself a confirmation: the Landlord has looked at it and said
       // what it is, so a later automatic reading must not overwrite them.
       confirmed: change.confirmed === true || Boolean(renamed) || item.confirmed
