@@ -565,7 +565,7 @@ assert.match(overlay, /const conditionRank = \{ light: 1, medium: 2, heavy: 3 \}
 /* ── Corrections survive the reads that follow them ── */
 
 assert.match(overlay, /state\.dismissed/, "Removing an item leaves no record, so the next reading merges it straight back and the removal looks broken.");
-assert.match(overlay, /dismissed\.has\(inventoryKey\(detection\?\.label\)\)/, "A reading in flight can re-add an item the Landlord has just removed.");
+assert.deepEqual(walkingReadingItems({ detections: [{ label: "Sink" }] }, "Kitchen", new Set(["sink"])), [], "A reading in flight can re-add an item the Landlord has just removed.");
 
 /* ── A read that outlives its room lands nowhere ── */
 
