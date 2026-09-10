@@ -44,7 +44,7 @@ html body.homlle-onboarding-flow .hc-main .hc-documents-card{border:3px solid #2
 html body.homlle-onboarding-flow:not(.homlle-onboarding-home) .hc-main :is(.hc-personal-grid,.hc-business-grid){row-gap:8px}
 html body.homlle-onboarding-flow .hc-personal-grid + .hc-personal-grid{margin-top:8px}
 html body.homlle-onboarding-flow .hc-personal-form label{gap:4px}
-html body.homlle-onboarding-flow .hc-personal-address-top{gap:12px;margin-bottom:8px}
+html body.homlle-onboarding-flow .hc-personal-address-top{gap:12px;margin-bottom:8px;align-items:start}
 html body.homlle-onboarding-flow .hc-personal-form input:not([type=checkbox]):not([type=radio]):not([type=file]),html body.homlle-onboarding-flow .hc-personal-form select{height:36px}
 @media(max-width:600px){html body.homlle-onboarding-flow .hc-main fieldset.of-card{padding:14px 12px}html body.homlle-onboarding-flow:not(.homlle-onboarding-home) .hc-main :is(input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]),select){min-height:44px;font-size:16px}html body.homlle-onboarding-flow .hc-main .hc-personal-grid-two{grid-template-columns:1fr}}
 @media(min-width:1000px){html body.homlle-onboarding-flow [data-personal-form]>fieldset:first-of-type{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 12px}html body.homlle-onboarding-flow [data-personal-form]>fieldset:first-of-type>.of-card-heading{grid-column:1/-1;margin-bottom:4px}html body.homlle-onboarding-flow [data-personal-form]>fieldset:first-of-type>.hc-personal-grid{display:contents}html body.homlle-onboarding-flow [data-personal-form]>fieldset:first-of-type label:has(input[name=email]){grid-column:span 2}}
@@ -71,3 +71,7 @@ html body.homlle-onboarding-flow .of-topbar a,html body.homlle-onboarding-flow .
 html body.homlle-onboarding-flow .of-topbar .of-track{background:rgba(255,255,255,.35)}
 html body.homlle-onboarding-flow .of-topbar .of-track>span{background:#fff}
 @media(max-width:900px){html body.homlle-onboarding-flow .of-topbar::before{inset:-22px -20px 0}}
+
+/* Round the content corner beneath the striped header without moving the form. */
+html body.homlle-onboarding-flow .of-topbar::after{content:"";position:absolute;left:-28px;top:calc(100% - 2px);width:30px;height:30px;pointer-events:none;background:repeating-linear-gradient(115deg,rgba(255,255,255,.14) 0 2px,transparent 2px 15px),#f7123d;mask-image:radial-gradient(circle at 100% 100%,transparent 29.5px,#000 30px)}
+@media(max-width:900px){html body.homlle-onboarding-flow .of-topbar::after{left:-20px}}

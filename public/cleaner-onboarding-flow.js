@@ -15,7 +15,7 @@ if(root && current>=0){
  labels.append(el('strong','',`STEP ${current+1} OF ${onboardingNav.length}`));
  const track=el('div','of-track');track.setAttribute('role','progressbar');track.setAttribute('aria-label','Current onboarding step');track.setAttribute('aria-valuemin','1');track.setAttribute('aria-valuemax',String(onboardingNav.length));track.setAttribute('aria-valuenow',String(current+1));
  const fill=el('span','');fill.style.width=`${(current+1)/onboardingNav.length*100}%`;track.append(fill);progress.append(labels,track);
- const exit=el('a','','Back to dashboard');exit.href='/cleaner/dashboard';bar.append(home,progress,exit);root.prepend(bar);
+ const exit=el('a','','Back to Homlle.com');exit.href='https://homlle.com/';bar.append(home,progress,exit);root.prepend(bar);
 }
 // Enhance the existing form sections, retaining labels, validation and save handlers.
 for(const form of document.querySelectorAll('form')){
