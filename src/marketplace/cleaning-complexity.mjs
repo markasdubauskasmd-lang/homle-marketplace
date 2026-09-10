@@ -126,7 +126,11 @@ function objectLoad(object) {
   const conditionWeight = complexityWeights.condition[condition] ?? 0;
   const kinds = (Array.isArray(object?.soiling) ? object.soiling : [])
     .map((kind) => String(kind || "").toLowerCase())
-    .filter((kind) => soilingKinds.includes(kind));
+    .filter((kind) => soilingKinds.includes(kind))
+    // A customer-confirmed clean grade supersedes automatic dirt observations
+    // for this assessment. Keep the original record unchanged, and preserve
+    // damage: an item can be clean and still need to be avoided or reported.
+    .filter((kind) => !(condition === "clean" && object?.conditionConfirmed === true) || kind === "damage");
   const soilingWeight = kinds.reduce((total, kind) => total + (complexityWeights.soiling[kind] ?? 0), 0);
   const count = quantity(object?.quantity);
   return {
