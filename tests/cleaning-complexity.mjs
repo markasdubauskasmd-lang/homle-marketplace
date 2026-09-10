@@ -319,3 +319,41 @@ console.log("Cleaning-complexity checks passed.");
   const uncertain = assess([room("Kitchen", [{ ...original, condition: "clean", conditionConfirmed: false, confidenceCondition: .2 }])]);
   assert(uncertain.provisional && uncertain.maximumRoomLoad > 0, "An unconfirmed automatic clean silently discarded conflicting evidence.");
 }
+
+
+// Inventory presence is not evidence that every item needs cleaning.
+{
+  const clean = object({ condition: "clean", conditionConfirmed: true, quantity: 3 });
+  const unknown = object({ objectId: "unknown", condition: "", confidenceCondition: 0, quantity: 2 });
+  const light = object({ objectId: "light", condition: "light" });
+  const allClean = assess([room("Kitchen", [clean])]);
+  assert(allClean.itemCount === 3, "Clean items disappeared from inventory.");
+  assert(allClean.indicators.find((entry) => entry.code === "item-count").label === "Items found",
+    "Inventory count still claims all items need cleaning.");
+  assert(allClean.explanation.includes("3 items look clean") && !allClean.explanation.includes("to clean"),
+    "Confirmed-clean inventory was described as cleaning work.");
+  const mixed = assess([room("Kitchen", [clean, unknown, light])]);
+  assert(mixed.itemCount === 6, "Mixed inventory lost proven quantity.");
+  assert(mixed.explanation.includes("3 items look clean")
+    && mixed.explanation.includes("2 items need a condition check")
+    && mixed.explanation.includes("1 item with light soiling"),
+    "Mixed inventory did not distinguish clean, unresolved and lightly soiled items.");
+  const uncertainClean = assess([room("Kitchen", [object({ condition: "clean", confidenceCondition: 0.1 })])]);
+  assert(uncertainClean.explanation.includes("1 item needs a condition check")
+    && !uncertainClean.explanation.includes("looks clean"),
+    "An uncertain clean grade was described as settled.");
+  const unknownOnly = assess([room("Kitchen", [unknown])]);
+  assert(unknownOnly.explanation.includes("2 items need a condition check"),
+    "Presence alone was described as cleaning evidence.");
+  const dirty = object({ condition: "heavy", soiling: ["grease"], confidenceCondition: 0.1 });
+  const uncertain = assess([room("Kitchen", [dirty])]);
+  const certain = assess([room("Kitchen", [{ ...dirty, conditionConfirmed: true }])]);
+  assert(uncertain.explanation.includes("possible heavy grease")
+    && uncertain.explanation.includes("needs confirmation"),
+    "An uncertain dirty finding was stated as fact.");
+  assert(!certain.explanation.includes("possible") && certain.explanation.includes("heavy grease"),
+    "Confirmed dirt evidence was weakened.");
+  assert(uncertain.maximumRoomLoad === certain.maximumRoomLoad
+    && uncertain.itemCount === certain.itemCount && uncertain.level === certain.level,
+    "Explanatory wording changed assessment calculations.");
+}

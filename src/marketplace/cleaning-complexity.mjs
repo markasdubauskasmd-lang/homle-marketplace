@@ -200,11 +200,26 @@ function roomReason(room) {
     .map((entry) => {
       const kinds = listSentence(entry.kinds.filter((kind) => kind !== "damage").map((kind) => soilingWords[kind]));
       const label = entry.count > 1 ? `${entry.count} × ${entry.object.label}` : entry.object.label;
-      if (kinds && entry.object.condition) return `${entry.object.condition} ${kinds} on the ${label}`;
-      if (kinds) return `${kinds} on the ${label}`;
-      return `the ${label} is ${entry.object.condition}`;
+      const finding = kinds && entry.object.condition
+        ? `${entry.object.condition} ${kinds} on the ${label}`
+        : kinds ? `${kinds} on the ${label}` : `the ${label} is ${entry.object.condition}`;
+      return entry.unresolved
+        ? `possible ${kinds ? finding : `${entry.object.condition} soiling on the ${label}`} (needs confirmation)`
+        : finding;
     });
-  if (!parts.length && room.itemCount) return `${room.itemCount} ${room.itemCount === 1 ? "item" : "items"} to clean in the ${room.roomName}`;
+  if (!parts.length && room.itemCount) {
+    // Count inventory without turning presence or an unchecked grade into work.
+    const count = (predicate) => room.scored.filter(predicate).reduce((total, entry) => total + entry.count, 0);
+    const clean = count((entry) => !entry.unresolved && entry.object.condition === "clean");
+    const unchecked = count((entry) => entry.unresolved);
+    const light = count((entry) => !entry.unresolved && entry.object.condition === "light");
+    const summary = [
+      clean ? `${clean} ${clean === 1 ? "item looks" : "items look"} clean` : "",
+      unchecked ? `${unchecked} ${unchecked === 1 ? "item needs" : "items need"} a condition check` : "",
+      light ? `${light} ${light === 1 ? "item" : "items"} with light soiling` : ""
+    ];
+    return `${listSentence(summary) || `${room.itemCount} items recorded`} in the ${room.roomName}`;
+  }
   if (!parts.length) return "";
   return `${listSentence(parts)} in the ${room.roomName}`;
 }
@@ -328,7 +343,7 @@ export function assessCleaningComplexity(scan = {}) {
 
   const indicators = [
     { code: "soiling-load", label: "Weight of graded soiling", value: Math.round(maximumRoomLoad), detail: "Heaviest single room, from per-object conditions and soiling types." },
-    { code: "item-count", label: "Items to clean", value: itemCount, detail: "Counted by proven quantity, not by detection rows." },
+    { code: "item-count", label: "Items found", value: itemCount, detail: "Inventory quantity includes clean items and conditions still to check." },
     { code: "heavy-rooms", label: "Rooms in heavy condition", value: heavyRooms.length, detail: "Rooms scoring at level 3 or above on their own." },
     { code: "evidence-quality", label: "Readings the scan is sure of", value: Math.round(resolvedRatio * 100), detail: "Percentage of objects with a confirmed or confidently graded condition." },
     ...presentSoiling.map((kind) => ({
