@@ -1404,12 +1404,13 @@ export function inventoryKey(label) {
 
 export const inventoryLimit = 40;
 
-// A grouped row cannot assign one object's grade to other visible objects.
+// A grouped row cannot assign one object's grade or certainty to other objects.
+// conditionMixed also covers incomplete evidence for a member of the group.
 // Keep the group unresolved across later partial views until the user confirms.
 function reviewMixedConditions(item) {
   if (!item?.conditionMixed || item.conditionConfirmed === true) return item;
   return { ...item, condition: "", conditionConfidence: null,
-    note: "Conditions differ — check each item." };
+    note: "Check each item’s condition." };
 }
 
 // A quantity is trusted only when one frame showed several non-overlapping boxes
@@ -1535,14 +1536,14 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     const score = Number.isFinite(item?.score) ? item.score : 0;
     const quantity = simultaneousQuantity(group, key);
     const grades = new Set(group.map(item => item.condition).filter(grade => ["clean", "light", "medium", "heavy"].includes(grade)));
-    const conditionMixed = quantity > 1 && grades.size > 1;
+    const conditionMixed = quantity > 1 && (grades.size > 1 || group.some(conditionNeedsReview));
     const current = merged.get(key);
     if (!current) {
       merged.set(key, {
         key, label, score, quantity, conditionMixed, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false,
         condition: String(evidence?.condition || ""), note: String(evidence?.note || ""),
         conditionConfidence: conditionEvidenceConfidence(evidence),
-        conditionConfirmed: evidence?.conditionConfirmed === true,
+        conditionConfirmed: !conditionMixed && evidence?.conditionConfirmed === true,
         soiling: Object.freeze((Array.isArray(evidence?.soiling) ? evidence.soiling : [])
           .map((kind) => String(kind || "").trim().slice(0, 16))
           .filter(Boolean)
@@ -1657,18 +1658,37 @@ export function savedDetectionFromInventoryItem(item) {
 export function mergeSavedDetections(existing, incoming) {
   const existingCounts = new Map();
   const incomingCounts = new Map();
-  const countBatch = (source, target) => {
-    for (const detection of Array.isArray(source) ? source : []) {
+  const prepareBatch = (source, target) => {
+    const batch = Array.isArray(source) ? source : [];
+    const grades = new Map();
+    const unresolved = new Set();
+    for (const detection of batch) {
       const key = String(detection?.inventoryKey || inventoryKey(detection?.label)).trim();
       if (!key) continue;
       target.set(key, (target.get(key) || 0) + itemQuantity(detection));
+      if (conditionNeedsReview(detection)) unresolved.add(key);
+      if (["clean", "light", "medium", "heavy"].includes(detection.condition)) {
+        if (!grades.has(key)) grades.set(key, new Set());
+        grades.get(key).add(detection.condition);
+      }
     }
+    // Separate objects in ONE reading can have different grades. Detect this
+    // before merging discards one grade. Across readings, a better view of the
+    // same object may legitimately correct its grade, so do not pool the sets.
+    // Individual confirmations also cannot settle a conflicting whole group;
+    // a later single grouped customer correction still wins in the merge below.
+    return batch.map(detection => {
+      const key = String(detection?.inventoryKey || inventoryKey(detection?.label)).trim();
+      return grades.get(key)?.size > 1 || (target.get(key) > 1 && unresolved.has(key))
+        ? { ...detection, conditionMixed: true, conditionConfirmed: false }
+        : detection;
+    });
   };
-  countBatch(existing, existingCounts);
-  countBatch(incoming, incomingCounts);
+  const existingBatch = prepareBatch(existing, existingCounts);
+  const incomingBatch = prepareBatch(incoming, incomingCounts);
 
   const merged = new Map();
-  for (const detection of [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]) {
+  for (const detection of [...existingBatch, ...incomingBatch]) {
     const key = String(detection?.inventoryKey || inventoryKey(detection?.label)).trim();
     if (!key) continue;
     const current = merged.get(key);
