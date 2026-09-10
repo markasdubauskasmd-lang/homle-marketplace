@@ -354,7 +354,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       "findRoom","upsertRoom","mergeInventoryIntoSavedDetections","renderHub",
       source.slice(start,end) + ";return setInventory;")(state,name=>name.toLowerCase(),noop,noop,
       findRoom,upsertRoom,mergeInventoryIntoSavedDetections,()=>hubRenders++);
-    const edited = correctInventoryItem([original],"hob",change);
+    const edited = change.quantity ? [{...original,quantity:change.quantity}] : correctInventoryItem([original],"hob",change);
     setter("Kitchen",edited);
     const final = findRoom(state.rooms,"Kitchen");
     const expected = mergeInventoryIntoSavedDetections(saved.detections,edited,state.dismissed.get("kitchen"));
