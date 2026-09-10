@@ -1657,18 +1657,35 @@ export function savedDetectionFromInventoryItem(item) {
 export function mergeSavedDetections(existing, incoming) {
   const existingCounts = new Map();
   const incomingCounts = new Map();
-  const countBatch = (source, target) => {
-    for (const detection of Array.isArray(source) ? source : []) {
+  const prepareBatch = (source, target) => {
+    const batch = Array.isArray(source) ? source : [];
+    const grades = new Map();
+    for (const detection of batch) {
       const key = String(detection?.inventoryKey || inventoryKey(detection?.label)).trim();
       if (!key) continue;
       target.set(key, (target.get(key) || 0) + itemQuantity(detection));
+      if (["clean", "light", "medium", "heavy"].includes(detection.condition)) {
+        if (!grades.has(key)) grades.set(key, new Set());
+        grades.get(key).add(detection.condition);
+      }
     }
+    // Separate objects in ONE reading can have different grades. Detect this
+    // before merging discards one grade. Across readings, a better view of the
+    // same object may legitimately correct its grade, so do not pool the sets.
+    // Individual confirmations also cannot settle a conflicting whole group;
+    // a later single grouped customer correction still wins in the merge below.
+    return batch.map(detection => {
+      const key = String(detection?.inventoryKey || inventoryKey(detection?.label)).trim();
+      return grades.get(key)?.size > 1
+        ? { ...detection, conditionMixed: true, conditionConfirmed: false }
+        : detection;
+    });
   };
-  countBatch(existing, existingCounts);
-  countBatch(incoming, incomingCounts);
+  const existingBatch = prepareBatch(existing, existingCounts);
+  const incomingBatch = prepareBatch(incoming, incomingCounts);
 
   const merged = new Map();
-  for (const detection of [...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])]) {
+  for (const detection of [...existingBatch, ...incomingBatch]) {
     const key = String(detection?.inventoryKey || inventoryKey(detection?.label)).trim();
     if (!key) continue;
     const current = merged.get(key);
