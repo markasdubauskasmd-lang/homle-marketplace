@@ -916,3 +916,44 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   assert.equal(conditionReviewAdvice([{ ...uncertain, conditionConfirmed: true }], { canReadAnotherView: false }), null);
   for (const count of [3, 4]) assert.doesNotMatch(roomCoverageProgress(count).copy, /room covered|good coverage/i, "View counts claim unmeasured spatial coverage");
 }
+
+// A confirmation can find several same-label objects before any walking inventory exists.
+// Their conflicting grades must survive grouping, in either order and with explicit per-item grades.
+{
+  const chair = { label: "Chair", confidence: .99, x: 0, y: 0, width: 20, height: 20 };
+  for (const conditionConfirmed of [false, true]) {
+    const clean = { ...chair, condition: "clean", conditionConfidence: .95, conditionConfirmed };
+    const dirty = { ...chair, x: 50, condition: "heavy", conditionConfidence: .9, conditionConfirmed };
+    for (const batch of [[clean, dirty], [dirty, clean]]) {
+      for (const saved of [mergeSavedDetections([], batch), mergeSavedDetections(batch, []),
+        mergeInventoryIntoSavedDetections(batch, [])]) {
+        assert.equal(saved.length, 1);
+        assert.equal(saved[0].quantity, 2);
+        assert.equal(saved[0].conditionMixed, true);
+        assert.equal(saved[0].condition, "");
+        assert.equal(saved[0].conditionConfidence, null);
+        assert.equal(conditionNeedsReview(saved[0]), true, "One chair's grade silently settled the whole group");
+        assert.equal(recommendedAction(saved[0]), "");
+        assert.match(saved[0].note, /Conditions differ/);
+        const partial = mergeSavedDetections(saved, [{ ...clean, conditionConfirmed: false }]);
+        assert.equal(partial[0].quantity, 2);
+        assert.equal(conditionNeedsReview(partial[0]), true, "A partial view erased a conflicting group");
+        const corrected = mergeSavedDetections(saved, [{
+          ...chair, quantity: 2, condition: "light", conditionConfidence: 1,
+          conditionMixed: false, conditionConfirmed: true
+        }]);
+        assert.equal(corrected[0].condition, "light");
+        assert.equal(conditionNeedsReview(corrected[0]), false, "A grouped customer correction did not settle review");
+      }
+    }
+  }
+  const previousView = [{ ...chair, condition: "clean", conditionConfidence: .75 }];
+  const betterView = [{ ...chair, condition: "heavy", conditionConfidence: .95 }];
+  const revised = mergeSavedDetections(previousView, betterView);
+  assert.equal(revised[0].quantity, 1);
+  assert.equal(revised[0].condition, "heavy");
+  assert.equal(revised[0].conditionMixed, false, "Two views of one object were mistaken for conflicting simultaneous objects");
+  const alike = mergeSavedDetections([], [betterView[0], { ...betterView[0], x: 50 }]);
+  assert.equal(alike[0].quantity, 2);
+  assert.equal(conditionNeedsReview(alike[0]), false, "Matching grades were made unnecessarily unresolved");
+}
