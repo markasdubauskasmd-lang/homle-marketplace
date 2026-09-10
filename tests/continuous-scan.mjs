@@ -8,7 +8,7 @@ import {
   signatureDistance, walkingReadIsBlocked, conditionReviewAdvice, conditionTag, movementAdvice,
   objectFramingAdvice, savedDetectionFromInventoryItem, usableLiveBoxes,
   signatureChangeSpread, movementSpreadThreshold,
-  conditionNeedsReview, cleanConditionReviewThreshold, recommendedAction
+  conditionNeedsReview, cleanConditionReviewThreshold, recommendedAction, usableDetections
 } from "../public/room-scan-model.js";
 
 // The scan used to be one shutter press per room, so whatever was not in that one
@@ -822,3 +822,17 @@ assert.equal(recommendedAction({ label: "Worktop", condition: "medium", soiling:
 assert.match(recommendedAction({ label: "Bath panel", condition: "medium", soiling: ["damage"] }), /not cleanable/, "Damage was turned into a cleaning task instead of a note for the report.");
 
 console.log("Condition-review and recommendation tests passed: an unsure 'clean' is a question rather than a finding, unscored grades are never settled, paid reads require measured sharpness above the nag threshold, and every recommendation comes from the owned mapping rather than model output.");
+
+// A recognised surface is not evidence of its cleaning condition. In particular,
+// explicit null from stored/mapped readings must not borrow a 99% identity score.
+for (const condition of ["clean", "light", "medium", "heavy"]) {
+  for (const conditionConfidence of [null, "unknown", NaN, Infinity]) {
+    const observation = {label:"Sink", condition, conditionConfidence, confidence:0.99, score:0.99, x:5,y:5,width:20,height:20};
+    assert.equal(conditionNeedsReview(observation), true, `${condition}: explicit uncertainty bypassed review`);
+    const normalized = usableDetections([observation])[0];
+    assert.equal(normalized.conditionConfidence, null, "Normalization invented condition certainty");
+    assert.equal(conditionNeedsReview(normalized), true, "Normalized observation bypassed review");
+    assert.equal(conditionNeedsReview({...normalized,conditionConfirmed:true}), false, "Explicit user confirmation was lost");
+  }
+}
+assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Legacy combined confidence compatibility was lost");
