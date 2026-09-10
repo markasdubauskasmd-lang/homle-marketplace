@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import {
   conditionReviewAdvice, correctInventoryItem, walkingReadingItems, inventoryDisplayLabel,
@@ -261,4 +262,37 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.equal(saved[0].condition, "medium");
   assert.equal(saved[0].width, 30);
   assert.deepEqual(reconcile([], new Set(["worktop", "marble worktop"])), [], "A removed finding returned in the late response");
+}
+
+// Execute the actual walking callback with controlled response ordering.
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
+  const start = source.indexOf('readRoom(image, roomName, [], roomTranscript(roomName), "walking")');
+  assert.ok(start > 0);
+  const callback = source.slice(start).match(/\.then\(\(reading\) => \{([\s\S]*?)\n        \}\)/)?.[1];
+  assert.ok(callback);
+  const receive = new Function("reading", "state", "keyframeBudget", "generation", "roomName", "readStartedAt",
+    "transcriptKey", "walkingReadingItems", "rememberWalkEvidence", "setInventory", "mergeRoomInventory", "inventoryFor",
+    "findRoom", "upsertRoom", "mergeInventoryIntoSavedDetections", "mergeSavedTasks", "resolveRoomCondition", "renderHub", callback);
+  for (const scenario of ["saved", "dismissed", "removed-room", "stale", "closed"]) {
+    const state = {
+      closed: scenario === "closed", diagnostics: {},
+      dismissed: new Map([["kitchen", new Set(scenario === "dismissed" ? ["radiator"] : [])]]),
+      rooms: scenario === "removed-room" ? [] : [{ name: "Kitchen", condition: "light", readingStatus: "ready", tasks: [], detections: [{ label: "Sink" }] }]
+    };
+    const budget = { generation: scenario === "stale" ? 1 : 0, capturedCount: 1, completedCount: 0 };
+    let inventory = [];
+    receive({ detections: [{ label: "Radiator", confidence: .9, condition: "heavy", conditionConfidence: .9 }], condition: "heavy", tasks: [] },
+      state, () => budget, 0, "Kitchen", Date.now(), name => name.toLowerCase(), walkingReadingItems, () => {},
+      (_name, items) => { inventory = items; }, mergeRoomInventory, () => inventory,
+      (rooms, name) => rooms.find(room => room.name === name),
+      (rooms, next) => rooms.map(room => room.name === next.name ? next : room),
+      mergeInventoryIntoSavedDetections, (first, second) => [...new Set([...first, ...second])], resolveRoomCondition, () => {});
+    if (scenario === "removed-room") {
+      assert.deepEqual(state.rooms, [], "A late view recreated a removed saved room");
+    } else {
+      assert.equal(state.rooms[0].detections.some(item => item.label === "Radiator"), scenario === "saved", "Late walking coverage or its guards failed: " + scenario);
+      assert.equal(state.rooms[0].condition, "light", "Walking evidence overrode the confirmed room grade");
+    }
+  }
 }
