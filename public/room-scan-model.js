@@ -1567,7 +1567,7 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       conditionConfidence: current.conditionConfirmed
         ? currentConditionConfidence
         : (incomingConditionWins ? incomingConditionConfidence : currentConditionConfidence),
-      note: incomingConditionWins && evidence?.note ? String(evidence.note) : current.note,
+      note: incomingConditionWins ? String(evidence.note || "") : current.note,
       soiling: incomingConditionWins && Array.isArray(evidence?.soiling)
         ? Object.freeze(evidence.soiling
           .map((kind) => String(kind || "").trim().slice(0, 16))
@@ -1688,7 +1688,7 @@ export function mergeSavedDetections(existing, incoming) {
       ...base,
       condition: conditionSource.condition || "",
       conditionConfidence: conditionEvidenceConfidence(conditionSource),
-      note: conditionSource.note || base.note || "",
+      note: String(conditionSource.note || ""),
       soiling: Object.freeze(Array.isArray(conditionSource.soiling) ? conditionSource.soiling.slice(0, 4) : [])
     });
   }
