@@ -1,3 +1,4 @@
+import { walkingReadingItems, mergeRoomInventory, mergeInventoryIntoSavedDetections, correctInventoryItem } from "../public/room-scan-model.js";
 import {
   createScanService, maximumRoomObjects, maximumScanObjects, maximumScanRooms,
   normalizedRoomScan, scanProjection
@@ -436,3 +437,29 @@ assert(throwsWith(() => createScanService(null), "complete room-scan repository"
 }
 
 console.log("Structured room-scan service checks passed.");
+
+// Unknown grouped conditions must survive the client/server JSON boundary.
+{
+  const clean = { label: "Chair", confidence: .9, condition: "clean", conditionConfidence: .99, x: 5, y: 5, width: 20, height: 20 };
+  const stained = { ...clean, condition: "heavy", conditionConfidence: .95, soiling: ["stain"], x: 70 };
+  const inventory = mergeRoomInventory([], walkingReadingItems({ detections: [clean, stained] }, "Living room"));
+  function project(items) {
+    const detections = mergeInventoryIntoSavedDetections([], items);
+    const objects = detections.map(detection => ({
+      inventoryKey: detection.inventoryKey, label: detection.label, quantity: detection.quantity,
+      condition: detection.condition || "", confidenceCondition: Number(detection.conditionConfidence) || 0,
+      confidenceLabel: Number(detection.confidence) || 0, conditionConfirmed: detection.conditionConfirmed === true,
+      evidence: detection.note, soiling: detection.soiling
+    }));
+    const input = JSON.parse(JSON.stringify({ cleaningRequestId: requestId, rooms: [{ roomName: "Living room", objects }] }));
+    return scanProjection(normalizedRoomScan(input));
+  }
+  const restored = project(inventory);
+  assert(restored.unresolvedCount === 1, "Server projection settled a mixed-condition group");
+  assert(restored.rooms[0].objects[0].quantity === 2, "Server normalization lost the mixed group's quantity");
+  assert(restored.rooms[0].objects[0].needsConfirmation === true, "The checklist hides mixed-condition review");
+  assert(restored.rooms[0].objects[0].evidence.includes("check each item"), "Server projection discarded mixed-condition guidance");
+  const corrected = project(correctInventoryItem(inventory, inventory[0].key, { condition: "medium" }));
+  assert(corrected.unresolvedCount === 0, "Server projection ignored the customer's explicit correction");
+  assert(corrected.rooms[0].objects[0].condition === "medium", "Server projection changed the customer's grade");
+}
