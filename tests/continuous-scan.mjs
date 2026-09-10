@@ -877,3 +877,29 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   assert.ok(overlapping.every(item => item.quantity === 1), "Confirmation double-counted walking items");
   assert.equal(mergeSavedDetections(saved, [{ label: "Additional surface", quantity: 1 }]).length, 40, "Save lost its bounded room limit");
 }
+
+// Duplicate labels must retain the best condition evidence independently of naming.
+{
+  const named = { label: "Sink", confidence: .99, condition: "", conditionConfidence: null };
+  const graded = { label: "Sink", confidence: .8, condition: "heavy", conditionConfidence: .9, soiling: ["limescale"], note: "Crust at the tap base" };
+  for (const detections of [[named, graded], [graded, named]]) {
+    const incoming = walkingReadingItems({ detections }, "Kitchen");
+    for (const existing of [[], mergeRoomInventory([], [{ label: "Sink", score: .95, condition: "light", conditionConfidence: .6 }])]) {
+      const inventory = mergeRoomInventory(existing, incoming, { now: 1 });
+      assert.equal(inventory.length, 1);
+      assert.equal(inventory[0].quantity, 1, "Duplicate unboxed labels inflated quantity");
+      assert.equal(inventory[0].score, .99, "Condition selection weakened naming evidence");
+      assert.equal(inventory[0].condition, "heavy", "Naming confidence discarded stronger condition evidence");
+      assert.equal(inventory[0].conditionConfidence, .9);
+      assert.deepEqual(inventory[0].soiling, ["limescale"]);
+      assert.equal(inventory[0].note, "Crust at the tap base");
+      assert.equal(mergeInventoryIntoSavedDetections([], inventory)[0].condition, "heavy");
+      const corrected = correctInventoryItem(inventory, inventory[0].key, { condition: "clean" });
+      assert.equal(mergeRoomInventory(corrected, incoming)[0].condition, "clean", "Grouped evidence overwrote customer correction");
+    }
+  }
+  const clean = { ...graded, condition: "clean", conditionConfidence: .95, soiling: [], note: "Clear surface" };
+  const result = mergeRoomInventory([], walkingReadingItems({ detections: [graded, clean] }, "Kitchen"));
+  assert.equal(result[0].condition, "clean", "A more severe grade outranked stronger evidence");
+  assert.deepEqual(result[0].soiling, []);
+}

@@ -1500,6 +1500,19 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       const bestScore = Number.isFinite(best?.score) ? best.score : 0;
       return candidateScore > bestScore ? candidate : best;
     }, group[0]);
+    // Naming confidence cannot choose which cleaning evidence survives deduplication.
+    // Use the same condition preference within a reading as across later views.
+    const conditionItem = group.reduce((best, candidate) => {
+      if (candidate.conditionConfirmed === true) return candidate;
+      if (best.conditionConfirmed === true || !candidate.condition) return best;
+      if (!best.condition) return candidate;
+      const candidateConfidence = conditionEvidenceConfidence(candidate);
+      const bestConfidence = conditionEvidenceConfidence(best);
+      return candidateConfidence !== null
+        && (bestConfidence === null || candidateConfidence > bestConfidence) ? candidate : best;
+    }, group[0]);
+    const evidence = { ...item, condition: conditionItem.condition, conditionConfidence: conditionEvidenceConfidence(conditionItem),
+      conditionConfirmed: conditionItem.conditionConfirmed === true, note: conditionItem.note, soiling: conditionItem.soiling };
     const label = item.label;
     const score = Number.isFinite(item?.score) ? item.score : 0;
     const quantity = simultaneousQuantity(group, key);
@@ -1507,10 +1520,10 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     if (!current) {
       merged.set(key, {
         key, label, score, quantity, sightings: 1, firstSeenAt: now, lastSeenAt: now, confirmed: false,
-        condition: String(item?.condition || ""), note: String(item?.note || ""),
-        conditionConfidence: conditionEvidenceConfidence(item),
-        conditionConfirmed: item?.conditionConfirmed === true,
-        soiling: Object.freeze((Array.isArray(item?.soiling) ? item.soiling : [])
+        condition: String(evidence?.condition || ""), note: String(evidence?.note || ""),
+        conditionConfidence: conditionEvidenceConfidence(evidence),
+        conditionConfirmed: evidence?.conditionConfirmed === true,
+        soiling: Object.freeze((Array.isArray(evidence?.soiling) ? evidence.soiling : [])
           .map((kind) => String(kind || "").trim().slice(0, 16))
           .filter(Boolean)
           .slice(0, 4)),
@@ -1520,9 +1533,9 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     }
     // A Landlord's correction is final. A later reading that disagrees must not
     // quietly rename an item they have already put right.
-    const incomingCondition = String(item?.condition || "");
+    const incomingCondition = String(evidence?.condition || "");
     const currentConditionConfidence = conditionEvidenceConfidence(current);
-    const incomingConditionConfidence = conditionEvidenceConfidence(item);
+    const incomingConditionConfidence = conditionEvidenceConfidence(evidence);
     // Object-name confidence is not condition confidence. A broad view can be
     // certain this is a tap while returning no cleaning grade; a slightly
     // lower-scoring close-up can still supply the first useful condition evidence.
@@ -1554,9 +1567,9 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       conditionConfidence: current.conditionConfirmed
         ? currentConditionConfidence
         : (incomingConditionWins ? incomingConditionConfidence : currentConditionConfidence),
-      note: incomingConditionWins && item?.note ? String(item.note) : current.note,
-      soiling: incomingConditionWins && Array.isArray(item?.soiling)
-        ? Object.freeze(item.soiling
+      note: incomingConditionWins && evidence?.note ? String(evidence.note) : current.note,
+      soiling: incomingConditionWins && Array.isArray(evidence?.soiling)
+        ? Object.freeze(evidence.soiling
           .map((kind) => String(kind || "").trim().slice(0, 16))
           .filter(Boolean)
           .slice(0, 4))
