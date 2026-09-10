@@ -1494,10 +1494,20 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     const key = item?.key || inventoryKey(item?.label);
     if (key) merged.set(key, { ...item, key });
   }
+  // A reader can adopt a customer's corrected name on its next view.
+  // Resolve only unique corrected names; ambiguous edits keep distinct identities.
+  const correctedKeys = new Map();
+  for (const [key, item] of merged) {
+    if (!item.confirmed) continue;
+    const correctedKey = inventoryKey(item.label);
+    if (!correctedKey || correctedKey === key) continue;
+    correctedKeys.set(correctedKey, correctedKeys.has(correctedKey) ? null : key);
+  }
   const incomingByKey = new Map();
   for (const item of Array.isArray(incoming) ? incoming : []) {
     const label = String(item?.label || "").trim().slice(0, 40);
-    const key = inventoryKey(label);
+    const observedKey = inventoryKey(label);
+    const key = merged.has(observedKey) ? observedKey : (correctedKeys.get(observedKey) || observedKey);
     if (!key) continue;
     if (!incomingByKey.has(key)) incomingByKey.set(key, []);
     incomingByKey.get(key).push({ ...item, label });
