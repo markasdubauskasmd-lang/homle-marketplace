@@ -859,3 +859,21 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   assert.equal(walkingReadingItems({detections:[legacy]},"Kitchen")[0].conditionConfidence,.99);
   assert.deepEqual(walkingReadingItems({detections:null},"Kitchen"),[]);
 }
+
+// A complete walking inventory must not shrink to a single-photo-era save cap.
+{
+  const observations = Array.from({ length: 40 }, (_, index) => ({
+    label: `Surface ${index}`, score: .9, condition: "light",
+    conditionConfidence: .8, soiling: ["dust"]
+  }));
+  const inventory = mergeRoomInventory([], observations, { now: 1 });
+  assert.equal(inventory.length, 40);
+  const saved = mergeInventoryIntoSavedDetections([], inventory);
+  assert.equal(saved.length, 40, "Saving silently dropped detected items from the checklist");
+  assert.deepEqual(new Set(saved.map(item => item.label)), new Set(inventory.map(item => item.label)));
+  assert.ok(saved.every(item => item.condition === "light" && item.soiling.includes("dust")));
+  const overlapping = mergeInventoryIntoSavedDetections(saved.slice(0, 12), inventory);
+  assert.equal(overlapping.length, 40, "Confirmation overlap displaced walking findings");
+  assert.ok(overlapping.every(item => item.quantity === 1), "Confirmation double-counted walking items");
+  assert.equal(mergeSavedDetections(saved, [{ label: "Additional surface", quantity: 1 }]).length, 40, "Save lost its bounded room limit");
+}

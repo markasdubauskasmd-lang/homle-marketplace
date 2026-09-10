@@ -1682,7 +1682,7 @@ export function mergeSavedDetections(existing, incoming) {
   return Object.freeze([...merged.entries()].map(([key, detection]) => Object.freeze({
     ...detection,
     quantity: Math.min(20, Math.max(existingCounts.get(key) || 0, incomingCounts.get(key) || 0, 1))
-  })).slice(0, 24));
+  })).slice(0, inventoryLimit));
 }
 
 export function mergeInventoryIntoSavedDetections(existing, inventory) {
