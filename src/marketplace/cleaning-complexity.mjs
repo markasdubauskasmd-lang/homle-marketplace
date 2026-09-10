@@ -203,7 +203,9 @@ function roomReason(room) {
       const finding = kinds && entry.object.condition
         ? `${entry.object.condition} ${kinds} on the ${label}`
         : kinds ? `${kinds} on the ${label}` : `the ${label} is ${entry.object.condition}`;
-      return entry.unresolved ? `possible ${finding} (needs confirmation)` : finding;
+      return entry.unresolved
+        ? `possible ${kinds ? finding : `${entry.object.condition} soiling on the ${label}`} (needs confirmation)`
+        : finding;
     });
   if (!parts.length && room.itemCount) {
     // Count inventory without turning presence or an unchecked grade into work.
