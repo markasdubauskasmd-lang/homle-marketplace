@@ -1721,7 +1721,7 @@ export function mergeSavedDetections(existing, incoming) {
   }))).slice(0, inventoryLimit));
 }
 
-export function mergeInventoryIntoSavedDetections(existing, inventory) {
+export function mergeInventoryIntoSavedDetections(existing, inventory, dismissed = new Set()) {
   const items = (Array.isArray(inventory) ? inventory : []).filter(item => item && typeof item === "object");
   const stableKeys = new Set(items.map(item => item.key));
   const correctedKeys = new Map();
@@ -1738,7 +1738,10 @@ export function mergeInventoryIntoSavedDetections(existing, inventory) {
   });
   const walked = items.map(savedDetectionFromInventoryItem).filter(Boolean);
   const correctedLabels = new Map(items.filter(item => item.confirmed).map(item => [item.key, item.label]));
-  return Object.freeze(mergeSavedDetections(confirmation, walked).map(detection => {
+  return Object.freeze(mergeSavedDetections(confirmation, walked)
+    .filter(detection => !dismissed.has(String(detection.inventoryKey || inventoryKey(detection.label)))
+      && !dismissed.has(inventoryKey(detection.label)))
+    .map(detection => {
     const label = correctedLabels.get(detection.inventoryKey);
     return label ? Object.freeze({ ...detection, label }) : detection;
   }));
