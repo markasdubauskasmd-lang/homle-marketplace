@@ -199,3 +199,34 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.equal(overlapping[0].quantity, 1);
   assert.equal(overlapping[0].condition, "clean", "A single object's duplicate was treated as two conditions");
 }
+
+// Corrected names keep one identity during walking and final confirmation.
+{
+  const reading = label => ({ label, confidence: .9, condition: "light", conditionConfidence: .8 });
+  const boxed = label => ({ ...reading(label), x: 10, y: 10, width: 30, height: 30 });
+  for (const original of ["Worktop", "Tap", "Table"]) {
+    for (const condition of ["clean", "light", "medium", "heavy"]) {
+      const first = mergeRoomInventory([], [{ ...reading(original), score: .9 }]);
+      const renamed = correctInventoryItem(first, first[0].key, { label: "My " + original, condition });
+      for (const name of [original, "My " + original]) {
+        const reread = mergeRoomInventory(renamed, walkingReadingItems({ detections: [reading(name)] }, "Kitchen"));
+        assert.equal(reread.length, 1, "A corrected name created a second walking item");
+        assert.equal(reread[0].key, first[0].key);
+        const saved = mergeInventoryIntoSavedDetections([boxed(name)], reread);
+        assert.equal(saved.length, 1, "A corrected name created a second saved item");
+        assert.equal(saved[0].inventoryKey, first[0].key);
+        assert.equal(saved[0].label, "My " + original);
+        assert.equal(saved[0].condition, condition);
+        assert.equal(saved[0].conditionConfirmed, true);
+        assert.equal(saved[0].width, 30, "Identity reconciliation lost the real photo box");
+      }
+    }
+  }
+  let pair = mergeRoomInventory([], ["Table", "Desk"].map(label => ({ ...reading(label), score: .9 })));
+  for (const item of pair) pair = correctInventoryItem(pair, item.key, { label: "Surface" });
+  const saved = mergeInventoryIntoSavedDetections([boxed("Surface")], pair);
+  assert.equal(saved.length, 3, "An ambiguous name was assigned to an arbitrary item");
+  const reread = mergeRoomInventory(pair, [{ ...reading("Surface"), score: .9 }]);
+  for (const item of pair) assert.equal(reread.find(row => row.key === item.key).sightings, item.sightings);
+  assert.deepEqual(mergeInventoryIntoSavedDetections([], [null, undefined]), []);
+}
