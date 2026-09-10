@@ -45,3 +45,5 @@ html body.homlle-onboarding-home .oh-picker-trigger{display:flex;align-items:cen
 .oh-picker-option:hover,.oh-picker-option.is-active{background:#f5f3f3;border-color:#ccc}.oh-picker-option[aria-selected=true]{background:#fff0f3;border-color:#ed0034}
 .oh-picker-check{margin-left:auto;color:#ed0034;font-size:20px;font-weight:800;visibility:hidden}.oh-picker-option[aria-selected=true] .oh-picker-check{visibility:visible}
 @media(max-width:400px){.oh-picker-option{gap:8px;padding:10px 6px}.oh-picker-option small{font-size:11px}.oh-picker-icon{flex-basis:34px;height:36px}}
+
+.oh-picker-icon svg{display:block;width:26px;height:26px;flex-shrink:0}

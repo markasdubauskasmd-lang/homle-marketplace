@@ -15,12 +15,12 @@
 <link rel="stylesheet" href="/homle-cleaner.css?v=20260810-4">
 <link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260817-sharp-visuals-1">
 <link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260817-sharp-visuals-1">
-<link rel="stylesheet" href="/cleaner-onboarding-home.css?v=20260909-picker-1">
-<script src="/cleaner-registration.js?v=20260909-picker-1" type="module"></script>
+<link rel="stylesheet" href="/cleaner-onboarding-home.css?v=20260909-profession-icons-1">
+<script src="/cleaner-registration.js?v=20260909-profession-icons-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
-<link rel="stylesheet" href="/cleaner-onboarding-flow.css?v=20260909-1">
-<script src="/cleaner-onboarding-flow.js?v=20260908-1" type="module"></script>
+<link rel="stylesheet" href="/cleaner-onboarding-flow.css?v=20260910-centred-1">
+<script src="/cleaner-onboarding-flow.js?v=20260909-step-titles-1" type="module"></script>
 </head>
 <body class="cleaner-workspace-page cleaner-onboarding-page homlle-onboarding-flow" data-cleaner-shell="onboarding">
   <a class="hc-skip" href="#cleaner-registration-main">Skip to Complete registration</a>
@@ -166,8 +166,8 @@
                 <div class="oh-picker" data-oh-picker>
                   <button id="oh-profession-trigger" class="oh-picker-trigger" type="button" role="combobox" aria-labelledby="oh-profession-label oh-profession-value" aria-describedby="oh-profession-help" aria-required="true" aria-haspopup="listbox" aria-expanded="false" aria-controls="oh-profession-options" disabled><span class="oh-picker-icon" aria-hidden="true">✦</span><span id="oh-profession-value">Select your profession</span><span class="oh-picker-chevron" aria-hidden="true">⌄</span></button>
                   <div id="oh-profession-options" class="oh-picker-options" role="listbox" aria-labelledby="oh-profession-label" hidden>
-                    <div id="oh-option-cleaner" class="oh-picker-option" role="option" aria-selected="false" data-profession="cleaner"><span class="oh-picker-icon" aria-hidden="true">⌂</span><span><strong>Cleaner</strong><small>Homes, rentals &amp; workplaces</small></span><span class="oh-picker-check" aria-hidden="true">✓</span></div>
-                    <div id="oh-option-beautician" class="oh-picker-option" role="option" aria-selected="false" data-profession="beautician"><span class="oh-picker-icon" aria-hidden="true">✧</span><span><strong>Beautician</strong><small>Beauty, grooming &amp; personal care</small></span><span class="oh-picker-check" aria-hidden="true">✓</span></div>
+                    <div id="oh-option-cleaner" class="oh-picker-option" role="option" aria-selected="false" data-profession="cleaner"><span class="oh-picker-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3l-3 11M9 14h5l3 6H6l3-6Z"/><path d="M10 17l-1 3m3-3v3m2-3 1 3M17 5h4m-2-2v4"/></svg></span><span><strong>Cleaner</strong><small>Homes, rentals &amp; workplaces</small></span><span class="oh-picker-check" aria-hidden="true">✓</span></div>
+                    <div id="oh-option-beautician" class="oh-picker-option" role="option" aria-selected="false" data-profession="beautician"><span class="oh-picker-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 5H9a4 4 0 0 0 0 8h5l4 2V3l-4 2Z"/><path d="M10 13l1 7h4l-2-7M18 7h3m-3 4h3"/><circle cx="9" cy="9" r="1.5"/></svg></span><span><strong>Beautician</strong><small>Beauty, grooming &amp; personal care</small></span><span class="oh-picker-check" aria-hidden="true">✓</span></div>
                   </div>
                 </div>
                 <div class="oh-actions"><button class="oh-button" data-oh-continue type="submit" disabled>Start/Continue Registration ↗</button></div>
@@ -303,7 +303,6 @@
             <section class="hc-personal-card" data-personal-card aria-labelledby="cleaner-personal-title">
               <header class="hc-personal-head">
                 <h1 id="cleaner-personal-title">Personal details</h1>
-                <p>Tell us who you are and how to reach you. This is the name clients will see once you go live.</p>
               </header>
 
               <form class="hc-personal-form" data-personal-form novalidate>

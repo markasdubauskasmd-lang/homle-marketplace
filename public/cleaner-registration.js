@@ -223,7 +223,8 @@ if (!localDesignPreview) createCleanerPage("reg", async (context) => {
     const updatePicker = () => {
       const selected = options.find(option => option.dataset.profession === profession.value);
       picker.querySelector('#oh-profession-value').textContent = selected?.querySelector('strong').textContent || 'Select your profession';
-      trigger.querySelector('.oh-picker-icon').textContent = selected?.querySelector('.oh-picker-icon').textContent || '✦';
+      const selectedIcon = selected?.querySelector('.oh-picker-icon svg');
+      trigger.querySelector('.oh-picker-icon').replaceChildren(selectedIcon ? selectedIcon.cloneNode(true) : document.createTextNode('✦'));
       options.forEach(option => option.setAttribute('aria-selected', String(option === selected)));
       trigger.disabled = profession.disabled;
     };

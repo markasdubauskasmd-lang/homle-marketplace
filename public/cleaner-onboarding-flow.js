@@ -6,7 +6,13 @@ const logo=document.querySelector('.hc-brand-mark');if(logo){logo.href='/cleaner
 if(root && current>=0){
  document.body.dataset.onboardingStep=String(current+1);
  const bar=el('header','of-topbar');const home=el('a','','← Onboarding home');home.href='/cleaner/onboarding';
- const progress=el('div','of-progress');const labels=el('div','of-progress-labels');labels.append(el('span','','COMPLETE REGISTRATION'),el('strong','',`STEP ${current+1} OF ${onboardingNav.length}`));
+ const progress=el('div','of-progress');const labels=el('div','of-progress-labels');
+ const titleIds={personal:'cleaner-personal-title',business:'cleaner-business-title',banking:'cleaner-banking-title',identity:'cleaner-identity-title',rtw:'cleaner-rtw-title',dbs:'cleaner-background-title',areas:'cleaner-work-title',experience:'cleaner-experience-title',insurance:'cleaner-insurance-title',equipment:'cleaner-equipment-title',training:'academy-title',compliance:'contracts-title',review:'cleaner-review-title'};
+ const titleId=location.pathname==='/cleaner/documents' ? 'documents-title' : titleIds[onboardingNav[current].step];
+ const stepTitle=document.getElementById(titleId);
+ if(stepTitle){const oldHeader=stepTitle.parentElement;stepTitle.classList.add('of-step-title');labels.append(stepTitle);if(!oldHeader.textContent.trim())oldHeader.remove();}
+ else labels.append(el('span','',onboardingNav[current].label.toUpperCase()));
+ labels.append(el('strong','',`STEP ${current+1} OF ${onboardingNav.length}`));
  const track=el('div','of-track');track.setAttribute('role','progressbar');track.setAttribute('aria-label','Current onboarding step');track.setAttribute('aria-valuemin','1');track.setAttribute('aria-valuemax',String(onboardingNav.length));track.setAttribute('aria-valuenow',String(current+1));
  const fill=el('span','');fill.style.width=`${(current+1)/onboardingNav.length*100}%`;track.append(fill);progress.append(labels,track);
  const exit=el('a','','Back to dashboard');exit.href='/cleaner/dashboard';bar.append(home,progress,exit);root.prepend(bar);
