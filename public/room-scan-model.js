@@ -1180,7 +1180,7 @@ export function roomCoverageProgress(completedCount, {
   // failure may still have been billed and therefore cannot be refunded, but it
   // must not turn the progress bar green or claim that the room was analysed.
   //
-  // Three successful angles are already honest "good coverage". Below that, an
+  // Successful reads count analysed views, not verified spatial coverage. With
   // exhausted automatic allowance needs one clear next action rather than a
   // permanently impossible "hold steady" instruction.
   const automaticReadIncomplete = attempts >= total && count < Math.min(3, total);
@@ -1193,8 +1193,8 @@ export function roomCoverageProgress(completedCount, {
       : count === 2
         ? "Show one more angle"
         : count < total
-          ? "Good coverage — confirm"
-          : "Room covered — confirm";
+          ? "Views checked — review and confirm"
+          : "Views checked — review and confirm";
   return Object.freeze({
     count,
     total,
@@ -1846,12 +1846,13 @@ export function conditionNeedsReview(item) {
   return confidence < (condition === "clean" ? cleanConditionReviewThreshold : conditionReviewThreshold);
 }
 
-export function conditionReviewAdvice(items) {
+export function conditionReviewAdvice(items, { canReadAnotherView = true } = {}) {
   const unresolved = (Array.isArray(items) ? items : []).filter(conditionNeedsReview);
   if (!unresolved.length) return null;
+  const action = canReadAnotherView ? "move closer or tap the item to confirm." : "tap the item to confirm.";
   const message = unresolved.length === 1
-    ? "Condition unclear — move closer or tap the item to confirm."
-    : `${unresolved.length} item conditions unclear — move closer or tap an item to confirm.`;
+    ? `Condition unclear — ${action}`
+    : `${unresolved.length} item conditions unclear — ${canReadAnotherView ? "move closer or tap an item to confirm." : "tap an item to confirm."}`;
   return Object.freeze({ kind: "condition", count: unresolved.length, message });
 }
 
