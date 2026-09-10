@@ -2576,13 +2576,19 @@ export function openRoomScan() {
           // Coverage means analysed evidence, not a request that happened to
           // leave the phone. The attempt was spent before the request to preserve
           // the bounded cost; only a valid response earns a progress step.
-          const completedBudget = keyframeBudget(roomName);
-          completedBudget.completedCount = Math.min(completedBudget.capturedCount, completedBudget.completedCount + 1);
-          completedBudget.completedSignatures.push(capturedSignature);
-          completedBudget.completedSignatures = completedBudget.completedSignatures.slice(-keyframeDefaults.maxPerRoom);
-          state.diagnostics.keyframesRead += 1;
           state.diagnostics.lastReadMs = Date.now() - readStartedAt;
-          state.diagnostics.lastReadFailure = "";
+          if (reading?.readingStatus === "ready") {
+            const completedBudget = keyframeBudget(roomName);
+            completedBudget.completedCount = Math.min(completedBudget.capturedCount, completedBudget.completedCount + 1);
+            completedBudget.completedSignatures.push(capturedSignature);
+            completedBudget.completedSignatures = completedBudget.completedSignatures.slice(-keyframeDefaults.maxPerRoom);
+            state.diagnostics.keyframesRead += 1;
+            state.diagnostics.lastReadFailure = "";
+          } else {
+            // Manual fallback retains the customer's tasks below, but it is not
+            // analysed image evidence and must not reserve a view as already read.
+            state.diagnostics.lastReadFailure = "reading-unavailable";
+          }
           const dismissed = state.dismissed.get(transcriptKey(roomName)) || new Set();
           const found = walkingReadingItems(reading, roomName, dismissed);
           // Tasks and condition are kept even when no new object was named — a
