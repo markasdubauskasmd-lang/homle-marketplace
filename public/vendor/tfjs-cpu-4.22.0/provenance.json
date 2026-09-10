@@ -1,0 +1,9 @@
+{
+  "package": "@tensorflow/tfjs-backend-cpu",
+  "version": "4.22.0",
+  "source": "https://registry.npmjs.org/@tensorflow/tfjs-backend-cpu/-/tfjs-backend-cpu-4.22.0.tgz",
+  "license": "Apache-2.0",
+  "archiveSha256": "d3c32e2fe0452fe302e88dde434cd8d7b126ce21754c6c972b28e3bcb8ec0878",
+  "bundleSha256": "4f232e90455e04cc5f69a691295d07a881a4ad93d7f229598459b9b533259d83",
+  "purpose": "COCO-SSD CPU non-max suppression after WebGL inference; loaded only on WebGL fallback."
+}
