@@ -1,3 +1,4 @@
+import { setupProfilePhoto } from "./cleaner-personal-details.js?v=20260910-business-photo-1";
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
 import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
 
@@ -74,6 +75,7 @@ function setBusinessPresentation(form, draft) {
 }
 
 export async function setupBusinessDetails({ account, showFeedback, requestJson }) {
+  setupProfilePhoto({ showFeedback });
   document.title = "Business details | Homle";
   const overview = document.querySelector("[data-registration-overview]");
   const layout = document.querySelector("[data-personal-details]");

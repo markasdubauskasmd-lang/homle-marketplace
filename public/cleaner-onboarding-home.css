@@ -102,3 +102,5 @@ body.homlle-onboarding-home .oh-next strong{font-size:16px}
 /* One continuous 45-degree pattern and gradient across the welcome shell. */
 html body.homlle-onboarding-home>.hc{background:repeating-linear-gradient(135deg,rgba(255,255,255,.14) 0 2px,transparent 2px 15px),linear-gradient(105deg,#ff0034 5%,#ee1635 28%,#f3dddd 65%,#fff 96%)}
 html body.homlle-onboarding-home .hc-main,html body.homlle-onboarding-home .hc-main-inner,html body.homlle-onboarding-home.homlle-onboarding-flow .hc-side.cleaner-site-header[data-preview-sidebar]{background:transparent}
+
+body.homlle-onboarding-home .oh-benefits{color:#201e1d}

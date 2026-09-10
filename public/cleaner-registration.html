@@ -15,11 +15,11 @@
 <link rel="stylesheet" href="/homle-cleaner.css?v=20260810-4">
 <link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260817-sharp-visuals-1">
 <link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260817-sharp-visuals-1">
-<link rel="stylesheet" href="/cleaner-onboarding-home.css?v=20260910-welcome-stripes-1">
-<script src="/cleaner-registration.js?v=20260909-profession-icons-1" type="module"></script>
+<link rel="stylesheet" href="/cleaner-onboarding-home.css?v=20260910-benefits-ink-1">
+<script src="/cleaner-registration.js?v=20260910-business-photo-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
-<link rel="stylesheet" href="/cleaner-onboarding-flow.css?v=20260910-address-alignment-1">
+<link rel="stylesheet" href="/cleaner-onboarding-flow.css?v=20260910-stripes-45-1">
 <script src="/cleaner-onboarding-flow.js?v=20260910-home-link-2" type="module"></script>
 </head>
 <body class="cleaner-workspace-page cleaner-onboarding-page homlle-onboarding-flow" data-cleaner-shell="onboarding">
@@ -384,18 +384,7 @@
                   </template>
                 </fieldset>
 
-                <fieldset class="hc-personal-section">
-                  <legend>Profile photo</legend>
-                  <div class="hc-personal-photo">
-                    <span class="hc-personal-photo-preview-wrap" aria-hidden="true">
-                      <img class="hc-personal-photo-preview" data-personal-photo-preview alt="" hidden>
-                      <span class="hc-personal-photo-placeholder" data-personal-photo-placeholder>+</span>
-                    </span>
-                    <span class="hc-personal-photo-copy"><strong data-personal-photo-title>Add a clear photo of yourself</strong><small data-personal-photo-copy>JPG, PNG or WebP, up to 5 MB. Homle resizes the photo and removes its metadata before private storage.</small><small data-personal-photo-status role="status" aria-live="polite">No photo uploaded yet.</small></span>
-                    <input data-personal-photo-input type="file" accept="image/jpeg,image/png,image/webp" hidden>
-                    <button class="hc-personal-photo-button" data-personal-photo-button type="button">Upload photo</button>
-                  </div>
-                </fieldset>
+
 
                 <div class="hc-personal-actions">
                   <p data-personal-save-status role="status" aria-live="polite">Progress is saved for this browser tab as you type.</p>
@@ -413,7 +402,7 @@
               <form class="hc-business-form" data-business-form>
                 <input type="hidden" name="serviceType" disabled>
 
-                <fieldset class="hc-business-section">
+                <div class="hc-business-intro-grid"><fieldset class="hc-business-section">
                   <legend>How you’ll work</legend>
                   <p class="hc-business-question">Choose the option that best describes you.</p>
                   <div class="hc-business-choices">
@@ -428,7 +417,18 @@
                     <input name="businessName" autocomplete="organization" maxlength="160" placeholder="Enter your business or trading name">
                     <small>Optional for solo applicants. Required for businesses, limited companies and partnerships.</small>
                   </label>
-                </fieldset>
+                </fieldset><fieldset class="hc-personal-section hc-business-photo-section">
+                  <legend>Profile photo</legend>
+                  <div class="hc-personal-photo">
+                    <span class="hc-personal-photo-preview-wrap" aria-hidden="true">
+                      <img class="hc-personal-photo-preview" data-personal-photo-preview alt="" hidden>
+                      <span class="hc-personal-photo-placeholder" data-personal-photo-placeholder>+</span>
+                    </span>
+                    <span class="hc-personal-photo-copy"><strong data-personal-photo-title>Add a clear photo of yourself</strong><small data-personal-photo-copy>JPG, PNG or WebP, up to 5 MB. Homle resizes the photo and removes its metadata before private storage.</small><small data-personal-photo-status role="status" aria-live="polite">No photo uploaded yet.</small></span>
+                    <input data-personal-photo-input type="file" accept="image/jpeg,image/png,image/webp" hidden>
+                    <button class="hc-personal-photo-button" data-personal-photo-button type="button">Upload photo</button>
+                  </div>
+                </fieldset></div>
 
                 <section class="hc-business-section" aria-labelledby="cleaner-business-guidance-title">
                   <h2 id="cleaner-business-guidance-title">Good to know</h2>

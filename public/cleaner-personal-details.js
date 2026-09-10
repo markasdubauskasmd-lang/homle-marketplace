@@ -245,6 +245,70 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   if (Array.isArray(restoredAddresses)) restoredAddresses.forEach((address) => addPreviousAddress(form, address));
   showPreviousAddresses(form);
 
+
+
+  let saveTimer = 0;
+  function saveDraft() {
+    window.clearTimeout(saveTimer);
+    const status = document.querySelector("[data-personal-save-status]");
+    if (!storage) {
+      if (status) status.textContent = "This browser blocked tab-only draft storage.";
+      return;
+    }
+    try {
+      storage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), fields: formFields(form) }));
+      if (status) status.textContent = "Progress is saved for this browser tab as you type.";
+    } catch {
+      if (status) status.textContent = "This browser could not save the tab-only draft.";
+    }
+    renderRail(progress, form);
+  }
+
+  form.querySelector("[data-add-previous-address]")?.addEventListener("click", () => {
+    const row = addPreviousAddress(form);
+    row?.querySelector("input")?.focus();
+    saveDraft();
+  });
+  form.querySelector("[data-previous-address-list]")?.addEventListener("click", (event) => {
+    const remove = event.target instanceof Element ? event.target.closest("[data-remove-previous-address]") : null;
+    if (!remove || previousAddressRows(form).length <= 1) return;
+    remove.closest("[data-previous-address]")?.remove();
+    updatePreviousAddressNumbers(form);
+    saveDraft();
+  });
+
+  form.addEventListener("input", () => {
+    const status = document.querySelector("[data-personal-save-status]");
+    if (status) status.textContent = "Saving in this browser tab…";
+    window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(saveDraft, 250);
+  });
+  form.addEventListener("change", () => {
+    updateUnderFiveCopy(form);
+    showPreviousAddresses(form);
+    saveDraft();
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!form.reportValidity()) {
+      showFeedback("Complete the required Personal details before continuing.", "error");
+      return;
+    }
+    try {
+      await saveOnboardingForm(requestJson, "personal", form, { extra: formFields(form) });
+      storage?.removeItem(draftKey);
+      showFeedback("Personal details saved securely to your Homle account.");
+      location.assign("/cleaner/onboarding");
+    } catch (error) {
+      showFeedback(error.message || "Homle could not save your Personal details.", "error");
+    }
+  });
+
+  updateUnderFiveCopy(form);
+  renderRail(progress, form);
+}
+
+export function setupProfilePhoto({ showFeedback }) {
   const photoTitle = document.querySelector("[data-personal-photo-title]");
   const photoCopy = document.querySelector("[data-personal-photo-copy]");
   const photoStatus = document.querySelector("[data-personal-photo-status]");
@@ -335,64 +399,4 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   });
   window.addEventListener("pagehide", () => { if (photoObjectUrl) URL.revokeObjectURL(photoObjectUrl); }, { once: true });
   void loadSavedPhoto();
-
-  let saveTimer = 0;
-  function saveDraft() {
-    window.clearTimeout(saveTimer);
-    const status = document.querySelector("[data-personal-save-status]");
-    if (!storage) {
-      if (status) status.textContent = "This browser blocked tab-only draft storage.";
-      return;
-    }
-    try {
-      storage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), fields: formFields(form) }));
-      if (status) status.textContent = "Progress is saved for this browser tab as you type.";
-    } catch {
-      if (status) status.textContent = "This browser could not save the tab-only draft.";
-    }
-    renderRail(progress, form);
-  }
-
-  form.querySelector("[data-add-previous-address]")?.addEventListener("click", () => {
-    const row = addPreviousAddress(form);
-    row?.querySelector("input")?.focus();
-    saveDraft();
-  });
-  form.querySelector("[data-previous-address-list]")?.addEventListener("click", (event) => {
-    const remove = event.target instanceof Element ? event.target.closest("[data-remove-previous-address]") : null;
-    if (!remove || previousAddressRows(form).length <= 1) return;
-    remove.closest("[data-previous-address]")?.remove();
-    updatePreviousAddressNumbers(form);
-    saveDraft();
-  });
-
-  form.addEventListener("input", () => {
-    const status = document.querySelector("[data-personal-save-status]");
-    if (status) status.textContent = "Saving in this browser tab…";
-    window.clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(saveDraft, 250);
-  });
-  form.addEventListener("change", () => {
-    updateUnderFiveCopy(form);
-    showPreviousAddresses(form);
-    saveDraft();
-  });
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!form.reportValidity()) {
-      showFeedback("Complete the required Personal details before continuing.", "error");
-      return;
-    }
-    try {
-      await saveOnboardingForm(requestJson, "personal", form, { extra: formFields(form) });
-      storage?.removeItem(draftKey);
-      showFeedback("Personal details saved securely to your Homle account.");
-      location.assign("/cleaner/onboarding");
-    } catch (error) {
-      showFeedback(error.message || "Homle could not save your Personal details.", "error");
-    }
-  });
-
-  updateUnderFiveCopy(form);
-  renderRail(progress, form);
 }

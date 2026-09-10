@@ -64,14 +64,19 @@ html body.homlle-onboarding-flow:not(.homlle-onboarding-home) .hc-main h1.of-ste
 @media(min-width:901px){html body.homlle-onboarding-flow .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub[data-preview-page].is-preview-open{transform:none!important}}
 
 /* Reference stripe pattern and circular header decoration; preserve form geometry. */
-html body.homlle-onboarding-flow .hc-side.cleaner-site-header[data-preview-sidebar]{background-image:repeating-linear-gradient(115deg,rgba(255,255,255,.14) 0 2px,transparent 2px 15px),linear-gradient(118deg,#f7123d 0%,#ee0026 46%,#dc0a30 100%)}
+html body.homlle-onboarding-flow .hc-side.cleaner-site-header[data-preview-sidebar]{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.14) 0 2px,transparent 2px 15px),linear-gradient(118deg,#f7123d 0%,#ee0026 46%,#dc0a30 100%)}
 html body.homlle-onboarding-flow .of-topbar{position:relative;isolation:isolate;color:#fff;border-bottom-color:transparent}
-html body.homlle-onboarding-flow .of-topbar::before{content:"";position:absolute;inset:-18px -28px 0;z-index:-1;pointer-events:none;background-image:radial-gradient(circle at calc(100% - 90px) 80px,transparent 0 116px,rgba(255,255,255,.12) 116px 150px,transparent 150px),repeating-linear-gradient(115deg,rgba(255,255,255,.14) 0 2px,transparent 2px 15px),linear-gradient(118deg,#f7123d 0%,#ee0026 46%,#dc0a30 100%)}
+html body.homlle-onboarding-flow .of-topbar::before{content:"";position:absolute;inset:-18px -28px 0;z-index:-1;pointer-events:none;background-image:radial-gradient(circle at calc(100% - 90px) 80px,transparent 0 116px,rgba(255,255,255,.12) 116px 150px,transparent 150px),repeating-linear-gradient(135deg,rgba(255,255,255,.14) 0 2px,transparent 2px 15px),linear-gradient(118deg,#f7123d 0%,#ee0026 46%,#dc0a30 100%)}
 html body.homlle-onboarding-flow .of-topbar a,html body.homlle-onboarding-flow .of-progress-labels>span,html body.homlle-onboarding-flow:not(.homlle-onboarding-home) .hc-main .of-topbar h1.of-step-title{color:#fff}
 html body.homlle-onboarding-flow .of-topbar .of-track{background:rgba(255,255,255,.35)}
 html body.homlle-onboarding-flow .of-topbar .of-track>span{background:#fff}
 @media(max-width:900px){html body.homlle-onboarding-flow .of-topbar::before{inset:-22px -20px 0}}
 
 /* Round the content corner beneath the striped header without moving the form. */
-html body.homlle-onboarding-flow .of-topbar::after{content:"";position:absolute;left:-28px;top:calc(100% - 2px);width:30px;height:30px;pointer-events:none;background:repeating-linear-gradient(115deg,rgba(255,255,255,.14) 0 2px,transparent 2px 15px),#f7123d;mask-image:radial-gradient(circle at 100% 100%,transparent 29.5px,#000 30px)}
+html body.homlle-onboarding-flow .of-topbar::after{content:"";position:absolute;left:-28px;top:calc(100% - 2px);width:30px;height:30px;pointer-events:none;background:repeating-linear-gradient(135deg,rgba(255,255,255,.14) 0 2px,transparent 2px 15px),#f7123d;mask-image:radial-gradient(circle at 100% 100%,transparent 29.5px,#000 30px)}
 @media(max-width:900px){html body.homlle-onboarding-flow .of-topbar::after{left:-20px}}
+
+.hc-business-intro-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch}
+.hc-business-photo-section .hc-personal-photo{display:flex;flex-direction:column;align-items:flex-start;gap:14px;padding:0;background:transparent;border:0}
+.hc-business-photo-section .hc-personal-photo-copy{min-width:0}
+@media(max-width:750px){.hc-business-intro-grid{grid-template-columns:1fr}}
