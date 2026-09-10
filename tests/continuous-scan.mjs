@@ -434,7 +434,8 @@ assert.match(overlay, /state\.keyframeCanvas/, "Keyframes are drawn on the share
 
 // The inventory has to reach the saved room, or it is a display that vanishes.
 assert.match(overlay, /mergeInventoryIntoSavedDetections\(room\.detections, walked\)/, "Items found while walking are not folded into the saved room, so the checklist would still only know what was in the single confirmation frame.");
-assert.match(overlay, /soiling: Array\.isArray\(detection\.soiling\) \? detection\.soiling : \[\]/, "Walking reads discard structured soiling before it reaches the inventory.");
+assert.deepEqual(walkingReadingItems({ detections: [{ label: "Sink", soiling: ["grease"] }] }, "Kitchen")[0].soiling, ["grease"], "Walking reads discard structured soiling before it reaches the inventory.");
+assert.deepEqual(walkingReadingItems({ detections: [{ label: "Sink", soiling: null }] }, "Kitchen")[0].soiling, [], "Malformed soiling must normalize to an empty list.");
 
 // Labels come back from a reader looking at photographs of a stranger's home.
 const inventoryRender = overlay.slice(overlay.indexOf("function renderInventory"), overlay.indexOf("function inventoryFor"));
