@@ -16,9 +16,10 @@ function confidenceValue(value) {
 // keep rooms captured immediately before this release reviewable: the old API
 // exposed one combined `confidence`, and the inventory stored it as `score`.
 function conditionEvidenceConfidence(item) {
-  return confidenceValue(item?.conditionConfidence)
-    ?? confidenceValue(item?.confidence)
-    ?? confidenceValue(item?.score);
+  // An explicit unknown/invalid condition score must stay uncertain. Only
+  // legacy records that omit the independent field may use the combined score.
+  if (item?.conditionConfidence !== undefined) return confidenceValue(item.conditionConfidence);
+  return confidenceValue(item?.confidence) ?? confidenceValue(item?.score);
 }
 
 // Wording matches what is genuinely happening. Nothing here claims a
