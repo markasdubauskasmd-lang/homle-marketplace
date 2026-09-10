@@ -1270,7 +1270,7 @@ export function signatureDistance(first, second) {
 }
 
 export function shouldCaptureKeyframe({
-  signature, previousSignature, lastReadSignature,
+  signature, previousSignature, lastReadSignature, completedSignatures = [],
   now = 0, lastCaptureAt = 0, capturedCount = 0, busy = false,
   qualityKind = "", online = true, detail = null
 } = {}, options = {}) {
@@ -1298,6 +1298,13 @@ export function shouldCaptureKeyframe({
   // or framing improves, the same view remains eligible and can be captured well.
   if (String(qualityKind || "").trim()) return false;
   if (capturedCount >= maxPerRoom) return false;
+  // A return to an earlier analysed view must not spend another room slot.
+  // Use the tighter stillness tolerance, not the broad scene-change threshold:
+  // distinct views can share similar average colours. Failed reads are absent.
+  if (Array.isArray(completedSignatures) && completedSignatures.slice(0, maxPerRoom).some((previous) =>
+    Array.isArray(previous) && previous.length === signature.length
+    && previous.every(Number.isFinite) && signature.every(Number.isFinite)
+    && signatureDistance(previous, signature) < stillnessThreshold)) return false;
   if (now - lastCaptureAt < minIntervalMs) return false;
   // Nothing read yet: require one earlier sample before spending the first of
   // only four room reads. A lone frame cannot prove the phone is steady and is
