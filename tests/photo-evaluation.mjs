@@ -81,6 +81,21 @@ try {
   assert.equal(failure.benchmark.metrics.objectRecall, 0);
   assert.equal(failure.timing.medianMs, null);
   assert.ok(!JSON.stringify(failure).includes("SECRET_REQUEST"));
+  const twoPhotos = await prepare([entry, { ...entry, caseId: "second-synthetic-photo" }]);
+  const times = [0, 10, 10, 40];
+  const timing = await evaluatePhotos(twoPhotos, {
+    reader: { readRoom: async () => ({ detections: [] }) }, now: () => times.shift()
+  });
+  assert.equal(timing.timing.medianMs, 20);
+  assert.equal(timing.timing.p95Ms, 30);
+  let attempts = 0;
+  const mixed = await evaluatePhotos(twoPhotos, { reader: { readRoom: async () => {
+    if (++attempts === 1) throw new Error("first read failed");
+    return { detections: [] };
+  } } });
+  assert.equal(mixed.failedReads, 1);
+  assert.equal(mixed.completedReads, 1);
+  assert.equal(mixed.cases.length, 2);
   await assert.rejects(evaluatePhotos(plan), /configured room reader/);
   await assert.rejects(evaluatePhotos(plan, { reader, checkpoint: async () => { throw new Error("disk full"); } }), /disk full/);
   console.log("Photo evaluation: validation, real adapter with fake transport, duplicate scoring, confidence separation, failure accounting and checkpoint tests passed. Synthetic only.");
