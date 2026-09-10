@@ -2572,8 +2572,21 @@ export function openRoomScan() {
           // Tasks and condition are kept even when no new object was named — a
           // second angle on the same room still tells us how dirty it is.
           rememberWalkEvidence(roomName, reading);
-          if (!found.length) return;
-          setInventory(roomName, mergeRoomInventory(inventoryFor(roomName), found, { now: Date.now() }));
+          if (found.length) {
+            setInventory(roomName, mergeRoomInventory(inventoryFor(roomName), found, { now: Date.now() }));
+          }
+          // Confirmation can finish before this walking request. Keep its saved
+          // room current too, so a late view is not stranded in the live list.
+          const savedRoom = findRoom(state.rooms, roomName);
+          if (savedRoom) {
+            state.rooms = upsertRoom(state.rooms, {
+              ...savedRoom,
+              detections: mergeInventoryIntoSavedDetections(savedRoom.detections, inventoryFor(roomName), dismissed),
+              tasks: mergeSavedTasks(savedRoom.tasks, reading.tasks),
+              condition: resolveRoomCondition(savedRoom.condition, reading.condition)
+            });
+            renderHub();
+          }
         })
         .catch((error) => {
           // Deliberately no refund. See the note where the count is spent.
