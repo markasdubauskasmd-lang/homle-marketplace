@@ -230,3 +230,16 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   for (const item of pair) assert.equal(reread.find(row => row.key === item.key).sightings, item.sightings);
   assert.deepEqual(mergeInventoryIntoSavedDetections([], [null, undefined]), []);
 }
+
+// Removing a renamed item must survive both later walking reads and final save.
+{
+  const dismissed = new Set([inventoryKey("Worktop"), inventoryKey("Marble worktop")]);
+  const detections = ["Worktop", "Marble worktop", "Sink"].map(label => ({ label, confidence: .9, condition: "light", conditionConfidence: .8, x: 10, y: 10, width: 20, height: 20 }));
+  const walking = walkingReadingItems({ detections }, "Kitchen", dismissed);
+  assert.deepEqual(walking.map(item => item.label), ["Sink"]);
+  const saved = mergeInventoryIntoSavedDetections(detections, [], dismissed);
+  assert.deepEqual(saved.map(item => item.label), ["Sink"], "Removed findings returned when the walking inventory was empty");
+  assert.equal(saved[0].width, 20);
+  const onlyRemoved = mergeInventoryIntoSavedDetections(detections.slice(0, 2), [], dismissed);
+  assert.deepEqual(onlyRemoved, []);
+}
