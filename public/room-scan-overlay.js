@@ -2159,13 +2159,14 @@ export function openRoomScan() {
       }
 
       const walked = inventoryFor(roomName);
-      if (walked.length) {
+      const dismissed = state.dismissed.get(transcriptKey(roomName)) || new Set();
+      if (walked.length || dismissed.size) {
         room = {
           ...room,
           // Group same-label objects while keeping the largest simultaneous
           // quantity actually seen. Confirmation and walking are separate views,
           // so adding their counts would count the same chair twice.
-          detections: mergeInventoryIntoSavedDetections(room.detections, walked)
+          detections: mergeInventoryIntoSavedDetections(room.detections, walked, dismissed)
         };
       }
 
@@ -2820,13 +2821,17 @@ export function openRoomScan() {
           if (state.closed) return;
           const current = findRoom(state.rooms, roomName);
           if (!current || current.readingStatus !== "reading" || current.readingRevision !== readingRevision) return;
+          const dismissed = state.dismissed.get(transcriptKey(roomName)) || new Set();
           state.rooms = upsertRoom(state.rooms, {
             ...current,
             // MERGED, not replaced. The room already holds what the walk found —
             // fixtures seen from angles this one frame does not cover, and the
             // tasks that came with them. Overwriting with this reading's arrays
             // discarded exactly the coverage the walk exists to provide.
-            detections: mergeSavedDetections(current.detections, reading.detections),
+            detections: mergeSavedDetections(
+              mergeInventoryIntoSavedDetections(current.detections, [], dismissed),
+              mergeInventoryIntoSavedDetections(reading.detections, inventoryFor(roomName), dismissed)
+            ),
             tasks: mergeSavedTasks(current.tasks, reading.tasks),
             condition: resolveRoomCondition(reading.condition, current.condition),
             readingStatus: reading.readingStatus || "ready",
@@ -3885,6 +3890,8 @@ export function openRoomScan() {
         const key = transcriptKey(state.currentRoom);
         const dismissed = state.dismissed.get(key) || new Set();
         dismissed.add(remove.dataset.inventoryRemove);
+        const removedItem = inventoryFor().find(item => item.key === remove.dataset.inventoryRemove);
+        if (removedItem) dismissed.add(inventoryKey(removedItem.label));
         state.dismissed.set(key, dismissed);
         setInventory(state.currentRoom, correctInventoryItem(inventoryFor(), remove.dataset.inventoryRemove, { remove: true }));
         return toast("Removed from this room.");

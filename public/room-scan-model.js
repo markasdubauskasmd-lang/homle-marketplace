@@ -1494,10 +1494,20 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     const key = item?.key || inventoryKey(item?.label);
     if (key) merged.set(key, { ...item, key });
   }
+  // A reader can adopt a customer's corrected name on its next view.
+  // Resolve only unique corrected names; ambiguous edits keep distinct identities.
+  const correctedKeys = new Map();
+  for (const [key, item] of merged) {
+    if (!item.confirmed) continue;
+    const correctedKey = inventoryKey(item.label);
+    if (!correctedKey || correctedKey === key) continue;
+    correctedKeys.set(correctedKey, correctedKeys.has(correctedKey) ? null : key);
+  }
   const incomingByKey = new Map();
   for (const item of Array.isArray(incoming) ? incoming : []) {
     const label = String(item?.label || "").trim().slice(0, 40);
-    const key = inventoryKey(label);
+    const observedKey = inventoryKey(label);
+    const key = merged.has(observedKey) ? observedKey : (correctedKeys.get(observedKey) || observedKey);
     if (!key) continue;
     if (!incomingByKey.has(key)) incomingByKey.set(key, []);
     incomingByKey.get(key).push({ ...item, label });
@@ -1711,11 +1721,30 @@ export function mergeSavedDetections(existing, incoming) {
   }))).slice(0, inventoryLimit));
 }
 
-export function mergeInventoryIntoSavedDetections(existing, inventory) {
-  const walked = (Array.isArray(inventory) ? inventory : [])
-    .map(savedDetectionFromInventoryItem)
-    .filter(Boolean);
-  return mergeSavedDetections(existing, walked);
+export function mergeInventoryIntoSavedDetections(existing, inventory, dismissed = new Set()) {
+  const items = (Array.isArray(inventory) ? inventory : []).filter(item => item && typeof item === "object");
+  const stableKeys = new Set(items.map(item => item.key));
+  const correctedKeys = new Map();
+  for (const item of items) {
+    if (!item.confirmed) continue;
+    const labelKey = inventoryKey(item.label);
+    if (!labelKey || labelKey === item.key) continue;
+    correctedKeys.set(labelKey, correctedKeys.has(labelKey) ? null : item.key);
+  }
+  const confirmation = (Array.isArray(existing) ? existing : []).map(detection => {
+    const observedKey = String(detection?.inventoryKey || inventoryKey(detection?.label)).trim();
+    const key = stableKeys.has(observedKey) ? observedKey : correctedKeys.get(observedKey);
+    return key ? { ...detection, inventoryKey: key } : detection;
+  });
+  const walked = items.map(savedDetectionFromInventoryItem).filter(Boolean);
+  const correctedLabels = new Map(items.filter(item => item.confirmed).map(item => [item.key, item.label]));
+  return Object.freeze(mergeSavedDetections(confirmation, walked)
+    .filter(detection => !dismissed.has(String(detection.inventoryKey || inventoryKey(detection.label)))
+      && !dismissed.has(inventoryKey(detection.label)))
+    .map(detection => {
+    const label = correctedLabels.get(detection.inventoryKey);
+    return label ? Object.freeze({ ...detection, label }) : detection;
+  }));
 }
 
 // Rename, remove and confirm, as one operation so the correction UI has a single
