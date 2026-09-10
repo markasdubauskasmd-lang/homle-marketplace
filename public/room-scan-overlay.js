@@ -2707,7 +2707,7 @@ export function openRoomScan() {
         if (Number.isFinite(item.score) && item.score > 0 && item.score < 0.5) name.dataset.unsure = "true";
         // The evidence, then the action that follows from it. Deterministic —
         // the model observed, the owned mapping recommends.
-        const action = recommendedAction(item);
+        const action = conditionNeedsReview(item) ? "" : recommendedAction(item);
         const rowDetail = [item.note, action].filter(Boolean).join(" · ");
         if (rowDetail) name.title = rowDetail;
         name.dataset.inventoryRename = item.key;
