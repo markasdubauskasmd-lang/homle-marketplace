@@ -294,3 +294,28 @@ assert(await rejects(() => loadBenchmarkCases("/nonexistent/dataset.json"), "ENO
 assert(benchmarkTargets.objectPrecision > 0 && benchmarkTargets.conditionAgreementKappa > 0, "The targets are not set.");
 
 console.log("Scan benchmark checks passed.");
+
+
+// Coverage must not let a duplicate in one room compensate for a miss elsewhere.
+{
+  const sink = object("sink", "light");
+  const result = runBenchmarkCase({synthetic:true,
+    rooms:[{roomName:"Kitchen",objects:[]},{roomName:"Bathroom",objects:[sink,sink]}],
+    truth:{rooms:[{roomName:"Kitchen",objects:[sink]},{roomName:"Bathroom",objects:[sink]}]}});
+  assert(result.counts.truePositives===1 && result.counts.falsePositives===1 && result.counts.falseNegatives===1 && result.counts.duplicates===1,
+    "Cross-room errors cancelled: "+JSON.stringify(result.counts));
+}
+{
+  const chair = object("chair", "light");
+  const result=runBenchmarkCase({synthetic:true,rooms:[{roomName:"Living room",objects:[{...chair,quantity:2}]}],
+    truth:{rooms:[{roomName:"Living room",objects:[{...chair,quantity:4}]},{roomName:"Bedroom",objects:[object("bed","clean")]}]}});
+  assert(result.counts.expected===5 && result.counts.observed===2 && result.counts.truePositives===2 && result.counts.falseNegatives===3,
+    "Quantities or a completely missed room disappeared: "+JSON.stringify(result.counts));
+}
+{
+  const phantom=object("microwave","light");
+  const result=runBenchmarkCase({synthetic:true,rooms:[{roomName:"Bathroom",objects:[phantom]}],truth:{rooms:[]}});
+  assert(result.counts.falsePositives===1 && result.counts.duplicates===0,"First wrong label was mislabeled as a duplicate");
+  const repeated=runBenchmarkCase({synthetic:true,rooms:[{roomName:"Bathroom",objects:[phantom,phantom]}],truth:{rooms:[]}});
+  assert(repeated.counts.falsePositives===2 && repeated.counts.duplicates===1,"Repeated wrong labels were not separately counted");
+}
