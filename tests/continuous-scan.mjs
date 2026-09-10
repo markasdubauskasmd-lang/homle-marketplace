@@ -1043,8 +1043,10 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   const a = Array(48).fill(.2), b = Array(48).fill(.7), c = Array(48).fill(.4);
   const decision = { signature:a, previousSignature:a, lastReadSignature:b, completedSignatures:[a,b], capturedCount:2, now:100000, lastCaptureAt:0 };
   assert.equal(shouldCaptureKeyframe(decision), false, "A/B/A revisits spent another read");
-  assert.equal(shouldCaptureKeyframe({...decision, signature:Array(48).fill(.22), previousSignature:Array(48).fill(.22)}), false, "A small change bypassed repeat detection");
+  assert.equal(shouldCaptureKeyframe({...decision, signature:Array(48).fill(.21), previousSignature:Array(48).fill(.21)}), false, "A small change bypassed repeat detection");
   assert.equal(shouldCaptureKeyframe({...decision, signature:c, previousSignature:c}), true, "A distinct view was rejected");
+  const modestChange = Array(48).fill(.235);
+  assert.equal(shouldCaptureKeyframe({...decision, signature:modestChange, previousSignature:modestChange}), true, "A useful modest change was rejected using the broader stillness tolerance");
   assert.equal(shouldCaptureKeyframe({...decision, completedSignatures:[b]}), true, "A failed earlier view was treated as analysed");
   assert.equal(shouldCaptureKeyframe({...decision, completedSignatures:null}), true, "Absent history broke older callers");
 
