@@ -286,3 +286,36 @@ assert(Number.isInteger(complexityModelVersion), "The complexity model has no ve
 }
 
 console.log("Cleaning-complexity checks passed.");
+
+
+// A clean correction supersedes automatic soiling for the current assessment,
+// while the original evidence and non-cleaning damage report remain intact.
+{
+  const { correctInventoryItem, mergeInventoryIntoSavedDetections } = await import("../public/room-scan-model.js");
+  const { applyCorrection } = await import("../public/scan-review-render.js");
+  const original = object({ inventoryKey: "worktop", condition: "heavy", soiling: ["grease", "damage"], evidence: "Residue beside a chipped edge" });
+  const before = JSON.stringify(original);
+  const reviewCorrected = applyCorrection([{ roomName: "Kitchen", objects: [original] }], {
+    roomName: "Kitchen", inventoryKey: "worktop", field: "condition", value: "clean"
+  }).rooms[0].objects[0];
+  const inventory = correctInventoryItem([{
+    key: "worktop", label: "Worktop", condition: "heavy", conditionConfidence: .9,
+    soiling: original.soiling, note: original.evidence, quantity: 1
+  }], "worktop", { condition: "clean" });
+  const saved = mergeInventoryIntoSavedDetections([], inventory)[0];
+  const walkedCorrected = { ...saved, objectId: "walked", confidenceCondition: saved.conditionConfidence, evidence: saved.note };
+  for (const corrected of [reviewCorrected, walkedCorrected]) {
+    const snapshot = JSON.stringify(corrected);
+    const result = assess([room("Kitchen", [corrected])]);
+    assert(result.maximumRoomLoad === 0, "A customer-confirmed clean object still contributes old automatic soiling load.");
+    assert(!result.equipment.some(value => /degreas/i.test(value)), "Superseded grease still recommends degreaser.");
+    assert(!result.indicators.some(value => value.code === "soiling:grease"), "Superseded grease is reported as a current finding.");
+    assert(result.questions.some(value => value.code === "damage-noted"), "A clean correction erased the independent damage report.");
+    assert(JSON.stringify(corrected) === snapshot, "Assessing a correction overwrote the stored original evidence.");
+    const regraded = assess([room("Kitchen", [{ ...corrected, condition: "medium" }])]);
+    assert(regraded.maximumRoomLoad > 0 && regraded.indicators.some(value => value.code === "soiling:grease"), "A non-clean grade lost its applicable soiling evidence.");
+  }
+  assert(JSON.stringify(original) === before, "Review correction overwrote the original observation.");
+  const uncertain = assess([room("Kitchen", [{ ...original, condition: "clean", conditionConfirmed: false, confidenceCondition: .2 }])]);
+  assert(uncertain.provisional && uncertain.maximumRoomLoad > 0, "An unconfirmed automatic clean silently discarded conflicting evidence.");
+}
