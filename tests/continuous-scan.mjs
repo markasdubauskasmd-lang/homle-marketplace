@@ -8,7 +8,7 @@ import {
   signatureDistance, walkingReadIsBlocked, conditionReviewAdvice, conditionTag, movementAdvice,
   objectFramingAdvice, savedDetectionFromInventoryItem, usableLiveBoxes,
   signatureChangeSpread, movementSpreadThreshold,
-  conditionNeedsReview, cleanConditionReviewThreshold, recommendedAction
+  conditionNeedsReview, cleanConditionReviewThreshold, recommendedAction, usableDetections, walkingReadingItems
 } from "../public/room-scan-model.js";
 
 // The scan used to be one shutter press per room, so whatever was not in that one
@@ -156,13 +156,13 @@ assert.equal(
 );
 assert.equal(
   roomCoverageProgress(3, { attemptedCount: 4 }).copy,
-  "Good coverage — confirm",
+  "Views checked — review and confirm",
   "Three successfully analysed views are downgraded merely because the final bounded attempt failed."
 );
-assert.equal(roomCoverageProgress(3).copy, "Good coverage — confirm", "Three distinct views do not give the customer a clear, honest finish option.");
+assert.equal(roomCoverageProgress(3).copy, "Views checked — review and confirm", "Three distinct views do not give the customer a clear, honest finish option.");
 assert.deepEqual(
   roomCoverageProgress(4),
-  { count: 4, total: 4, percent: 100, complete: true, copy: "Room covered — confirm" },
+  { count: 4, total: 4, percent: 100, complete: true, copy: "Views checked — review and confirm" },
   "The bounded final view did not report complete room coverage."
 );
 assert.equal(roomCoverageProgress(99).count, 4, "Coverage exceeded the same four-view bound enforced for provider reads.");
@@ -434,7 +434,8 @@ assert.match(overlay, /state\.keyframeCanvas/, "Keyframes are drawn on the share
 
 // The inventory has to reach the saved room, or it is a display that vanishes.
 assert.match(overlay, /mergeInventoryIntoSavedDetections\(room\.detections, walked\)/, "Items found while walking are not folded into the saved room, so the checklist would still only know what was in the single confirmation frame.");
-assert.match(overlay, /soiling: Array\.isArray\(detection\.soiling\) \? detection\.soiling : \[\]/, "Walking reads discard structured soiling before it reaches the inventory.");
+assert.deepEqual(walkingReadingItems({ detections: [{ label: "Sink", soiling: ["grease"] }] }, "Kitchen")[0].soiling, ["grease"], "Walking reads discard structured soiling before it reaches the inventory.");
+assert.deepEqual(walkingReadingItems({ detections: [{ label: "Sink", soiling: null }] }, "Kitchen")[0].soiling, [], "Malformed soiling must normalize to an empty list.");
 
 // Labels come back from a reader looking at photographs of a stranger's home.
 const inventoryRender = overlay.slice(overlay.indexOf("function renderInventory"), overlay.indexOf("function inventoryFor"));
@@ -448,7 +449,7 @@ assert.match(overlay, /change\.condition = condition/, "The item editor does not
 assert.match(styles, /\.scan-item-condition-options\{[^}]*grid-template-columns:repeat\(2/, "The cleaning-level choices are not presented as large mobile-friendly controls.");
 assert.match(inventoryRender, /grade\.dataset\.grade = "uncertain"/, "An item with no condition has no visible condition-unclear badge.");
 assert.match(inventoryRender, /condition unclear/, "The inventory does not explain that an ungraded item needs review.");
-assert.match(overlay, /conditionReviewAdvice\(inventoryFor\(\)\)\?\.message/, "Live guidance never asks for a closer view when a found item's condition is unresolved.");
+assert.match(overlay, /conditionReviewAdvice\(inventoryFor\(\), \{ canReadAnotherView: keyframeBudget\(\)\.capturedCount < keyframeDefaults\.maxPerRoom \}\)\?\.message/, "Live guidance never asks for a closer view when a found item's condition is unresolved.");
 assert.match(styles, /\.found-grade\[data-grade="uncertain"\]/, "The unresolved-condition badge has no distinct visual treatment.");
 
 /* ── Detected objects glow rather than being boxed ── */
@@ -564,7 +565,7 @@ assert.match(overlay, /const conditionRank = \{ light: 1, medium: 2, heavy: 3 \}
 /* ── Corrections survive the reads that follow them ── */
 
 assert.match(overlay, /state\.dismissed/, "Removing an item leaves no record, so the next reading merges it straight back and the removal looks broken.");
-assert.match(overlay, /dismissed\.has\(inventoryKey\(detection\?\.label\)\)/, "A reading in flight can re-add an item the Landlord has just removed.");
+assert.deepEqual(walkingReadingItems({ detections: [{ label: "Sink" }] }, "Kitchen", new Set(["sink"])), [], "A reading in flight can re-add an item the Landlord has just removed.");
 
 /* ── A read that outlives its room lands nowhere ── */
 
@@ -662,12 +663,12 @@ assert.match(
 );
 assert.match(
   overlay,
-  /const guidance = state\.qualityMessage\s*\|\| state\.framingMessage\s*\|\| conditionReviewAdvice\(inventoryFor\(\)\)\?\.message/,
+  /const guidance = state\.qualityMessage\s*\|\| state\.framingMessage\s*\|\| conditionReviewAdvice\(inventoryFor\(\), \{ canReadAnotherView: keyframeBudget\(\)\.capturedCount < keyframeDefaults\.maxPerRoom \}\)\?\.message/,
   "The live view does not prioritise lighting, motion and distance before unresolved-condition guidance."
 );
 assert.match(
   overlay,
-  /score: Number\.isFinite\(detection\.confidence\)[\s\S]{0,240}conditionConfidence: Number\.isFinite\(detection\.conditionConfidence\)/,
+  /const found = walkingReadingItems\(reading, roomName, dismissed\)/,
   "Walking reads collapse object-label and condition confidence before the room inventory can use them independently."
 );
 assert.equal((overlay.match(/getImageData\(/g) || []).length, 1, "Uneven exposure added another synchronous camera readback.");
@@ -822,3 +823,96 @@ assert.equal(recommendedAction({ label: "Worktop", condition: "medium", soiling:
 assert.match(recommendedAction({ label: "Bath panel", condition: "medium", soiling: ["damage"] }), /not cleanable/, "Damage was turned into a cleaning task instead of a note for the report.");
 
 console.log("Condition-review and recommendation tests passed: an unsure 'clean' is a question rather than a finding, unscored grades are never settled, paid reads require measured sharpness above the nag threshold, and every recommendation comes from the owned mapping rather than model output.");
+
+// A recognised surface is not evidence of its cleaning condition. In particular,
+// explicit null from stored/mapped readings must not borrow a 99% identity score.
+for (const condition of ["clean", "light", "medium", "heavy"]) {
+  for (const conditionConfidence of [null, "unknown", NaN, Infinity]) {
+    const observation = {label:"Sink", condition, conditionConfidence, confidence:0.99, score:0.99, x:5,y:5,width:20,height:20};
+    assert.equal(conditionNeedsReview(observation), true, `${condition}: explicit uncertainty bypassed review`);
+    const normalized = usableDetections([observation])[0];
+    assert.equal(normalized.conditionConfidence, null, "Normalization invented condition certainty");
+    assert.equal(conditionNeedsReview(normalized), true, "Normalized observation bypassed review");
+    assert.equal(conditionNeedsReview({...normalized,conditionConfirmed:true}), false, "Explicit user confirmation was lost");
+  }
+}
+assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Legacy combined confidence compatibility was lost");
+
+
+// Exercise the exact conversion called by the overlay, through inventory and save.
+{
+  const detection={label:"Sink",confidence:.99,condition:"clean",conditionConfidence:null,x:5,y:5,width:20,height:20};
+  const found=walkingReadingItems({detections:[detection,{...detection,label:"Floor"},{...detection,label:"Bed"},null]},"Kitchen",new Set(["floor"]));
+  assert.equal(found.length,1,"Dismissed/implausible/malformed observations leaked into the inventory");
+  assert.equal(found[0].score,.99);
+  assert.equal(found[0].conditionConfidence,null,"Overlay conversion borrowed object confidence");
+  const inventory=mergeRoomInventory([],found,{now:1});
+  const saved=mergeInventoryIntoSavedDetections([],inventory);
+  assert.equal(saved.length,1);
+  assert.equal(saved[0].conditionConfidence,null,"Save invented condition evidence");
+  assert.equal(conditionNeedsReview(saved[0]),true,"Uncertain live reading became settled after save");
+  const correction=correctInventoryItem(inventory,inventory[0].key,{condition:"light"});
+  const reread=mergeRoomInventory(correction,found,{now:2});
+  assert.equal(reread[0].condition,"light","A reread overwrote the customer's condition correction");
+  assert.equal(conditionNeedsReview(mergeInventoryIntoSavedDetections([],reread)[0]),false);
+  const legacy={...detection};delete legacy.conditionConfidence;
+  assert.equal(walkingReadingItems({detections:[legacy]},"Kitchen")[0].conditionConfidence,.99);
+  assert.deepEqual(walkingReadingItems({detections:null},"Kitchen"),[]);
+}
+
+// A complete walking inventory must not shrink to a single-photo-era save cap.
+{
+  const observations = Array.from({ length: 40 }, (_, index) => ({
+    label: `Surface ${index}`, score: .9, condition: "light",
+    conditionConfidence: .8, soiling: ["dust"]
+  }));
+  const inventory = mergeRoomInventory([], observations, { now: 1 });
+  assert.equal(inventory.length, 40);
+  const saved = mergeInventoryIntoSavedDetections([], inventory);
+  assert.equal(saved.length, 40, "Saving silently dropped detected items from the checklist");
+  assert.deepEqual(new Set(saved.map(item => item.label)), new Set(inventory.map(item => item.label)));
+  assert.ok(saved.every(item => item.condition === "light" && item.soiling.includes("dust")));
+  const overlapping = mergeInventoryIntoSavedDetections(saved.slice(0, 12), inventory);
+  assert.equal(overlapping.length, 40, "Confirmation overlap displaced walking findings");
+  assert.ok(overlapping.every(item => item.quantity === 1), "Confirmation double-counted walking items");
+  assert.equal(mergeSavedDetections(saved, [{ label: "Additional surface", quantity: 1 }]).length, 40, "Save lost its bounded room limit");
+}
+
+// Duplicate labels must retain the best condition evidence independently of naming.
+{
+  const named = { label: "Sink", confidence: .99, condition: "", conditionConfidence: null };
+  const graded = { label: "Sink", confidence: .8, condition: "heavy", conditionConfidence: .9, soiling: ["limescale"], note: "Crust at the tap base" };
+  for (const detections of [[named, graded], [graded, named]]) {
+    const incoming = walkingReadingItems({ detections }, "Kitchen");
+    for (const existing of [[], mergeRoomInventory([], [{ label: "Sink", score: .95, condition: "light", conditionConfidence: .6 }])]) {
+      const inventory = mergeRoomInventory(existing, incoming, { now: 1 });
+      assert.equal(inventory.length, 1);
+      assert.equal(inventory[0].quantity, 1, "Duplicate unboxed labels inflated quantity");
+      assert.equal(inventory[0].score, .99, "Condition selection weakened naming evidence");
+      assert.equal(inventory[0].condition, "heavy", "Naming confidence discarded stronger condition evidence");
+      assert.equal(inventory[0].conditionConfidence, .9);
+      assert.deepEqual(inventory[0].soiling, ["limescale"]);
+      assert.equal(inventory[0].note, "Crust at the tap base");
+      assert.equal(mergeInventoryIntoSavedDetections([], inventory)[0].condition, "heavy");
+      const corrected = correctInventoryItem(inventory, inventory[0].key, { condition: "clean" });
+      assert.equal(mergeRoomInventory(corrected, incoming)[0].condition, "clean", "Grouped evidence overwrote customer correction");
+    }
+  }
+  const clean = { ...graded, condition: "clean", conditionConfidence: .95, soiling: [], note: "Clear surface" };
+  const result = mergeRoomInventory([], walkingReadingItems({ detections: [graded, clean] }, "Kitchen"));
+  assert.equal(result[0].condition, "clean", "A more severe grade outranked stronger evidence");
+  assert.deepEqual(result[0].soiling, []);
+}
+
+{
+  const uncertain = { label: "Sink", condition: "clean", conditionConfidence: null };
+  assert.match(conditionReviewAdvice([uncertain])?.message || "", /move closer/);
+  for (const items of [[uncertain], [uncertain, { ...uncertain, label: "Floor" }]]) {
+    const advice = conditionReviewAdvice(items, { canReadAnotherView: false });
+    assert.match(advice.message, /tap .*item to confirm/);
+    assert.doesNotMatch(advice.message, /move closer/, "Exhausted reads ask for a view they cannot analyse");
+    assert.equal(advice.count, items.length);
+  }
+  assert.equal(conditionReviewAdvice([{ ...uncertain, conditionConfirmed: true }], { canReadAnotherView: false }), null);
+  for (const count of [3, 4]) assert.doesNotMatch(roomCoverageProgress(count).copy, /room covered|good coverage/i, "View counts claim unmeasured spatial coverage");
+}

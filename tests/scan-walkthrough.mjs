@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {
-  conditionReviewAdvice, correctInventoryItem, implausibleForRoom, inventoryDisplayLabel,
+  conditionReviewAdvice, correctInventoryItem, walkingReadingItems, inventoryDisplayLabel,
   inventoryKey, keyframeDefaults, mergeInventoryIntoSavedDetections, mergeRoomInventory,
   resolveRoomCondition, shouldCaptureKeyframe, walkingReadIsBlocked
 } from "../public/room-scan-model.js";
@@ -16,9 +16,7 @@ import {
 // story ends correctly, so a regression in any joint fails loudly here even when
 // every unit test still passes.
 //
-// The composition below mirrors public/room-scan-overlay.js deliberately: filter
-// implausible labels, filter dismissed keys, then merge. If the overlay's order
-// changes, this file should change with it — that is the point of it.
+// Use the live overlay's conversion function so replay cannot drift from production.
 
 /* ── The walk begins: which frames cost money ── */
 
@@ -74,24 +72,7 @@ assert.ok(walkingReadIsBlocked(new Set(), ""), "A read with no room key was allo
 
 const dismissed = new Set();
 function compose(roomName, inventory, detections, at) {
-  const found = detections
-    .filter((detection) => !implausibleForRoom(detection.label, roomName))
-    .filter((detection) => !dismissed.has(inventoryKey(detection.label)))
-    .map((detection) => ({
-      label: detection.label,
-      score: Number.isFinite(detection.confidence) ? detection.confidence : 0.5,
-      condition: detection.condition || "",
-      conditionConfidence: detection.conditionConfidence,
-      soiling: detection.soiling || [],
-      note: detection.note || "",
-      // Geometry rides along, exactly as the overlay passes it. Quantity counting
-      // only trusts boxed, non-overlapping detections — two boxless "Chair"
-      // strings could be one chair reported twice, and counting them would be
-      // inventing furniture. A first draft dropped the boxes here and asserted
-      // two chairs anyway; the pipeline refused, and the pipeline was right.
-      x: detection.x, y: detection.y, width: detection.width, height: detection.height,
-      source: "read"
-    }));
+  const found = walkingReadingItems({ detections }, roomName, dismissed);
   return mergeRoomInventory(inventory, found, { now: at });
 }
 
@@ -172,3 +153,22 @@ assert.equal(resolveRoomCondition("medium", "heavy"), "medium", "A walking glimp
 assert.equal(resolveRoomCondition("unknown", "heavy"), "heavy", "A confirmation that could not judge discarded the walk's coverage.");
 
 console.log(`Scan walkthrough passed: a kitchen walked end to end through the real pipeline — ${keyframeDefaults.maxPerRoom} bounded reads with quality and motion gates, an alias and a quantity resolved, a hallucinated bed filtered, three customer corrections surviving a contradicting later reading, uncertainty surfaced for review, and every grade, quantity and soiling fact arriving intact in the saved room.`);
+
+// A better view clears obsolete dirt notes together with the superseded grade.
+{
+  const dirty = [{ label: "Sink", confidence: .9, condition: "heavy", conditionConfidence: .6, note: "Thick limescale", soiling: ["limescale"] }];
+  const clean = [{ label: "Sink", confidence: .9, condition: "clean", conditionConfidence: .95, note: "", soiling: [] }];
+  const first = compose("Kitchen", [], dirty, 1000);
+  const revisited = compose("Kitchen", first, clean, 2000);
+  assert.equal(revisited[0].condition, "clean");
+  assert.equal(revisited[0].note, "", "The better view retained obsolete dirt evidence");
+  assert.deepEqual(revisited[0].soiling, []);
+  const saved = mergeInventoryIntoSavedDetections([], revisited);
+  assert.equal(saved[0].condition, "clean");
+  assert.ok(!saved[0].note.includes("limescale"), "Saving resurrected the old dirt note");
+  const confirmation = dirty.map(item => ({ ...item, x: 10, y: 10, width: 20, height: 20 }));
+  const combined = mergeInventoryIntoSavedDetections(confirmation, revisited);
+  assert.equal(combined[0].condition, "clean");
+  assert.ok(!combined[0].note.includes("limescale"), "Confirmation geometry resurrected weaker dirt evidence");
+  assert.equal(combined[0].width, 20, "Replacing evidence lost the confirmation box");
+}
