@@ -1554,6 +1554,9 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     }
     // A Landlord's correction is final. A later reading that disagrees must not
     // quietly rename an item they have already put right.
+    // A correction applies to the items that existed when the user made it.
+    // Newly discovered members need review; a partial reread of the same group does not.
+    const confirmationGrew = current.conditionConfirmed === true && quantity > itemQuantity(current);
     const incomingCondition = String(evidence?.condition || "");
     const currentConditionConfidence = conditionEvidenceConfidence(current);
     const incomingConditionConfidence = conditionEvidenceConfidence(evidence);
@@ -1577,7 +1580,8 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
       // time the camera turned back towards it. Keep only the largest simultaneous
       // count one frame actually proved.
       quantity: Math.max(itemQuantity(current), quantity),
-      conditionMixed: current.conditionMixed === true || conditionMixed,
+      conditionMixed: current.conditionMixed === true || conditionMixed || confirmationGrew,
+      conditionConfirmed: current.conditionConfirmed === true && !confirmationGrew,
       lastSeenAt: now,
       // The better-evidenced look at the same object wins its condition too. A
       // glimpse from the doorway should not overwrite a close pass that actually
@@ -1696,7 +1700,9 @@ export function mergeSavedDetections(existing, incoming) {
       merged.set(key, { ...detection });
       continue;
     }
-    const currentConfirmed = current.conditionConfirmed === true;
+    const confirmationGrew = current.conditionConfirmed === true
+      && existingCounts.has(key) && (incomingCounts.get(key) || 0) > existingCounts.get(key);
+    const currentConfirmed = current.conditionConfirmed === true && !confirmationGrew;
     const incomingConfirmed = detection.conditionConfirmed === true;
     if (incomingConfirmed) {
       // The newest explicit customer choice wins, even over a better-framed or
@@ -1729,7 +1735,8 @@ export function mergeSavedDetections(existing, incoming) {
     merged.set(key, {
       ...base,
       condition: conditionSource.condition || "",
-      conditionMixed: current.conditionMixed === true || detection.conditionMixed === true,
+      conditionMixed: current.conditionMixed === true || detection.conditionMixed === true || confirmationGrew,
+      conditionConfirmed: false,
       conditionConfidence: conditionEvidenceConfidence(conditionSource),
       note: String(conditionSource.note || ""),
       soiling: Object.freeze(Array.isArray(conditionSource.soiling) ? conditionSource.soiling.slice(0, 4) : [])

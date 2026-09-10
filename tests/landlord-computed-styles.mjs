@@ -292,8 +292,24 @@ try {
 
     for (const [surface, search] of [["book", ""], ["checkout", `?bookingId=${BOOKING_ID}`]]) {
       await browser.goto(`${server.origin}/landlord/${surface}${search}`);
-      // Neither surface has a workspace gate to wait on; they render from
-      // markup. One frame is enough for the stylesheets to have applied.
+      // Checkout's booking context arrives from an asynchronous summary read.
+      // Two animation frames can precede that response on a busy CI runner.
+      // Wait for the fixture's real content; never accept a missing element or
+      // rewrite the committed design baseline to match a loading state.
+      if (surface === "checkout") {
+        const contextReady = await browser.evaluate(`
+          const deadline = Date.now() + 15000;
+          for (;;) {
+            const context = document.querySelector("[data-payment-context]");
+            const place = context?.querySelector("[data-payment-context-property]");
+            if (context && !context.hidden && context.getClientRects().length
+                && place?.textContent.trim()) return true;
+            if (Date.now() > deadline) return false;
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+        `);
+        assert(contextReady, `checkout at ${viewport.label}: booking context never finished loading.`);
+      }
       await browser.evaluate("new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
       captured[`${viewport.label} · ${surface}`] = await browser.evaluate(PROBE(JOURNEY_PREFIXES));
     }

@@ -993,3 +993,46 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
     }
   }
 }
+
+
+// A manual grade for one known item is not permission to grade newly discovered members.
+{
+  const chair = { label: "Chair", score: .99, confidence: .99, condition: "clean",
+    conditionConfidence: .95, x: 0, y: 0, width: 20, height: 20 };
+  const one = correctInventoryItem(mergeRoomInventory([], [chair]), "chair", { condition: "light" });
+  const savedOne = mergeInventoryIntoSavedDetections([], one);
+  const second = { ...chair, condition: "", conditionConfidence: null, x: 50 };
+  const expanded = [chair, second];
+  const walkingGrowth = mergeRoomInventory(one, expanded);
+  const savedGrowth = mergeSavedDetections(savedOne, expanded);
+  for (const item of [walkingGrowth[0], savedGrowth[0], mergeInventoryIntoSavedDetections([], walkingGrowth)[0]]) {
+    assert.equal(item.quantity, 2);
+    assert.equal(item.conditionConfirmed, false, "A one-item correction was extended to a newly found item");
+    assert.equal(conditionNeedsReview(item), true);
+    assert.equal(item.condition, "");
+  }
+  assert.equal(conditionNeedsReview(mergeRoomInventory(walkingGrowth, [chair])[0]), true);
+  assert.equal(conditionNeedsReview(mergeSavedDetections(savedGrowth, [chair])[0]), true);
+  const reconfirmed = correctInventoryItem(walkingGrowth, "chair", { condition: "medium" });
+  const sameGroup = mergeRoomInventory(reconfirmed, expanded);
+  assert.equal(sameGroup[0].condition, "medium", "A same-size reread erased a grouped correction");
+  assert.equal(conditionNeedsReview(sameGroup[0]), false);
+  const savedCorrection = mergeInventoryIntoSavedDetections(savedGrowth, sameGroup);
+  assert.equal(savedCorrection[0].condition, "medium");
+  assert.equal(conditionNeedsReview(savedCorrection[0]), false);
+  const partial = mergeSavedDetections(savedCorrection, [chair]);
+  assert.equal(partial[0].quantity, 2);
+  assert.equal(partial[0].condition, "medium");
+  assert.equal(conditionNeedsReview(partial[0]), false);
+  const explicitlyExpanded = mergeSavedDetections(savedOne, [{
+    ...chair, quantity: 2, condition: "heavy", conditionConfidence: 1,
+    conditionConfirmed: true, conditionMixed: false
+  }]);
+  assert.equal(explicitlyExpanded[0].condition, "heavy");
+  assert.equal(conditionNeedsReview(explicitlyExpanded[0]), false, "An explicit correction covering the larger group was rejected");
+  const initiallyConfirmed = mergeSavedDetections([], [
+    { ...chair, conditionConfirmed: true }, { ...chair, x: 50, conditionConfirmed: true }
+  ]);
+  assert.equal(initiallyConfirmed[0].quantity, 2);
+  assert.equal(conditionNeedsReview(initiallyConfirmed[0]), false, "Initial per-item confirmations with matching grades were mistaken for an older smaller group");
+}
