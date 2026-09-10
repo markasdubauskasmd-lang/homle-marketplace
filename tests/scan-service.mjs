@@ -442,7 +442,9 @@ console.log("Structured room-scan service checks passed.");
 {
   const clean = { label: "Chair", confidence: .9, condition: "clean", conditionConfidence: .99, x: 5, y: 5, width: 20, height: 20 };
   const stained = { ...clean, condition: "heavy", conditionConfidence: .95, soiling: ["stain"], x: 70 };
-  const inventory = mergeRoomInventory([], walkingReadingItems({ detections: [clean, stained] }, "Living room"));
+  for (const second of [stained, { ...stained, condition: "", conditionConfidence: null },
+    { ...stained, condition: "clean", conditionConfidence: .4 }]) {
+  const inventory = mergeRoomInventory([], walkingReadingItems({ detections: [clean, second] }, "Living room"));
   function project(items) {
     const detections = mergeInventoryIntoSavedDetections([], items);
     const objects = detections.map(detection => ({
@@ -458,8 +460,9 @@ console.log("Structured room-scan service checks passed.");
   assert(restored.unresolvedCount === 1, "Server projection settled a mixed-condition group");
   assert(restored.rooms[0].objects[0].quantity === 2, "Server normalization lost the mixed group's quantity");
   assert(restored.rooms[0].objects[0].needsConfirmation === true, "The checklist hides mixed-condition review");
-  assert(restored.rooms[0].objects[0].evidence.includes("check each item"), "Server projection discarded mixed-condition guidance");
+  assert(restored.rooms[0].objects[0].evidence.toLowerCase().includes("check each item"), "Server projection discarded mixed-condition guidance");
   const corrected = project(correctInventoryItem(inventory, inventory[0].key, { condition: "medium" }));
   assert(corrected.unresolvedCount === 0, "Server projection ignored the customer's explicit correction");
   assert(corrected.rooms[0].objects[0].condition === "medium", "Server projection changed the customer's grade");
+  }
 }
