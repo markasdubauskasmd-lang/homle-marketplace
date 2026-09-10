@@ -376,6 +376,9 @@ function loadDetectorOnce() {
     // the API and no working driver. Both mean: fall back, do not fail.
     if (!(hasWebGpu && await trySetBackend(runtime, "webgpu"))) {
       if (!(await trySetBackend(runtime, "webgl"))) throw new Error("detector-unavailable");
+      // COCO-SSD uses CPU non-max suppression after WebGL inference.
+      // Load it only for this fallback; WebGPU keeps its existing download.
+      await loadDetectorScript("/vendor/tfjs-cpu-4.22.0/tf-backend-cpu.min.js");
     }
     await runtime.ready();
     detectorBackend = runtime.getBackend ? runtime.getBackend() : "";
