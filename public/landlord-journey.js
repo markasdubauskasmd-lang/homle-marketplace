@@ -1636,15 +1636,22 @@ function renderReview() {
 // Deliberately silent on failure. The review panel is additional information;
 // the checklist below it is what the booking has always run on, and losing the
 // assessment must not cost the customer their scan.
+let scanReviewRequestVersion = 0;
 async function refreshScanReview() {
-  if (!reviewHost || !state.scanRooms.length) return;
-  // Cached after the first call; the price list does not change mid-scan.
+  const requestVersion = ++scanReviewRequestVersion;
+  const sourceRooms = state.scanRooms;
+  const isCurrent = () => requestVersion === scanReviewRequestVersion && state.scanRooms === sourceRooms;
+  if (!reviewHost || !sourceRooms.length) return;
+  // Cached after the first call; a newer edit may arrive while it loads.
   await loadPricingConfig();
+  if (!isCurrent()) return;
   const rooms = correctedScanRooms();
   try {
+    const csrf = await recoverCsrf();
+    if (!isCurrent()) return;
     const result = await requestJson("/api/marketplace/landlord/scan-preview", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRF-Token": await recoverCsrf() },
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
       body: JSON.stringify({
         deviceClass: state.scanDeviceClass || "unknown",
         rooms: rooms.map((room) => ({
@@ -1653,9 +1660,12 @@ async function refreshScanReview() {
         }))
       })
     });
+    // Responses can arrive out of order, or after the customer starts a new scan.
+    if (!isCurrent()) return;
     state.scanReview = scanReview(result.scan);
     renderReview();
   } catch (error) {
+    if (!isCurrent()) return;
     // A rate-limited or unavailable assessment leaves the panel as it was.
     if (!state.scanReview) reviewHost.hidden = true;
   }
