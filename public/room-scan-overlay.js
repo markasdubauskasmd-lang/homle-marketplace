@@ -17,6 +17,7 @@ import {
   conditionReviewAdvice,
   shouldCaptureKeyframe,
   roomCoverageProgress,
+  keyframeDefaults,
   walkingReadIsBlocked,
   mergeRoomInventory,
   walkingReadingItems,
@@ -3096,7 +3097,7 @@ export function openRoomScan() {
         // enough of the view for condition evidence.
         const guidance = state.qualityMessage
           || state.framingMessage
-          || conditionReviewAdvice(inventoryFor())?.message;
+          || conditionReviewAdvice(inventoryFor(), { canReadAnotherView: keyframeBudget().capturedCount < keyframeDefaults.maxPerRoom })?.message;
         if (!guidance) {
           el.detectorState.hidden = true;
           return;
