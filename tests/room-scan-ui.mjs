@@ -824,3 +824,49 @@ assert(/state\.tracks\.length !== state\.lastSpottedCount[\s\S]{0,160}if \(inven
 // own (final) attempt starts fresh instead of inheriting a network hiccup.
 assert(/export function warmRoomScanDetector\(\)[\s\S]{0,220}if \(detectorLoad === attempt\) detectorLoad = null/.test(overlay), "The pre-warm hook is gone, or a failed background warm-up now burns the overlay's single detector attempt.");
 assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmScanner/.test(journey) && /setTimeout\(warmScanner/.test(journey), "The journey page no longer warms the detector from idle time, so the scanner is back to loading its model after opening.");
+
+
+// Exercise the real editor-opening and submit handlers together. The previous
+// preselection silently promoted automatic grades when only the name changed.
+{
+  const { default: vm } = await import("node:vm");
+  const { correctInventoryItem, conditionNeedsReview, mergeInventoryIntoSavedDetections } = await import("../public/room-scan-model.js");
+  const opening = overlay.slice(overlay.indexOf("function openItemEditor("), overlay.indexOf("function hideDiscard("));
+  const registration = overlay.slice(overlay.indexOf('el.itemEditorForm.addEventListener("submit"'), overlay.indexOf('el.viewfinder.addEventListener("click"'));
+  assert(opening && registration, "The item editor handlers could not be exercised.");
+  function edit(item, explicitChoice) {
+    let inventory = [item], submit;
+    const options = ["clean", "light", "medium", "heavy"].map(value => ({ value, checked: false }));
+    const context = {
+      inventoryFor: () => inventory, state: { closed: false, currentRoom: "Bathroom" },
+      HTMLElement: class {}, document: { activeElement: null },
+      el: {
+        itemEditorName: { focus() {}, select() {}, setCustomValidity() {}, reportValidity() {} },
+        itemEditorForm: { elements: { "homle-item-condition": options }, addEventListener(type, handler) { submit = handler; } },
+        itemEditor: {}
+      },
+      stopDetection() {}, setScanBackgroundInert() {}, requestAnimationFrame: fn => fn(),
+      correctInventoryItem, setInventory(room, updated) { inventory = updated; },
+      closeItemEditor() {}, toast() {}
+    };
+    vm.runInNewContext(opening + registration + ';openItemEditor("tap", null);', context);
+    context.el.itemEditorName.value = "Bathroom tap";
+    if (explicitChoice) for (const option of options) option.checked = option.value === explicitChoice;
+    submit({ preventDefault() {} });
+    return inventory[0];
+  }
+  const automatic = { key: "tap", label: "Tap", condition: "clean", conditionConfidence: .25, conditionConfirmed: false };
+  const renamed = edit(automatic);
+  assert(renamed.label === "Bathroom tap" && renamed.confirmed === true, "The name correction did not survive.");
+  assert(renamed.conditionConfirmed === false && renamed.conditionConfidence === .25 && conditionNeedsReview(renamed), "Renaming silently confirmed an uncertain automatic condition.");
+  const saved = mergeInventoryIntoSavedDetections([], [renamed])[0];
+  assert(saved.conditionConfirmed === false && conditionNeedsReview(saved), "Saving a name-only correction lost condition uncertainty.");
+  const explicit = edit(automatic, "clean");
+  assert(explicit.conditionConfirmed === true && explicit.conditionConfidence === 1 && !conditionNeedsReview(explicit), "An explicit same-grade choice was not confirmed.");
+  const prior = edit({ ...automatic, conditionConfirmed: true, conditionConfidence: 1 });
+  assert(prior.conditionConfirmed === true && prior.conditionConfidence === 1, "Renaming lost a previously confirmed condition.");
+  const mixed = edit({ ...automatic, conditionMixed: true, quantity: 2 });
+  assert(mixed.conditionMixed === true && conditionNeedsReview(mixed), "Renaming settled a mixed-condition group without a choice.");
+  const changed = edit(automatic, "heavy");
+  assert(changed.condition === "heavy" && changed.conditionConfirmed === true, "An explicit replacement grade did not take effect.");
+}
