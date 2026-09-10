@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   conditionReviewAdvice, correctInventoryItem, walkingReadingItems, inventoryDisplayLabel,
   inventoryKey, keyframeDefaults, mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
-  resolveRoomCondition, shouldCaptureKeyframe, walkingReadIsBlocked
+  resolveRoomCondition, shouldCaptureKeyframe, walkingReadIsBlocked, findRoom, upsertRoom
 } from "../public/room-scan-model.js";
 
 // One complete room, walked end to end through the real pipeline.
@@ -331,5 +331,43 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     assert.equal(state.diagnostics.keyframesRead,analysed,"Fallback inflated successful-read diagnostics");
     assert.deepEqual(remembered,tasks,"Manual fallback lost the customer's task");
     assert.equal(state.diagnostics.lastReadFailure,status===200?"":"reading-unavailable");
+  }
+}
+
+
+// Edits in a revisited live list must reach Finish without another photograph.
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
+  const start = source.indexOf("function setInventory(roomName, items)");
+  const end = source.indexOf("// Each room keeps its own budget", start);
+  assert.ok(start >= 0 && end > start);
+  const original = {key:"hob",label:"Hob",condition:"heavy",conditionConfidence:.9,score:.9,soiling:["grease"],quantity:1};
+  for (const change of [{condition:"clean"},{label:"Induction hob"},{quantity:3},{remove:true}]) {
+    const saved = {name:"Kitchen",image:"synthetic-photo",transcript:"Do not move the vase",
+      tasks:["Kitchen: Do not move the vase"],condition:"heavy",readingStatus:"reading",readingRevision:7,
+      detections:mergeInventoryIntoSavedDetections([],[original])};
+    const untouched = {name:"Bedroom",detections:[{label:"Bed"}],tasks:[]};
+    const state = {rooms:[saved,untouched],inventories:new Map(),dismissed:new Map([["kitchen",new Set(change.remove?["hob"]:[])]])};
+    let hubRenders = 0;
+    const noop = () => {};
+    const setter = new Function("state","transcriptKey","renderInventory","renderDetectorState",
+      "findRoom","upsertRoom","mergeInventoryIntoSavedDetections","renderHub",
+      source.slice(start,end) + ";return setInventory;")(state,name=>name.toLowerCase(),noop,noop,
+      findRoom,upsertRoom,mergeInventoryIntoSavedDetections,()=>hubRenders++);
+    const edited = correctInventoryItem([original],"hob",change);
+    setter("Kitchen",edited);
+    const final = findRoom(state.rooms,"Kitchen");
+    const expected = mergeInventoryIntoSavedDetections(saved.detections,edited,state.dismissed.get("kitchen"));
+    assert.deepEqual(final.detections,expected,"Saved handoff did not match the visible correction");
+    if (change.remove) assert.equal(final.detections.length,0,"Removed item survived in saved room");
+    if (change.condition) assert.equal(final.detections[0].condition,"clean","Saved room retained old dirty grade");
+    if (change.label) assert.equal(final.detections[0].label,"Induction hob","Saved room retained old label");
+    if (change.quantity) assert.equal(final.detections[0].quantity,3,"Saved room retained old quantity");
+    for (const field of ["image","transcript","tasks","condition","readingStatus","readingRevision"])
+      assert.deepEqual(final[field],saved[field],"Item correction changed unrelated saved field " + field);
+    assert.deepEqual(findRoom(state.rooms,"Bedroom"),untouched,"Correction changed another room");
+    assert.equal(hubRenders,1,"Room summary did not refresh");
+    setter("Bathroom",edited);
+    assert.equal(state.rooms.length,2,"Editing an unsaved room created a saved room");
   }
 }
