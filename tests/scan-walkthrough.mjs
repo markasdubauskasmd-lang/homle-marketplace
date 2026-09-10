@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   conditionReviewAdvice, correctInventoryItem, walkingReadingItems, inventoryDisplayLabel,
-  inventoryKey, keyframeDefaults, mergeInventoryIntoSavedDetections, mergeRoomInventory,
+  inventoryKey, keyframeDefaults, mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
   resolveRoomCondition, shouldCaptureKeyframe, walkingReadIsBlocked
 } from "../public/room-scan-model.js";
 
@@ -242,4 +242,23 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.equal(saved[0].width, 20);
   const onlyRemoved = mergeInventoryIntoSavedDetections(detections.slice(0, 2), [], dismissed);
   assert.deepEqual(onlyRemoved, []);
+}
+
+// The room is saved optimistically before its confirmation response arrives.
+{
+  const first = mergeRoomInventory([], [{ label: "Worktop", score: .9, condition: "light", conditionConfidence: .8 }]);
+  const corrected = correctInventoryItem(first, first[0].key, { label: "Marble worktop", condition: "medium" });
+  const optimistic = mergeInventoryIntoSavedDetections([], corrected);
+  const late = [{ label: "Marble worktop", confidence: .99, condition: "clean", conditionConfidence: .99, x: 10, y: 10, width: 30, height: 30 }];
+  const reconcile = (inventory, dismissed = new Set()) => mergeSavedDetections(
+    mergeInventoryIntoSavedDetections(optimistic, [], dismissed),
+    mergeInventoryIntoSavedDetections(late, inventory, dismissed)
+  );
+  const saved = reconcile(corrected);
+  assert.equal(saved.length, 1, "Late confirmation duplicated the optimistically saved item");
+  assert.equal(saved[0].quantity, 1, "Two views were counted as two objects");
+  assert.equal(saved[0].label, "Marble worktop");
+  assert.equal(saved[0].condition, "medium");
+  assert.equal(saved[0].width, 30);
+  assert.deepEqual(reconcile([], new Set(["worktop", "marble worktop"])), [], "A removed finding returned in the late response");
 }
