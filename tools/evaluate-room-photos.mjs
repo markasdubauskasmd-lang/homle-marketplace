@@ -120,12 +120,14 @@ export async function evaluatePhotos(plan, { reader, now = () => performance.now
   const benchmark = runScanBenchmark(cases);
   const sorted = reads.filter(read => read.status === "ok").map(read => read.elapsedMs).sort((a, b) => a - b);
   const quantile = fraction => sorted.length ? sorted[Math.ceil(sorted.length * fraction) - 1] : null;
+  const middle = Math.floor(sorted.length / 2);
+  const medianMs = !sorted.length ? null : sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
   const failedReads = reads.filter(read => read.status !== "ok").length;
   return {
     version: 1, scope: "whole-room photo reader only; excludes camera, tracking, selected-item confirmation and UI",
     manifestSha256: plan.manifestSha256, cases, reads, benchmark,
     failedReads, completedReads: reads.length - failedReads,
-    timing: { scope: "successful provider reads including SDK/network/retries; not phone latency", medianMs: quantile(0.5), p95Ms: quantile(0.95) },
+    timing: { scope: "successful provider reads including SDK/network/retries; not phone latency", medianMs, p95Ms: quantile(0.95) },
     validationComplete: false,
     limitation: "A photo diagnostic cannot establish end-to-end or representative device accuracy.",
     measuredTargetsMet: failedReads === 0 && benchmark.acceptable
