@@ -172,3 +172,30 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.ok(!combined[0].note.includes("limescale"), "Confirmation geometry resurrected weaker dirt evidence");
   assert.equal(combined[0].width, 20, "Replacing evidence lost the confirmation box");
 }
+
+{
+  const clean = { label: "Chair", confidence: .9, condition: "clean", conditionConfidence: .99, x: 5, y: 5, width: 20, height: 20 };
+  const stained = { ...clean, condition: "heavy", conditionConfidence: .95, soiling: ["stain"], x: 70 };
+  for (const detections of [[clean, stained], [stained, clean]]) {
+    const inventory = compose("Living room", [], detections, 1);
+    assert.equal(inventory[0].quantity, 2);
+    assert.equal(inventory[0].condition, "", "One chair's grade was assigned to both chairs");
+    assert.equal(inventory[0].conditionConfidence, null);
+    assert.ok(conditionReviewAdvice(inventory), "Mixed-condition chairs were not flagged for review");
+    const partial = compose("Living room", inventory, [clean], 2);
+    assert.equal(partial[0].condition, "", "A partial view cleared the other chair's uncertainty");
+    const saved = mergeInventoryIntoSavedDetections([clean], partial);
+    assert.equal(saved[0].condition, "", "Confirmation of one chair cleared a mixed group");
+    assert.equal(saved[0].quantity, 2);
+    assert.ok(conditionReviewAdvice(saved));
+    const corrected = correctInventoryItem(partial, partial[0].key, { condition: "medium" });
+    const reread = compose("Living room", corrected, detections, 3);
+    assert.equal(reread[0].condition, "medium");
+    assert.equal(conditionReviewAdvice(reread), null, "Mixed evidence overrode explicit customer correction");
+  }
+  const matching = compose("Living room", [], [clean, { ...clean, x: 70 }], 1);
+  assert.equal(matching[0].condition, "clean", "Matching simultaneous conditions became uncertain");
+  const overlapping = compose("Living room", [], [clean, { ...stained, x: 5 }], 1);
+  assert.equal(overlapping[0].quantity, 1);
+  assert.equal(overlapping[0].condition, "clean", "A single object's duplicate was treated as two conditions");
+}
