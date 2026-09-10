@@ -296,3 +296,40 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     }
   }
 }
+
+
+// Execute readRoom and its walking callback together for provider success/fallback.
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
+  const readStart = source.indexOf("async function readRoom(image,");
+  const readEnd = source.indexOf("function localRoomTasks(", readStart);
+  const start = source.indexOf('readRoom(image, roomName, [], roomTranscript(roomName), "walking")');
+  const callback = source.slice(start).match(/\.then\(\(reading\) => \{([\s\S]*?)\n        \}\)/)?.[1];
+  assert.ok(callback && readStart >= 0 && readEnd > readStart);
+  for (const status of [503, 200]) {
+    const state = {closed:false,readingAllowed:true,visionAvailable:true,roomReadControllers:new Set(),
+      diagnostics:{keyframesRead:0},dismissed:new Map(),rooms:[]};
+    const tasks = ["Kitchen: Wipe the table"];
+    let requests = 0, remembered = [];
+    const read = new Function("state","roomReadingPayload","recoverCsrf","window","fetch","localRoomTasks","usableDetections",
+      source.slice(readStart, readEnd) + ";return readRoom;")(
+      state, () => ({withinLimit:true,body:{synthetic:true}}), async()=>"synthetic-csrf",
+      {setTimeout,clearTimeout}, async()=>{requests++;return {status,ok:status===200,json:async()=>({detections:[],tasks,condition:""})};},
+      ()=>tasks, ()=>[]);
+    const reading = await read("synthetic-frame","Kitchen",[],"Wipe the table","walking");
+    const budget = {generation:0,capturedCount:1,completedCount:0,completedSignatures:[]};
+    const receive = new Function("reading","state","keyframeBudget","generation","roomName","readStartedAt",
+      "transcriptKey","walkingReadingItems","rememberWalkEvidence","findRoom","capturedSignature","keyframeDefaults",callback);
+    receive(reading,state,()=>budget,0,"Kitchen",Date.now(),name=>name.toLowerCase(),()=>[],
+      (_room,result)=>{remembered=result.tasks;},()=>null,Array(48).fill(.2),{maxPerRoom:4});
+    const analysed = status === 200 ? 1 : 0;
+    assert.equal(requests,1);
+    assert.equal(state.roomReadControllers.size,0,"Read controller leaked");
+    assert.equal(budget.capturedCount,1,"Fallback refunded the spent attempt");
+    assert.equal(budget.completedCount,analysed,"Fallback was counted as analysed coverage");
+    assert.equal(budget.completedSignatures.length,analysed,"Fallback marked a view as already analysed");
+    assert.equal(state.diagnostics.keyframesRead,analysed,"Fallback inflated successful-read diagnostics");
+    assert.deepEqual(remembered,tasks,"Manual fallback lost the customer's task");
+    assert.equal(state.diagnostics.lastReadFailure,status===200?"":"reading-unavailable");
+  }
+}

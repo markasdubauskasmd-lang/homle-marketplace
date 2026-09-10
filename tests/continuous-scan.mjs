@@ -1080,8 +1080,8 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
     state.currentRoom=roomName; state.signature=[...signature]; state.previousSignature=[...signature]; time+=2000;
     await context.maybeReadKeyframe({videoWidth:640,videoHeight:480});
   }
-  await submit(a); pending[0].resolve({}); await tick();
-  await submit(b); pending[1].resolve({}); await tick();
+  await submit(a); pending[0].resolve({readingStatus:"ready"}); await tick();
+  await submit(b); pending[1].resolve({readingStatus:"ready"}); await tick();
   await submit(a); await submit(b);
   assert.equal(pending.length,2,"Actual overlay submitted repeated A/B views");
   const kitchen=context.keyframeBudget("Kitchen");
@@ -1092,13 +1092,13 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   assert.equal(kitchen.completedSignatures.length,2,"Failure entered successful history");
   await submit(a,"Bedroom");
   assert.equal(pending.length,4,"Kitchen history blocked a different room");
-  pending[3].resolve({}); await tick();
+  pending[3].resolve({readingStatus:"ready"}); await tick();
   assert.equal(context.keyframeBudget("Bedroom").completedCount,1);
   // Removal resets evidence but retains the spent allowance and isolates stale reads.
   await submit(Array(48).fill(.95),"Kitchen");
   context.key="kitchen";
   vm.runInContext(overlay.slice(discardStart,discardEnd),context);
-  pending[4].resolve({}); await tick();
+  pending[4].resolve({readingStatus:"ready"}); await tick();
   assert.equal(kitchen.capturedCount,4,"Room removal reset the bounded allowance");
   assert.equal(kitchen.completedCount,0,"Deleted evidence still counted as analysed views");
   assert.equal(kitchen.completedSignatures.length,0,"A stale response recreated removed history");
