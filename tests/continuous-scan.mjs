@@ -1036,3 +1036,70 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   assert.equal(initiallyConfirmed[0].quantity, 2);
   assert.equal(conditionNeedsReview(initiallyConfirmed[0]), false, "Initial per-item confirmations with matching grades were mistaken for an older smaller group");
 }
+
+
+// Revisited views must not consume all slots while unseen areas remain.
+{
+  const a = Array(48).fill(.2), b = Array(48).fill(.7), c = Array(48).fill(.4);
+  const decision = { signature:a, previousSignature:a, lastReadSignature:b, completedSignatures:[a,b], capturedCount:2, now:100000, lastCaptureAt:0 };
+  assert.equal(shouldCaptureKeyframe(decision), false, "A/B/A revisits spent another read");
+  assert.equal(shouldCaptureKeyframe({...decision, signature:Array(48).fill(.21), previousSignature:Array(48).fill(.21)}), false, "A small change bypassed repeat detection");
+  assert.equal(shouldCaptureKeyframe({...decision, signature:c, previousSignature:c}), true, "A distinct view was rejected");
+  const modestChange = Array(48).fill(.235);
+  assert.equal(shouldCaptureKeyframe({...decision, signature:modestChange, previousSignature:modestChange}), true, "A useful modest change was rejected using the broader stillness tolerance");
+  assert.equal(shouldCaptureKeyframe({...decision, completedSignatures:[b]}), true, "A failed earlier view was treated as analysed");
+  assert.equal(shouldCaptureKeyframe({...decision, completedSignatures:null}), true, "Absent history broke older callers");
+
+  // Execute the actual async overlay entry point and budget ownership code.
+  const {default:vm} = await import("node:vm");
+  const start = overlay.indexOf("async function maybeReadKeyframe(video)");
+  const end = overlay.indexOf("// Rendered with replaceChildren", start);
+  const budgetStart = overlay.indexOf("function keyframeBudget(");
+  const budgetEnd = overlay.indexOf("function mergeSavedTasks(", budgetStart);
+  const discardStart = overlay.indexOf("const budget = state.keyframeBudgets.get(key);");
+  const discardEnd = overlay.indexOf("rememberRoomNotes();", discardStart);
+  assert.ok(start >= 0 && end > start && budgetEnd > budgetStart && discardEnd > discardStart);
+  let time = 100000;
+  const pending = [];
+  const noop = () => {};
+  const state = {readingAllowed:true,visionAvailable:true,currentRoom:"Kitchen",frozen:false,closed:false,
+    keyframeActiveRooms:new Set(),keyframeBudgets:new Map(),networkOffline:false,qualityKind:"",
+    lastQuality:{detail:10},diagnostics:{keyframesRead:0,detectorErrors:0,keyframeEncodeErrors:0},
+    dismissed:new Map(),rooms:[]};
+  const context = {state,Date:{now:()=>time},shouldCaptureKeyframe,walkingReadIsBlocked,keyframeDefaults,
+    transcriptKey:(name)=>name.toLowerCase(),renderInventory:noop,renderScanProgress:noop,
+    document:{createElement:()=>({getContext:()=>({drawImage:noop})})},
+    viewfinderSourceRect:()=>({sx:0,sy:0,sWidth:640,sHeight:480}),
+    encodeCanvasJpeg:async()=>"synthetic-image",roomTranscript:()=>"",
+    readRoom:()=>new Promise((resolve,reject)=>pending.push({resolve,reject})),
+    walkingReadingItems:()=>[],rememberWalkEvidence:noop,findRoom:()=>null};
+  vm.createContext(context);
+  vm.runInContext(overlay.slice(budgetStart,budgetEnd)+overlay.slice(start,end),context);
+  const tick = () => new Promise(resolve=>setImmediate(resolve));
+  async function submit(signature, roomName="Kitchen") {
+    state.currentRoom=roomName; state.signature=[...signature]; state.previousSignature=[...signature]; time+=2000;
+    await context.maybeReadKeyframe({videoWidth:640,videoHeight:480});
+  }
+  await submit(a); pending[0].resolve({}); await tick();
+  await submit(b); pending[1].resolve({}); await tick();
+  await submit(a); await submit(b);
+  assert.equal(pending.length,2,"Actual overlay submitted repeated A/B views");
+  const kitchen=context.keyframeBudget("Kitchen");
+  assert.equal(kitchen.completedCount,2);
+  assert.equal(kitchen.capturedCount,2);
+  await submit(c); pending[2].reject(new Error("synthetic failure")); await tick();
+  assert.equal(kitchen.capturedCount,3,"Failed attempt was refunded");
+  assert.equal(kitchen.completedSignatures.length,2,"Failure entered successful history");
+  await submit(a,"Bedroom");
+  assert.equal(pending.length,4,"Kitchen history blocked a different room");
+  pending[3].resolve({}); await tick();
+  assert.equal(context.keyframeBudget("Bedroom").completedCount,1);
+  // Removal resets evidence but retains the spent allowance and isolates stale reads.
+  await submit(Array(48).fill(.95),"Kitchen");
+  context.key="kitchen";
+  vm.runInContext(overlay.slice(discardStart,discardEnd),context);
+  pending[4].resolve({}); await tick();
+  assert.equal(kitchen.capturedCount,4,"Room removal reset the bounded allowance");
+  assert.equal(kitchen.completedCount,0,"Deleted evidence still counted as analysed views");
+  assert.equal(kitchen.completedSignatures.length,0,"A stale response recreated removed history");
+}

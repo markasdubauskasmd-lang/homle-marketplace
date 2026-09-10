@@ -572,7 +572,10 @@ assert(/function showRoomRemoval\(rawName\)[\s\S]{0,520}mode: "room"[\s\S]{0,500
 // deliberately removed.
 // Scoped to the function body rather than a character window. The window kept
 // breaking as cleanup was added, which trains you to widen it rather than read it.
-const discardBody = overlay.slice(overlay.indexOf("function confirmDiscardDecision()"), overlay.indexOf("function confirmDiscardDecision()") + 1400);
+const discardStart = overlay.indexOf("function confirmDiscardDecision()");
+const discardEnd = overlay.indexOf("function requestClose()", discardStart);
+assert(discardStart >= 0 && discardEnd > discardStart, "Room removal function boundaries were not found.");
+const discardBody = overlay.slice(discardStart, discardEnd);
 for (const [step, pattern] of [["removes the room", /state\.rooms = removeRoom\(state\.rooms, removedName\)/], ["drops its note", /state\.roomTranscripts\.delete\(key\)/], ["redraws the list", /renderHub\(\)/]]) {
   assert(pattern.test(discardBody), `Confirmed room removal no longer ${step}, so its image, note or row survives the removal.`);
 }

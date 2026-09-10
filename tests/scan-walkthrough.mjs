@@ -273,21 +273,21 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.ok(callback);
   const receive = new Function("reading", "state", "keyframeBudget", "generation", "roomName", "readStartedAt",
     "transcriptKey", "walkingReadingItems", "rememberWalkEvidence", "setInventory", "mergeRoomInventory", "inventoryFor",
-    "findRoom", "upsertRoom", "mergeInventoryIntoSavedDetections", "mergeSavedTasks", "resolveRoomCondition", "renderHub", callback);
+    "findRoom", "upsertRoom", "mergeInventoryIntoSavedDetections", "mergeSavedTasks", "resolveRoomCondition", "renderHub", "capturedSignature", "keyframeDefaults", callback);
   for (const scenario of ["saved", "dismissed", "removed-room", "stale", "closed"]) {
     const state = {
       closed: scenario === "closed", diagnostics: {},
       dismissed: new Map([["kitchen", new Set(scenario === "dismissed" ? ["radiator"] : [])]]),
       rooms: scenario === "removed-room" ? [] : [{ name: "Kitchen", condition: "light", readingStatus: "ready", tasks: [], detections: [{ label: "Sink" }] }]
     };
-    const budget = { generation: scenario === "stale" ? 1 : 0, capturedCount: 1, completedCount: 0 };
+    const budget = { generation: scenario === "stale" ? 1 : 0, capturedCount: 1, completedCount: 0, completedSignatures: [] };
     let inventory = [];
     receive({ detections: [{ label: "Radiator", confidence: .9, condition: "heavy", conditionConfidence: .9 }], condition: "heavy", tasks: [] },
       state, () => budget, 0, "Kitchen", Date.now(), name => name.toLowerCase(), walkingReadingItems, () => {},
       (_name, items) => { inventory = items; }, mergeRoomInventory, () => inventory,
       (rooms, name) => rooms.find(room => room.name === name),
       (rooms, next) => rooms.map(room => room.name === next.name ? next : room),
-      mergeInventoryIntoSavedDetections, (first, second) => [...new Set([...first, ...second])], resolveRoomCondition, () => {});
+      mergeInventoryIntoSavedDetections, (first, second) => [...new Set([...first, ...second])], resolveRoomCondition, () => {}, Array(48).fill(.2), {maxPerRoom:4});
     if (scenario === "removed-room") {
       assert.deepEqual(state.rooms, [], "A late view recreated a removed saved room");
     } else {

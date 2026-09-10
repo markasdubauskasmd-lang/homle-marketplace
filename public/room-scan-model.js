@@ -1151,6 +1151,9 @@ export const keyframeDefaults = Object.freeze({
   // Distance between consecutive frames. Below this the phone is being held
   // still rather than swung.
   stillnessThreshold: 0.045,
+  // Tighter than stillness: modest closer views can reveal useful detail even
+  // when their average colours remain similar to an earlier view.
+  revisitThreshold: 0.02,
   minIntervalMs: 1200,
   // The bound on what one room can cost. Reached only by genuinely covering a
   // room from several angles; most rooms settle in two or three.
@@ -1270,11 +1273,11 @@ export function signatureDistance(first, second) {
 }
 
 export function shouldCaptureKeyframe({
-  signature, previousSignature, lastReadSignature,
+  signature, previousSignature, lastReadSignature, completedSignatures = [],
   now = 0, lastCaptureAt = 0, capturedCount = 0, busy = false,
   qualityKind = "", online = true, detail = null
 } = {}, options = {}) {
-  const { sceneChangeThreshold, stillnessThreshold, minIntervalMs, maxPerRoom, minimumDetail } = { ...keyframeDefaults, ...options };
+  const { sceneChangeThreshold, stillnessThreshold, minIntervalMs, maxPerRoom, minimumDetail, revisitThreshold } = { ...keyframeDefaults, ...options };
   if (busy || !Array.isArray(signature)) return false;
   // The measured sharpness of the frame about to be spent. Only a KNOWN-soft
   // frame is refused — `null` (no quality sample in this host) keeps today's
@@ -1298,6 +1301,13 @@ export function shouldCaptureKeyframe({
   // or framing improves, the same view remains eligible and can be captured well.
   if (String(qualityKind || "").trim()) return false;
   if (capturedCount >= maxPerRoom) return false;
+  // A return to an earlier analysed view must not spend another room slot.
+  // Use a tighter revisit tolerance, not the broad scene-change threshold:
+  // distinct views can share similar average colours. Failed reads are absent.
+  if (Array.isArray(completedSignatures) && completedSignatures.slice(0, maxPerRoom).some((previous) =>
+    Array.isArray(previous) && previous.length === signature.length
+    && previous.every(Number.isFinite) && signature.every(Number.isFinite)
+    && signatureDistance(previous, signature) < revisitThreshold)) return false;
   if (now - lastCaptureAt < minIntervalMs) return false;
   // Nothing read yet: require one earlier sample before spending the first of
   // only four room reads. A lone frame cannot prove the phone is steady and is
