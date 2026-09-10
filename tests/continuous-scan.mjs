@@ -156,13 +156,13 @@ assert.equal(
 );
 assert.equal(
   roomCoverageProgress(3, { attemptedCount: 4 }).copy,
-  "Good coverage — confirm",
+  "Views checked — review and confirm",
   "Three successfully analysed views are downgraded merely because the final bounded attempt failed."
 );
-assert.equal(roomCoverageProgress(3).copy, "Good coverage — confirm", "Three distinct views do not give the customer a clear, honest finish option.");
+assert.equal(roomCoverageProgress(3).copy, "Views checked — review and confirm", "Three distinct views do not give the customer a clear, honest finish option.");
 assert.deepEqual(
   roomCoverageProgress(4),
-  { count: 4, total: 4, percent: 100, complete: true, copy: "Room covered — confirm" },
+  { count: 4, total: 4, percent: 100, complete: true, copy: "Views checked — review and confirm" },
   "The bounded final view did not report complete room coverage."
 );
 assert.equal(roomCoverageProgress(99).count, 4, "Coverage exceeded the same four-view bound enforced for provider reads.");
@@ -902,4 +902,17 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   const result = mergeRoomInventory([], walkingReadingItems({ detections: [graded, clean] }, "Kitchen"));
   assert.equal(result[0].condition, "clean", "A more severe grade outranked stronger evidence");
   assert.deepEqual(result[0].soiling, []);
+}
+
+{
+  const uncertain = { label: "Sink", condition: "clean", conditionConfidence: null };
+  assert.match(conditionReviewAdvice([uncertain])?.message || "", /move closer/);
+  for (const items of [[uncertain], [uncertain, { ...uncertain, label: "Floor" }]]) {
+    const advice = conditionReviewAdvice(items, { canReadAnotherView: false });
+    assert.match(advice.message, /tap .*item to confirm/);
+    assert.doesNotMatch(advice.message, /move closer/, "Exhausted reads ask for a view they cannot analyse");
+    assert.equal(advice.count, items.length);
+  }
+  assert.equal(conditionReviewAdvice([{ ...uncertain, conditionConfirmed: true }], { canReadAnotherView: false }), null);
+  for (const count of [3, 4]) assert.doesNotMatch(roomCoverageProgress(count).copy, /room covered|good coverage/i, "View counts claim unmeasured spatial coverage");
 }
