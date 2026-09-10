@@ -46,7 +46,7 @@ html body.homlle-onboarding-home .oh-picker-trigger{display:flex;align-items:cen
 .oh-picker-check{margin-left:auto;color:#ed0034;font-size:20px;font-weight:800;visibility:hidden}.oh-picker-option[aria-selected=true] .oh-picker-check{visibility:visible}
 @media(max-width:400px){.oh-picker-option{gap:8px;padding:10px 6px}.oh-picker-option small{font-size:11px}.oh-picker-icon{flex-basis:34px;height:36px}}
 
-.oh-picker-icon svg{display:block;width:26px;height:26px;flex-shrink:0}
+.oh-picker-icon svg{display:block;width:28px;height:28px;stroke-width:2;flex-shrink:0}
 
 /* Compact welcome copy and application summary. */
 body.homlle-onboarding-home .oh-copy>.oh-eyebrow{font-size:16px}
@@ -104,3 +104,19 @@ html body.homlle-onboarding-home>.hc{background:repeating-linear-gradient(135deg
 html body.homlle-onboarding-home .hc-main,html body.homlle-onboarding-home .hc-main-inner,html body.homlle-onboarding-home.homlle-onboarding-flow .hc-side.cleaner-site-header[data-preview-sidebar]{background:transparent}
 
 body.homlle-onboarding-home .oh-benefits{color:#201e1d}
+
+/* Anchor the welcome artwork and footer within the desktop frame. */
+@media(min-width:901px){
+ body.homlle-onboarding-home .hc-main-inner{display:flex;flex-direction:column;height:100%;min-height:100%}
+ body.homlle-onboarding-home [data-reg]{display:flex;flex-direction:column;flex:1;min-height:0}
+ body.homlle-onboarding-home [data-registration-overview]{display:flex;flex:1;min-height:0}
+ body.homlle-onboarding-home .oh-hero{flex:1;min-height:0}
+ body.homlle-onboarding-home .oh-right{min-height:0}
+ body.homlle-onboarding-home .oh-progress{flex-shrink:0}
+ body.homlle-onboarding-home .oh-team{height:0;min-height:0;flex:1;max-height:360px;margin-top:auto;object-position:center bottom}
+ body.homlle-onboarding-home .hc-main-inner .hc-foot{height:60px;flex-shrink:0;box-sizing:border-box;margin:0;padding:0 0 24px;align-items:center}
+}
+
+/* Small, consistent symbols for the welcome benefits. */
+body.homlle-onboarding-home .oh-benefits li{display:flex;align-items:center;gap:10px}
+.oh-benefit-icon{display:block;flex:0 0 22px;width:22px;height:22px}
