@@ -22,7 +22,7 @@ import { itemConditions, soilingKinds } from "./room-condition-vocabulary.mjs";
 // Pure and deterministic: no clock, no network, no database. A benchmark that
 // cannot be re-run to the same figure is not a benchmark.
 
-export const benchmarkVersion = 1;
+export const benchmarkVersion = 2;
 
 // The targets from §10 of the audit. Kept here so a report states what it was
 // measured against, rather than leaving the reader to look them up and trust
@@ -50,10 +50,14 @@ function key(value) {
     .trim();
 }
 
-function objectKeys(objects) {
+function objectKeys(objects, roomName) {
   return (Array.isArray(objects) ? objects : [])
-    .map((object) => key(object?.inventoryKey || object?.label))
-    .filter(Boolean);
+    .map((object) => ({
+      key: JSON.stringify([key(roomName), key(object?.inventoryKey || object?.label)]),
+      label: key(object?.inventoryKey || object?.label),
+      quantity: Number.isSafeInteger(object?.quantity) && object.quantity > 0 ? object.quantity : 1
+    }))
+    .filter((object) => object.label);
 }
 
 /**
@@ -66,9 +70,9 @@ function objectKeys(objects) {
  */
 function detectionCounts(expected, observed) {
   const expectedCounts = new Map();
-  for (const entry of expected) expectedCounts.set(entry, (expectedCounts.get(entry) || 0) + 1);
+  for (const entry of expected) expectedCounts.set(entry.key, (expectedCounts.get(entry.key) || 0) + entry.quantity);
   const observedCounts = new Map();
-  for (const entry of observed) observedCounts.set(entry, (observedCounts.get(entry) || 0) + 1);
+  for (const entry of observed) observedCounts.set(entry.key, (observedCounts.get(entry.key) || 0) + entry.quantity);
 
   let truePositives = 0;
   let duplicates = 0;
@@ -78,15 +82,17 @@ function detectionCounts(expected, observed) {
     // More of the same object than the room contains is the duplicate-object
     // failure the tracker exists to prevent, counted separately from a wrong
     // label because it has a different cause and a different fix.
-    if (observedCount > expectedCount) duplicates += observedCount - expectedCount;
+    duplicates += Math.max(0, observedCount - Math.max(1, expectedCount));
   }
+  const observedTotal = observed.reduce((sum, entry) => sum + entry.quantity, 0);
+  const expectedTotal = expected.reduce((sum, entry) => sum + entry.quantity, 0);
   return {
     truePositives,
-    falsePositives: observed.length - truePositives,
-    falseNegatives: expected.length - truePositives,
+    falsePositives: observedTotal - truePositives,
+    falseNegatives: expectedTotal - truePositives,
     duplicates,
-    observed: observed.length,
-    expected: expected.length
+    observed: observedTotal,
+    expected: expectedTotal
   };
 }
 
@@ -179,7 +185,8 @@ export function runBenchmarkCase(entry, index = 0, ruleset = defaultPricingRules
   const complexity = assessCleaningComplexity({ rooms: scanCase.rooms });
   const estimate = estimateScanPrice({ rooms: scanCase.rooms, complexity }, ruleset);
 
-  const expectedObjects = [];
+  const expectedObjects = (Array.isArray(scanCase.truth?.rooms) ? scanCase.truth.rooms : [])
+    .flatMap((room) => objectKeys(room?.objects, room?.roomName));
   const observedObjects = [];
   const conditionPairs = [];
   const calibrationReadings = [];
@@ -187,8 +194,7 @@ export function runBenchmarkCase(entry, index = 0, ruleset = defaultPricingRules
     const truthRoom = (Array.isArray(scanCase.truth?.rooms) ? scanCase.truth.rooms : [])
       .find((candidate) => key(candidate?.roomName) === key(room.roomName));
     const truthObjects = Array.isArray(truthRoom?.objects) ? truthRoom.objects : [];
-    expectedObjects.push(...objectKeys(truthObjects));
-    observedObjects.push(...objectKeys(room.objects));
+    observedObjects.push(...objectKeys(room.objects, room.roomName));
 
     for (const object of room.objects) {
       const match = truthObjects.find((candidate) => key(candidate?.inventoryKey || candidate?.label) === key(object?.inventoryKey || object?.label));
