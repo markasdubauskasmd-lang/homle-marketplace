@@ -10,6 +10,9 @@ import { itemConditions, soilingKinds } from "./room-condition-vocabulary.mjs";
 // still captures photos and still scopes from the spoken note; it simply shows
 // no detections. Photos are read in memory and never stored by this module.
 
+export const defaultWalkingModel = "claude-haiku-4-5";
+export const defaultConfirmationModel = "claude-opus-4-8";
+
 const maximumImageBytes = 4 * 1024 * 1024;
 const maximumDetections = 12;
 const maximumTasks = 8;
@@ -434,8 +437,8 @@ export function createAnthropicRoomVision(options = {}) {
   // the dearer tier lands on a fifth of the traffic.
   //
   // Set ROOM_VISION_CONFIRMATION_MODEL to the walking model to put it back.
-  const model = String(options.model || "claude-haiku-4-5").trim();
-  const confirmationModel = String(options.confirmationModel || "").trim() || "claude-opus-4-8";
+  const model = String(options.model || defaultWalkingModel).trim();
+  const confirmationModel = String(options.confirmationModel || "").trim() || defaultConfirmationModel;
 
   // Purpose comes from the client, so it must never be able to escalate. Anything
   // unrecognised — absent, misspelt, or hand-crafted — resolves to the cheaper

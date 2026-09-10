@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { instructions, selectionInstructions } from "../src/marketplace/room-vision.mjs";
+import { instructions, selectionInstructions, defaultWalkingModel, defaultConfirmationModel } from "../src/marketplace/room-vision.mjs";
 
 // Measures the two things about the room reader that cannot be settled by
 // reading the code: how large each instruction block actually is, and whether
@@ -31,8 +31,8 @@ const cacheMinimums = Object.freeze({
   "claude-haiku-4-5": 4096
 });
 
-const walkingModel = String(process.env.ROOM_VISION_MODEL || "claude-haiku-4-5").trim();
-const confirmationModel = String(process.env.ROOM_VISION_CONFIRMATION_MODEL || "claude-sonnet-5").trim();
+const walkingModel = String(process.env.ROOM_VISION_MODEL || defaultWalkingModel).trim();
+const confirmationModel = String(process.env.ROOM_VISION_CONFIRMATION_MODEL || "").trim() || defaultConfirmationModel;
 
 const apiKey = String(process.env.ANTHROPIC_API_KEY || "").trim();
 if (!apiKey) {
