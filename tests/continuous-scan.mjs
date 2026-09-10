@@ -934,7 +934,7 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
         assert.equal(saved[0].conditionConfidence, null);
         assert.equal(conditionNeedsReview(saved[0]), true, "One chair's grade silently settled the whole group");
         assert.equal(recommendedAction(saved[0]), "");
-        assert.match(saved[0].note, /Conditions differ/);
+        assert.match(saved[0].note, /Check each item/);
         const partial = mergeSavedDetections(saved, [{ ...clean, conditionConfirmed: false }]);
         assert.equal(partial[0].quantity, 2);
         assert.equal(conditionNeedsReview(partial[0]), true, "A partial view erased a conflicting group");
@@ -956,4 +956,40 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   const alike = mergeSavedDetections([], [betterView[0], { ...betterView[0], x: 50 }]);
   assert.equal(alike[0].quantity, 2);
   assert.equal(conditionNeedsReview(alike[0]), false, "Matching grades were made unnecessarily unresolved");
+}
+
+
+// A clear view of one item cannot establish the condition of another grouped item.
+{
+  const clear = { label: "Chair", score: .99, confidence: .99, condition: "clean",
+    conditionConfidence: .95, x: 0, y: 0, width: 20, height: 20 };
+  for (const partial of [
+    { condition: "", conditionConfidence: null },
+    { condition: "unknown", conditionConfidence: .1 },
+    { condition: "clean", conditionConfidence: .4 },
+    { condition: "light", conditionConfidence: null }
+  ]) {
+    for (const confirmedFirstItem of [false, true]) {
+      const batch = [{ ...clear, conditionConfirmed: confirmedFirstItem }, { ...clear, ...partial, x: 50 }];
+      for (const ordered of [batch, [...batch].reverse()]) {
+        const inventory = mergeRoomInventory([], ordered);
+        const directlySaved = mergeSavedDetections([], ordered);
+        const walkedSaved = mergeInventoryIntoSavedDetections([], inventory);
+        for (const item of [inventory[0], directlySaved[0], walkedSaved[0]]) {
+          assert.equal(item.quantity, 2);
+          assert.equal(conditionNeedsReview(item), true, "One clear surface hid another item's uncertainty");
+          assert.equal(item.condition, "");
+          assert.equal(item.conditionConfidence, null);
+          assert.equal(recommendedAction(item), "");
+        }
+        const partialReread = mergeRoomInventory(inventory, [clear]);
+        assert.equal(conditionNeedsReview(partialReread[0]), true);
+        assert.equal(conditionNeedsReview(mergeSavedDetections(directlySaved, [clear])[0]), true);
+        const corrected = correctInventoryItem(inventory, inventory[0].key, { condition: "light" });
+        const afterReread = mergeRoomInventory(corrected, ordered);
+        assert.equal(conditionNeedsReview(afterReread[0]), false);
+        assert.equal(mergeInventoryIntoSavedDetections(directlySaved, afterReread)[0].condition, "light");
+      }
+    }
+  }
 }
