@@ -2801,6 +2801,17 @@ export function openRoomScan() {
       const key = transcriptKey(roomName);
       if (!key) return;
       state.inventories.set(key, items);
+      // Revisiting a saved room can end at the hub without another capture.
+      // Keep the final handoff in sync with edits visible in its live list.
+      const savedRoom = findRoom(state.rooms, roomName);
+      if (savedRoom) {
+        const dismissed = state.dismissed.get(key) || new Set();
+        state.rooms = upsertRoom(state.rooms, {
+          ...savedRoom,
+          detections: mergeInventoryIntoSavedDetections(savedRoom.detections, items, dismissed)
+        });
+        renderHub();
+      }
       renderInventory();
       renderDetectorState();
     }
