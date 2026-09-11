@@ -948,4 +948,3 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
   assert(await context.warm() === model && requests.length === 4, "A ready detector was downloaded again.");
 }
 
-await import("./room-scan-worker.mjs");
