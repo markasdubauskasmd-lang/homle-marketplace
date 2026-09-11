@@ -2074,3 +2074,35 @@ export function scanTaskRecordsFor(room) {
     .map(text => ({text, origin:"legacy", inventoryKeys:[]}));
   return mergeScanTaskRecords(records, legacy);
 }
+
+// Reconcile only explicit item links. Missing detections and matching words are
+// not proof that a task has been removed. Customer instructions always survive.
+export function reconcileScanTaskRecords(records, items, {removedKeys = [], changedKeys = []} = {}) {
+  const byKey = new Map();
+  for (const item of Array.isArray(items) ? items : []) {
+    const key = item?.inventoryKey || item?.key;
+    if (typeof key !== "string" || !key) continue;
+    // Ambiguous identity cannot justify deleting work.
+    byKey.set(key, byKey.has(key) ? null : item);
+  }
+  const removed = new Set(Array.isArray(removedKeys) ? removedKeys : []);
+  const changed = new Set(Array.isArray(changedKeys) ? changedKeys : []);
+  return Object.freeze(mergeScanTaskRecords(records).map(record => {
+    const outcome = (decision, reviewRequired) => Object.freeze({...record, decision, reviewRequired});
+    if (record.origin === "customer") return outcome("keep", false);
+    const keys = record.inventoryKeys;
+    if (record.origin !== "vision" || !keys.length) {
+      return outcome("keep", changed.size > 0 || removed.size > 0);
+    }
+    const cleared = key => (!byKey.has(key) && removed.has(key))
+      || (byKey.get(key)?.condition === "clean" && byKey.get(key)?.conditionConfirmed === true);
+    if (keys.every(cleared)) return outcome("remove", false);
+    // Partial grouped instructions cannot safely be rewritten automatically.
+    const reviewRequired = keys.some(cleared)
+      || keys.some(key => !byKey.get(key) && !removed.has(key))
+      || keys.some(key => byKey.has(key) && !byKey.get(key))
+      || keys.some(key => byKey.get(key) && conditionNeedsReview(byKey.get(key)))
+      || keys.some(key => changed.has(key));
+    return outcome("keep", reviewRequired);
+  }));
+}
