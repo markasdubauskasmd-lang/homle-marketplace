@@ -2135,3 +2135,13 @@ export function withCurrentRoomInstructions(room, tasks) {
     tasks:[...new Set(taskRecords.map(record => record.text))],
     taskInstructionsChanged:room?.taskInstructionsChanged === true || JSON.stringify(oldText) !== JSON.stringify(newText)};
 }
+
+export function roomInstructionTasks(roomName, transcript, parseChecklist) {
+  const note = String(transcript || "").trim();
+  if (!note) return [];
+  return parseChecklist(`In the ${roomName}, ${note}`).map(line => {
+    const divider = line.indexOf(":");
+    const task = divider >= 0 ? line.slice(divider + 1).trim() : line.trim();
+    return task ? `${roomName}: ${task}` : "";
+  }).filter(Boolean);
+}
