@@ -102,6 +102,36 @@ assert(roomVisionFromEnvironment({ ANTHROPIC_API_KEY: "test-key", ROOM_VISION_PR
   assert(result.detections.length === 1 && result.detections[0].label === "Good", `Malformed detections were not dropped: ${JSON.stringify(result.detections)}`);
 }
 
+// A malformed provider field must not become a plausible high-confidence box.
+{
+  const valid = { label: "Worktop", labelConfidence: 0.95, conditionConfidence: 0.2,
+    condition: "unknown", soiling: [], evidence: "", x: 0, y: 0, width: 100, height: 100 };
+  const make = payload => createAnthropicRoomVision({ apiKey: "k", client: stub(jsonReply(payload)) });
+  for (const key of ["x", "y", "width", "height"]) {
+    for (const value of [null, "", "10", false, true, [], [10], {}, undefined]) {
+      const malformed = { ...valid, [key]: value };
+      const result = await make({ condition: "unknown", detections: [malformed, valid],
+        tasks: ["Review the rejected box", "Check the worktop"],
+        taskLinks: [{ taskIndex: 0, itemRefs: ["0"] }, { taskIndex: 1, itemRefs: ["1"] }]
+      }).readRoom({ image: pixel });
+      assert(result.detections.length === 1, key + " accepted a nonnumeric provider value.");
+      const kept = result.detections[0];
+      assert(kept.x === 0 && kept.y === 0 && kept.width === 100 && kept.height === 100,
+        "A valid box touching the frame edges was changed.");
+      assert(kept.confidence === 0.95 && kept.conditionConfidence === 0.2,
+        "Coordinate rejection changed valid identity or condition confidence.");
+      assert(result.tasks.length === 2, "Rejecting a box deleted task text.");
+      assert(result.taskLinks.length === 1 && result.taskLinks[0].taskIndex === 1
+        && result.taskLinks[0].itemRefs[0] === "0",
+        "Dropping a malformed box linked its task to a surviving item.");
+    }
+  }
+  const fractional = { ...valid, x: 0.5, y: 1.25, width: 99.5, height: 98.75 };
+  const result = await make({ condition: "unknown", detections: [fractional], tasks: [] }).readRoom({ image: pixel });
+  assert(result.detections.length === 1 && result.detections[0].x === 0.5 && result.detections[0].height === 98.75,
+    "Valid fractional coordinates were rounded or rejected.");
+}
+
 // Only images, and only bounded ones.
 assert(await rejects(async () => createAnthropicRoomVision({ apiKey: "k", client: stub(jsonReply({ condition: "light", detections: [], tasks: [] })) }).readRoom({ image: "not-an-image" }), "captured room photograph is required"), "A non-image payload was sent to the provider.");
 assert(await rejects(async () => createAnthropicRoomVision({ apiKey: "k", client: stub(jsonReply({ condition: "light", detections: [], tasks: [] })) }).readRoom({ image: "data:image/jpeg;base64," + "A".repeat(9_000_000) }), "too large"), "An unbounded photograph was sent to the provider.");
