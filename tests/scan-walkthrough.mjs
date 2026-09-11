@@ -570,3 +570,16 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.ok(source.includes("transcript: scanTranscript(checklistRooms)"));
   assert.ok(source.includes("photos: checklistRooms.filter"));
 }
+
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
+  const start = source.indexOf("photos: checklistRooms.filter");
+  const end = source.indexOf("rooms: checklistRooms.map",start);
+  assert.ok(start>0 && end>start);
+  const handoff = new Function("checklistRooms","return ({"+source.slice(start,end)+"});");
+  const rooms = [{name:"Kitchen",transcript:"Leave the oven alone",image:"data:image/jpeg;base64,TEST"},
+    {name:"Bathroom",transcript:"No photo"}];
+  const before = JSON.stringify(rooms);
+  assert.deepEqual(handoff(rooms).photos,[{roomName:"Kitchen",note:"Leave the oven alone",dataUrl:rooms[0].image}]);
+  assert.equal(JSON.stringify(rooms),before);
+}
