@@ -132,6 +132,28 @@ assert(roomVisionFromEnvironment({ ANTHROPIC_API_KEY: "test-key", ROOM_VISION_PR
     "Valid fractional coordinates were rounded or rejected.");
 }
 
+// Invalid confidence types must not manufacture certainty in either reader.
+{
+  for (const selected of [false, true]) {
+    for (const field of ["confidence", "labelConfidence", "conditionConfidence"]) {
+      for (const value of [true, false, [1], [0.9], [], {}, null]) {
+        const item = { id: "a", label: "Worktop", condition: "clean", evidence: "clear surface", soiling: [],
+          x: 0, y: 0, width: 20, height: 20, confidence: 0.8, [field]: value };
+        const vision = createAnthropicRoomVision({ apiKey: "k", client: stub(jsonReply({
+          condition: "unknown", detections: [item], items: [item], tasks: []
+        })) });
+        const input = { image: pixel, items: [{ id: "a", label: "Worktop" }] };
+        const result = selected ? await vision.readSelectedItems(input) : await vision.readRoom(input);
+        const kept = selected ? result.items[0] : result.detections[0];
+        assert(kept.confidence === (field === "conditionConfidence" ? 0.8 : 0),
+          field + " manufactured label certainty or changed the independent score.");
+        assert(kept.conditionConfidence === (field === "labelConfidence" ? 0.8 : 0),
+          field + " manufactured condition certainty or changed the independent score.");
+      }
+    }
+  }
+}
+
 // Only images, and only bounded ones.
 assert(await rejects(async () => createAnthropicRoomVision({ apiKey: "k", client: stub(jsonReply({ condition: "light", detections: [], tasks: [] })) }).readRoom({ image: "not-an-image" }), "captured room photograph is required"), "A non-image payload was sent to the provider.");
 assert(await rejects(async () => createAnthropicRoomVision({ apiKey: "k", client: stub(jsonReply({ condition: "light", detections: [], tasks: [] })) }).readRoom({ image: "data:image/jpeg;base64," + "A".repeat(9_000_000) }), "too large"), "An unbounded photograph was sent to the provider.");
