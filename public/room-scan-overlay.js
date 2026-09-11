@@ -2085,7 +2085,7 @@ export function openRoomScan() {
       // Clearing every object on a revisit means the room genuinely has none —
       // it must not fall through to a whole-room read, which would rediscover
       // exactly what the Landlord just removed.
-      const clearedRevisit = revisit && chosen.length === 0 && !spokenNote;
+      const clearedRevisit = revisit && originalCount > 0 && chosen.length === 0 && !spokenNote;
       const mustRead = (!revisit || changed || existing.readingStatus === "needs-retry") && !clearedRevisit;
 
       if (mustRead && !state.consentAsked) await askConsent();
