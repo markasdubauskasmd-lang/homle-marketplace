@@ -2132,9 +2132,9 @@ export function openRoomScan() {
             condition: box.condition || "",
             conditionConfidence: box.conditionConfidence,
             conditionConfirmed: box.conditionConfirmed === true,
+            soiling: box.soiling || [],
             quantity: itemQuantity(box),
             conditionMixed: box.conditionMixed === true,
-            soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: localRoomTasks(roomName, spokenNote),
@@ -2157,9 +2157,9 @@ export function openRoomScan() {
             condition: box.condition || "",
             conditionConfidence: box.conditionConfidence,
             conditionConfirmed: box.conditionConfirmed === true,
+            soiling: box.soiling || [],
             quantity: itemQuantity(box),
             conditionMixed: box.conditionMixed === true,
-            soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: Array.isArray(existing.tasks) ? existing.tasks : [],
