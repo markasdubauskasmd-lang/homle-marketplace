@@ -640,6 +640,7 @@ export function openRoomScan() {
       // never be cut from pixels the camera has since moved on from.
       frozen: false, frozenFrame: "", candidates: [], selectedIds: new Set(),
       manualCount: 0,
+      nextManualIdentity: 1,
       // On-device detection. Entirely local: the model is same-origin and no
       // frame it looks at leaves the phone.
       detector: null, detectorState: "idle", detecting: false,
@@ -1210,7 +1211,7 @@ export function openRoomScan() {
         // chosen. Their ids are namespaced so a newly added manual box cannot
         // collide with one of them.
         state.candidates = usableLiveBoxes((room.detections || []).map((detection, index) => ({
-          id: `s${index}`, x: detection.x, y: detection.y, width: detection.width, height: detection.height,
+          id: `s${index}`, inventoryKey: detection.inventoryKey, needsName: detection.needsName, x: detection.x, y: detection.y, width: detection.width, height: detection.height,
           label: detection.label, note: detection.note || "", kind: "detected", score: 1,
           // The reader's verdict about this object, so the review paints it where
           // the customer is actually looking — on the thing itself.
@@ -1947,7 +1948,7 @@ export function openRoomScan() {
       state.manualCount += 1;
       const id = `m${state.manualCount}`;
       const [box] = usableLiveBoxes([{
-        id,
+        id, inventoryKey: `manual:${state.nextManualIdentity++}`,
         x: Math.max(0, Math.min(100 - manualBoxSize, point.x - manualBoxSize / 2)),
         y: Math.max(0, Math.min(100 - manualBoxSize, point.y - manualBoxSize / 2)),
         width: manualBoxSize, height: manualBoxSize, label: "", kind: "manual", score: 1
@@ -2106,7 +2107,7 @@ export function openRoomScan() {
         room = {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
-            id: box.id, inventoryKey: box.inventoryKey || inventoryKey(box.label), label: box.label || "Marked item", note: box.note || "",
+            id: box.id, inventoryKey: box.inventoryKey || inventoryKey(box.label), label: box.label || "Marked item", needsName: box.needsName === true || !box.label, note: box.note || "",
             // Kept even though a fresh reading is coming: if that background read
             // fails, "needs-retry" keeps THESE detections, and losing their grades
             // to a transient network error would un-grade the room silently.
@@ -2945,7 +2946,8 @@ export function openRoomScan() {
 
     async function readRoom(image, roomName, items = [], transcript = "", purpose = "confirmation") {
       const localDetections = items.map((item) => ({
-        id: item.id, label: item.label || "Marked item", note: item.note || "",
+        id: item.id, inventoryKey: item.inventoryKey || inventoryKey(item.label),
+        label: item.label || "Marked item", needsName: item.needsName === true || !item.label, note: item.note || "",
         x: item.x, y: item.y, width: item.width, height: item.height
       }));
       if (!state.readingAllowed || !state.visionAvailable) {

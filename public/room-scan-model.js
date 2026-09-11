@@ -196,11 +196,13 @@ export function usableLiveBoxes(boxes) {
     .slice(0, 12)
     .map((box) => Object.freeze({
       id: String(box.id || ""),
+      ...(box.inventoryKey ? {inventoryKey:String(box.inventoryKey)} : {}),
       x: box.x,
       y: box.y,
       width: box.width,
       height: box.height,
       label: String(box.label || "").trim().slice(0, 28),
+      ...(box.needsName === true ? { needsName: true } : {}),
       kind: box.kind === "manual" ? "manual" : "detected",
       score: Number.isFinite(box.score) ? box.score : 0,
       // What the reader concluded about this object, kept so the review screen
@@ -611,9 +613,10 @@ export function mergeItemReadings(selected, response) {
       if (!label) return null;
       return Object.freeze({
         id: String(item?.id || ""),
-        inventoryKey: String(item?.inventoryKey || inventoryKey(label)),
+        inventoryKey: String(item?.inventoryKey || (item?.kind === "manual" && item?.id ? `selected:${item.id}` : inventoryKey(label))),
         x: item.x, y: item.y, width: item.width, height: item.height,
         label,
+        needsName: !reading.label && (item?.needsName === true || (!item?.label && item?.kind === "manual")),
         // 60, matching what the reader now sends. At 28 the evidence behind a
         // grade was clipped mid-phrase, leaving a verdict nobody could check.
         note: String(reading.note || "").trim().slice(0, 60),
@@ -1734,11 +1737,17 @@ export function mergeSavedDetections(existing, incoming) {
       continue;
     }
     if (currentConfirmed) {
-      merged.set(key, { ...detection, ...current, conditionConfirmed: true });
+      merged.set(key, { ...detection, ...current,
+        ...(current.needsName === true && detection.needsName === false ? { label: detection.label, needsName: false } : {}),
+        conditionConfirmed: true });
       continue;
     }
     const betterGeometry = detection.width > 0 && !(current.width > 0);
     const base = betterGeometry ? { ...current, ...detection } : { ...detection, ...current };
+    if (current.needsName === true && detection.needsName === false) {
+      base.label = detection.label;
+      base.needsName = false;
+    }
     const currentConditionConfidence = conditionEvidenceConfidence(current);
     const incomingConditionConfidence = conditionEvidenceConfidence(detection);
     const incomingConditionWins = Boolean(detection.condition)
@@ -1784,7 +1793,7 @@ export function mergeInventoryIntoSavedDetections(existing, inventory, dismissed
       && !dismissed.has(inventoryKey(detection.label)))
     .map(detection => {
     const label = correctedLabels.get(detection.inventoryKey);
-    return label ? Object.freeze({ ...detection, label }) : detection;
+    return label ? Object.freeze({ ...detection, label, needsName: false }) : detection;
   }));
 }
 
@@ -1802,6 +1811,7 @@ export function correctInventoryItem(items, key, change = {}) {
     return Object.freeze({
       ...item,
       label: renamed || item.label,
+      ...(renamed ? { needsName: false } : {}),
       condition: regraded || item.condition,
       // A customer standing in front of the item is the authoritative condition
       // assessment for this booking.

@@ -611,3 +611,71 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.deepEqual(handoff(rooms).photos,[{roomName:"Kitchen",note:"Leave the oven alone",dataUrl:rooms[0].image}]);
   assert.equal(JSON.stringify(rooms),before);
 }
+
+{
+  const {usableLiveBoxes,mergeItemReadings,mergeSavedDetections,scanChecklistLines} = await import("../public/room-scan-model.js");
+  const {applyCorrection} = await import("../public/scan-review-render.js");
+  const selected = usableLiveBoxes([
+    {id:"m1",inventoryKey:"manual:1",kind:"manual",x:10,y:10,width:20,height:20},
+    {id:"m2",inventoryKey:"manual:2",kind:"manual",x:60,y:60,width:20,height:20}]);
+  const missing = mergeItemReadings(selected,{items:[],tasks:[]});
+  const saved = mergeSavedDetections([],missing);
+  assert.equal(saved.length,2,"Two unnamed customer selections were collapsed into one row.");
+  assert.ok(saved.every(item=>item.quantity===1));
+  const corrected = applyCorrection([{name:"Kitchen",objects:saved}],{roomName:"Kitchen",inventoryKey:"manual:1",field:"label",value:"Extractor"});
+  assert.deepEqual(corrected.rooms[0].objects.map(item=>item.label),["Extractor","Needs a name"]);
+  assert.equal(corrected.rooms[0].objects[0].needsName,false);
+  assert.equal(mergeSavedDetections(corrected.rooms[0].objects,[{...saved[0],label:"Wrong",needsName:false}])[0].label,"Extractor");
+  const reopened = usableLiveBoxes(saved.map((item,index)=>({...item,id:"s"+index,kind:"detected"})));
+  assert.deepEqual(reopened.map(item=>item.inventoryKey),["manual:1","manual:2"]);
+  const named = mergeItemReadings(reopened,{items:[{id:"s0",label:"Extractor"},{id:"s1",label:"Worktop"}]});
+  const merged = mergeSavedDetections(saved,named);
+  assert.equal(merged.length,2,"Naming an existing manual item added a phantom placeholder.");
+  assert.deepEqual(merged.map(item=>item.inventoryKey),["manual:1","manual:2"]);
+  assert.deepEqual(merged.map(item=>item.label),["Extractor","Worktop"]);
+  const graded = mergeSavedDetections([{...saved[0],condition:"clean",conditionConfirmed:true}],
+    [{...named[0],condition:"heavy"}]);
+  assert.equal(graded[0].label,"Extractor");
+  assert.equal(graded[0].condition,"clean");
+  assert.equal(graded[0].conditionConfirmed,true);
+  const provisional = selected.map(item=>({...item,label:"Marked item",needsName:true}));
+  assert.deepEqual(mergeSavedDetections(provisional,named).map(item=>item.label),["Extractor","Worktop"]);
+  assert.deepEqual(scanChecklistLines([{name:"Kitchen",detections:merged,tasks:[]}]),[]);
+}
+
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
+  const start = source.indexOf("async function onViewfinderTap(event)");
+  const end = source.indexOf("function toggleDetectedItem",start);
+  assert.ok(start > 0 && end > start);
+  const {usableLiveBoxes,boxAtPoint} = await import("../public/room-scan-model.js");
+  const state = {frozen:true,manualCount:0,nextManualIdentity:1,candidates:[],selectedIds:new Set()};
+  const pick = new Function("state","el","tapPoint","boxAtPoint","atSelectionLimit","usableLiveBoxes",
+    "manualBoxSize","refreshSelection",source.slice(start,end)+";return onViewfinderTap;");
+  const tap = pick(state,{blocked:{hidden:true}},event=>event,boxAtPoint,()=>false,usableLiveBoxes,20,()=>{});
+  await tap({x:20,y:20});
+  const first = state.candidates[0];
+  state.manualCount = 0;
+  state.candidates = [];
+  state.selectedIds.clear();
+  await tap({x:70,y:70});
+  assert.equal(first.id,state.candidates[0].id,"Fixture must exercise reused frame-local ids.");
+  assert.notEqual(first.inventoryKey,state.candidates[0].inventoryKey,
+    "Selections from separate frozen views must remain independently editable.");
+}
+
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
+  const start = source.indexOf("async function readRoom(image,");
+  const end = source.indexOf("function localRoomTasks",start);
+  assert.ok(start>0 && end>start);
+  const {inventoryKey,mergeSavedDetections} = await import("../public/room-scan-model.js");
+  const read = new Function("state","inventoryKey","localRoomTasks","readingTaskRecords",
+    source.slice(start,end)+";return readRoom;")({readingAllowed:false},inventoryKey,()=>[],()=>[]);
+  const selections = [{id:"m1",inventoryKey:"manual:1",label:"",x:10,y:10,width:20,height:20},
+    {id:"m2",inventoryKey:"manual:2",label:"",x:60,y:60,width:20,height:20}];
+  const fallback = await read("frame","Kitchen",selections);
+  assert.deepEqual(fallback.detections.map(item=>item.inventoryKey),["manual:1","manual:2"]);
+  const provisional=selections.map(item=>({...item,label:"Marked item",needsName:true}));
+  assert.equal(mergeSavedDetections(provisional,fallback.detections).length,2);
+}

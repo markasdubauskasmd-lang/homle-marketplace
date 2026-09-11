@@ -179,7 +179,7 @@ export function applyCorrection(rooms, { roomName, inventoryKey, field, value })
       // A customer renaming an object settles its identity; it does not tell us
       // anything about the surface condition, which keeps its own score.
       objects.push(field === "label"
-        ? { ...object, label: value, confidenceLabel: 1, origin: "manual" }
+        ? { ...object, label: value, needsName: false, confidenceLabel: 1, origin: "manual" }
         : field === "condition"
           ? { ...object, condition: value, conditionConfirmed: true, confidenceCondition: 1 }
           : { ...object, quantity: Number(value) });
