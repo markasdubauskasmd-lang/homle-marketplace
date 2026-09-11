@@ -1733,10 +1733,14 @@ function renderTaskReview() {
     host.setAttribute("aria-live", "polite");
     el.tasks.after(host);
   }
+  // Match display lines only to decide which notices are relevant. This never
+  // edits the checklist or infers ownership of customer wording.
+  const visibleLines = new Set(editableTaskLines().map(line => line.replace(/\s+/g, " ").toLowerCase()));
   const lines = [...new Set(taskReviewRooms().flatMap(room =>
     scanTaskReview(room).filter(record => record.reviewRequired
       || (state.draft.scanChecklistEdited !== false && record.decision === "remove"))
-      .map(record => (room.name || room.roomName) + ": " + record.text)))];
+      .map(record => scanChecklistLines([{name:room.name || room.roomName,tasks:[record.text]}])[0]))
+      .filter(line => line && visibleLines.has(line.toLowerCase())))];
   host.replaceChildren();
   host.hidden = !lines.length;
   if (!lines.length) return;
