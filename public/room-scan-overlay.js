@@ -2083,20 +2083,22 @@ export function openRoomScan() {
       if (mustRead && !state.consentAsked) await askConsent();
       if (session !== state.roomSession || state.closed) { state.capturing = false; return; }
 
+      // A deliberate selection can restore an earlier removed identity.
+      const selectionRoomKey = transcriptKey(roomName);
+      const keptKeys = new Set(chosen.map(item => item.inventoryKey || inventoryKey(item.label)));
+      const removed = new Set(state.dismissed.get(selectionRoomKey) || []);
+      for (const key of keptKeys) removed.delete(key);
       // A revisit can remove only objects actually offered for selection.
       // Keep earlier views, but do not let their inventory restore a deliberate
       // deselection. Shared keys stay while any selected box still uses them.
       if (revisit) {
-        const key = transcriptKey(roomName);
         const savedKeys = new Set((existing.detections || []).map(item => item.inventoryKey || inventoryKey(item.label)));
-        const keptKeys = new Set(chosen.map(item => item.inventoryKey || inventoryKey(item.label)));
-        const removed = new Set(state.dismissed.get(key) || []);
         for (const candidate of state.candidates || []) {
           const candidateKey = candidate.inventoryKey || inventoryKey(candidate.label);
           if (candidateKey && savedKeys.has(candidateKey) && !keptKeys.has(candidateKey)) removed.add(candidateKey);
         }
-        state.dismissed.set(key, removed);
       }
+      state.dismissed.set(selectionRoomKey, removed);
 
       let room;
       let readingRevision = 0;
