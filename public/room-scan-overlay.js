@@ -1211,7 +1211,8 @@ export function openRoomScan() {
         // chosen. Their ids are namespaced so a newly added manual box cannot
         // collide with one of them.
         state.candidates = usableLiveBoxes((room.detections || []).map((detection, index) => ({
-          id: `s${index}`, inventoryKey: detection.inventoryKey, needsName: detection.needsName, x: detection.x, y: detection.y, width: detection.width, height: detection.height,
+          id: `s${index}`, inventoryKey: detection.inventoryKey, needsName: detection.needsName,
+          quantity: itemQuantity(detection), conditionMixed: detection.conditionMixed === true, x: detection.x, y: detection.y, width: detection.width, height: detection.height,
           label: detection.label, note: detection.note || "", kind: "detected", score: 1,
           // The reader's verdict about this object, so the review paints it where
           // the customer is actually looking — on the thing itself.
@@ -2131,6 +2132,8 @@ export function openRoomScan() {
             condition: box.condition || "",
             conditionConfidence: box.conditionConfidence,
             conditionConfirmed: box.conditionConfirmed === true,
+            quantity: itemQuantity(box),
+            conditionMixed: box.conditionMixed === true,
             soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
@@ -2154,6 +2157,8 @@ export function openRoomScan() {
             condition: box.condition || "",
             conditionConfidence: box.conditionConfidence,
             conditionConfirmed: box.conditionConfirmed === true,
+            quantity: itemQuantity(box),
+            conditionMixed: box.conditionMixed === true,
             soiling: box.soiling || [],
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
@@ -2966,6 +2971,7 @@ export function openRoomScan() {
       const localDetections = items.map((item) => ({
         id: item.id, inventoryKey: item.inventoryKey || inventoryKey(item.label),
         label: item.label || "Marked item", needsName: item.needsName === true || !item.label, note: item.note || "",
+        quantity: itemQuantity(item), conditionMixed: item.conditionMixed === true,
         x: item.x, y: item.y, width: item.width, height: item.height
       }));
       if (!state.readingAllowed || !state.visionAvailable) {
