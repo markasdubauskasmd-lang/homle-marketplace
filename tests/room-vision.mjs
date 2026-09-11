@@ -340,3 +340,19 @@ assert(readingSchemaVersion === 3, "Task references must be recorded under schem
     }
   }
 }
+
+{
+  const {readingTaskRecords} = await import("../public/room-scan-model.js");
+  const detection = {label:"Hob",note:"Visible grease",labelConfidence:.9,conditionConfidence:.9,condition:"heavy",soiling:["grease"],x:10,y:10,width:30,height:30};
+  const link = {taskIndex:0,itemRefs:["0"]};
+  const overflow = [link,...Array.from({length:63},()=>({taskIndex:99,itemRefs:["0"]})),link];
+  const payload = {condition:"heavy",detections:[detection],tasks:["Degrease hob"],taskLinks:overflow};
+  const vision = createAnthropicRoomVision({apiKey:"test-key",client:stub(jsonReply(payload))});
+  const result = await vision.readRoom({image:pixel});
+  assert(result.tasks[0]==="Degrease hob" && result.taskLinks.length===0,
+    "A duplicate outside the validation window made an ambiguous task link appear valid.");
+  assert(readingTaskRecords(payload)[0].inventoryKeys.length===0,
+    "The client trusted a truncated prefix of oversized task metadata.");
+  assert(readingTaskRecords({...payload,taskLinks:[link]})[0].inventoryKeys[0]==="hob",
+    "Valid bounded task metadata stopped mapping to inventory.");
+}
