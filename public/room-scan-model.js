@@ -196,6 +196,7 @@ export function usableLiveBoxes(boxes) {
     .slice(0, 12)
     .map((box) => Object.freeze({
       id: String(box.id || ""),
+      ...(box.inventoryKey ? {inventoryKey:String(box.inventoryKey)} : {}),
       x: box.x,
       y: box.y,
       width: box.width,
@@ -611,7 +612,7 @@ export function mergeItemReadings(selected, response) {
       if (!label) return null;
       return Object.freeze({
         id: String(item?.id || ""),
-        inventoryKey: String(item?.inventoryKey || inventoryKey(label)),
+        inventoryKey: String(item?.inventoryKey || (item?.kind === "manual" && item?.id ? `selected:${item.id}` : inventoryKey(label))),
         x: item.x, y: item.y, width: item.width, height: item.height,
         label,
         // 60, matching what the reader now sends. At 28 the evidence behind a
