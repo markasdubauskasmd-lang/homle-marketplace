@@ -670,8 +670,8 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const end = source.indexOf("function localRoomTasks",start);
   assert.ok(start>0 && end>start);
   const {inventoryKey,mergeSavedDetections} = await import("../public/room-scan-model.js");
-  const read = new Function("state","inventoryKey","localRoomTasks","readingTaskRecords",
-    source.slice(start,end)+";return readRoom;")({readingAllowed:false},inventoryKey,()=>[],()=>[]);
+  const read = new Function("state","inventoryKey","localRoomTasks","readingTaskRecords","itemQuantity",
+    source.slice(start,end)+";return readRoom;")({readingAllowed:false},inventoryKey,()=>[],()=>[],(await import("../public/room-scan-model.js")).itemQuantity);
   const selections = [{id:"m1",inventoryKey:"manual:1",label:"",x:10,y:10,width:20,height:20},
     {id:"m2",inventoryKey:"manual:2",label:"",x:60,y:60,width:20,height:20}];
   const fallback = await read("frame","Kitchen",selections);
@@ -806,5 +806,58 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       state.candidates=saved;
     }
     assert.equal(reads,0,"Unchanged saves must not request additional provider reads.");
+  }
+}
+
+// Reopening one saved group must retain its observed count across every save path.
+{
+  const {default:vm} = await import("node:vm");
+  const model = await import("../public/room-scan-model.js");
+  const source = readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
+  const saveStart=source.indexOf("async function saveRoom("),saveEnd=source.indexOf("// The shutter freezes first",saveStart);
+  const openStart=source.indexOf("function openRevisit("),openEnd=source.indexOf("/* ── Camera",openStart);
+  const readStart=source.indexOf("async function readRoom(image,"),readEnd=source.indexOf("function localRoomTasks",readStart);
+  assert.ok(saveStart>0&&saveEnd>saveStart&&openStart>0&&openEnd>openStart&&readStart>0&&readEnd>readStart);
+  for (const mixed of [false,true]) for (const retry of [false,true]) {
+    const detections=model.mergeSavedDetections([], [10,60].map((x,i)=>({
+      id:"c"+i,inventoryKey:"chair",label:"Chair",x,y:10,width:20,height:20,
+      condition:mixed&&i===1?"heavy":"clean",conditionConfidence:.9
+    })));
+    assert.equal(detections[0].quantity,2);
+    assert.equal(detections[0].conditionMixed===true,mixed);
+    const existing={name:"Kitchen",image:"synthetic-image",transcript:"",detections,tasks:[],
+      readingStatus:retry?"needs-retry":"ready"};
+    const state={rooms:[existing],currentRoom:"Kitchen",roomSession:1,consentAsked:true,nextReadingRevision:1,
+      walkEvidence:new Map(),dismissed:new Map()};
+    const el={note:{value:""},readRoom:{},retake:{},canvas:{getContext:()=>({drawImage(){}})},
+      still:{},selection:{},viewfinder:{classList:{add(){}}}};
+    let reads=0;
+    const context=vm.createContext({...model,state,el,
+      Image:class {naturalWidth=100;naturalHeight=100;set src(value){this.onload();}},
+      prepareLiveRoom(){throw Error("Unexpected fresh capture");},stopDetection(){},layoutFrozen(){},refreshSelection(){},
+      setRoomTranscript(){},roomTranscript:()=>"",scanEvents:{record(){}},elapsedSince:()=>0,renderScanProgress(){},
+      transcriptKey:name=>name.toLowerCase(),inventoryFor:()=>[],localRoomTasks:()=>[],toHub(){},
+      nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},
+      window:{setTimeout:fn=>fn()},readRoomInBackground:()=>{reads+=1}});
+    vm.runInContext(source.slice(openStart,openEnd)+"\n"+source.slice(saveStart,saveEnd)+"\n"+source.slice(readStart,readEnd),context);
+    for(let revisit=0;revisit<2;revisit+=1) {
+      context.openRevisit(state.rooms[0],1);
+      assert.equal(model.itemQuantity(state.candidates[0]),2);
+      assert.equal(state.candidates[0].conditionMixed===true,mixed);
+      const offline=await context.readRoom(existing.image,"Kitchen",state.candidates);
+      const identified=model.mergeItemReadings(state.candidates,{items:[{id:"s0",label:"Chair",condition:"clean",conditionConfidence:.99}]});
+      for(const batch of [offline.detections,identified]) {
+        assert.equal(model.itemQuantity(batch[0]),2);
+        assert.equal(batch[0].conditionMixed===true,mixed);
+        assert.equal(model.mergeSavedDetections(state.rooms[0].detections,batch)[0].quantity,2,
+          "Another view must not add the same group twice.");
+      }
+      await context.saveRoom(existing.image,state.candidates,{revisit:true});
+      const saved=state.rooms[0].detections[0];
+      assert.equal(model.itemQuantity(saved),2);
+      assert.equal(saved.conditionMixed===true,mixed);
+      if(mixed) assert.equal(model.conditionNeedsReview(saved),true);
+    }
+    assert.equal(reads,retry?1:0,"Unchanged saves must not add provider calls.");
   }
 }
