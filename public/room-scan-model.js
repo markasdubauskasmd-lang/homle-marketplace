@@ -1809,6 +1809,7 @@ export function correctInventoryItem(items, key, change = {}) {
     return Object.freeze({
       ...item,
       label: renamed || item.label,
+      ...(renamed ? { needsName: false } : {}),
       condition: regraded || item.condition,
       // A customer standing in front of the item is the authoritative condition
       // assessment for this booking.
