@@ -968,7 +968,8 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const saveStart=source.indexOf("async function saveRoom("),saveEnd=source.indexOf("// The shutter freezes first",saveStart);
   const openStart=source.indexOf("function openRevisit("),openEnd=source.indexOf("/* ── Camera",openStart);
   assert.ok(saveStart>0&&saveEnd>saveStart&&openStart>0&&openEnd>openStart);
-  for(const shape of ["walking","overflow"]) for(const action of ["none","remove","clear","note","manual","retry"]) {
+  for(const shape of ["walking","overflow"]) for(const cached of shape==="walking"?[false,true]:[false])
+    for(const action of ["none","remove","clear","note","manual","retry"]) {
     const boxed=Array.from({length:shape==="overflow"?13:2},(_,i)=>({
       inventoryKey:`fixture ${i}`,label:`Fixture ${i}`,x:10,y:10,width:20,height:20,
       quantity:i===0?2:1,condition:"light",conditionConfidence:.8
@@ -987,7 +988,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       Image:class {naturalWidth=100;naturalHeight=100;set src(value){this.onload();}},
       prepareLiveRoom(){throw Error("Unexpected capture");},stopDetection(){},layoutFrozen(){},refreshSelection(){},
       setRoomTranscript(){},roomTranscript:()=>el.note.value,scanEvents:{record(){}},elapsedSince:()=>0,renderScanProgress(){},
-      transcriptKey:name=>name.toLowerCase(),inventoryFor:()=>[],localRoomTasks:()=>[],toHub(){},
+      transcriptKey:name=>name.toLowerCase(),inventoryFor:()=>cached?[{...hidden,key:hidden.inventoryKey}]:[],localRoomTasks:()=>[],toHub(){},
       nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},window:{setTimeout:fn=>fn()},
       readRoomInBackground:()=>{reads++}});
     vm.runInContext(source.slice(openStart,openEnd)+"\n"+source.slice(saveStart,saveEnd),context);
