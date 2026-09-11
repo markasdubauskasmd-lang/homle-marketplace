@@ -220,6 +220,46 @@ assert(await rejects(async () => createAnthropicRoomVision({ apiKey: "k", client
   assert(/extractor/.test(selectedSent), "The confirmation read — the one that sets the price — did not receive the inspection list.");
 }
 
+// Room names route attention, not evidence of dirt or unseen fixtures.
+{
+  const cases = [
+    ["Ground floor kitchen", ["hob"], ["waterline"]],
+    ["First floor bedroom", ["headboards"], ["waterline"]],
+    ["Kitchen / living room", ["hob", "sofa"], ["waterline"]],
+    ["Bedroom with en-suite", ["headboards", "waterline"], ["hob"]],
+    ["Kitchen-dining", ["hob", "sofa"], ["waterline"]],
+    ["Bathroom2", ["waterline"], ["hob"]],
+    ["En suite", ["waterline"], ["hob"]],
+    ["Shower room", ["waterline"], ["hob"]],
+    ["Downstairs loo", ["waterline"], ["banister"]],
+    ["Hallway", ["banister"], ["waterline"]],
+    ["Staircase", ["banister"], ["waterline"]],
+    ["Dormitory", ["headboards"], ["waterline"]]
+  ];
+  for (const [name, included, excluded] of cases) {
+    const focus = inspectionFocus(name);
+    for (const word of included) assert(focus.includes(word), name + " missed " + word);
+    for (const word of excluded) assert(!focus.includes(word), name + " wrongly included " + word);
+    assert((focus.match(/Grade each only/g) || []).length === 1, "Evidence rule must remain once per focus.");
+  }
+  for (const name of ["Ground floor", "Showroom", "Newcastle", "Marshalled storage", "Outbuilding", "Studio", "Ballroom"]) {
+    assert(inspectionFocus(name) === "", name + " was assigned a room type from a substring or guess.");
+  }
+  assert(inspectionFocus("Kitchen / kitchenette") === inspectionFocus("Kitchen"), "Aliases must not duplicate the same focus.");
+  for (const name of ["Ground floor kitchen", "Kitchen / living room"]) {
+    for (const selected of [false, true]) {
+      const capture = {};
+      const vision = createAnthropicRoomVision({ apiKey: "k", client: stub(jsonReply({ condition: "unknown", detections: [], items: [], tasks: [] }), capture) });
+      if (selected) await vision.readSelectedItems({ image: pixel, roomName: name, items: [{ id: "a", label: "Worktop" }] });
+      else await vision.readRoom({ image: pixel, roomName: name });
+      const sent = capture.request.messages[0].content.filter(block => block.type === "text").map(block => block.text).join("\n");
+      assert(sent.includes(inspectionFocus(name)), "Corrected focus did not reach the actual provider request.");
+      assert(!sent.includes("toilet waterline"), "The request still selected bathroom guidance from floor.");
+      if (name.includes("living")) assert(sent.includes("sofa"), "Combined room request omitted its living area.");
+    }
+  }
+}
+
 // The prompt must forbid the one thing a photograph cannot support.
 const { default: source } = await import("node:fs").then((fs) => ({ default: fs.readFileSync(new URL("../src/marketplace/room-vision.mjs", import.meta.url), "utf8") }));
 const { default: marketplaceHttpSource } = await import("node:fs").then((fs) => ({ default: fs.readFileSync(new URL("../src/marketplace/marketplace-http.mjs", import.meta.url), "utf8") }));
