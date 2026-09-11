@@ -40,6 +40,7 @@ import {
   readingTaskRecords,
   mergeScanTaskRecords,
   scanTaskRecordsFor,
+  withCurrentRoomInstructions,
   trackDetections,
   drawableTracks,
   frameQualityStats,
@@ -3818,7 +3819,8 @@ export function openRoomScan() {
       // done its job and should not survive to be offered again.
       forgetRoomNotes();
       const checklistRooms = state.rooms.map(room => ({
-        ...room,
+        ...withCurrentRoomInstructions(room, localRoomTasks(room.name, roomTranscript(room.name))),
+        transcript: roomTranscript(room.name),
         removedInventoryKeys: [...(state.dismissed.get(transcriptKey(room.name)) || [])],
         changedInventoryKeys: inventoryFor(room.name).filter(item => item.confirmed).map(item => item.key)
       }));
@@ -3831,13 +3833,13 @@ export function openRoomScan() {
       stopCamera();
       close({
         tasks: summary.tasks,
-        transcript: scanTranscript(state.rooms),
+        transcript: scanTranscript(checklistRooms),
         // These compressed JPEGs stay only in this in-memory return value. The
         // guided booking journey can upload them after it has created the
         // authenticated private draft, but saveDraft() never serialises them
         // into sessionStorage. A refresh therefore cannot leave photographs of
         // a home in browser storage.
-        photos: state.rooms.filter((room) => room?.image).map((room) => ({
+        photos: checklistRooms.filter((room) => room?.image).map((room) => ({
           roomName: room.name,
           note: String(room.transcript || "").trim(),
           dataUrl: room.image
@@ -3847,6 +3849,7 @@ export function openRoomScan() {
           condition: room.condition,
           fixtures: (room.detections || []).map(inventoryDisplayLabel),
           taskRecords: scanTaskRecordsFor(room),
+          taskInstructionsChanged: room.taskInstructionsChanged === true,
           removedInventoryKeys: room.removedInventoryKeys,
           changedInventoryKeys: room.changedInventoryKeys,
           note: String(room.transcript || "").trim(),
