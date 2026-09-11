@@ -740,5 +740,25 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       .map((item,index)=>({...item,id:"s"+index,kind:"detected"}));
     await context.saveRoom("synthetic-image",state.candidates,{revisit:true});
     verify();
+    state.candidates=boxes;
+    await context.saveRoom("synthetic-image",[boxes[0]],{revisit:false});
+    assert.ok(state.rooms[0].detections.some(item=>item.inventoryKey==="hob"),
+      "Explicitly selecting the hob again must restore it.");
+    assert.equal(state.dismissed.get("kitchen").has("hob"),false);
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.ok(state.rooms[0].detections.some(item=>item.inventoryKey==="hob"));
+
   }
+}
+
+{
+  const {mergeInventoryIntoSavedDetections:merge} = await import("../public/room-scan-model.js");
+  const old = {inventoryKey:"hob",label:"Hob"};
+  const selected = {inventoryKey:"manual:9",label:"Hob",x:10,y:10,width:20,height:20};
+  const dismissed = new Set(["hob"]);
+  assert.deepEqual(merge([old,selected],[],dismissed).map(item=>item.inventoryKey),["manual:9"],
+    "A different explicitly selected object must not inherit a shared name's dismissal.");
+  assert.equal(merge([{label:"Hob"}],[],dismissed).length,0,"Legacy items still use their label identity.");
+  assert.equal(merge([{inventoryKey:"tap",label:"Kitchen tap"}],[],new Set(["tap","kitchen tap"])).length,0,
+    "The actual removed identity stays removed after a rename.");
 }
