@@ -32,7 +32,7 @@ export const readingSchemaVersion = 3;
 function taskLinksSchema(referenceDescription) {
   return {
     type: "array",
-    description: "Link each object-specific task to every object it concerns. Omit links for general or unsupported tasks; never guess a reference.",
+    description: "At most 8 entries, one per object-specific task. List every related object once. Omit links for general or unsupported tasks; never guess a reference.",
     items: {
       type: "object",
       properties: {
@@ -231,7 +231,7 @@ function taskEvidence(payload, references) {
     tasks.push(text);
     if (tasks.length === maximumTasks) break;
   }
-  const candidates = Array.isArray(payload.taskLinks) ? payload.taskLinks.slice(0, 64) : [];
+  const candidates = Array.isArray(payload.taskLinks) && payload.taskLinks.length <= 64 ? payload.taskLinks : [];
   const counts = new Map();
   for (const link of candidates) if (Number.isInteger(link?.taskIndex)) counts.set(link.taskIndex, (counts.get(link.taskIndex) || 0) + 1);
   const taskLinks = [];
