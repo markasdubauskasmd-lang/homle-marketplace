@@ -958,3 +958,71 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   state.draftOwner=owner;storage.set("fixture",saved);now+=1800001;context.restoreDraft();
   assert.equal(storage.has("fixture"),false,"Reviewed values must expire with the existing draft lifetime.");
 }
+
+
+// Revisit selection covers one frame, not every finding saved for the room.
+{
+  const {default:vm}=await import("node:vm");
+  const model=await import("../public/room-scan-model.js");
+  const source=readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
+  const saveStart=source.indexOf("async function saveRoom("),saveEnd=source.indexOf("// The shutter freezes first",saveStart);
+  const openStart=source.indexOf("function openRevisit("),openEnd=source.indexOf("/* ── Camera",openStart);
+  assert.ok(saveStart>0&&saveEnd>saveStart&&openStart>0&&openEnd>openStart);
+  for(const shape of ["walking","overflow","walking-only"]) for(const cached of shape!=="overflow"?[false,true]:[false])
+    for(const action of ["none","remove","clear","note","manual","retry"]) {
+    const boxed=Array.from({length:shape==="overflow"?13:shape==="walking-only"?0:2},(_,i)=>({
+      inventoryKey:`fixture ${i}`,label:`Fixture ${i}`,x:10,y:10,width:20,height:20,
+      quantity:i===0?2:1,condition:"light",conditionConfidence:.8
+    }));
+    const hidden=shape!=="overflow"?{inventoryKey:"floor",label:"Floor",condition:"light",conditionConfidence:.8}:boxed[12];
+    const detections=shape!=="overflow"?[...boxed,hidden]:boxed;
+    const taskRecords=[{text:"Wipe the retained surface",origin:"vision",inventoryKeys:[hidden.inventoryKey]}];
+    const existing={name:"Kitchen",image:"synthetic-image",transcript:"",detections,condition:"medium",
+      tasks:taskRecords.map(item=>item.text),taskRecords,readingStatus:action==="retry"?"needs-retry":"ready"};
+    const state={rooms:[existing],currentRoom:"Kitchen",roomSession:1,consentAsked:true,
+      nextReadingRevision:1,walkEvidence:new Map(),dismissed:new Map()};
+    const el={note:{value:action==="note"?"Please check handles":""},readRoom:{},retake:{},
+      canvas:{getContext:()=>({drawImage(){}})},still:{},selection:{},viewfinder:{classList:{add(){}}}};
+    let reads=0;
+    const context=vm.createContext({...model,state,el,
+      Image:class {naturalWidth=100;naturalHeight=100;set src(value){this.onload();}},
+      prepareLiveRoom(){throw Error("Unexpected capture");},stopDetection(){},layoutFrozen(){},refreshSelection(){},
+      setRoomTranscript(){},roomTranscript:()=>el.note.value,scanEvents:{record(){}},elapsedSince:()=>0,renderScanProgress(){},
+      transcriptKey:name=>name.toLowerCase(),inventoryFor:()=>cached?[{...hidden,key:hidden.inventoryKey}]:[],localRoomTasks:()=>[],toHub(){},
+      nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},window:{setTimeout:fn=>fn()},
+      readRoomInBackground:()=>{reads++}});
+    vm.runInContext(source.slice(openStart,openEnd)+"\n"+source.slice(saveStart,saveEnd),context);
+    context.openRevisit(existing,1);
+    assert.equal(state.candidates.length,shape==="overflow"?12:shape==="walking-only"?0:2);
+    let chosen=state.candidates;
+    if(action==="remove") chosen=chosen.slice(1);
+    if(action==="clear") chosen=[];
+    if(action==="manual") {
+      const manual={id:"m1",kind:"manual",inventoryKey:"manual:1",label:"Marked item",x:60,y:10,width:10,height:10};
+      state.candidates=[...state.candidates,manual];
+      chosen=state.candidates;
+    }
+    await context.saveRoom(existing.image,chosen,{revisit:true});
+    const saved=state.rooms[0];
+    assert.ok(saved.detections.some(item=>item.inventoryKey===hidden.inventoryKey),
+      `${shape}/${action}: an unoffered finding was erased`);
+    assert.ok(model.scanChecklistLines([saved]).includes("Kitchen: Wipe the retained surface"),
+      "The retained finding lost its linked instruction");
+    const expected=action==="clear"?1:detections.length-(action==="remove"&&boxed.length?1:0)+(action==="manual"?1:0);
+    assert.equal(saved.detections.length,expected,`${shape}/${action}: saved inventory changed unexpectedly`);
+    assert.equal(reads,(["note","manual","retry"].includes(action)||(action==="remove"&&boxed.length>0))?1:0,
+      `${shape}/${action}: provider read decision did not reflect a real change or retry`);
+    if(boxed.length&&!["remove","clear"].includes(action)) {
+      assert.equal(saved.detections.find(item=>item.inventoryKey==="fixture 0").quantity,2);
+      assert.equal(saved.detections.find(item=>item.inventoryKey==="fixture 0").condition,"light");
+    }
+    if(action==="none") {
+      assert.equal(saved.condition,"medium","An unchanged room lost its assessment");
+      assert.equal(saved.readingStatus,"ready","An unchanged room lost its completed-read status");
+      context.openRevisit(saved,1);
+      await context.saveRoom(saved.image,state.candidates,{revisit:true});
+      assert.equal(reads,0,"A repeated unchanged revisit bought another read");
+      assert.equal(state.rooms[0].detections.length,detections.length);
+    }
+  }
+}
