@@ -363,11 +363,13 @@ async function trySetBackend(runtime, name) {
 function loadDetectorOnce() {
   if (detectorLoad) return detectorLoad;
   detectorLoad = (async () => {
-    // Requested together rather than one after the next. Each tag already sets
-    // `async = false`, so the browser still executes them in this order — it just
-    // stops waiting for one megabyte to arrive before asking for the next file.
+    // Dependent bundles attach to the core runtime when they execute. If core
+    // fails to download, executing them anyway poisons an otherwise valid retry.
+    // Establish core first; the remaining bundles still download together.
     const hasWebGpu = webGpuAvailable();
-    await Promise.all(detectorScriptsFor(hasWebGpu).map(loadDetectorScript));
+    const [coreScript, ...dependentScripts] = detectorScriptsFor(hasWebGpu);
+    await loadDetectorScript(coreScript);
+    await Promise.all(dependentScripts.map(loadDetectorScript));
     const runtime = globalThis.tf;
     const detection = globalThis.cocoSsd;
     if (!runtime || !detection) throw new Error("detector-unavailable");
