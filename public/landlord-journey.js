@@ -1379,7 +1379,7 @@ function objectControls(roomName, object) {
   }
   quantity.addEventListener("change", () => {
     const value = Number(quantity.value);
-    if (Number.isInteger(value) && value >= 1 && value <= 20 && value !== object.quantity) {
+    if (Number.isInteger(value) && value >= 1 && value <= 20) {
       correctScanObject(roomName, object.inventoryKey, "quantity", value);
     }
   });
