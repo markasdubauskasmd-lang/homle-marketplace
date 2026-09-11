@@ -794,7 +794,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       assert.equal(saved[0].needsName,true);
       assert.equal(saved[1].needsName,false);
       const identified=model.mergeSavedDetections(saved,[
-        {...boxes[0],label:"Extractor",needsName:false,condition:"heavy"},
+        {...boxes[0],label:"Extractor",needsName:false,condition:"heavy",conditionConfirmed:false},
         {...boxes[1],label:"Wrong shelf"}
       ]);
       assert.equal(identified.length,2);
