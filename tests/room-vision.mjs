@@ -289,3 +289,36 @@ for (const collection of ["detections", "items"]) {
   const withTask = await run({...valid,tasks:["Wipe the table"]});
   assert(withTask.tasks[0] === "Wipe the table", collection + ": valid tasks were lost");
 }
+
+
+// Task links follow surviving objects and tasks, never their stale source indexes.
+{
+  const detection = {label:"Hob",condition:"heavy",soiling:["grease"],labelConfidence:.9,conditionConfidence:.9,evidence:"Grease",x:5,y:5,width:10,height:10};
+  const make = payload => createAnthropicRoomVision({apiKey:"synthetic",client:stub(jsonReply(payload))});
+  const result = await make({
+    condition:"heavy",detections:[{...detection,x:99},detection],tasks:["x","Degrease the hob"],
+    taskLinks:[{taskIndex:1,itemRefs:["1"]}]
+  }).readRoom({image:pixel});
+  assert(result.tasks.length===1 && result.detections.length===1,"Fixture filtering changed");
+  assert(result.taskLinks.length===1 && result.taskLinks[0].taskIndex===0 && result.taskLinks[0].itemRefs[0]==="0",
+    "Filtering made a task point to the wrong detection");
+  assert(!("sourceIndex" in result.detections[0]),"Internal source index leaked into detections");
+  for (const taskLinks of [
+    [{taskIndex:0,itemRefs:["missing"]}],
+    [{taskIndex:0,itemRefs:[0]}],
+    [{taskIndex:9,itemRefs:["0"]}],
+    [{taskIndex:0,itemRefs:[]}],
+    [{taskIndex:0,itemRefs:["0"]},{taskIndex:0,itemRefs:["0"]}],
+    null
+  ]) {
+    const unlinked = await make({condition:"heavy",detections:[detection],tasks:["Degrease the hob"],taskLinks}).readRoom({image:pixel});
+    assert(unlinked.tasks[0]==="Degrease the hob" && unlinked.taskLinks.length===0,"Invalid links lost task text or invented an association");
+  }
+  const selected = await make({
+    condition:"heavy",items:[{id:"d1",label:"Hob"},{id:"invented",label:"Oven"}],
+    tasks:["Clean the hob","Clean the oven"],
+    taskLinks:[{taskIndex:0,itemRefs:["d1"]},{taskIndex:1,itemRefs:["invented"]}]
+  }).readSelectedItems({image:pixel,items:[{id:"d1",label:"Hob"}]});
+  assert(selected.tasks.length===2 && selected.taskLinks.length===1 && selected.taskLinks[0].itemRefs[0]==="d1",
+    "Selected-item task links accepted an invented id or lost unlinked text");
+}
