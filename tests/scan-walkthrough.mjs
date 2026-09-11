@@ -679,3 +679,86 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const provisional=selections.map(item=>({...item,label:"Marked item",needsName:true}));
   assert.equal(mergeSavedDetections(provisional,fallback.detections).length,2);
 }
+
+// Saving a deselected object must not restore it from earlier walking evidence.
+{
+  const {default:vm} = await import("node:vm");
+  const model = await import("../public/room-scan-model.js");
+  const source = readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
+  const start = source.indexOf("async function saveRoom(");
+  const end = source.indexOf("// The shutter freezes first",start);
+  assert.ok(start>0 && end>start);
+  for (const cleared of [false,true]) for (const offscreen of [false,true]) {
+    const boxes = ["Hob","Tap"].map((label,index)=>({id:"s"+index,inventoryKey:label.toLowerCase(),label,
+      kind:"detected",x:10+index*50,y:10,width:20,height:20}));
+    const records = [{text:"Clean the hob",origin:"vision",inventoryKeys:["hob"]},
+      {text:"Descale the tap",origin:"vision",inventoryKeys:["tap"]},
+      {text:"Leave the oven alone",origin:"customer",inventoryKeys:[]},
+      {text:"Check the handles",origin:"legacy",inventoryKeys:[]}];
+    if(offscreen) records.push({text:"Wipe the fridge",origin:"vision",inventoryKeys:["fridge"]});
+    const existing = {name:"Kitchen",transcript:"",detections:boxes,tasks:records.map(t=>t.text),
+      taskRecords:records,readingStatus:"ready"};
+    const state = {rooms:[existing],candidates:boxes,currentRoom:"Kitchen",roomSession:1,consentAsked:true,
+      nextReadingRevision:1,pendingReads:0,dismissed:new Map(),
+      walkEvidence:new Map([["kitchen",{tasks:records.map(t=>t.text),taskRecords:records}]])};
+    let background;
+    const context = vm.createContext({...model,state,el:{note:{value:""},readRoom:{},retake:{}},
+      setRoomTranscript(){},roomTranscript:()=>"",scanEvents:{record(){}},elapsedSince:()=>0,renderScanProgress(){},
+      transcriptKey:name=>name.toLowerCase(),
+      inventoryFor:()=>[...boxes.map(box=>({key:box.inventoryKey,label:box.label})),...(offscreen?[{key:"fridge",label:"Fridge"}]:[])],
+      localRoomTasks:()=>[],toHub(){},nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},
+      window:{setTimeout:fn=>fn()},readRoomInBackground:args=>{background=args}});
+    vm.runInContext(source.slice(start,end),context);
+    await context.saveRoom("synthetic-image",cleared?[]:[boxes[1]],{revisit:true});
+    const verify = () => {
+      const saved = state.rooms[0];
+      assert.deepEqual(Array.from(saved.detections,item=>item.label),[...(cleared?[]:["Tap"]),...(offscreen?["Fridge"]:[])]);
+      const lines = model.scanChecklistLines([saved]);
+      assert.ok(!lines.includes("Kitchen: Clean the hob"));
+      assert.equal(lines.includes("Kitchen: Descale the tap"),!cleared);
+      assert.equal(lines.includes("Kitchen: Wipe the fridge"),offscreen);
+      assert.ok(lines.includes("Kitchen: Leave the oven alone"),"Customer instructions must remain customer-owned.");
+      assert.ok(lines.includes("Kitchen: Check the handles"),"An unlinked instruction cannot be deleted by guessing.");
+      assert.equal(model.scanTaskReview(saved).find(t=>t.text==="Check the handles").reviewRequired,true);
+    };
+    verify();
+    assert.equal(Boolean(background),!cleared,"Removal must not add any new provider calls.");
+    if(background) {
+      const backgroundStart = source.indexOf("function mergeSavedTasks(");
+      const backgroundEnd = source.indexOf("function resumeDeferredRoomReads()",backgroundStart);
+      assert.ok(backgroundStart>0 && backgroundEnd>backgroundStart);
+      context.renderHub=()=>{};
+      context.navigator={onLine:true};
+      context.readRoom=async()=>({detections:boxes,tasks:records.map(t=>t.text),taskRecords:records,readingStatus:"ready"});
+      vm.runInContext(source.slice(backgroundStart,backgroundEnd),context);
+      context.readRoomInBackground(background);
+      await new Promise(resolve=>setImmediate(resolve));
+      assert.equal(state.pendingReads,0);
+      verify();
+    }
+    state.candidates=state.rooms[0].detections.filter(item=>item.width>0)
+      .map((item,index)=>({...item,id:"s"+index,kind:"detected"}));
+    await context.saveRoom("synthetic-image",state.candidates,{revisit:true});
+    verify();
+    state.candidates=boxes;
+    await context.saveRoom("synthetic-image",[boxes[0]],{revisit:false});
+    assert.ok(state.rooms[0].detections.some(item=>item.inventoryKey==="hob"),
+      "Explicitly selecting the hob again must restore it.");
+    assert.equal(state.dismissed.get("kitchen").has("hob"),false);
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.ok(state.rooms[0].detections.some(item=>item.inventoryKey==="hob"));
+
+  }
+}
+
+{
+  const {mergeInventoryIntoSavedDetections:merge} = await import("../public/room-scan-model.js");
+  const old = {inventoryKey:"hob",label:"Hob"};
+  const selected = {inventoryKey:"manual:9",label:"Hob",x:10,y:10,width:20,height:20};
+  const dismissed = new Set(["hob"]);
+  assert.deepEqual(merge([old,selected],[],dismissed).map(item=>item.inventoryKey),["manual:9"],
+    "A different explicitly selected object must not inherit a shared name's dismissal.");
+  assert.equal(merge([{label:"Hob"}],[],dismissed).length,0,"Legacy items still use their label identity.");
+  assert.equal(merge([{inventoryKey:"tap",label:"Kitchen tap"}],[],new Set(["tap","kitchen tap"])).length,0,
+    "The actual removed identity stays removed after a rename.");
+}
