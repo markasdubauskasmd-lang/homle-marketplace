@@ -633,6 +633,11 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.equal(merged.length,2,"Naming an existing manual item added a phantom placeholder.");
   assert.deepEqual(merged.map(item=>item.inventoryKey),["manual:1","manual:2"]);
   assert.deepEqual(merged.map(item=>item.label),["Extractor","Worktop"]);
+  const graded = mergeSavedDetections([{...saved[0],condition:"clean",conditionConfirmed:true}],
+    [{...named[0],condition:"heavy"}]);
+  assert.equal(graded[0].label,"Extractor");
+  assert.equal(graded[0].condition,"clean");
+  assert.equal(graded[0].conditionConfirmed,true);
   const provisional = selected.map(item=>({...item,label:"Marked item",needsName:true}));
   assert.deepEqual(mergeSavedDetections(provisional,named).map(item=>item.label),["Extractor","Worktop"]);
   assert.deepEqual(scanChecklistLines([{name:"Kitchen",detections:merged,tasks:[]}]),[]);
