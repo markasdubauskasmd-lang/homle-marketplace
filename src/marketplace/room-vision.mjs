@@ -178,6 +178,8 @@ function soilingTypes(value) {
 // Absent or unparseable confidence is treated as no confidence rather than as
 // full confidence, so a model that omits the field cannot silently assert one.
 function confidenceValue(value) {
+  // Keep numeric-string compatibility, but never turn true or [1] into certainty.
+  if (typeof value !== "number" && typeof value !== "string") return 0;
   const supplied = Number(value);
   if (!Number.isFinite(supplied)) return 0;
   return Math.max(0, Math.min(1, supplied));
@@ -268,12 +270,14 @@ function reading(payload) {
         // shape. A named soiling type and the model's own evidence read better than
         // either alone: "Limescale — white deposits around the tap base".
         note: boundedText(itemNote(detection), 60),
-        x: Number(detection?.x),
-        y: Number(detection?.y),
-        width: Number(detection?.width),
-        height: Number(detection?.height)
+        x: detection?.x,
+        y: detection?.y,
+        width: detection?.width,
+        height: detection?.height
       };
     })
+    // The schema requires numeric coordinates. Do not turn null, strings or
+    // booleans into invented positions or dimensions before validating them.
     // A box that does not fit the frame is dropped rather than clamped: a
     // clamped box would be drawn confidently in the wrong place.
     .filter((detection) => detection.label
