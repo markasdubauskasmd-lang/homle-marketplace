@@ -324,3 +324,19 @@ for (const collection of ["detections", "items"]) {
 }
 
 assert(readingSchemaVersion === 3, "Task references must be recorded under schema version 3.");
+
+{
+  // A syntactically valid object is not completion evidence when the provider
+  // explicitly says generation stopped at its limit or paused.
+  for (const stop of ["max_tokens","pause_turn","tool_use","stop_sequence",null]) {
+    for (const selected of [false,true]) {
+      const reply = {...jsonReply({condition:"light",detections:[],items:[],tasks:[],taskLinks:[]}),stop_reason:stop};
+      const capture = {};
+      const vision = createAnthropicRoomVision({apiKey:"test-key",client:stub(reply,capture)});
+      const call = () => selected
+        ? vision.readSelectedItems({image:pixel,items:[{id:"a",crop:pixel}]})
+        : vision.readRoom({image:pixel,roomName:"Kitchen"});
+      assert(await rejects(call,"did not finish"), "Incomplete "+stop+" response was accepted on "+(selected?"selected":"whole-room")+" path.");
+    }
+  }
+}
