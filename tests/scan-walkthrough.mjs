@@ -408,7 +408,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
 {
   const vision = {text:"Wipe the hob", origin:"vision", inventoryKeys:["hob"]};
   const customer = {...vision, origin:"customer", inventoryKeys:[]};
-  const heavy = {key:"hob", condition:"heavy", conditionConfidence:.9};
+  const heavy = {key:"hob", label:"Hob", condition:"heavy", conditionConfidence:.9};
   const clean = {...heavy, condition:"clean", conditionConfirmed:true};
   const resolve = (records, items, options) => reconcileScanTaskRecords(records, items, options);
   assert.equal(resolve([vision], [clean])[0].decision, "remove");
