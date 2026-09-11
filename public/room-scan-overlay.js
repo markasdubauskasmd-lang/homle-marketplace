@@ -2104,7 +2104,7 @@ export function openRoomScan() {
         room = {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
-            id: box.id, label: box.label || "Marked item", note: box.note || "",
+            id: box.id, inventoryKey: box.inventoryKey || inventoryKey(box.label), label: box.label || "Marked item", note: box.note || "",
             // Kept even though a fresh reading is coming: if that background read
             // fails, "needs-retry" keeps THESE detections, and losing their grades
             // to a transient network error would un-grade the room silently.
@@ -2127,7 +2127,7 @@ export function openRoomScan() {
         room = {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
-            id: box.id, label: box.label, note: box.note || "",
+            id: box.id, inventoryKey: box.inventoryKey || inventoryKey(box.label), label: box.label, note: box.note || "",
             // An unchanged revisit deliberately buys no new reading, which only
             // works if it also keeps the old one. Dropping condition here meant
             // open-then-save was enough to erase every grade in the room.
@@ -3008,7 +3008,10 @@ export function openRoomScan() {
         // the boxes it asserts still have to be checked against the frame.
         detections: selected.length ? mergeItemReadings(items, result) : usableDetections(result?.detections),
         tasks: Array.isArray(result?.tasks) ? result.tasks : [],
-        taskRecords: readingTaskRecords(result, {selected: selected.length > 0}),
+        taskRecords: mergeScanTaskRecords(
+          readingTaskRecords(result, {selected: selected.length > 0, selectedItems:items}),
+          readingTaskRecords({tasks:localRoomTasks(roomName, transcript)}, {customer:true})
+        ),
         condition: result?.condition || "",
         readingStatus: "ready"
       };
@@ -3814,7 +3817,12 @@ export function openRoomScan() {
       // The notes are being handed to the booking journey, so the recovery copy has
       // done its job and should not survive to be offered again.
       forgetRoomNotes();
-      const summary = scanSummary(state.rooms);
+      const checklistRooms = state.rooms.map(room => ({
+        ...room,
+        removedInventoryKeys: [...(state.dismissed.get(transcriptKey(room.name)) || [])],
+        changedInventoryKeys: inventoryFor(room.name).filter(item => item.confirmed).map(item => item.key)
+      }));
+      const summary = scanSummary(checklistRooms);
       scanEvents.record("scan.session.duration_ms", { durationMs: elapsedSince(state.startedAt) ?? 0 });
       // Flushed here rather than left to the timer: the overlay is about to be
       // torn down and an unsent batch would simply vanish.
@@ -3834,11 +3842,13 @@ export function openRoomScan() {
           note: String(room.transcript || "").trim(),
           dataUrl: room.image
         })),
-        rooms: state.rooms.map((room) => ({
+        rooms: checklistRooms.map((room) => ({
           name: room.name,
           condition: room.condition,
           fixtures: (room.detections || []).map(inventoryDisplayLabel),
           taskRecords: scanTaskRecordsFor(room),
+          removedInventoryKeys: room.removedInventoryKeys,
+          changedInventoryKeys: room.changedInventoryKeys,
           note: String(room.transcript || "").trim(),
           // The structured reading, not just its display label.
           //
