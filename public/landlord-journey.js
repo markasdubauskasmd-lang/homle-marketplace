@@ -271,9 +271,20 @@ async function recoverCsrf() {
 function saveDraft() {
   if (!state.draftOwner) return;
   try {
+    const draft = {...state.draft};
+    if (state.scanRooms?.length) {
+      const reviewed = currentReviewedNotes();
+      draft.transcript = reviewed.transcript;
+      draft.rooms = (Array.isArray(draft.rooms) ? draft.rooms : []).map(room => ({
+        ...room, note: reviewed.notes[String(room.name || room.roomName || "").trim().toLowerCase()] ?? room.note
+      }));
+    }
     const savedAt = Date.now();
-    sessionStorage.setItem(draftKey, JSON.stringify({ ownerId: state.draftOwner, step: state.step, draft: state.draft, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs }));
-  } catch {}
+    sessionStorage.setItem(draftKey, JSON.stringify({ ownerId: state.draftOwner, step: state.step, draft, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs }));
+  } catch {
+    // Invalid current instructions must not leave an older valid-looking draft.
+    discardDraft();
+  }
 }
 
 function discardDraft() {
