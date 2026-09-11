@@ -2118,5 +2118,20 @@ export function reconcileScanTaskRecords(records, items, {removedKeys = [], chan
 export function scanTaskReview(room) {
   return reconcileScanTaskRecords(scanTaskRecordsFor(room),
     Array.isArray(room?.objects) ? room.objects : room?.detections,
-    {removedKeys:room?.removedInventoryKeys, changedKeys:room?.changedInventoryKeys});
+    {removedKeys:room?.removedInventoryKeys, changedKeys:room?.changedInventoryKeys})
+    .map(record => room?.taskInstructionsChanged === true && record.origin !== "customer" && record.decision === "keep"
+      ? Object.freeze({...record, reviewRequired:true}) : record);
+}
+
+// Replace the note-derived slice as a whole before rebuilding the flat list.
+// Starting from the old records prevents deleted note text becoming "legacy".
+export function withCurrentRoomInstructions(room, tasks) {
+  const previous = scanTaskRecordsFor(room);
+  const customer = readingTaskRecords({tasks}, {customer:true});
+  const oldText = previous.filter(record => record.origin === "customer").map(record => record.text).sort();
+  const newText = customer.map(record => record.text).sort();
+  const taskRecords = mergeScanTaskRecords(previous.filter(record => record.origin !== "customer"), customer);
+  return {...room, taskRecords,
+    tasks:[...new Set(taskRecords.map(record => record.text))],
+    taskInstructionsChanged:room?.taskInstructionsChanged === true || JSON.stringify(oldText) !== JSON.stringify(newText)};
 }
