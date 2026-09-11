@@ -611,6 +611,7 @@ export function mergeItemReadings(selected, response) {
       if (!label) return null;
       return Object.freeze({
         id: String(item?.id || ""),
+        inventoryKey: String(item?.inventoryKey || inventoryKey(label)),
         x: item.x, y: item.y, width: item.width, height: item.height,
         label,
         // 60, matching what the reader now sends. At 28 the evidence behind a
@@ -952,7 +953,8 @@ export function scanChecklistLines(rooms) {
   const seen = new Set();
   for (const room of Array.isArray(rooms) ? rooms : []) {
     const roomName = String(room?.name || "").trim();
-    for (const task of Array.isArray(room?.tasks) ? room.tasks : []) {
+    for (const record of scanTaskReview(room).filter(record => record.decision === "keep")) {
+      const task = record.text;
       const text = String(task || "").replace(/\s+/g, " ").trim().slice(0, 300);
       if (text.length < 3) continue;
       // Locally derived tasks already carry their room prefix; adding it again
@@ -985,7 +987,9 @@ export function scanTranscript(rooms, maximumCharacters = 5000) {
 }
 
 export function scanSummary(rooms) {
-  const scoped = (Array.isArray(rooms) ? rooms : []).filter((room) => Array.isArray(room?.tasks) && room.tasks.length);
+  const scoped = (Array.isArray(rooms) ? rooms : []).map(room => ({
+    ...room, tasks: scanTaskReview(room).filter(record => record.decision === "keep").map(record => record.text)
+  })).filter(room => room.tasks.length);
   const fixtures = scoped.reduce((sum, room) => sum + (Array.isArray(room.detections)
     ? room.detections.reduce((roomTotal, detection) => roomTotal + itemQuantity(detection), 0)
     : 0), 0);
@@ -2042,13 +2046,15 @@ export function mergeScanTaskRecords(...groups) {
   return Object.freeze(records);
 }
 
-export function readingTaskRecords(reading, {selected = false, customer = false} = {}) {
+export function readingTaskRecords(reading, {selected = false, customer = false, selectedItems = []} = {}) {
   const objects = Array.isArray(selected ? reading?.items : reading?.detections)
     ? (selected ? reading.items : reading.detections) : [];
   const references = new Map();
   objects.forEach((item, index) => {
     const ref = selected ? String(item?.id || "") : String(index);
-    const key = String(item?.inventoryKey || inventoryKey(item?.label));
+    const source = selected && Array.isArray(selectedItems)
+      ? selectedItems.filter(candidate => String(candidate?.id || "") === ref) : [];
+    const key = source.length > 1 ? "" : String(source[0]?.inventoryKey || item?.inventoryKey || inventoryKey(item?.label));
     if (references.has(ref)) references.set(ref, "");
     else if (ref && key) references.set(ref, key);
   });
@@ -2105,4 +2111,12 @@ export function reconcileScanTaskRecords(records, items, {removedKeys = [], chan
       || keys.some(key => changed.has(key));
     return outcome("keep", reviewRequired);
   }));
+}
+
+// Read both the live scanner shape and the geometry-free booking handoff.
+// Dismissal markers are explicit; an absent item alone never cancels a task.
+export function scanTaskReview(room) {
+  return reconcileScanTaskRecords(scanTaskRecordsFor(room),
+    Array.isArray(room?.objects) ? room.objects : room?.detections,
+    {removedKeys:room?.removedInventoryKeys, changedKeys:room?.changedInventoryKeys});
 }
