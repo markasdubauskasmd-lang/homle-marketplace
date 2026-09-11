@@ -245,7 +245,7 @@ assert((source.match(/Empty only when unknown/g) || []).length === 2, "A 'clean'
 // The scale change is a version bump: a v1 "clean" and a v2 "clean" are
 // different claims, and stored scans must not be compared across them silently.
 const { readingSchemaVersion } = await import("../src/marketplace/room-vision.mjs");
-assert(readingSchemaVersion === 2, "The clean-verdict semantics changed without bumping readingSchemaVersion, so stored accuracy comparisons would silently mix scales.");
+assert(readingSchemaVersion >= 2, "The clean-verdict semantics changed without bumping readingSchemaVersion, so stored accuracy comparisons would silently mix scales.");
 
 // The whole-frame reader must survive: the phone-camera fallback has no live
 // viewfinder, so it has no boxes to send and still needs the room read for it.
@@ -322,3 +322,5 @@ for (const collection of ["detections", "items"]) {
   assert(selected.tasks.length===2 && selected.taskLinks.length===1 && selected.taskLinks[0].itemRefs[0]==="d1",
     "Selected-item task links accepted an invented id or lost unlinked text");
 }
+
+assert(readingSchemaVersion === 3, "Task references must be recorded under schema version 3.");
