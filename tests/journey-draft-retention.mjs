@@ -171,3 +171,36 @@ console.log("Journey draft retention tests passed: the 30-minute promise is stat
   assert.equal(legacy.values.has("homle_scan_result"),false);
 }
 console.log("Actual journey owner recovery passed: pre-auth isolation, same owner, changed owner, legacy/expired/corrupt data, session failure, pending mutation and scan handoff.");
+
+{
+  const {reviewedScanNotes} = await import("../public/scan-premium-selection.js");
+  const room = {name:"Kitchen",note:"Clean the oven"};
+  const state = {draftOwner:"synthetic-owner",step:"results",scanRooms:[room],
+    scanNoteEdits:{kitchen:"Leave the oven alone"},scanGeneralNote:"",
+    scanPhotos:[{dataUrl:"private-image-must-stay-in-memory"}],
+    draft:{transcript:"Kitchen: Clean the oven",rooms:[room],tasks:["Kitchen: Clean the sink"],scanChecklistEdited:true}};
+  const values = new Map();
+  const storage = {setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};
+  const start = journey.indexOf("function saveDraft()");
+  const end = journey.indexOf("function restoreDraft()",start);
+  const run = new Function("state","sessionStorage","draftKey","landlordRequestDraftLifetimeMs","currentReviewedNotes",
+    journey.slice(start,end)+";return saveDraft;");
+  const save = run(state,storage,"draft",landlordRequestDraftLifetimeMs,
+    ()=>reviewedScanNotes(state.scanRooms,state.scanNoteEdits,state.scanGeneralNote));
+  save();
+  const saved = JSON.parse(values.get("draft"));
+  assert.equal(saved.draft.transcript,"Kitchen: Leave the oven alone");
+  assert.equal(saved.draft.rooms[0].note,"Leave the oven alone");
+  assert.equal(saved.draft.scanChecklistEdited,true);
+  assert.equal(saved.expiresAt-saved.savedAt,landlordRequestDraftLifetimeMs);
+  assert.ok(!values.get("draft").includes("private-image"));
+  assert.equal(state.draft.transcript,"Kitchen: Clean the oven","Saving mutated the original scan input.");
+  state.scanNoteEdits.kitchen="";
+  save();
+  assert.equal(JSON.parse(values.get("draft")).draft.transcript,"");
+  assert.equal(JSON.parse(values.get("draft")).draft.rooms[0].note,"");
+  state.scanNoteEdits.kitchen="x".repeat(1001);
+  save();
+  assert.equal(values.has("draft"),false,"Invalid current notes left stale instructions in recovery.");
+  assert.equal(state.scanNoteEdits.kitchen.length,1001,"Invalid draft save discarded editable in-memory instructions.");
+}
