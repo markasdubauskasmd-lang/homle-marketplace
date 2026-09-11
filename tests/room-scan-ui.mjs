@@ -874,3 +874,67 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
   const changed = edit(automatic, "heavy");
   assert(changed.condition === "heavy" && changed.conditionConfirmed === true, "An explicit replacement grade did not take effect.");
 }
+
+
+// A failed idle download must not strand the real scanner on listeners for an
+// event that already fired. Exercise the actual loader and warm-up lifecycle.
+{
+  const { default: vm } = await import("node:vm");
+  const start = overlay.indexOf("function loadDetectorScript(");
+  const end = overlay.indexOf("// Some mobile browsers resolve getUserMedia", start);
+  assert(start >= 0 && end > start, "Detector loader lifecycle was not found.");
+  const scripts = [];
+  const requests = [];
+  let modelLoads = 0;
+  const model = { detect() {} };
+  const context = {
+    Promise, Error, Boolean,
+    detectorModelUrl: "/model.json",
+    detectorScriptsFor: () => ["/core.js", "/detector.js"],
+    webGpuAvailable: () => true,
+    tf: { setBackend: async () => true, ready: async () => {}, getBackend: () => "webgpu" },
+    cocoSsd: { load: async () => { modelLoads += 1; return model; } },
+    document: {
+      querySelector: (selector) => scripts.find((script) => selector.includes(script.src)),
+      createElement: () => {
+        const listeners = new Map();
+        const script = {
+          dataset: {},
+          addEventListener(type, callback, options) {
+            const list = listeners.get(type) || [];
+            list.push({ callback, once: options?.once });
+            listeners.set(type, list);
+          },
+          fire(type) {
+            const list = [...(listeners.get(type) || [])];
+            listeners.set(type, list.filter((entry) => !entry.once));
+            for (const entry of list) entry.callback();
+          },
+          remove() { const index = scripts.indexOf(script); if (index >= 0) scripts.splice(index, 1); }
+        };
+        return script;
+      },
+      head: { appendChild(script) { scripts.push(script); requests.push(script); } }
+    }
+  };
+  vm.runInNewContext(overlay.slice(start, end).replaceAll("export function ", "function ")
+    + ";globalThis.warm = warmRoomScanDetector;globalThis.loadScript = loadDetectorScript;", context);
+  const first = context.warm();
+  const joinedWarmup = context.warm();
+  assert(first === joinedWarmup, "Concurrent warm-ups created separate detector loads.");
+  const joinedScript = context.loadScript("/detector.js");
+  const failures = Promise.allSettled([first, joinedWarmup, joinedScript]);
+  requests[0].fire("load");
+  const failed = requests[1];
+  failed.fire("error");
+  assert((await failures).every((result) => result.status === "rejected"), "A shared failed download left a caller pending.");
+  const retry = context.warm();
+  const joinedRetry = context.warm();
+  assert(retry === joinedRetry, "Concurrent retries created separate model loads.");
+  assert(requests.length === 3 && scripts.length === 2, "Retry redownloaded a ready script or reused the failed tag.");
+  assert(requests[2] !== failed && requests[2].src === "/detector.js", "The failed download was not replaced.");
+  requests[2].fire("load");
+  assert(await retry === model && await joinedRetry === model, "The retry did not produce the detector.");
+  assert(modelLoads === 1, "Successful warm-up loaded the model more than once.");
+  assert(await context.warm() === model && requests.length === 3, "A ready detector was downloaded again.");
+}
