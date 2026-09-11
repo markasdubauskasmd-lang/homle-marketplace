@@ -360,9 +360,7 @@ async function trySetBackend(runtime, name) {
   }
 }
 
-function loadDetectorOnce() {
-  if (detectorLoad) return detectorLoad;
-  detectorLoad = (async () => {
+async function loadMainThreadDetector() {
     // Dependent bundles attach to the core runtime when they execute. If core
     // fails to download, executing them anyway poisons an otherwise valid retry.
     // Establish core first; the remaining bundles still download together.
@@ -397,6 +395,41 @@ function loadDetectorOnce() {
     // Without `modelUrl` this fetches from storage.googleapis.com, which
     // connect-src blocks — the scan would show no boxes and report no error.
     return await detection.load({ base: "lite_mobilenet_v2", modelUrl: detectorModelUrl });
+}
+
+function detectorSnapshot(source) {
+  if (source instanceof ImageData) {
+    return new ImageData(source.data.slice(), source.width, source.height);
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = source.videoWidth || source.naturalWidth || source.width;
+  canvas.height = source.videoHeight || source.naturalHeight || source.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(source, 0, 0, canvas.width, canvas.height);
+  return context.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+function loadDetectorOnce() {
+  if (detectorLoad) return detectorLoad;
+  detectorLoad = (async () => {
+    if (webGpuAvailable() && typeof Worker === "function" && typeof ImageData === "function") {
+      let adapter;
+      try {
+        const { createWorkerDetectorAdapter } = await import("./room-scan-worker-adapter.js");
+        adapter = createWorkerDetectorAdapter({
+          createWorker: () => new Worker("/room-scan-worker.js"),
+          snapshot: detectorSnapshot,
+          loadFallback: loadMainThreadDetector
+        });
+        await adapter.ready;
+        if (!adapter.state().failed) {
+          detectorBackend = "webgpu";
+          return adapter;
+        }
+      } catch { /* Unsupported worker or policy: keep the existing page detector. */ }
+      adapter?.dispose();
+    }
+    return loadMainThreadDetector();
   })();
   return detectorLoad;
 }

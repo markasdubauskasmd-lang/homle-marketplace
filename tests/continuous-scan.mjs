@@ -671,7 +671,11 @@ assert.match(
   /const found = walkingReadingItems\(reading, roomName, dismissed\)/,
   "Walking reads collapse object-label and condition confidence before the room inventory can use them independently."
 );
-assert.equal((overlay.match(/getImageData\(/g) || []).length, 1, "Uneven exposure added another synchronous camera readback.");
+const qualitySamplerStart = overlay.indexOf("function sampleFrameQuality(source)");
+const qualitySamplerEnd = overlay.indexOf("function viewfinderRect()", qualitySamplerStart);
+assert(qualitySamplerStart >= 0 && qualitySamplerEnd > qualitySamplerStart, "Quality sampler was not found.");
+const qualitySampler = overlay.slice(qualitySamplerStart, qualitySamplerEnd);
+assert.equal((qualitySampler.match(/getImageData\(/g) || []).length, 1, "Uneven exposure added another synchronous quality readback.");
 assert.match(model, /const previousRow = new Float32Array\(columns\);[\s\S]{0,2000}Math\.abs\(luma - previousRow\[x\]\)/, "Frame sharpness still depends on edge direction because vertical neighbours are not measured.");
 
 /* ── Review-caught regressions, pinned ── */

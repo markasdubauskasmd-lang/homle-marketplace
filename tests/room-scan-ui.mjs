@@ -947,3 +947,4 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
   assert(modelLoads === 1, "Successful warm-up loaded the model more than once.");
   assert(await context.warm() === model && requests.length === 4, "A ready detector was downloaded again.");
 }
+
