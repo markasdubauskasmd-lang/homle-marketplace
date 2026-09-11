@@ -1721,7 +1721,7 @@ function renderTaskReview() {
   host.hidden = !lines.length;
   if (!lines.length) return;
   host.append(textNode("h3", "", "Check your checklist"),
-    textNode("p", "hint", "These scan suggestions may no longer match the room findings. Check the editable checklist below; your written instructions have been kept."));
+    textNode("p", "hint", "These scan suggestions may no longer match the room findings. Check the editable checklist above; your written instructions have been kept."));
   for (const line of lines) host.append(textNode("p", "scan-review-detail", line));
 }
 
