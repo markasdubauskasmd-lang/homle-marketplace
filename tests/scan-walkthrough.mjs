@@ -473,3 +473,12 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.equal(scanSummary([instructed]).roomCount,1);
   assert.deepEqual(scanChecklistLines([{name:"Kitchen",tasks:reading.tasks}]),["Kitchen: Degrease the hob"]);
 }
+
+{
+  const tasks = Array.from({length:8}, (_,i)=>"Clean surface "+i);
+  const records = tasks.map(text=>({text,origin:"vision",inventoryKeys:[]}));
+  const customer = tasks.map(text=>({text:"Kitchen: "+text,origin:"customer",inventoryKeys:[]}));
+  const room = {name:"Kitchen",tasks,taskRecords:records};
+  assert.deepEqual(scanSummary([{...room,taskRecords:mergeScanTaskRecords(records,customer)}]),
+    scanSummary([room]), "Repeated customer/vision wording must not inflate the displayed duration.");
+}
