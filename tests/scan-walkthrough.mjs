@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   conditionReviewAdvice, correctInventoryItem, walkingReadingItems, inventoryDisplayLabel,
   inventoryKey, keyframeDefaults, mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
-  resolveRoomCondition, shouldCaptureKeyframe, walkingReadIsBlocked, findRoom, upsertRoom
+  resolveRoomCondition, shouldCaptureKeyframe, walkingReadIsBlocked, findRoom, upsertRoom,
+  readingTaskRecords, mergeScanTaskRecords, scanTaskRecordsFor
 } from "../public/room-scan-model.js";
 
 // One complete room, walked end to end through the real pipeline.
@@ -273,7 +274,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.ok(callback);
   const receive = new Function("reading", "state", "keyframeBudget", "generation", "roomName", "readStartedAt",
     "transcriptKey", "walkingReadingItems", "rememberWalkEvidence", "setInventory", "mergeRoomInventory", "inventoryFor",
-    "findRoom", "upsertRoom", "mergeInventoryIntoSavedDetections", "mergeSavedTasks", "resolveRoomCondition", "renderHub", "capturedSignature", "keyframeDefaults", callback);
+    "findRoom", "upsertRoom", "mergeInventoryIntoSavedDetections", "mergeSavedTasks", "resolveRoomCondition", "renderHub", "capturedSignature", "keyframeDefaults", "mergeScanTaskRecords", "scanTaskRecordsFor", callback);
   for (const scenario of ["saved", "dismissed", "removed-room", "stale", "closed"]) {
     const state = {
       closed: scenario === "closed", diagnostics: {},
@@ -287,7 +288,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       (_name, items) => { inventory = items; }, mergeRoomInventory, () => inventory,
       (rooms, name) => rooms.find(room => room.name === name),
       (rooms, next) => rooms.map(room => room.name === next.name ? next : room),
-      mergeInventoryIntoSavedDetections, (first, second) => [...new Set([...first, ...second])], resolveRoomCondition, () => {}, Array(48).fill(.2), {maxPerRoom:4});
+      mergeInventoryIntoSavedDetections, (first, second) => [...new Set([...first, ...second])], resolveRoomCondition, () => {}, Array(48).fill(.2), {maxPerRoom:4}, mergeScanTaskRecords, scanTaskRecordsFor);
     if (scenario === "removed-room") {
       assert.deepEqual(state.rooms, [], "A late view recreated a removed saved room");
     } else {
@@ -311,12 +312,13 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       diagnostics:{keyframesRead:0},dismissed:new Map(),rooms:[]};
     const tasks = ["Kitchen: Wipe the table"];
     let requests = 0, remembered = [];
-    const read = new Function("state","roomReadingPayload","recoverCsrf","window","fetch","localRoomTasks","usableDetections",
+    const read = new Function("state","roomReadingPayload","recoverCsrf","window","fetch","localRoomTasks","usableDetections","readingTaskRecords",
       source.slice(readStart, readEnd) + ";return readRoom;")(
       state, () => ({withinLimit:true,body:{synthetic:true}}), async()=>"synthetic-csrf",
       {setTimeout,clearTimeout}, async()=>{requests++;return {status,ok:status===200,json:async()=>({detections:[],tasks,condition:""})};},
-      ()=>tasks, ()=>[]);
+      ()=>tasks, ()=>[], readingTaskRecords);
     const reading = await read("synthetic-frame","Kitchen",[],"Wipe the table","walking");
+    assert.equal(reading.taskRecords[0].origin,status===503?"customer":"vision","Reading lost task origin");
     const budget = {generation:0,capturedCount:1,completedCount:0,completedSignatures:[]};
     const receive = new Function("reading","state","keyframeBudget","generation","roomName","readStartedAt",
       "transcriptKey","walkingReadingItems","rememberWalkEvidence","findRoom","capturedSignature","keyframeDefaults",callback);
@@ -370,4 +372,35 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     setter("Bathroom",edited);
     assert.equal(state.rooms.length,2,"Editing an unsaved room created a saved room");
   }
+}
+
+
+// Task records keep explicit references and origins through walking accumulation.
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
+  const response = {detections:[{label:"Hob"},{label:"Sink"}],tasks:["Wipe the hob"],taskLinks:[{taskIndex:0,itemRefs:["0"]}]};
+  const vision = readingTaskRecords(response);
+  assert.deepEqual(vision[0].inventoryKeys,["hob"]);
+  const selected = readingTaskRecords({items:[{id:"d2",label:"Sink"}],tasks:["Clean the sink"],taskLinks:[{taskIndex:0,itemRefs:["d2"]}]},{selected:true});
+  assert.deepEqual(selected[0].inventoryKeys,["sink"]);
+  const invalid = readingTaskRecords({...response,taskLinks:[{taskIndex:0,itemRefs:["missing"]}]});
+  assert.deepEqual(invalid[0].inventoryKeys,[],"Unknown ref was guessed from task text");
+  const customer = readingTaskRecords({tasks:["Wipe the hob"]},{customer:true});
+  assert.equal(mergeScanTaskRecords(vision,customer).length,2,"Customer instruction was collapsed into automatic proposal");
+  assert.equal(mergeScanTaskRecords(vision,vision).length,1,"Repeated read duplicated identical evidence");
+  const state = {walkEvidence:new Map()};
+  const start = source.indexOf("function rememberWalkEvidence(roomName, reading)");
+  const end = source.indexOf("const conditionRank =",start);
+  assert.ok(start >= 0 && end > start);
+  const remember = new Function("state","transcriptKey","worseCondition","mergeScanTaskRecords","scanTaskRecordsFor",
+    source.slice(start,end)+";return rememberWalkEvidence;")(state,name=>name.toLowerCase(),resolveRoomCondition,mergeScanTaskRecords,scanTaskRecordsFor);
+  remember("Kitchen",{tasks:response.tasks,taskRecords:vision,condition:"light"});
+  remember("Kitchen",{tasks:response.tasks,taskRecords:customer,condition:""});
+  const evidence = state.walkEvidence.get("kitchen");
+  assert.equal(evidence.tasks.length,1);
+  assert.deepEqual(evidence.taskRecords.map(record=>record.origin),["vision","customer"]);
+  assert.deepEqual(evidence.taskRecords[0].inventoryKeys,["hob"]);
+  const saved = {tasks:["Old unlinked task",...evidence.tasks],taskRecords:evidence.taskRecords};
+  const records = scanTaskRecordsFor(saved);
+  assert.equal(records.filter(record=>record.origin==="legacy").length,1,"Legacy tasks were discarded or new linked records lost their origin");
 }
