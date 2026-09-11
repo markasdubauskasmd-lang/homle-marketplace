@@ -640,6 +640,7 @@ export function openRoomScan() {
       // never be cut from pixels the camera has since moved on from.
       frozen: false, frozenFrame: "", candidates: [], selectedIds: new Set(),
       manualCount: 0,
+      nextManualIdentity: 1,
       // On-device detection. Entirely local: the model is same-origin and no
       // frame it looks at leaves the phone.
       detector: null, detectorState: "idle", detecting: false,
@@ -1210,7 +1211,7 @@ export function openRoomScan() {
         // chosen. Their ids are namespaced so a newly added manual box cannot
         // collide with one of them.
         state.candidates = usableLiveBoxes((room.detections || []).map((detection, index) => ({
-          id: `s${index}`, x: detection.x, y: detection.y, width: detection.width, height: detection.height,
+          id: `s${index}`, inventoryKey: detection.inventoryKey, x: detection.x, y: detection.y, width: detection.width, height: detection.height,
           label: detection.label, note: detection.note || "", kind: "detected", score: 1,
           // The reader's verdict about this object, so the review paints it where
           // the customer is actually looking — on the thing itself.
@@ -1947,7 +1948,7 @@ export function openRoomScan() {
       state.manualCount += 1;
       const id = `m${state.manualCount}`;
       const [box] = usableLiveBoxes([{
-        id,
+        id, inventoryKey: `manual:${state.nextManualIdentity++}`,
         x: Math.max(0, Math.min(100 - manualBoxSize, point.x - manualBoxSize / 2)),
         y: Math.max(0, Math.min(100 - manualBoxSize, point.y - manualBoxSize / 2)),
         width: manualBoxSize, height: manualBoxSize, label: "", kind: "manual", score: 1
