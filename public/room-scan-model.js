@@ -1575,10 +1575,6 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     // Newly discovered members need review; a partial reread of the same group does not.
     const confirmationGrew = current.conditionConfirmed === true && quantity > itemQuantity(current);
     const incomingCondition = String(evidence?.condition || "");
-    if (current.needsName === true && detection.needsName === false) {
-      base.label = detection.label;
-      base.needsName = false;
-    }
     const currentConditionConfidence = conditionEvidenceConfidence(current);
     const incomingConditionConfidence = conditionEvidenceConfidence(evidence);
     // Object-name confidence is not condition confidence. A broad view can be
@@ -1746,6 +1742,10 @@ export function mergeSavedDetections(existing, incoming) {
     }
     const betterGeometry = detection.width > 0 && !(current.width > 0);
     const base = betterGeometry ? { ...current, ...detection } : { ...detection, ...current };
+    if (current.needsName === true && detection.needsName === false) {
+      base.label = detection.label;
+      base.needsName = false;
+    }
     const currentConditionConfidence = conditionEvidenceConfidence(current);
     const incomingConditionConfidence = conditionEvidenceConfidence(detection);
     const incomingConditionWins = Boolean(detection.condition)
