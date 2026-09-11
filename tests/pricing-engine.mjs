@@ -387,6 +387,7 @@ assert(JSON.stringify(premiumBaseTasks(plan, selectedOnlyOven)) === JSON.stringi
   context.input = { value: "Do not clean inside the oven." };
   context.el.tasks.setCustomValidity = () => {};
   context.renderPremiumChoices = () => {};
+  context.reconcileReviewedChecklist = () => {};
   context.updateResultTotals = () => {};
   context.renderReview = () => {};
   const noteRender = section("function renderRoomNotes()", "function validatePremiumChecklist()");
