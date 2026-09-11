@@ -1211,7 +1211,7 @@ export function openRoomScan() {
         // chosen. Their ids are namespaced so a newly added manual box cannot
         // collide with one of them.
         state.candidates = usableLiveBoxes((room.detections || []).map((detection, index) => ({
-          id: `s${index}`, inventoryKey: detection.inventoryKey, x: detection.x, y: detection.y, width: detection.width, height: detection.height,
+          id: `s${index}`, inventoryKey: detection.inventoryKey, needsName: detection.needsName, x: detection.x, y: detection.y, width: detection.width, height: detection.height,
           label: detection.label, note: detection.note || "", kind: "detected", score: 1,
           // The reader's verdict about this object, so the review paints it where
           // the customer is actually looking — on the thing itself.
@@ -2107,7 +2107,7 @@ export function openRoomScan() {
         room = {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
-            id: box.id, inventoryKey: box.inventoryKey || inventoryKey(box.label), label: box.label || "Marked item", note: box.note || "",
+            id: box.id, inventoryKey: box.inventoryKey || inventoryKey(box.label), label: box.label || "Marked item", needsName: box.needsName === true || !box.label, note: box.note || "",
             // Kept even though a fresh reading is coming: if that background read
             // fails, "needs-retry" keeps THESE detections, and losing their grades
             // to a transient network error would un-grade the room silently.
