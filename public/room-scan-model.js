@@ -611,6 +611,7 @@ export function mergeItemReadings(selected, response) {
       if (!label) return null;
       return Object.freeze({
         id: String(item?.id || ""),
+        inventoryKey: String(item?.inventoryKey || inventoryKey(label)),
         x: item.x, y: item.y, width: item.width, height: item.height,
         label,
         // 60, matching what the reader now sends. At 28 the evidence behind a
@@ -952,7 +953,8 @@ export function scanChecklistLines(rooms) {
   const seen = new Set();
   for (const room of Array.isArray(rooms) ? rooms : []) {
     const roomName = String(room?.name || "").trim();
-    for (const task of Array.isArray(room?.tasks) ? room.tasks : []) {
+    for (const record of scanTaskReview(room).filter(record => record.decision === "keep")) {
+      const task = record.text;
       const text = String(task || "").replace(/\s+/g, " ").trim().slice(0, 300);
       if (text.length < 3) continue;
       // Locally derived tasks already carry their room prefix; adding it again
@@ -985,7 +987,9 @@ export function scanTranscript(rooms, maximumCharacters = 5000) {
 }
 
 export function scanSummary(rooms) {
-  const scoped = (Array.isArray(rooms) ? rooms : []).filter((room) => Array.isArray(room?.tasks) && room.tasks.length);
+  const scoped = (Array.isArray(rooms) ? rooms : []).map(room => ({
+    ...room, tasks: scanChecklistLines([room])
+  })).filter(room => room.tasks.length);
   const fixtures = scoped.reduce((sum, room) => sum + (Array.isArray(room.detections)
     ? room.detections.reduce((roomTotal, detection) => roomTotal + itemQuantity(detection), 0)
     : 0), 0);
@@ -2021,3 +2025,123 @@ export function signatureChangeSpread(previous, current, { cellChangeThreshold =
 
 // The change is only CAMERA movement when it is both large and widespread.
 export const movementSpreadThreshold = 0.5;
+
+
+// Keep task identity separate from its display text. No fuzzy label matching.
+export function mergeScanTaskRecords(...groups) {
+  const records = [], seen = new Set();
+  for (const group of groups) for (const record of Array.isArray(group) ? group : []) {
+    const text = String(record?.text || "").replace(/\s+/g, " ").trim().slice(0, 300);
+    if (text.length < 3) continue;
+    const origin = ["customer", "vision", "legacy"].includes(record?.origin) ? record.origin : "legacy";
+    const refs = Array.isArray(record?.inventoryKeys) && record.inventoryKeys.length <= 24
+      && record.inventoryKeys.every(key => typeof key === "string" && key.length > 0 && key.length <= 120)
+      ? [...new Set(record.inventoryKeys)].sort() : [];
+    const key = JSON.stringify([text, origin, refs]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    records.push(Object.freeze({text, origin, inventoryKeys:Object.freeze(refs)}));
+    if (records.length === 256) return Object.freeze(records);
+  }
+  return Object.freeze(records);
+}
+
+export function readingTaskRecords(reading, {selected = false, customer = false, selectedItems = []} = {}) {
+  const objects = Array.isArray(selected ? reading?.items : reading?.detections)
+    ? (selected ? reading.items : reading.detections) : [];
+  const references = new Map();
+  objects.forEach((item, index) => {
+    const ref = selected ? String(item?.id || "") : String(index);
+    const source = selected && Array.isArray(selectedItems)
+      ? selectedItems.filter(candidate => String(candidate?.id || "") === ref) : [];
+    const key = source.length > 1 ? "" : String(source[0]?.inventoryKey || item?.inventoryKey || inventoryKey(item?.label));
+    if (references.has(ref)) references.set(ref, "");
+    else if (ref && key) references.set(ref, key);
+  });
+  const links = Array.isArray(reading?.taskLinks) && reading.taskLinks.length <= 64 ? reading.taskLinks : [];
+  const tasks = Array.isArray(reading?.tasks) ? reading.tasks : [];
+  return mergeScanTaskRecords(tasks.map((text, taskIndex) => {
+    const matches = links.filter(link => link?.taskIndex === taskIndex);
+    const refs = matches.length === 1 ? matches[0].itemRefs : null;
+    const valid = Array.isArray(refs) && refs.length > 0 && refs.length <= 24
+      && refs.every(ref => typeof ref === "string" && references.get(ref));
+    return {text, origin:customer ? "customer" : "vision",
+      inventoryKeys:!customer && valid ? refs.map(ref => references.get(ref)) : []};
+  }));
+}
+
+// Old scans keep their unlinked tasks; missing metadata is not evidence to delete.
+export function scanTaskRecordsFor(room) {
+  const records = mergeScanTaskRecords(room?.taskRecords);
+  const represented = new Set(records.map(record => record.text));
+  const legacy = (Array.isArray(room?.tasks) ? room.tasks : [])
+    .map(text => String(text || "").replace(/\s+/g, " ").trim().slice(0, 300))
+    .filter(text => !represented.has(text))
+    .map(text => ({text, origin:"legacy", inventoryKeys:[]}));
+  return mergeScanTaskRecords(records, legacy);
+}
+
+// Reconcile only explicit item links. Missing detections and matching words are
+// not proof that a task has been removed. Customer instructions always survive.
+export function reconcileScanTaskRecords(records, items, {removedKeys = [], changedKeys = []} = {}) {
+  const byKey = new Map();
+  for (const item of Array.isArray(items) ? items : []) {
+    const key = item?.inventoryKey || item?.key;
+    if (typeof key !== "string" || !key) continue;
+    // Ambiguous identity cannot justify deleting work.
+    byKey.set(key, byKey.has(key) ? null : item);
+  }
+  const removed = new Set(Array.isArray(removedKeys) ? removedKeys : []);
+  const changed = new Set(Array.isArray(changedKeys) ? changedKeys : []);
+  return Object.freeze(mergeScanTaskRecords(records).map(record => {
+    const outcome = (decision, reviewRequired) => Object.freeze({...record, decision, reviewRequired});
+    if (record.origin === "customer") return outcome("keep", false);
+    const keys = record.inventoryKeys;
+    if (record.origin !== "vision" || !keys.length) {
+      return outcome("keep", changed.size > 0 || removed.size > 0);
+    }
+    const cleared = key => (!byKey.has(key) && removed.has(key))
+      || (byKey.get(key)?.condition === "clean" && byKey.get(key)?.conditionConfirmed === true);
+    if (keys.every(cleared)) return outcome("remove", false);
+    // Partial grouped instructions cannot safely be rewritten automatically.
+    const reviewRequired = keys.some(cleared)
+      || keys.some(key => !byKey.get(key) && !removed.has(key))
+      || keys.some(key => byKey.has(key) && !byKey.get(key))
+      || keys.some(key => byKey.get(key) && conditionNeedsReview(byKey.get(key)))
+      || keys.some(key => changed.has(key));
+    return outcome("keep", reviewRequired);
+  }));
+}
+
+// Read both the live scanner shape and the geometry-free booking handoff.
+// Dismissal markers are explicit; an absent item alone never cancels a task.
+export function scanTaskReview(room) {
+  return reconcileScanTaskRecords(scanTaskRecordsFor(room),
+    Array.isArray(room?.objects) ? room.objects : room?.detections,
+    {removedKeys:room?.removedInventoryKeys, changedKeys:room?.changedInventoryKeys})
+    .map(record => room?.taskInstructionsChanged === true && record.origin !== "customer" && record.decision === "keep"
+      ? Object.freeze({...record, reviewRequired:true}) : record);
+}
+
+// Replace the note-derived slice as a whole before rebuilding the flat list.
+// Starting from the old records prevents deleted note text becoming "legacy".
+export function withCurrentRoomInstructions(room, tasks) {
+  const previous = scanTaskRecordsFor(room);
+  const customer = readingTaskRecords({tasks}, {customer:true});
+  const oldText = previous.filter(record => record.origin === "customer").map(record => record.text).sort();
+  const newText = customer.map(record => record.text).sort();
+  const taskRecords = mergeScanTaskRecords(previous.filter(record => record.origin !== "customer"), customer);
+  return {...room, taskRecords,
+    tasks:[...new Set(taskRecords.map(record => record.text))],
+    taskInstructionsChanged:room?.taskInstructionsChanged === true || JSON.stringify(oldText) !== JSON.stringify(newText)};
+}
+
+export function roomInstructionTasks(roomName, transcript, parseChecklist) {
+  const note = String(transcript || "").trim();
+  if (!note) return [];
+  return parseChecklist(`In the ${roomName}, ${note}`).map(line => {
+    const divider = line.indexOf(":");
+    const task = divider >= 0 ? line.slice(divider + 1).trim() : line.trim();
+    return task ? `${roomName}: ${task}` : "";
+  }).filter(Boolean);
+}

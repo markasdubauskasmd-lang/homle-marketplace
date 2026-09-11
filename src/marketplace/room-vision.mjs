@@ -25,7 +25,25 @@ const maximumTasks = 8;
 // v2: "clean" changed meaning — it now requires named visual evidence and
 // conditionConfidence ≥ 0.7, with anything less certain reported as 'unknown'.
 // A v1 "clean" and a v2 "clean" are different claims.
-export const readingSchemaVersion = 2;
+// v3 adds explicit task-to-item references; condition meanings stay unchanged.
+export const readingSchemaVersion = 3;
+
+// Task references bind proposed work to this response's objects, not label text.
+function taskLinksSchema(referenceDescription) {
+  return {
+    type: "array",
+    description: "At most 8 entries, one per object-specific task. List every related object once. Omit links for general or unsupported tasks; never guess a reference.",
+    items: {
+      type: "object",
+      properties: {
+        taskIndex: { type: "integer", description: "Zero-based index in tasks." },
+        itemRefs: { type: "array", items: { type: "string" }, description: referenceDescription }
+      },
+      required: ["taskIndex", "itemRefs"],
+      additionalProperties: false
+    }
+  };
+}
 
 const readingSchema = Object.freeze({
   type: "object",
@@ -64,9 +82,10 @@ const readingSchema = Object.freeze({
     tasks: {
       type: "array",
       items: { type: "string", description: "One concise imperative cleaning instruction for this room." }
-    }
+    },
+    taskLinks: taskLinksSchema("Zero-based detection indexes written as strings, e.g. [\"0\", \"2\"]. Refer only to detections in this response.")
   },
-  required: ["condition", "detections", "tasks"],
+  required: ["condition", "detections", "tasks", "taskLinks"],
   additionalProperties: false
 });
 
@@ -202,15 +221,42 @@ function requireReadingShape(payload, collection) {
   }
 }
 
+// Missing or invalid links remain unlinked; they never delete valid task text.
+function taskEvidence(payload, references) {
+  const tasks = [], taskIndexes = new Map();
+  for (const [sourceIndex, task] of payload.tasks.entries()) {
+    const text = boundedText(task, 300);
+    if (text.length < 3) continue;
+    taskIndexes.set(sourceIndex, tasks.length);
+    tasks.push(text);
+    if (tasks.length === maximumTasks) break;
+  }
+  const candidates = Array.isArray(payload.taskLinks) && payload.taskLinks.length <= 64 ? payload.taskLinks : [];
+  const counts = new Map();
+  for (const link of candidates) if (Number.isInteger(link?.taskIndex)) counts.set(link.taskIndex, (counts.get(link.taskIndex) || 0) + 1);
+  const taskLinks = [];
+  for (const link of candidates) {
+    if (!Number.isInteger(link?.taskIndex) || !taskIndexes.has(link.taskIndex) || counts.get(link.taskIndex) !== 1
+      || !Array.isArray(link.itemRefs) || !link.itemRefs.length || link.itemRefs.length > 24
+      || !link.itemRefs.every(ref => typeof ref === "string" && references.has(ref))) continue;
+    taskLinks.push(Object.freeze({
+      taskIndex: taskIndexes.get(link.taskIndex),
+      itemRefs: Object.freeze([...new Set(link.itemRefs.map(ref => references.get(ref)))])
+    }));
+  }
+  return { tasks: Object.freeze(tasks), taskLinks: Object.freeze(taskLinks) };
+}
+
 function reading(payload) {
   requireReadingShape(payload, "detections");
   // 'unknown' is carried through as no assessment rather than as a grade, so a
   // photograph that could not be judged never reads as a confident "Light".
   const condition = ["light", "medium", "heavy"].includes(payload?.condition) ? payload.condition : "";
   const detections = (Array.isArray(payload?.detections) ? payload.detections : [])
-    .map((detection) => {
+    .map((detection, sourceIndex) => {
       const confidence = confidencePair(detection);
       return {
+        sourceIndex,
         label: boundedText(detection?.label, 28),
         condition: itemCondition(detection?.condition),
         soiling: soilingTypes(detection?.soiling),
@@ -236,11 +282,10 @@ function reading(payload) {
       && detection.x >= 0 && detection.y >= 0
       && detection.x + detection.width <= 100 && detection.y + detection.height <= 100)
     .slice(0, maximumDetections);
-  const tasks = (Array.isArray(payload?.tasks) ? payload.tasks : [])
-    .map((task) => boundedText(task, 300))
-    .filter((task) => task.length >= 3)
-    .slice(0, maximumTasks);
-  return Object.freeze({ condition, detections: Object.freeze(detections), tasks: Object.freeze(tasks) });
+  const references = new Map(detections.map((detection, index) => [String(detection.sourceIndex), String(index)]));
+  const evidence = taskEvidence(payload, references);
+  const normalized = detections.map(({sourceIndex, ...detection}) => detection);
+  return Object.freeze({ condition, detections: Object.freeze(normalized), ...evidence });
 }
 
 
@@ -280,9 +325,10 @@ const selectionSchema = Object.freeze({
     tasks: {
       type: "array",
       items: { type: "string", description: "One concise imperative cleaning instruction for this room." }
-    }
+    },
+    taskLinks: taskLinksSchema("Exact ids of the returned items this task concerns. Never invent an id.")
   },
-  required: ["condition", "items", "tasks"],
+  required: ["condition", "items", "tasks", "taskLinks"],
   additionalProperties: false
 });
 
@@ -334,11 +380,8 @@ function selectionReading(payload, allowedIds) {
     // Landlord never selected.
     .filter((item) => item.id && item.label && allowedIds.has(item.id) && !seen.has(item.id) && seen.add(item.id))
     .slice(0, maximumSelectedItems);
-  const tasks = (Array.isArray(payload?.tasks) ? payload.tasks : [])
-    .map((task) => boundedText(task, 300))
-    .filter((task) => task.length >= 3)
-    .slice(0, maximumTasks);
-  return Object.freeze({ condition, items: Object.freeze(items), tasks: Object.freeze(tasks) });
+  const evidence = taskEvidence(payload, new Map(items.map(item => [item.id, item.id])));
+  return Object.freeze({ condition, items: Object.freeze(items), ...evidence });
 }
 
 /* ── Room-type inspection focus ─────────────────────────────────────────── */
@@ -489,6 +532,7 @@ export function createAnthropicRoomVision(options = {}) {
         messages: [{ role: "user", content: [imagePayload(image), { type: "text", text: context }] }]
       });
       if (response.stop_reason === "refusal") throw new Error("The room photograph could not be read.");
+      if (response.stop_reason !== "end_turn") throw new Error("The room reading did not finish. Please try again.");
       const text = response.content.filter((block) => block.type === "text").map((block) => block.text).join("");
       let payload;
       try { payload = JSON.parse(text); } catch { throw new Error("The room reading was not valid JSON."); }
@@ -545,6 +589,7 @@ export function createAnthropicRoomVision(options = {}) {
         messages: [{ role: "user", content }]
       });
       if (response.stop_reason === "refusal") throw new Error("The room photograph could not be read.");
+      if (response.stop_reason !== "end_turn") throw new Error("The room reading did not finish. Please try again.");
       const text = response.content.filter((block) => block.type === "text").map((block) => block.text).join("");
       let payload;
       try { payload = JSON.parse(text); } catch { throw new Error("The room reading was not valid JSON."); }

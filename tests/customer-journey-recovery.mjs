@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
 import { pricingRequestFromManualTasks, requestedWindow, requestTasksFromLines } from "../public/landlord-dashboard-model.js";
-import { premiumBaseTasks } from "../public/scan-premium-selection.js";
+import { premiumBaseTasks, premiumScope } from "../public/scan-premium-selection.js";
 
 // Exercise the actual customer handlers with deferred directory responses.
 // No browser, account, network requests or booking mutations are involved.
@@ -23,7 +23,7 @@ function harness() {
   const el = Object.fromEntries(["propertyNext", "supply", "supplyHead", "supplyDetail", "cleaners", "cleanerState", "cleanerLede", "resultsEyebrow", "resultsTitle", "resultsIntro", "resultsSource", "tasks"].map(key => [key, element()]));
   const context = vm.createContext({
     state, el, URLSearchParams, premiumBaseTasks,
-    renderPremiumChoices() {}, renderRoomNotes() {},
+    renderPremiumChoices() {}, renderRoomNotes() {}, renderTaskReview() {},
     DIRECTORY_REQUEST_TIMEOUT_MS: 8000,
     requestJson(url) { return new Promise((resolve, reject) => requests.push({ url, resolve, reject })); },
     supplyMessage(count, outward) { return { headline: count + " near " + outward, detail: "Checked", available: count > 0 }; },
@@ -242,9 +242,9 @@ console.log("Customer invitation contract passed: empty capacity, declined exact
     focus() { focused = true; }, setCustomValidity() {},
     addEventListener(name, handler) { assert.equal(name, "input"); inputHandler = handler; }
   } };
-  const state = { step: "results", draft: { tasks: [] } };
+  const state = { step: "results", scanPremiumPlan: {options:[],groups:[],baseTasks:[]}, draft: { tasks: [] } };
   const context = vm.createContext({
-    el, state, validatePremiumChecklist: () => true,
+    el, state, premiumScope, eligiblePremiumSelections: () => [], renderTaskReview() {}, saveDraft() {}, validatePremiumChecklist: () => true,
     readCurrentStep: () => { state.draft.tasks = el.tasks.value.split("\n").map(s => s.trim()).filter(Boolean); },
     canLeaveStep: () => state.draft.tasks.length > 0,
     blockedReason: () => "Add at least one room task before continuing.",

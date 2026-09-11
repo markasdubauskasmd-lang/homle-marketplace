@@ -32,6 +32,8 @@ import {
 } from "./landlord-journey-model.js?v=journey9";
 import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInTasks, selectedScanRooms, premiumChoiceId, reviewedScanNotes, scanNoteLines, premiumRestrictions } from "./scan-premium-selection.js?v=20260906-2";
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
+import { checklistFromTranscript } from "./checklist.js";
+import { scanChecklistLines, scanTaskReview, withCurrentRoomInstructions, roomInstructionTasks } from "./room-scan-model.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
 import { pricingRequestFromManualTasks, requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
@@ -269,9 +271,20 @@ async function recoverCsrf() {
 function saveDraft() {
   if (!state.draftOwner) return;
   try {
+    const draft = {...state.draft};
+    if (state.scanRooms?.length) {
+      const reviewed = currentReviewedNotes();
+      draft.transcript = reviewed.transcript;
+      draft.rooms = (Array.isArray(draft.rooms) ? draft.rooms : []).map(room => ({
+        ...room, note: reviewed.notes[String(room.name || room.roomName || "").trim().toLowerCase()] ?? room.note
+      }));
+    }
     const savedAt = Date.now();
-    sessionStorage.setItem(draftKey, JSON.stringify({ ownerId: state.draftOwner, step: state.step, draft: state.draft, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs }));
-  } catch {}
+    sessionStorage.setItem(draftKey, JSON.stringify({ ownerId: state.draftOwner, step: state.step, draft, savedAt, expiresAt: savedAt + landlordRequestDraftLifetimeMs }));
+  } catch {
+    // Invalid current instructions must not leave an older valid-looking draft.
+    discardDraft();
+  }
 }
 
 function discardDraft() {
@@ -574,6 +587,7 @@ el.scanLink.addEventListener("click", async () => {
     // Closed without finishing: the journey is exactly where it was left.
     if (!result) return;
     state.draft.tasks = Array.isArray(result.tasks) ? result.tasks : [];
+    state.draft.scanChecklistEdited = false;
     state.draft.transcript = typeof result.transcript === "string" ? result.transcript : "";
     state.draft.rooms = Array.isArray(result.rooms) ? result.rooms : [];
     state.draft.guideTime = typeof result.guideTime === "string" ? result.guideTime : "";
@@ -626,6 +640,7 @@ function renderResults() {
   el.tasks.value = premiumBaseTasks(state.scanPremiumPlan, state.draft.tasks).join("\n");
   renderPremiumChoices();
   renderRoomNotes();
+  renderTaskReview();
   updateResultTotals();
 }
 
@@ -648,10 +663,16 @@ function guideRange(taskCount) {
 }
 
 el.tasks.addEventListener("input", () => {
+  // Once edited, this textarea is the customer’s instruction. Item corrections
+  // can flag conflicts but must not rewrite it behind their back.
+  state.draft.scanChecklistEdited = true;
   invalidateScanRequest();
   el.tasks.setCustomValidity("");
   if (editableTaskLines().length) setChecklistError("");
+  state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+  renderTaskReview();
   updateResultTotals();
+  saveDraft();
 });
 
 function editableTaskLines() {
@@ -713,7 +734,10 @@ function renderRoomNotes() {
       invalidateScanRequest();
       el.tasks.setCustomValidity("");
       renderPremiumChoices();
+      reconcileReviewedChecklist();
+      state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
       updateResultTotals();
+      saveDraft();
       renderReview();
     });
     host.append(label, input);
@@ -1681,6 +1705,57 @@ function correctedScanRooms() {
   return rooms;
 }
 
+// Task links are scoped to a room; the same inventory key in another room
+// must never be affected by this correction.
+function taskReviewRooms() {
+  return correctedScanRooms().map(room => {
+    const name = room.name || room.roomName;
+    const noteKey = String(name).trim().toLowerCase();
+    const note = state.scanNoteEdits?.[noteKey];
+    const current = typeof note === "string"
+      ? withCurrentRoomInstructions(room, roomInstructionTasks(name, note, checklistFromTranscript)) : room;
+    const edits = state.scanCorrections.filter(edit => edit.roomName === name);
+    return {...current,
+      removedInventoryKeys: [...new Set([...(room.removedInventoryKeys || []),
+        ...edits.filter(edit => edit.field === "removed").map(edit => edit.inventoryKey)])],
+      changedInventoryKeys: [...new Set([...(room.changedInventoryKeys || []),
+        ...edits.map(edit => edit.inventoryKey)])]
+    };
+  });
+}
+
+function renderTaskReview() {
+  let host = document.querySelector("[data-scan-task-review]");
+  if (!host) {
+    host = textNode("section", "scan-review-room");
+    host.dataset.scanTaskReview = "";
+    host.setAttribute("aria-label", "Checklist items to review");
+    host.setAttribute("aria-live", "polite");
+    el.tasks.after(host);
+  }
+  // Match display lines only to decide which notices are relevant. This never
+  // edits the checklist or infers ownership of customer wording.
+  const visibleLines = new Set(editableTaskLines().map(line => line.replace(/\s+/g, " ").toLowerCase()));
+  const lines = [...new Set(taskReviewRooms().flatMap(room =>
+    scanTaskReview(room).filter(record => record.reviewRequired
+      || (state.draft.scanChecklistEdited !== false && record.decision === "remove"))
+      .map(record => scanChecklistLines([{name:room.name || room.roomName,tasks:[record.text]}])[0]))
+      .filter(line => line && visibleLines.has(line.toLowerCase())))];
+  host.replaceChildren();
+  host.hidden = !lines.length;
+  if (!lines.length) return;
+  host.append(textNode("h3", "", "Check your checklist"),
+    textNode("p", "hint", "These scan suggestions may no longer match the room findings. Check the editable checklist above; your written instructions have been kept."));
+  for (const line of lines) host.append(textNode("p", "scan-review-detail", line));
+}
+
+function reconcileReviewedChecklist() {
+  if (state.draft.scanChecklistEdited === false) {
+    el.tasks.value = premiumBaseTasks(state.scanPremiumPlan, scanChecklistLines(taskReviewRooms())).join("\n");
+  }
+  renderTaskReview();
+}
+
 function correctScanObject(roomName, inventoryKey, field, value) {
   const { corrections } = applyCorrection(correctedScanRooms(), { roomName, inventoryKey, field, value });
   if (!corrections.length) return;
@@ -1688,8 +1763,10 @@ function correctScanObject(roomName, inventoryKey, field, value) {
   invalidateScanRequest();
   if (field === "removed") state.scanPremiumSelected = state.scanPremiumSelected.filter((id) => id !== premiumChoiceId(roomName, inventoryKey));
   renderPremiumChoices();
+  reconcileReviewedChecklist();
   state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
   updateResultTotals();
+  saveDraft();
   refreshScanReview();
 }
 

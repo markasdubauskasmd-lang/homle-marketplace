@@ -289,7 +289,7 @@ assert(overlay.includes('window.addEventListener("beforeunload", onBeforeUnload)
 // widening a number teaches nothing; what is guarded is that the photos handed on
 // are the current rooms' own images.
 const finishBody = overlay.slice(overlay.indexOf("function finishScan()"), overlay.indexOf("function close(result)"));
-assert(/photos: state\.rooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(finishBody), "A completed scan does not hand its current room photos directly to the authenticated booking journey.");
+assert(/photos: checklistRooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(finishBody), "A completed scan does not hand its current room photos directly to the authenticated booking journey.");
 // Finishing while a room is still being read would carry the provisional tasks
 // and grade into the booking, and close() aborts the read that was about to
 // replace them — so the customer would be quoted from a placeholder.
@@ -319,7 +319,7 @@ assert(overlay.includes("width: { ideal: 1280, max: 1920 }") && overlay.includes
 assert(overlay.includes("requestVideoFrameCallback") && overlay.includes("cancelVideoFrameCallback") && overlay.includes("requestAnimationFrame"), "Detection work is not synchronized to real video frames with a compatibility fallback.");
 assert(overlay.includes("window.SpeechRecognition || window.webkitSpeechRecognition"), "The scan does not use real speech recognition.");
 assert(!overlay.includes("const NOTE =") && !overlay.includes("DETECTIONS["), "The scan carries a scripted transcript or hardcoded detections instead of reading the room.");
-assert(overlay.includes("roomTranscripts: new Map()") && overlay.includes("transcript: spokenNote") && overlay.includes("transcript: scanTranscript(state.rooms)"), "Spoken notes are not retained separately for each room and labelled in the final handoff.");
+assert(overlay.includes("roomTranscripts: new Map()") && overlay.includes("transcript: spokenNote") && overlay.includes("transcript: scanTranscript(checklistRooms)"), "Spoken notes are not retained separately for each room and labelled in the final handoff.");
 // The signature gained a `purpose` (which model tier answers the read); what this
 // guards is unchanged — a room read is given that room's note, not the whole
 // walkthrough, so one room's spoken instructions cannot be priced into another.

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   conditionReviewAdvice, correctInventoryItem, walkingReadingItems, inventoryDisplayLabel,
   inventoryKey, keyframeDefaults, mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
-  resolveRoomCondition, shouldCaptureKeyframe, walkingReadIsBlocked, findRoom, upsertRoom
+  resolveRoomCondition, shouldCaptureKeyframe, walkingReadIsBlocked, findRoom, upsertRoom,
+  readingTaskRecords, mergeScanTaskRecords, scanTaskRecordsFor, reconcileScanTaskRecords, scanChecklistLines, scanSummary, mergeItemReadings
 } from "../public/room-scan-model.js";
 
 // One complete room, walked end to end through the real pipeline.
@@ -273,7 +274,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.ok(callback);
   const receive = new Function("reading", "state", "keyframeBudget", "generation", "roomName", "readStartedAt",
     "transcriptKey", "walkingReadingItems", "rememberWalkEvidence", "setInventory", "mergeRoomInventory", "inventoryFor",
-    "findRoom", "upsertRoom", "mergeInventoryIntoSavedDetections", "mergeSavedTasks", "resolveRoomCondition", "renderHub", "capturedSignature", "keyframeDefaults", callback);
+    "findRoom", "upsertRoom", "mergeInventoryIntoSavedDetections", "mergeSavedTasks", "resolveRoomCondition", "renderHub", "capturedSignature", "keyframeDefaults", "mergeScanTaskRecords", "scanTaskRecordsFor", callback);
   for (const scenario of ["saved", "dismissed", "removed-room", "stale", "closed"]) {
     const state = {
       closed: scenario === "closed", diagnostics: {},
@@ -287,7 +288,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       (_name, items) => { inventory = items; }, mergeRoomInventory, () => inventory,
       (rooms, name) => rooms.find(room => room.name === name),
       (rooms, next) => rooms.map(room => room.name === next.name ? next : room),
-      mergeInventoryIntoSavedDetections, (first, second) => [...new Set([...first, ...second])], resolveRoomCondition, () => {}, Array(48).fill(.2), {maxPerRoom:4});
+      mergeInventoryIntoSavedDetections, (first, second) => [...new Set([...first, ...second])], resolveRoomCondition, () => {}, Array(48).fill(.2), {maxPerRoom:4}, mergeScanTaskRecords, scanTaskRecordsFor);
     if (scenario === "removed-room") {
       assert.deepEqual(state.rooms, [], "A late view recreated a removed saved room");
     } else {
@@ -311,12 +312,13 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       diagnostics:{keyframesRead:0},dismissed:new Map(),rooms:[]};
     const tasks = ["Kitchen: Wipe the table"];
     let requests = 0, remembered = [];
-    const read = new Function("state","roomReadingPayload","recoverCsrf","window","fetch","localRoomTasks","usableDetections",
+    const read = new Function("state","roomReadingPayload","recoverCsrf","window","fetch","localRoomTasks","usableDetections","readingTaskRecords","mergeScanTaskRecords",
       source.slice(readStart, readEnd) + ";return readRoom;")(
       state, () => ({withinLimit:true,body:{synthetic:true}}), async()=>"synthetic-csrf",
       {setTimeout,clearTimeout}, async()=>{requests++;return {status,ok:status===200,json:async()=>({detections:[],tasks,condition:""})};},
-      ()=>tasks, ()=>[]);
+      ()=>tasks, ()=>[], readingTaskRecords, mergeScanTaskRecords);
     const reading = await read("synthetic-frame","Kitchen",[],"Wipe the table","walking");
+    assert.equal(reading.taskRecords[0].origin,status===503?"customer":"vision","Reading lost task origin");
     const budget = {generation:0,capturedCount:1,completedCount:0,completedSignatures:[]};
     const receive = new Function("reading","state","keyframeBudget","generation","roomName","readStartedAt",
       "transcriptKey","walkingReadingItems","rememberWalkEvidence","findRoom","capturedSignature","keyframeDefaults",callback);
@@ -370,4 +372,242 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     setter("Bathroom",edited);
     assert.equal(state.rooms.length,2,"Editing an unsaved room created a saved room");
   }
+}
+
+
+// Task records keep explicit references and origins through walking accumulation.
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
+  const response = {detections:[{label:"Hob"},{label:"Sink"}],tasks:["Wipe the hob"],taskLinks:[{taskIndex:0,itemRefs:["0"]}]};
+  const vision = readingTaskRecords(response);
+  assert.deepEqual(vision[0].inventoryKeys,["hob"]);
+  const selected = readingTaskRecords({items:[{id:"d2",label:"Sink"}],tasks:["Clean the sink"],taskLinks:[{taskIndex:0,itemRefs:["d2"]}]},{selected:true});
+  assert.deepEqual(selected[0].inventoryKeys,["sink"]);
+  const invalid = readingTaskRecords({...response,taskLinks:[{taskIndex:0,itemRefs:["missing"]}]});
+  assert.deepEqual(invalid[0].inventoryKeys,[],"Unknown ref was guessed from task text");
+  const customer = readingTaskRecords({tasks:["Wipe the hob"]},{customer:true});
+  assert.equal(mergeScanTaskRecords(vision,customer).length,2,"Customer instruction was collapsed into automatic proposal");
+  assert.equal(mergeScanTaskRecords(vision,vision).length,1,"Repeated read duplicated identical evidence");
+  const state = {walkEvidence:new Map()};
+  const start = source.indexOf("function rememberWalkEvidence(roomName, reading)");
+  const end = source.indexOf("const conditionRank =",start);
+  assert.ok(start >= 0 && end > start);
+  const remember = new Function("state","transcriptKey","worseCondition","mergeScanTaskRecords","scanTaskRecordsFor",
+    source.slice(start,end)+";return rememberWalkEvidence;")(state,name=>name.toLowerCase(),resolveRoomCondition,mergeScanTaskRecords,scanTaskRecordsFor);
+  remember("Kitchen",{tasks:response.tasks,taskRecords:vision,condition:"light"});
+  remember("Kitchen",{tasks:response.tasks,taskRecords:customer,condition:""});
+  const evidence = state.walkEvidence.get("kitchen");
+  assert.equal(evidence.tasks.length,1);
+  assert.deepEqual(evidence.taskRecords.map(record=>record.origin),["vision","customer"]);
+  assert.deepEqual(evidence.taskRecords[0].inventoryKeys,["hob"]);
+  const saved = {tasks:["Old unlinked task",...evidence.tasks],taskRecords:evidence.taskRecords};
+  const records = scanTaskRecordsFor(saved);
+  assert.equal(records.filter(record=>record.origin==="legacy").length,1,"Legacy tasks were discarded or new linked records lost their origin");
+}
+
+{
+  const vision = {text:"Wipe the hob", origin:"vision", inventoryKeys:["hob"]};
+  const customer = {...vision, origin:"customer", inventoryKeys:[]};
+  const heavy = {key:"hob", label:"Hob", condition:"heavy", conditionConfidence:.9};
+  const clean = {...heavy, condition:"clean", conditionConfirmed:true};
+  const resolve = (records, items, options) => reconcileScanTaskRecords(records, items, options);
+  assert.equal(resolve([vision], [clean])[0].decision, "remove");
+  assert.equal(resolve([vision], [], {removedKeys:["hob"]})[0].decision, "remove");
+  assert.equal(resolve([vision], [heavy])[0].decision, "keep");
+  assert.equal(resolve([vision], [{...clean, conditionConfirmed:false}])[0].decision, "keep",
+    "An automatic clean grade cannot delete a task.");
+  const missing = resolve([vision], [])[0];
+  assert.equal(missing.decision, "keep");
+  assert.equal(missing.reviewRequired, true, "A missing detection needs review, not deletion.");
+  for (const items of [[clean], []]) {
+    assert.equal(resolve([customer], items, {removedKeys:["hob"]})[0].decision, "keep");
+  }
+  const sameText = resolve([vision, customer], [clean]);
+  assert.deepEqual(sameText.map(task => task.decision), ["remove", "keep"]);
+  for (const origin of ["legacy", "vision"]) {
+    const unlinked = resolve([{...vision, origin, inventoryKeys:[]}], [clean], {changedKeys:["hob"]})[0];
+    assert.equal(unlinked.decision, "keep");
+    assert.equal(unlinked.reviewRequired, true);
+  }
+  const grouped = {...vision, text:"Wipe the hob and sink", inventoryKeys:["hob","sink"]};
+  const partial = resolve([grouped], [clean, {key:"sink",condition:"heavy",conditionConfidence:.9}])[0];
+  assert.equal(partial.decision, "keep");
+  assert.equal(partial.reviewRequired, true);
+  assert.equal(resolve([grouped], [clean], {removedKeys:["sink"]})[0].decision, "remove");
+  const renamed = resolve([vision], [heavy], {changedKeys:["hob"]})[0];
+  assert.equal(renamed.decision, "keep");
+  assert.equal(renamed.reviewRequired, true);
+  const ambiguous = resolve([vision], [clean,heavy])[0];
+  assert.equal(ambiguous.decision, "keep");
+  assert.equal(ambiguous.reviewRequired, true);
+  assert.equal(resolve([vision], [heavy], {removedKeys:["hob"]})[0].decision, "keep",
+    "A re-added item must not be deleted by an old dismissal.");
+  const saved = mergeInventoryIntoSavedDetections([], [clean]);
+  assert.equal(resolve([vision], saved)[0].decision, "remove",
+    "Saved inventory identities retain customer clean confirmation.");
+  const before = JSON.stringify({vision, customer, heavy, clean, grouped, saved});
+  resolve([vision, customer, grouped], [clean,heavy], {removedKeys:["sink"]});
+  assert.equal(JSON.stringify({vision, customer, heavy, clean, grouped, saved}), before);
+}
+
+{
+  const reading = {items:[{id:"d1",label:"Cooktop",condition:"heavy",confidence:.9,conditionConfidence:.9}],
+    tasks:["Degrease the hob"],taskLinks:[{taskIndex:0,itemRefs:["d1"]}]};
+  const selected = [{id:"d1",inventoryKey:"hob",label:"Kitchen hob",x:.1,y:.1,width:.2,height:.2}];
+  const taskRecords = readingTaskRecords(reading,{selected:true,selectedItems:selected});
+  const detections = mergeItemReadings(selected,reading);
+  assert.equal(detections[0].inventoryKey,"hob");
+  assert.deepEqual(taskRecords[0].inventoryKeys,["hob"]);
+  const room = {name:"Kitchen",tasks:reading.tasks,taskRecords,detections};
+  assert.deepEqual(scanChecklistLines([room]),["Kitchen: Degrease the hob"]);
+  const cleared = {...room,detections:detections.map(item=>({...item,condition:"clean",conditionConfirmed:true}))};
+  assert.deepEqual(scanChecklistLines([cleared]),[]);
+  assert.equal(scanSummary([cleared]).minutes,0);
+  assert.equal(scanSummary([cleared]).roomCount,0);
+  const removed = {...room,detections:[],removedInventoryKeys:["hob"]};
+  assert.deepEqual(scanChecklistLines([removed]),[]);
+  assert.deepEqual(scanChecklistLines([{...removed,removedInventoryKeys:[]}]),["Kitchen: Degrease the hob"]);
+  const customer = readingTaskRecords({tasks:reading.tasks},{customer:true});
+  const instructed = {...cleared,taskRecords:mergeScanTaskRecords(taskRecords,customer)};
+  assert.deepEqual(scanChecklistLines([instructed]),["Kitchen: Degrease the hob"]);
+  assert.equal(scanSummary([instructed]).roomCount,1);
+  assert.deepEqual(scanChecklistLines([{name:"Kitchen",tasks:reading.tasks}]),["Kitchen: Degrease the hob"]);
+}
+
+{
+  const tasks = Array.from({length:8}, (_,i)=>"Clean surface "+i);
+  const records = tasks.map(text=>({text,origin:"vision",inventoryKeys:[]}));
+  const customer = tasks.map(text=>({text:"Kitchen: "+text,origin:"customer",inventoryKeys:[]}));
+  const room = {name:"Kitchen",tasks,taskRecords:records};
+  assert.deepEqual(scanSummary([{...room,taskRecords:mergeScanTaskRecords(records,customer)}]),
+    scanSummary([room]), "Repeated customer/vision wording must not inflate the displayed duration.");
+}
+
+{
+  const {applyCorrection} = await import("../public/scan-review-render.js");
+  const {premiumBaseTasks,premiumScope} = await import("../public/scan-premium-selection.js");
+  const {scanTaskReview,withCurrentRoomInstructions,roomInstructionTasks} = await import("../public/room-scan-model.js");
+  const {checklistFromTranscript} = await import("../public/checklist.js");
+  const source = readFileSync(new URL("../public/landlord-journey.js", import.meta.url),"utf8");
+  const start = source.indexOf("function correctedScanRooms()");
+  const end = source.indexOf("// Sends each customer correction",start);
+  assert.ok(start > 0 && end > start);
+  function fixture(edited = false) {
+    const room = name => ({name,objects:[{inventoryKey:"sink",label:"Sink",condition:"heavy",conditionConfirmed:true}],
+      taskRecords:[{text:"Clean the sink",origin:"vision",inventoryKeys:["sink"]}]});
+    const state = {scanRooms:[room("Kitchen"),room("Bathroom")],scanCorrections:[],scanPremiumSelected:[],
+      scanPremiumPlan:{options:[],groups:[],baseTasks:[]},draft:{scanChecklistEdited:edited}};
+    const el = {tasks:{value:"Kitchen: Clean the sink\nBathroom: Clean the sink",after(){},setCustomValidity(){},addEventListener(event,handler){this.onInput=handler}}};
+    let host, saves = 0;
+    const textNode = (tag,cls,text) => ({tag,cls,text,children:[],dataset:{},setAttribute(){},
+      append(...nodes){this.children.push(...nodes)},replaceChildren(...nodes){this.children=nodes}});
+    const document = {querySelector(){return host || null}};
+    el.tasks.after = node => {host=node};
+    const build = new Function("state","el","applyCorrection","scanChecklistLines","scanTaskReview",
+      "premiumBaseTasks","premiumScope","document","textNode","invalidateScanRequest","premiumChoiceId",
+      "renderPremiumChoices","editableTaskLines","eligiblePremiumSelections","updateResultTotals","saveDraft","refreshScanReview","setChecklistError","withCurrentRoomInstructions","roomInstructionTasks","checklistFromTranscript",
+      source.slice(source.indexOf('el.tasks.addEventListener("input"'), source.indexOf('function editableTaskLines()')) + source.slice(start,end)+";return {correctScanObject,reconcileReviewedChecklist};");
+    const api = build(state,el,applyCorrection,scanChecklistLines,scanTaskReview,premiumBaseTasks,premiumScope,
+      document,textNode,()=>{},()=>"",()=>{},()=>el.tasks.value.split("\n").filter(Boolean),()=>[],()=>{},()=>{saves++},()=>{},()=>{},withCurrentRoomInstructions,roomInstructionTasks,checklistFromTranscript);
+    return {state,el,api,host:()=>host,saves:()=>saves};
+  }
+  const untouched = fixture();
+  untouched.api.correctScanObject("Kitchen","sink","condition","clean");
+  assert.equal(untouched.el.tasks.value,"Bathroom: Clean the sink");
+  assert.deepEqual(untouched.state.draft.tasks,["Bathroom: Clean the sink"]);
+  assert.equal(untouched.saves(),1);
+  untouched.api.correctScanObject("Bathroom","sink","removed",true);
+  assert.equal(untouched.el.tasks.value,"");
+  const edited = fixture(false);
+  edited.el.tasks.value = "Kitchen: Clean the sink\nKeep my exact instruction";
+  edited.el.tasks.onInput();
+  assert.equal(edited.state.draft.scanChecklistEdited,true);
+  edited.api.correctScanObject("Kitchen","sink","condition","clean");
+  assert.equal(edited.el.tasks.value,"Kitchen: Clean the sink\nKeep my exact instruction");
+  assert.equal(edited.host().hidden,false);
+  assert.ok(edited.host().children.some(node=>node.text==="Kitchen: Clean the sink"));
+  edited.el.tasks.value = "Kitchen: My own unrelated instruction";
+  edited.api.reconcileReviewedChecklist();
+  assert.equal(edited.host().hidden,true,"Deleted suggestions remained in the review notice.");
+  assert.equal(edited.el.tasks.value,"Kitchen: My own unrelated instruction");
+  edited.el.tasks.value = "kitchen:  Clean the sink";
+  edited.api.reconcileReviewedChecklist();
+  assert.equal(edited.host().hidden,false,"Whitespace/case differences hid a current conflicting suggestion.");
+  const prefixed = fixture();
+  prefixed.state.scanRooms[0].taskRecords[0].text = "Kitchen: Clean the sink";
+  prefixed.api.correctScanObject("Kitchen","sink","label","Counter");
+  assert.ok(prefixed.host().children.some(node=>node.text==="Kitchen: Clean the sink"),
+    "An existing room prefix was doubled in the notice.");
+  const legacy = fixture();
+  delete legacy.state.draft.scanChecklistEdited;
+  legacy.api.correctScanObject("Kitchen","sink","removed",true);
+  assert.equal(legacy.el.tasks.value,"Kitchen: Clean the sink\nBathroom: Clean the sink");
+  const noteEdit = fixture();
+  noteEdit.state.scanRooms[0].taskRecords.push({text:"Kitchen: Clean the oven",origin:"customer",inventoryKeys:[]});
+  noteEdit.state.scanNoteEdits = {kitchen:"Leave the oven alone"};
+  noteEdit.api.reconcileReviewedChecklist();
+  assert.ok(!noteEdit.el.tasks.value.includes("Clean the oven"));
+  assert.ok(noteEdit.el.tasks.value.includes("Leave the oven alone"));
+  assert.ok(noteEdit.el.tasks.value.includes("Bathroom: Clean the sink"));
+  noteEdit.state.scanNoteEdits.kitchen = "";
+  noteEdit.api.reconcileReviewedChecklist();
+  assert.ok(!noteEdit.el.tasks.value.includes("oven"));
+  const protectedNote = fixture(true);
+  protectedNote.el.tasks.value = "Kitchen: Clean the oven";
+  protectedNote.state.scanNoteEdits = {kitchen:"Leave the oven alone"};
+  protectedNote.api.reconcileReviewedChecklist();
+  assert.equal(protectedNote.el.tasks.value,"Kitchen: Clean the oven");
+  const renamed = fixture();
+  renamed.api.correctScanObject("Kitchen","sink","label","Counter");
+  assert.ok(renamed.el.tasks.value.includes("Kitchen: Clean the sink"));
+  assert.equal(renamed.host().hidden,false);
+}
+
+{
+  const {withCurrentRoomInstructions,scanTaskReview} = await import("../public/room-scan-model.js");
+  const old = {name:"Kitchen",transcript:"Clean inside the oven",tasks:["Kitchen: Clean inside the oven","Wipe the hob"],
+    taskRecords:[{text:"Kitchen: Clean inside the oven",origin:"customer",inventoryKeys:[]},
+      {text:"Wipe the hob",origin:"vision",inventoryKeys:["hob"]}],
+    detections:[{inventoryKey:"hob",label:"Hob",condition:"heavy",conditionConfirmed:true}]};
+  const before = JSON.stringify(old);
+  const deleted = withCurrentRoomInstructions(old,[]);
+  assert.deepEqual(deleted.tasks,["Wipe the hob"]);
+  assert.ok(!scanChecklistLines([deleted]).some(line=>line.includes("oven")));
+  assert.equal(scanTaskReview(deleted)[0].reviewRequired,true);
+  const replaced = withCurrentRoomInstructions(old,["Kitchen: Leave the oven alone"]);
+  assert.deepEqual(replaced.tasks,["Wipe the hob","Kitchen: Leave the oven alone"]);
+  assert.equal(withCurrentRoomInstructions(old,["Kitchen: Clean inside the oven"]).taskInstructionsChanged,false);
+  const dual = {...old,taskRecords:[...old.taskRecords,{text:"Kitchen: Clean inside the oven",origin:"vision",inventoryKeys:[]}]};
+  const ambiguous = withCurrentRoomInstructions(dual,[]);
+  assert.ok(ambiguous.tasks.includes("Kitchen: Clean inside the oven"),
+    "An independent automatic suggestion cannot be deleted by guessing its source.");
+  assert.equal(scanTaskReview(ambiguous).find(record=>record.text.includes("oven")).reviewRequired,true);
+  assert.equal(JSON.stringify(old),before);
+
+  const source = readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
+  const start = source.indexOf("const checklistRooms =");
+  const end = source.indexOf('scanEvents.record("scan.session.duration_ms"',start);
+  assert.ok(start>0 && end>start);
+  const finish = new Function("state","withCurrentRoomInstructions","localRoomTasks","roomTranscript",
+    "transcriptKey","inventoryFor","scanSummary",source.slice(start,end)+";return {checklistRooms,summary};");
+  const result = finish({rooms:[old],dismissed:new Map()},withCurrentRoomInstructions,
+    (name,note)=>note?[name+": "+note]:[],()=>"Leave the oven alone",name=>name.toLowerCase(),()=>[],scanSummary);
+  assert.equal(result.checklistRooms[0].transcript,"Leave the oven alone");
+  assert.ok(result.summary.tasks.includes("Kitchen: Leave the oven alone"));
+  assert.ok(!result.summary.tasks.includes("Kitchen: Clean inside the oven"));
+  assert.ok(source.includes("transcript: scanTranscript(checklistRooms)"));
+  assert.ok(source.includes("photos: checklistRooms.filter"));
+}
+
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
+  const start = source.indexOf("photos: checklistRooms.filter");
+  const end = source.indexOf("rooms: checklistRooms.map",start);
+  assert.ok(start>0 && end>start);
+  const handoff = new Function("checklistRooms","return ({"+source.slice(start,end)+"});");
+  const rooms = [{name:"Kitchen",transcript:"Leave the oven alone",image:"data:image/jpeg;base64,TEST"},
+    {name:"Bathroom",transcript:"No photo"}];
+  const before = JSON.stringify(rooms);
+  assert.deepEqual(handoff(rooms).photos,[{roomName:"Kitchen",note:"Leave the oven alone",dataUrl:rooms[0].image}]);
+  assert.equal(JSON.stringify(rooms),before);
 }

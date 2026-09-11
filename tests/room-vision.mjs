@@ -245,7 +245,7 @@ assert((source.match(/Empty only when unknown/g) || []).length === 2, "A 'clean'
 // The scale change is a version bump: a v1 "clean" and a v2 "clean" are
 // different claims, and stored scans must not be compared across them silently.
 const { readingSchemaVersion } = await import("../src/marketplace/room-vision.mjs");
-assert(readingSchemaVersion === 2, "The clean-verdict semantics changed without bumping readingSchemaVersion, so stored accuracy comparisons would silently mix scales.");
+assert(readingSchemaVersion >= 2, "The clean-verdict semantics changed without bumping readingSchemaVersion, so stored accuracy comparisons would silently mix scales.");
 
 // The whole-frame reader must survive: the phone-camera fallback has no live
 // viewfinder, so it has no boxes to send and still needs the room read for it.
@@ -288,4 +288,71 @@ for (const collection of ["detections", "items"]) {
     collection + ": a valid unknown empty reading was rejected or given a grade");
   const withTask = await run({...valid,tasks:["Wipe the table"]});
   assert(withTask.tasks[0] === "Wipe the table", collection + ": valid tasks were lost");
+}
+
+
+// Task links follow surviving objects and tasks, never their stale source indexes.
+{
+  const detection = {label:"Hob",condition:"heavy",soiling:["grease"],labelConfidence:.9,conditionConfidence:.9,evidence:"Grease",x:5,y:5,width:10,height:10};
+  const make = payload => createAnthropicRoomVision({apiKey:"synthetic",client:stub(jsonReply(payload))});
+  const result = await make({
+    condition:"heavy",detections:[{...detection,x:99},detection],tasks:["x","Degrease the hob"],
+    taskLinks:[{taskIndex:1,itemRefs:["1"]}]
+  }).readRoom({image:pixel});
+  assert(result.tasks.length===1 && result.detections.length===1,"Fixture filtering changed");
+  assert(result.taskLinks.length===1 && result.taskLinks[0].taskIndex===0 && result.taskLinks[0].itemRefs[0]==="0",
+    "Filtering made a task point to the wrong detection");
+  assert(!("sourceIndex" in result.detections[0]),"Internal source index leaked into detections");
+  for (const taskLinks of [
+    [{taskIndex:0,itemRefs:["missing"]}],
+    [{taskIndex:0,itemRefs:[0]}],
+    [{taskIndex:9,itemRefs:["0"]}],
+    [{taskIndex:0,itemRefs:[]}],
+    [{taskIndex:0,itemRefs:["0"]},{taskIndex:0,itemRefs:["0"]}],
+    null
+  ]) {
+    const unlinked = await make({condition:"heavy",detections:[detection],tasks:["Degrease the hob"],taskLinks}).readRoom({image:pixel});
+    assert(unlinked.tasks[0]==="Degrease the hob" && unlinked.taskLinks.length===0,"Invalid links lost task text or invented an association");
+  }
+  const selected = await make({
+    condition:"heavy",items:[{id:"d1",label:"Hob"},{id:"invented",label:"Oven"}],
+    tasks:["Clean the hob","Clean the oven"],
+    taskLinks:[{taskIndex:0,itemRefs:["d1"]},{taskIndex:1,itemRefs:["invented"]}]
+  }).readSelectedItems({image:pixel,items:[{id:"d1",label:"Hob"}]});
+  assert(selected.tasks.length===2 && selected.taskLinks.length===1 && selected.taskLinks[0].itemRefs[0]==="d1",
+    "Selected-item task links accepted an invented id or lost unlinked text");
+}
+
+assert(readingSchemaVersion === 3, "Task references must be recorded under schema version 3.");
+
+{
+  // A syntactically valid object is not completion evidence when the provider
+  // explicitly says generation stopped at its limit or paused.
+  for (const stop of ["max_tokens","pause_turn","tool_use","stop_sequence",null]) {
+    for (const selected of [false,true]) {
+      const reply = {...jsonReply({condition:"light",detections:[],items:[],tasks:[],taskLinks:[]}),stop_reason:stop};
+      const capture = {};
+      const vision = createAnthropicRoomVision({apiKey:"test-key",client:stub(reply,capture)});
+      const call = () => selected
+        ? vision.readSelectedItems({image:pixel,items:[{id:"a",crop:pixel}]})
+        : vision.readRoom({image:pixel,roomName:"Kitchen"});
+      assert(await rejects(call,"did not finish"), "Incomplete "+stop+" response was accepted on "+(selected?"selected":"whole-room")+" path.");
+    }
+  }
+}
+
+{
+  const {readingTaskRecords} = await import("../public/room-scan-model.js");
+  const detection = {label:"Hob",note:"Visible grease",labelConfidence:.9,conditionConfidence:.9,condition:"heavy",soiling:["grease"],x:10,y:10,width:30,height:30};
+  const link = {taskIndex:0,itemRefs:["0"]};
+  const overflow = [link,...Array.from({length:63},()=>({taskIndex:99,itemRefs:["0"]})),link];
+  const payload = {condition:"heavy",detections:[detection],tasks:["Degrease hob"],taskLinks:overflow};
+  const vision = createAnthropicRoomVision({apiKey:"test-key",client:stub(jsonReply(payload))});
+  const result = await vision.readRoom({image:pixel});
+  assert(result.tasks[0]==="Degrease hob" && result.taskLinks.length===0,
+    "A duplicate outside the validation window made an ambiguous task link appear valid.");
+  assert(readingTaskRecords(payload)[0].inventoryKeys.length===0,
+    "The client trusted a truncated prefix of oversized task metadata.");
+  assert(readingTaskRecords({...payload,taskLinks:[link]})[0].inventoryKeys[0]==="hob",
+    "Valid bounded task metadata stopped mapping to inventory.");
 }

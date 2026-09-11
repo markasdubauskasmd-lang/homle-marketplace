@@ -37,6 +37,11 @@ import {
   preferredSpeechLanguage,
   roomReadingPayload,
   mergeItemReadings,
+  readingTaskRecords,
+  mergeScanTaskRecords,
+  scanTaskRecordsFor,
+  withCurrentRoomInstructions,
+  roomInstructionTasks,
   trackDetections,
   drawableTracks,
   frameQualityStats,
@@ -2101,7 +2106,7 @@ export function openRoomScan() {
         room = {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
-            id: box.id, label: box.label || "Marked item", note: box.note || "",
+            id: box.id, inventoryKey: box.inventoryKey || inventoryKey(box.label), label: box.label || "Marked item", note: box.note || "",
             // Kept even though a fresh reading is coming: if that background read
             // fails, "needs-retry" keeps THESE detections, and losing their grades
             // to a transient network error would un-grade the room silently.
@@ -2112,6 +2117,7 @@ export function openRoomScan() {
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: localRoomTasks(roomName, spokenNote),
+          taskRecords: readingTaskRecords({tasks:localRoomTasks(roomName, spokenNote)}, {customer:true}),
           condition: existing?.condition || "",
           transcript: spokenNote,
           readingStatus: "reading",
@@ -2123,7 +2129,7 @@ export function openRoomScan() {
         room = {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
-            id: box.id, label: box.label, note: box.note || "",
+            id: box.id, inventoryKey: box.inventoryKey || inventoryKey(box.label), label: box.label, note: box.note || "",
             // An unchanged revisit deliberately buys no new reading, which only
             // works if it also keeps the old one. Dropping condition here meant
             // open-then-save was enough to erase every grade in the room.
@@ -2134,6 +2140,7 @@ export function openRoomScan() {
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: Array.isArray(existing.tasks) ? existing.tasks : [],
+          taskRecords: scanTaskRecordsFor(existing),
           condition: existing.condition || "",
           transcript: spokenNote,
           readingStatus: existing.readingStatus || "ready",
@@ -2162,6 +2169,7 @@ export function openRoomScan() {
         room = {
           ...room,
           tasks: [...existingTasks, ...evidence.tasks.filter((task) => !seen.has(task.toLowerCase().trim()))],
+          taskRecords: mergeScanTaskRecords(scanTaskRecordsFor(room), scanTaskRecordsFor(evidence)),
           // The confirmation grade wins when it committed to one. Merging it
           // worst-wins with the walking grades let a passing glance override the
           // read that is deliberately framed — and, once the tiers differ, the
@@ -2605,6 +2613,7 @@ export function openRoomScan() {
               ...savedRoom,
               detections: mergeInventoryIntoSavedDetections(savedRoom.detections, inventoryFor(roomName), dismissed),
               tasks: mergeSavedTasks(savedRoom.tasks, reading.tasks),
+              taskRecords: mergeScanTaskRecords(scanTaskRecordsFor(savedRoom), scanTaskRecordsFor(reading)),
               condition: resolveRoomCondition(savedRoom.condition, reading.condition)
             });
             renderHub();
@@ -2769,6 +2778,7 @@ export function openRoomScan() {
       const key = transcriptKey(roomName);
       if (!key || !reading) return;
       const current = state.walkEvidence.get(key) || { tasks: [], condition: "" };
+      const records = mergeScanTaskRecords(scanTaskRecordsFor(current), scanTaskRecordsFor(reading));
       const seen = new Set(current.tasks.map((task) => String(task).toLowerCase().trim()));
       for (const task of Array.isArray(reading.tasks) ? reading.tasks : []) {
         const line = String(task || "").trim();
@@ -2780,6 +2790,7 @@ export function openRoomScan() {
       // The worst grade any angle saw wins. A kitchen that looks tidy from the
       // doorway and heavy behind the bin is a heavy kitchen — taking the last
       // reading instead would let the final glance undercharge the job.
+      current.taskRecords = records;
       current.condition = worseCondition(current.condition, reading.condition);
       state.walkEvidence.set(key, current);
     }
@@ -2879,6 +2890,7 @@ export function openRoomScan() {
               mergeInventoryIntoSavedDetections(reading.detections, inventoryFor(roomName), dismissed)
             ),
             tasks: mergeSavedTasks(current.tasks, reading.tasks),
+            taskRecords: mergeScanTaskRecords(scanTaskRecordsFor(current), scanTaskRecordsFor(reading)),
             condition: resolveRoomCondition(reading.condition, current.condition),
             readingStatus: reading.readingStatus || "ready",
             readingRevision: 0
@@ -2937,7 +2949,7 @@ export function openRoomScan() {
         x: item.x, y: item.y, width: item.width, height: item.height
       }));
       if (!state.readingAllowed || !state.visionAvailable) {
-        return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), condition: "", readingStatus: "manual" };
+        return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), taskRecords: readingTaskRecords({tasks:localRoomTasks(roomName, transcript)}, {customer:true}), condition: "", readingStatus: "manual" };
       }
 
       // Decode the immutable frame rather than reading the shared capture canvas.
@@ -2988,7 +3000,7 @@ export function openRoomScan() {
       });
       if (response.status === 503) {
         state.visionAvailable = false;
-        return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), condition: "", readingStatus: "manual" };
+        return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), taskRecords: readingTaskRecords({tasks:localRoomTasks(roomName, transcript)}, {customer:true}), condition: "", readingStatus: "manual" };
       }
       if (!response.ok) throw new Error("reading-failed");
       const result = await response.json();
@@ -2998,6 +3010,10 @@ export function openRoomScan() {
         // the boxes it asserts still have to be checked against the frame.
         detections: selected.length ? mergeItemReadings(items, result) : usableDetections(result?.detections),
         tasks: Array.isArray(result?.tasks) ? result.tasks : [],
+        taskRecords: mergeScanTaskRecords(
+          readingTaskRecords(result, {selected: selected.length > 0, selectedItems:items}),
+          readingTaskRecords({tasks:localRoomTasks(roomName, transcript)}, {customer:true})
+        ),
         condition: result?.condition || "",
         readingStatus: "ready"
       };
@@ -3011,13 +3027,7 @@ export function openRoomScan() {
     }
 
     function localRoomTasks(roomName, transcript) {
-      const note = String(transcript || "").trim();
-      if (!note) return [];
-      return checklistFromTranscript(`In the ${roomName}, ${note}`).map((line) => {
-        const divider = line.indexOf(":");
-        const task = divider >= 0 ? line.slice(divider + 1).trim() : line.trim();
-        return task ? `${roomName}: ${task}` : "";
-      }).filter(Boolean);
+      return roomInstructionTasks(roomName, transcript, checklistFromTranscript);
     }
 
     /* ── Spoken guidance ── */
@@ -3803,7 +3813,13 @@ export function openRoomScan() {
       // The notes are being handed to the booking journey, so the recovery copy has
       // done its job and should not survive to be offered again.
       forgetRoomNotes();
-      const summary = scanSummary(state.rooms);
+      const checklistRooms = state.rooms.map(room => ({
+        ...withCurrentRoomInstructions(room, localRoomTasks(room.name, roomTranscript(room.name))),
+        transcript: roomTranscript(room.name),
+        removedInventoryKeys: [...(state.dismissed.get(transcriptKey(room.name)) || [])],
+        changedInventoryKeys: inventoryFor(room.name).filter(item => item.confirmed).map(item => item.key)
+      }));
+      const summary = scanSummary(checklistRooms);
       scanEvents.record("scan.session.duration_ms", { durationMs: elapsedSince(state.startedAt) ?? 0 });
       // Flushed here rather than left to the timer: the overlay is about to be
       // torn down and an unsent batch would simply vanish.
@@ -3812,21 +3828,25 @@ export function openRoomScan() {
       stopCamera();
       close({
         tasks: summary.tasks,
-        transcript: scanTranscript(state.rooms),
+        transcript: scanTranscript(checklistRooms),
         // These compressed JPEGs stay only in this in-memory return value. The
         // guided booking journey can upload them after it has created the
         // authenticated private draft, but saveDraft() never serialises them
         // into sessionStorage. A refresh therefore cannot leave photographs of
         // a home in browser storage.
-        photos: state.rooms.filter((room) => room?.image).map((room) => ({
+        photos: checklistRooms.filter((room) => room?.image).map((room) => ({
           roomName: room.name,
           note: String(room.transcript || "").trim(),
           dataUrl: room.image
         })),
-        rooms: state.rooms.map((room) => ({
+        rooms: checklistRooms.map((room) => ({
           name: room.name,
           condition: room.condition,
           fixtures: (room.detections || []).map(inventoryDisplayLabel),
+          taskRecords: scanTaskRecordsFor(room),
+          taskInstructionsChanged: room.taskInstructionsChanged === true,
+          removedInventoryKeys: room.removedInventoryKeys,
+          changedInventoryKeys: room.changedInventoryKeys,
           note: String(room.transcript || "").trim(),
           // The structured reading, not just its display label.
           //
