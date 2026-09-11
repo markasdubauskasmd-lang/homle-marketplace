@@ -32,7 +32,8 @@ import {
 } from "./landlord-journey-model.js?v=journey9";
 import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInTasks, selectedScanRooms, premiumChoiceId, reviewedScanNotes, scanNoteLines, premiumRestrictions } from "./scan-premium-selection.js?v=20260906-2";
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
-import { scanChecklistLines, scanTaskReview } from "./room-scan-model.js";
+import { checklistFromTranscript } from "./checklist.js";
+import { scanChecklistLines, scanTaskReview, withCurrentRoomInstructions, roomInstructionTasks } from "./room-scan-model.js";
 import { applyCorrection, scanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
 import { pricingRequestFromManualTasks, requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
@@ -722,7 +723,10 @@ function renderRoomNotes() {
       invalidateScanRequest();
       el.tasks.setCustomValidity("");
       renderPremiumChoices();
+      reconcileReviewedChecklist();
+      state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
       updateResultTotals();
+      saveDraft();
       renderReview();
     });
     host.append(label, input);
@@ -1694,8 +1698,13 @@ function correctedScanRooms() {
 // must never be affected by this correction.
 function taskReviewRooms() {
   return correctedScanRooms().map(room => {
-    const edits = state.scanCorrections.filter(edit => edit.roomName === (room.name || room.roomName));
-    return {...room,
+    const name = room.name || room.roomName;
+    const noteKey = String(name).trim().toLowerCase();
+    const note = state.scanNoteEdits?.[noteKey];
+    const current = typeof note === "string"
+      ? withCurrentRoomInstructions(room, roomInstructionTasks(name, note, checklistFromTranscript)) : room;
+    const edits = state.scanCorrections.filter(edit => edit.roomName === name);
+    return {...current,
       removedInventoryKeys: [...new Set([...(room.removedInventoryKeys || []),
         ...edits.filter(edit => edit.field === "removed").map(edit => edit.inventoryKey)])],
       changedInventoryKeys: [...new Set([...(room.changedInventoryKeys || []),
