@@ -2058,7 +2058,7 @@ export function readingTaskRecords(reading, {selected = false, customer = false,
     if (references.has(ref)) references.set(ref, "");
     else if (ref && key) references.set(ref, key);
   });
-  const links = Array.isArray(reading?.taskLinks) ? reading.taskLinks.slice(0, 64) : [];
+  const links = Array.isArray(reading?.taskLinks) && reading.taskLinks.length <= 64 ? reading.taskLinks : [];
   const tasks = Array.isArray(reading?.tasks) ? reading.tasks : [];
   return mergeScanTaskRecords(tasks.map((text, taskIndex) => {
     const matches = links.filter(link => link?.taskIndex === taskIndex);
