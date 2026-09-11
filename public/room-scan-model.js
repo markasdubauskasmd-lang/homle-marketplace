@@ -988,7 +988,7 @@ export function scanTranscript(rooms, maximumCharacters = 5000) {
 
 export function scanSummary(rooms) {
   const scoped = (Array.isArray(rooms) ? rooms : []).map(room => ({
-    ...room, tasks: scanTaskReview(room).filter(record => record.decision === "keep").map(record => record.text)
+    ...room, tasks: scanChecklistLines([room])
   })).filter(room => room.tasks.length);
   const fixtures = scoped.reduce((sum, room) => sum + (Array.isArray(room.detections)
     ? room.detections.reduce((roomTotal, detection) => roomTotal + itemQuantity(detection), 0)
