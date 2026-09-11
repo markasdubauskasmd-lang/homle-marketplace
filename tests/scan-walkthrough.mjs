@@ -968,16 +968,16 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const saveStart=source.indexOf("async function saveRoom("),saveEnd=source.indexOf("// The shutter freezes first",saveStart);
   const openStart=source.indexOf("function openRevisit("),openEnd=source.indexOf("/* ── Camera",openStart);
   assert.ok(saveStart>0&&saveEnd>saveStart&&openStart>0&&openEnd>openStart);
-  for(const shape of ["walking","overflow"]) for(const cached of shape==="walking"?[false,true]:[false])
+  for(const shape of ["walking","overflow","walking-only"]) for(const cached of shape!=="overflow"?[false,true]:[false])
     for(const action of ["none","remove","clear","note","manual","retry"]) {
-    const boxed=Array.from({length:shape==="overflow"?13:2},(_,i)=>({
+    const boxed=Array.from({length:shape==="overflow"?13:shape==="walking-only"?0:2},(_,i)=>({
       inventoryKey:`fixture ${i}`,label:`Fixture ${i}`,x:10,y:10,width:20,height:20,
       quantity:i===0?2:1,condition:"light",conditionConfidence:.8
     }));
-    const hidden=shape==="walking"?{inventoryKey:"floor",label:"Floor",condition:"light",conditionConfidence:.8}:boxed[12];
-    const detections=shape==="walking"?[...boxed,hidden]:boxed;
+    const hidden=shape!=="overflow"?{inventoryKey:"floor",label:"Floor",condition:"light",conditionConfidence:.8}:boxed[12];
+    const detections=shape!=="overflow"?[...boxed,hidden]:boxed;
     const taskRecords=[{text:"Wipe the retained surface",origin:"vision",inventoryKeys:[hidden.inventoryKey]}];
-    const existing={name:"Kitchen",image:"synthetic-image",transcript:"",detections,
+    const existing={name:"Kitchen",image:"synthetic-image",transcript:"",detections,condition:"medium",
       tasks:taskRecords.map(item=>item.text),taskRecords,readingStatus:action==="retry"?"needs-retry":"ready"};
     const state={rooms:[existing],currentRoom:"Kitchen",roomSession:1,consentAsked:true,
       nextReadingRevision:1,walkEvidence:new Map(),dismissed:new Map()};
@@ -993,7 +993,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       readRoomInBackground:()=>{reads++}});
     vm.runInContext(source.slice(openStart,openEnd)+"\n"+source.slice(saveStart,saveEnd),context);
     context.openRevisit(existing,1);
-    assert.equal(state.candidates.length,shape==="overflow"?12:2);
+    assert.equal(state.candidates.length,shape==="overflow"?12:shape==="walking-only"?0:2);
     let chosen=state.candidates;
     if(action==="remove") chosen=chosen.slice(1);
     if(action==="clear") chosen=[];
@@ -1008,15 +1008,17 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       `${shape}/${action}: an unoffered finding was erased`);
     assert.ok(model.scanChecklistLines([saved]).includes("Kitchen: Wipe the retained surface"),
       "The retained finding lost its linked instruction");
-    const expected=action==="clear"?1:detections.length-(action==="remove"?1:0)+(action==="manual"?1:0);
+    const expected=action==="clear"?1:detections.length-(action==="remove"&&boxed.length?1:0)+(action==="manual"?1:0);
     assert.equal(saved.detections.length,expected,`${shape}/${action}: saved inventory changed unexpectedly`);
-    assert.equal(reads,["remove","note","manual","retry"].includes(action)?1:0,
+    assert.equal(reads,(["note","manual","retry"].includes(action)||(action==="remove"&&boxed.length>0))?1:0,
       `${shape}/${action}: provider read decision did not reflect a real change or retry`);
-    if(!["remove","clear"].includes(action)) {
+    if(boxed.length&&!["remove","clear"].includes(action)) {
       assert.equal(saved.detections.find(item=>item.inventoryKey==="fixture 0").quantity,2);
       assert.equal(saved.detections.find(item=>item.inventoryKey==="fixture 0").condition,"light");
     }
     if(action==="none") {
+      assert.equal(saved.condition,"medium","An unchanged room lost its assessment");
+      assert.equal(saved.readingStatus,"ready","An unchanged room lost its completed-read status");
       context.openRevisit(saved,1);
       await context.saveRoom(saved.image,state.candidates,{revisit:true});
       assert.equal(reads,0,"A repeated unchanged revisit bought another read");
