@@ -51,6 +51,8 @@ export function shotLabel(roomName) {
 // A detection is only drawn when the model gave a box that actually fits the
 // frame. A malformed box would otherwise be painted across the whole photo and
 // read as a confident detection of the entire room.
+// Preserve the whole-room response through saving; usableLiveBoxes separately
+// bounds what can be selected in a single camera frame.
 export function usableDetections(detections) {
   if (!Array.isArray(detections)) return [];
   return detections
@@ -61,7 +63,7 @@ export function usableDetections(detections) {
       return x >= 0 && y >= 0 && x + width <= 100 && y + height <= 100;
     })
     .filter((detection) => String(detection.label || "").trim())
-    .slice(0, 12)
+    .slice(0, inventoryLimit)
     .map((detection) => Object.freeze({
       x: detection.x,
       y: detection.y,

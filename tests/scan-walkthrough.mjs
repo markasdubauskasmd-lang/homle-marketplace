@@ -1026,3 +1026,53 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     }
   }
 }
+
+// Complete whole-room responses must survive reading, revisit, save and review.
+{
+const {default:vm}=await import("node:vm");
+const model=await import("../public/room-scan-model.js");
+const {createAnthropicRoomVision}=await import("../src/marketplace/room-vision.mjs");
+const {normalizedRoomScan}=await import("../src/marketplace/scan-service.mjs");
+const {roomSummary}=await import("../public/scan-review-render.js");
+const source=readFileSync(new URL('../public/room-scan-overlay.js',import.meta.url),'utf8');
+function extract(start,end){const a=source.indexOf(start),b=source.indexOf(end,a);if(a<0||b<a)throw Error(start);return source.slice(a,b);}
+const labels=['Worktop','Hob','Sink','Tap','Extractor hood','Oven','Fridge','Microwave','Kettle','Toaster','Dishwasher','Window','Floor','Skirting board','Cupboard'];
+const reports=[];
+for(const count of [15,40,45]){
+ const detections=Array.from({length:count},(_,i)=>({label:labels[i]||`Fixture ${i}`,condition:'unknown',labelConfidence:.95,conditionConfidence:.2,soiling:[],evidence:'',x:(i%10)*9,y:Math.floor(i/10)*15,width:8,height:10}));
+ let calls=0,request;
+ const provider=createAnthropicRoomVision({apiKey:'test',client:{messages:{create:async r=>{calls++;request=r;return {stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({condition:'unknown',detections,tasks:['Check the floor'],taskLinks:[{taskIndex:0,itemRefs:['12']}]})}]};}}}});
+ const payload=await provider.readRoom({image:'data:image/jpeg;base64,'+'A'.repeat(64),roomName:'Kitchen'});
+ const state={readingAllowed:true,visionAvailable:true,roomReadControllers:new Set(),rooms:[],currentRoom:'Kitchen',roomSession:1,consentAsked:true,nextReadingRevision:1,walkEvidence:new Map(),dismissed:new Map()};
+ let inventory=[],closed;
+ const el={note:{value:''},readRoom:{},retake:{},canvas:{getContext:()=>({drawImage(){}})},still:{},selection:{},viewfinder:{classList:{add(){}}}};
+ const context=vm.createContext({...model,state,el,AbortController,Date,
+  roomReadingPayload:()=>({withinLimit:true,body:{}}),recoverCsrf:async()=> 'test',
+  fetch:async()=>({ok:true,status:200,json:async()=>payload}),window:{setTimeout,clearTimeout},localRoomTasks:()=>[],
+  Image:class{naturalWidth=100;naturalHeight=100;set src(value){this.onload();}},
+  prepareLiveRoom(){throw Error('Unexpected capture');},stopDetection(){},layoutFrozen(){},refreshSelection(){},
+  setRoomTranscript(){},roomTranscript:()=>'',scanEvents:{record(){},flush(){}},elapsedSince:()=>0,renderScanProgress(){},
+  transcriptKey:name=>name.toLowerCase(),inventoryFor:()=>inventory,toHub(){},nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},renderHub(){},
+  readRoomInBackground(){throw Error('Unchanged revisit must not read again');},stopVoice(){},forgetRoomNotes(){},stopCamera(){},close:value=>closed=value
+ });
+ vm.runInContext(extract('async function readRoom(image,','function localRoomTasks(')+extract('function openRevisit(','/* ── Camera')+extract('async function saveRoom(','// The shutter freezes first')+extract('function finishScan()','/* ── Teardown'),context);
+ const read=await context.readRoom('synthetic','Kitchen',[],'','walking');
+ inventory=model.mergeRoomInventory([],model.walkingReadingItems(read,'Kitchen'));
+ const room={name:'Kitchen',image:'synthetic',transcript:'',readingStatus:'ready',condition:'',tasks:read.tasks,taskRecords:read.taskRecords,detections:model.mergeInventoryIntoSavedDetections(read.detections,inventory)};
+ state.rooms=[room];context.openRevisit(room,1);const offered=state.candidates.length;
+ await context.saveRoom(room.image,state.candidates,{revisit:true});
+ context.finishScan();if(!closed)context.finishScan();
+ const normalized=normalizedRoomScan({cleaningRequestId:'30000000-0000-4000-8000-000000000001',rooms:closed.rooms.map(r=>({...r,roomName:r.name}))});
+ const review=roomSummary(normalized.rooms[0]);
+ reports.push({provided:count,provider:payload.detections.length,browser:read.detections.length,inventory:inventory.length,saved:state.rooms[0].detections.length,offered,objects:closed.rooms[0].objects.length,review:review.objects.length,labels:review.objects.map(x=>x.label),taskRecords:read.taskRecords,calls,maxTokens:request.max_tokens});
+}
+for(const report of reports){
+const expected=Math.min(report.provided,40);
+for(const key of ["provider","browser","inventory","saved","objects","review"])assert.equal(report[key],expected,`Whole-room ${key} lost valid findings`);
+assert.equal(report.offered,12,"Revisiting must retain the camera selection limit");
+for(const label of ["Floor","Skirting board","Cupboard"])assert.ok(report.labels.includes(label),`Missing ${label} in review`);
+assert.equal(report.calls,1,"Retaining a response must not add provider calls");
+assert.equal(report.maxTokens,2048,"This change must not increase the output-token allowance");
+assert.deepEqual(JSON.parse(JSON.stringify(report.taskRecords[0].inventoryKeys)),["floor"],"A later finding lost its task ownership");
+}
+}
