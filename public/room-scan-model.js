@@ -202,6 +202,7 @@ export function usableLiveBoxes(boxes) {
       width: box.width,
       height: box.height,
       label: String(box.label || "").trim().slice(0, 28),
+      ...(box.needsName === true ? { needsName: true } : {}),
       kind: box.kind === "manual" ? "manual" : "detected",
       score: Number.isFinite(box.score) ? box.score : 0,
       // What the reader concluded about this object, kept so the review screen
