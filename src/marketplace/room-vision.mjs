@@ -400,25 +400,27 @@ function selectionReading(payload, allowedIds) {
 // Matching is deliberately keyword-based on the customer's own room name:
 // "En-suite bathroom", "Downstairs loo" and "Bathroom 2" should all get the
 // bathroom list, and a name matching nothing gets no list rather than a guess.
+// Match complete aliases: 'loo' inside 'floor' is not a bathroom. A numeric
+// suffix is allowed for customer room names such as 'Bathroom2'.
 const inspectionFocusLists = Object.freeze([
   {
-    match: /bath|shower|toilet|loo|en-?suite|wc|washroom|cloakroom/i,
+    match: /\b(?:bath(?:room)?s?|shower(?:\s*room)?s?|toilets?|loos?|en[\s-]?suite|wc|washrooms?|cloakrooms?)(?=\b|\d)/i,
     focus: "the tile grout and silicone sealant lines, the bottom edge and corners of any shower screen or curtain, around the tap bases and plughole, the toilet waterline and behind the seat hinges, and the extractor grille"
   },
   {
-    match: /kitchen|kitchenette|utility|scullery|pantry/i,
+    match: /\b(?:kitchen(?:ette)?s?|utility|scullery|pantry)(?=\b|\d)/i,
     focus: "the hob and the wall or splashback behind it, the extractor hood underside and its grille, the worktop along its back edge and around the sink, inside rim and plughole of the sink, the oven door glass, and the cupboard fronts around their handles"
   },
   {
-    match: /bedroom|bed room|nursery|dorm/i,
+    match: /\b(?:bed\s*rooms?|nursery|dorm(?:itory)?)(?=\b|\d)/i,
     focus: "the skirting boards and the floor along them, under and around the bed where visible, the window sill and its corners, mirror and wardrobe fronts, and the tops of headboards and bedside tables"
   },
   {
-    match: /living|lounge|sitting|family room|reception|snug|dining/i,
+    match: /\b(?:living(?:\s*room)?|lounges?|sitting(?:\s*room)?|family\s+room|reception|snug|dining(?:\s*room)?)(?=\b|\d)/i,
     focus: "the skirting boards, the sofa seats and arms and beneath its front edge, the window sills, the television screen and stand for dust, table surfaces for rings and marks, and the floor in traffic paths and corners"
   },
   {
-    match: /hall|landing|stair|entrance|porch|corridor/i,
+    match: /\b(?:hall(?:way)?s?|landings?|stair(?:s|case|way)?|entrance|porch|corridors?)(?=\b|\d)/i,
     focus: "the floor in the traffic path, the skirting boards, the stair treads and their corners, the handrail and banister spindles, and around the door handles and light switches"
   }
 ]);
@@ -428,9 +430,11 @@ const inspectionFocusLists = Object.freeze([
 export function inspectionFocus(roomName) {
   const name = String(roomName || "").trim();
   if (!name) return "";
-  const entry = inspectionFocusLists.find((candidate) => candidate.match.test(name));
-  if (!entry) return "";
-  return `In this type of room, deliberately look at ${entry.focus}. These are the places a cleaning job is judged on. Grade each only from what this photograph actually shows — a checked place that looks clean is 'clean', and one the photograph cannot show is 'unknown', exactly as for everything else.`;
+  const entries = inspectionFocusLists.filter((candidate) => candidate.match.test(name));
+  if (!entries.length) return "";
+  // A named combined space needs attention to every explicit room type.
+  const focus = entries.map((entry) => entry.focus).join("; also inspect ");
+  return `In this type of room, deliberately look at ${focus}. These are the places a cleaning job is judged on. Grade each only from what this photograph actually shows — a checked place that looks clean is 'clean', and one the photograph cannot show is 'unknown', exactly as for everything else.`;
 }
 
 // Not every model accepts an effort hint — Haiku rejects the parameter with a
