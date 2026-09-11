@@ -907,3 +907,54 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   state.scanRooms=[{name:"Kitchen",objects:[{...object,quantity:4}]},state.scanRooms[1]];
   assert.equal(context.correctedScanRooms()[0].objects[0].quantity,2,"A later reading must not replace the customer's count.");
 }
+
+// Refreshing a booking must not restore objects or counts the customer corrected.
+{
+  const {default:vm}=await import("node:vm");
+  const {applyCorrection}=await import("../public/scan-review-render.js");
+  const source=readFileSync(new URL("../public/landlord-journey.js",import.meta.url),"utf8");
+  const start=source.indexOf("function saveDraft("),end=source.indexOf("// A finished room scan hands",start);
+  const correctedStart=source.indexOf("function correctedScanRooms("),correctedEnd=source.indexOf("// Task links are scoped",correctedStart);
+  assert.ok(start>0&&end>start&&correctedStart>0&&correctedEnd>correctedStart);
+  const owner="11111111-1111-4111-8111-111111111111";
+  const rooms=[{name:"Kitchen",note:"Old instruction",objects:[
+    {inventoryKey:"chair",label:"Chair",quantity:3,condition:"heavy"},
+    {inventoryKey:"table",label:"Table",quantity:1,condition:"light"}]}];
+  const corrections=[
+    {roomName:"Kitchen",inventoryKey:"chair",field:"quantity",value:1},
+    {roomName:"Kitchen",inventoryKey:"chair",field:"label",value:"Dining chair"},
+    {roomName:"Kitchen",inventoryKey:"chair",field:"condition",value:"clean"},
+    {roomName:"Kitchen",inventoryKey:"table",field:"removed",value:""}
+  ];
+  const state={draftOwner:owner,step:"results",draft:{rooms,durationMinutes:120},
+    scanRooms:rooms,scanCorrections:corrections,scanPhotos:[{image:"PRIVATE_PHOTO_SENTINEL"}]};
+  const storage=new Map();let now=1800000000000;
+  const context=vm.createContext({state,applyCorrection,Date:{now:()=>now},draftKey:"fixture",
+    landlordRequestDraftLifetimeMs:1800000,durationChoices:[120],stepIndex:()=>0,
+    currentReviewedNotes:()=>({transcript:"Current instruction",notes:{kitchen:"Current instruction"}}),
+    setRequestScopeValue:(key,value)=>state.draft[key]=value,
+    sessionStorage:{setItem:(key,value)=>storage.set(key,value),getItem:key=>storage.get(key),removeItem:key=>storage.delete(key)}});
+  vm.runInContext(source.slice(start,end)+"\n"+source.slice(correctedStart,correctedEnd),context);
+  context.saveDraft();
+  const saved=storage.get("fixture");
+  assert.ok(saved&&!saved.includes("PRIVATE_PHOTO_SENTINEL"),"Draft persistence must not include in-memory photos.");
+  assert.equal(state.scanRooms[0].objects.length,2);
+  assert.equal(state.scanRooms[0].objects[0].quantity,3);
+  assert.equal(state.scanRooms[0].objects[0].label,"Chair");
+  assert.equal(state.draft.rooms[0].objects[0].quantity,3,"Saving must not mutate the source draft objects.");
+  state.draft={};state.scanRooms=[];state.scanCorrections=[];
+  context.restoreDraft();
+  assert.equal(state.draft.rooms[0].objects.length,1);
+  const kept=state.draft.rooms[0].objects[0];
+  assert.equal(kept.quantity,1);assert.equal(kept.label,"Dining chair");assert.equal(kept.condition,"clean");
+  assert.equal(kept.conditionConfirmed,true);
+  assert.equal(state.draft.rooms[0].note,"Current instruction");
+  context.saveDraft();
+  assert.equal(JSON.parse(storage.get("fixture")).draft.rooms[0].objects[0].quantity,1,
+    "A second save after refresh must not undo the correction.");
+  state.draft={};state.draftOwner="22222222-2222-4222-8222-222222222222";
+  storage.set("fixture",saved);context.restoreDraft();
+  assert.equal(storage.has("fixture"),false,"Another account must not restore the reviewed draft.");
+  state.draftOwner=owner;storage.set("fixture",saved);now+=1800001;context.restoreDraft();
+  assert.equal(storage.has("fixture"),false,"Reviewed values must expire with the existing draft lifetime.");
+}
