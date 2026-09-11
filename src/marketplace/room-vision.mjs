@@ -178,6 +178,8 @@ function soilingTypes(value) {
 // Absent or unparseable confidence is treated as no confidence rather than as
 // full confidence, so a model that omits the field cannot silently assert one.
 function confidenceValue(value) {
+  // Keep numeric-string compatibility, but never turn true or [1] into certainty.
+  if (typeof value !== "number" && typeof value !== "string") return 0;
   const supplied = Number(value);
   if (!Number.isFinite(supplied)) return 0;
   return Math.max(0, Math.min(1, supplied));
