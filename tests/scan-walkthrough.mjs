@@ -534,3 +534,39 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.ok(renamed.el.tasks.value.includes("Kitchen: Clean the sink"));
   assert.equal(renamed.host().hidden,false);
 }
+
+{
+  const {withCurrentRoomInstructions,scanTaskReview} = await import("../public/room-scan-model.js");
+  const old = {name:"Kitchen",transcript:"Clean inside the oven",tasks:["Kitchen: Clean inside the oven","Wipe the hob"],
+    taskRecords:[{text:"Kitchen: Clean inside the oven",origin:"customer",inventoryKeys:[]},
+      {text:"Wipe the hob",origin:"vision",inventoryKeys:["hob"]}],
+    detections:[{inventoryKey:"hob",label:"Hob",condition:"heavy",conditionConfirmed:true}]};
+  const before = JSON.stringify(old);
+  const deleted = withCurrentRoomInstructions(old,[]);
+  assert.deepEqual(deleted.tasks,["Wipe the hob"]);
+  assert.ok(!scanChecklistLines([deleted]).some(line=>line.includes("oven")));
+  assert.equal(scanTaskReview(deleted)[0].reviewRequired,true);
+  const replaced = withCurrentRoomInstructions(old,["Kitchen: Leave the oven alone"]);
+  assert.deepEqual(replaced.tasks,["Wipe the hob","Kitchen: Leave the oven alone"]);
+  assert.equal(withCurrentRoomInstructions(old,["Kitchen: Clean inside the oven"]).taskInstructionsChanged,false);
+  const dual = {...old,taskRecords:[...old.taskRecords,{text:"Kitchen: Clean inside the oven",origin:"vision",inventoryKeys:[]}]};
+  const ambiguous = withCurrentRoomInstructions(dual,[]);
+  assert.ok(ambiguous.tasks.includes("Kitchen: Clean inside the oven"),
+    "An independent automatic suggestion cannot be deleted by guessing its source.");
+  assert.equal(scanTaskReview(ambiguous).find(record=>record.text.includes("oven")).reviewRequired,true);
+  assert.equal(JSON.stringify(old),before);
+
+  const source = readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
+  const start = source.indexOf("const checklistRooms =");
+  const end = source.indexOf('scanEvents.record("scan.session.duration_ms"',start);
+  assert.ok(start>0 && end>start);
+  const finish = new Function("state","withCurrentRoomInstructions","localRoomTasks","roomTranscript",
+    "transcriptKey","inventoryFor","scanSummary",source.slice(start,end)+";return {checklistRooms,summary};");
+  const result = finish({rooms:[old],dismissed:new Map()},withCurrentRoomInstructions,
+    (name,note)=>note?[name+": "+note]:[],()=>"Leave the oven alone",name=>name.toLowerCase(),()=>[],scanSummary);
+  assert.equal(result.checklistRooms[0].transcript,"Leave the oven alone");
+  assert.ok(result.summary.tasks.includes("Kitchen: Leave the oven alone"));
+  assert.ok(!result.summary.tasks.includes("Kitchen: Clean inside the oven"));
+  assert.ok(source.includes("transcript: scanTranscript(checklistRooms)"));
+  assert.ok(source.includes("photos: checklistRooms.filter"));
+}
