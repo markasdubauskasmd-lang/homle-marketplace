@@ -203,6 +203,8 @@ export function usableLiveBoxes(boxes) {
       height: box.height,
       label: String(box.label || "").trim().slice(0, 28),
       ...(box.needsName === true ? { needsName: true } : {}),
+      ...(itemQuantity(box) > 1 ? { quantity: itemQuantity(box) } : {}),
+      ...(box.conditionMixed === true ? { conditionMixed: true } : {}),
       kind: box.kind === "manual" ? "manual" : "detected",
       score: Number.isFinite(box.score) ? box.score : 0,
       // What the reader concluded about this object, kept so the review screen
@@ -617,6 +619,8 @@ export function mergeItemReadings(selected, response) {
         x: item.x, y: item.y, width: item.width, height: item.height,
         label,
         needsName: !reading.label && (item?.needsName === true || (!item?.label && item?.kind === "manual")),
+        ...(itemQuantity(item) > 1 ? { quantity: itemQuantity(item) } : {}),
+        ...(item?.conditionMixed === true ? { conditionMixed: true } : {}),
         // 60, matching what the reader now sends. At 28 the evidence behind a
         // grade was clipped mid-phrase, leaving a verdict nobody could check.
         note: String(reading.note || "").trim().slice(0, 60),
