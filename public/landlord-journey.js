@@ -1322,7 +1322,8 @@ function renderReviewQuestions(review) {
 function objectControls(roomName, object) {
   const row = textNode("div", "scan-review-object");
   const head = textNode("div", "scan-review-object-head");
-  head.append(textNode("b", "", object.displayLabel), textNode("span", "scan-review-state", object.state));
+  const title = textNode("b", "", object.displayLabel);
+  head.append(title, textNode("span", "scan-review-state", object.state));
   row.append(head);
   if (object.detail) row.append(textNode("p", "scan-review-detail", object.detail));
   // The action the finding leads to — "Descale the tap" — so the review answers
@@ -1380,6 +1381,7 @@ function objectControls(roomName, object) {
   quantity.addEventListener("change", () => {
     const value = Number(quantity.value);
     if (Number.isInteger(value) && value >= 1 && value <= 20) {
+      title.textContent = value > 1 ? `${value} × ${object.label}` : object.label;
       correctScanObject(roomName, object.inventoryKey, "quantity", value);
     }
   });
