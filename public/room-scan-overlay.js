@@ -319,7 +319,12 @@ function loadDetectorScript(source) {
     script.async = false;
     script.dataset.roomDetector = source;
     script.addEventListener("load", () => { script.dataset.ready = "true"; done(); }, { once: true });
-    script.addEventListener("error", () => fail(new Error("detector-unavailable")), { once: true });
+    script.addEventListener("error", () => {
+      // A later warm-up retry must create a fresh request. Keeping this failed
+      // tag would attach listeners to an error event that has already fired.
+      script.remove();
+      fail(new Error("detector-unavailable"));
+    }, { once: true });
     document.head.appendChild(script);
   });
 }
