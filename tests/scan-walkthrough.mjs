@@ -611,3 +611,24 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.deepEqual(handoff(rooms).photos,[{roomName:"Kitchen",note:"Leave the oven alone",dataUrl:rooms[0].image}]);
   assert.equal(JSON.stringify(rooms),before);
 }
+
+{
+  const {usableLiveBoxes,mergeItemReadings,mergeSavedDetections,scanChecklistLines} = await import("../public/room-scan-model.js");
+  const {applyCorrection} = await import("../public/scan-review-render.js");
+  const selected = usableLiveBoxes([
+    {id:"m1",inventoryKey:"manual:1",kind:"manual",x:10,y:10,width:20,height:20},
+    {id:"m2",inventoryKey:"manual:2",kind:"manual",x:60,y:60,width:20,height:20}]);
+  const missing = mergeItemReadings(selected,{items:[],tasks:[]});
+  const saved = mergeSavedDetections([],missing);
+  assert.equal(saved.length,2,"Two unnamed customer selections were collapsed into one row.");
+  assert.ok(saved.every(item=>item.quantity===1));
+  const corrected = applyCorrection([{name:"Kitchen",objects:saved}],{roomName:"Kitchen",inventoryKey:"manual:1",field:"label",value:"Extractor"});
+  assert.deepEqual(corrected.rooms[0].objects.map(item=>item.label),["Extractor","Needs a name"]);
+  const reopened = usableLiveBoxes(saved.map((item,index)=>({...item,id:"s"+index,kind:"detected"})));
+  assert.deepEqual(reopened.map(item=>item.inventoryKey),["manual:1","manual:2"]);
+  const named = mergeItemReadings(reopened,{items:[{id:"s0",label:"Extractor"},{id:"s1",label:"Worktop"}]});
+  const merged = mergeSavedDetections(saved,named);
+  assert.equal(merged.length,2,"Naming an existing manual item added a phantom placeholder.");
+  assert.deepEqual(merged.map(item=>item.inventoryKey),["manual:1","manual:2"]);
+  assert.deepEqual(scanChecklistLines([{name:"Kitchen",detections:merged,tasks:[]}]),[]);
+}
