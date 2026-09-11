@@ -2946,7 +2946,8 @@ export function openRoomScan() {
 
     async function readRoom(image, roomName, items = [], transcript = "", purpose = "confirmation") {
       const localDetections = items.map((item) => ({
-        id: item.id, label: item.label || "Marked item", note: item.note || "",
+        id: item.id, inventoryKey: item.inventoryKey || inventoryKey(item.label),
+        label: item.label || "Marked item", needsName: item.needsName === true || !item.label, note: item.note || "",
         x: item.x, y: item.y, width: item.width, height: item.height
       }));
       if (!state.readingAllowed || !state.visionAvailable) {
