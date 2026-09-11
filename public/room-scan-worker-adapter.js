@@ -45,7 +45,13 @@ export function createWorkerDetectorAdapter({createWorker,loadFallback,snapshot,
       }catch(error){fail(error);}
     }
     if(closed)throw Error('detector-closed');
-    fallbackLoad??=Promise.resolve().then(loadFallback);
+    if(!fallbackLoad){
+      const attempt=Promise.resolve().then(loadFallback);
+      fallbackLoad=attempt;
+      // A temporary download failure must not poison later scanner sessions.
+      // Retry only on a later detection; successful loads remain shared.
+      attempt.catch(()=>{if(fallbackLoad===attempt)fallbackLoad=null;});
+    }
     const fallback=await fallbackLoad;
     if(closed)throw Error('detector-closed');
     const result=await fallback.detect(frame,maxBoxes,minimumScore);
