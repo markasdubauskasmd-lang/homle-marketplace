@@ -464,6 +464,9 @@ const roomImplausibleLabels = Object.freeze({
 export function implausibleForRoom(label, roomName) {
   const room = String(roomName || "").trim().toLowerCase();
   if (!room) return false;
+  // Explicit shared-use names can contain fixtures from several room types,
+  // even when only one of those types has an exclusion list below.
+  if (/\b(?:open[\s\u2010-\u2015-]*plan|studio|diner|dining)\b/.test(room)) return false;
   let banned = roomImplausibleLabels[room];
   if (!banned) {
     // "Main bedroom", "Bedroom 2" and "Upstairs bathroom" are all normal things to
