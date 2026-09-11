@@ -930,8 +930,7 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
   assert(first === joinedWarmup, "Concurrent warm-ups created separate detector loads.");
   assert(requests.length === 2 && requests[1].src === "/core.js", "Core retry did not make a fresh request.");
   requests[1].fire("load");
-  await Promise.resolve();
-  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
   const joinedScript = context.loadScript("/detector.js");
   const failures = Promise.allSettled([first, joinedWarmup, joinedScript]);
   const failed = requests[2];
@@ -940,8 +939,7 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
   const retry = context.warm();
   const joinedRetry = context.warm();
   assert(retry === joinedRetry, "Concurrent retries created separate model loads.");
-  await Promise.resolve();
-  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
   assert(requests.length === 4 && scripts.length === 2, "Retry redownloaded a ready script or reused the failed tag.");
   assert(requests[3] !== failed && requests[3].src === "/detector.js", "The failed download was not replaced.");
   requests[3].fire("load");
