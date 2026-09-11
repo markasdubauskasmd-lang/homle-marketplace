@@ -268,12 +268,14 @@ function reading(payload) {
         // shape. A named soiling type and the model's own evidence read better than
         // either alone: "Limescale — white deposits around the tap base".
         note: boundedText(itemNote(detection), 60),
-        x: Number(detection?.x),
-        y: Number(detection?.y),
-        width: Number(detection?.width),
-        height: Number(detection?.height)
+        x: detection?.x,
+        y: detection?.y,
+        width: detection?.width,
+        height: detection?.height
       };
     })
+    // The schema requires numeric coordinates. Do not turn null, strings or
+    // booleans into invented positions or dimensions before validating them.
     // A box that does not fit the frame is dropped rather than clamped: a
     // clamped box would be drawn confidently in the wrong place.
     .filter((detection) => detection.label
