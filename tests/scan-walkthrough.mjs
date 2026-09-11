@@ -891,7 +891,11 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const select=actions.children.find(node=>node.attrs["aria-label"]==="Quantity of Chair");
   assert.ok(select,"Customer cannot correct a scanner quantity from the review screen.");
   assert.equal(select.children.find(option=>option.selected).value,"3");
-  for(const value of ["1","3","2"]) {select.value=value;select.events.change();}
+  for(const value of ["1","3","2"]) {
+    select.value=value;select.events.change();
+    assert.equal(row.children[0].children[0].textContent,value==="1"?"Chair":`${value} × Chair`,
+      "The visible count must update without waiting for reassessment.");
+  }
   assert.equal(state.scanCorrections.length,3,"Rapid changes before a review response must all remain effective.");
   assert.equal(context.correctedScanRooms()[0].objects[0].quantity,2);
   assert.equal(context.correctedScanRooms()[1].objects[0].quantity,2);
