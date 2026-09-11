@@ -2021,3 +2021,56 @@ export function signatureChangeSpread(previous, current, { cellChangeThreshold =
 
 // The change is only CAMERA movement when it is both large and widespread.
 export const movementSpreadThreshold = 0.5;
+
+
+// Keep task identity separate from its display text. No fuzzy label matching.
+export function mergeScanTaskRecords(...groups) {
+  const records = [], seen = new Set();
+  for (const group of groups) for (const record of Array.isArray(group) ? group : []) {
+    const text = String(record?.text || "").replace(/\s+/g, " ").trim().slice(0, 300);
+    if (text.length < 3) continue;
+    const origin = ["customer", "vision", "legacy"].includes(record?.origin) ? record.origin : "legacy";
+    const refs = Array.isArray(record?.inventoryKeys) && record.inventoryKeys.length <= 24
+      && record.inventoryKeys.every(key => typeof key === "string" && key.length > 0 && key.length <= 120)
+      ? [...new Set(record.inventoryKeys)].sort() : [];
+    const key = JSON.stringify([text, origin, refs]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    records.push(Object.freeze({text, origin, inventoryKeys:Object.freeze(refs)}));
+    if (records.length === 256) return Object.freeze(records);
+  }
+  return Object.freeze(records);
+}
+
+export function readingTaskRecords(reading, {selected = false, customer = false} = {}) {
+  const objects = Array.isArray(selected ? reading?.items : reading?.detections)
+    ? (selected ? reading.items : reading.detections) : [];
+  const references = new Map();
+  objects.forEach((item, index) => {
+    const ref = selected ? String(item?.id || "") : String(index);
+    const key = String(item?.inventoryKey || inventoryKey(item?.label));
+    if (references.has(ref)) references.set(ref, "");
+    else if (ref && key) references.set(ref, key);
+  });
+  const links = Array.isArray(reading?.taskLinks) ? reading.taskLinks.slice(0, 64) : [];
+  const tasks = Array.isArray(reading?.tasks) ? reading.tasks : [];
+  return mergeScanTaskRecords(tasks.map((text, taskIndex) => {
+    const matches = links.filter(link => link?.taskIndex === taskIndex);
+    const refs = matches.length === 1 ? matches[0].itemRefs : null;
+    const valid = Array.isArray(refs) && refs.length > 0 && refs.length <= 24
+      && refs.every(ref => typeof ref === "string" && references.get(ref));
+    return {text, origin:customer ? "customer" : "vision",
+      inventoryKeys:!customer && valid ? refs.map(ref => references.get(ref)) : []};
+  }));
+}
+
+// Old scans keep their unlinked tasks; missing metadata is not evidence to delete.
+export function scanTaskRecordsFor(room) {
+  const records = mergeScanTaskRecords(room?.taskRecords);
+  const represented = new Set(records.map(record => record.text));
+  const legacy = (Array.isArray(room?.tasks) ? room.tasks : [])
+    .map(text => String(text || "").replace(/\s+/g, " ").trim().slice(0, 300))
+    .filter(text => !represented.has(text))
+    .map(text => ({text, origin:"legacy", inventoryKeys:[]}));
+  return mergeScanTaskRecords(records, legacy);
+}
