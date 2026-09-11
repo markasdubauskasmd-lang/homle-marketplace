@@ -496,7 +496,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       taskRecords:[{text:"Clean the sink",origin:"vision",inventoryKeys:["sink"]}]});
     const state = {scanRooms:[room("Kitchen"),room("Bathroom")],scanCorrections:[],scanPremiumSelected:[],
       scanPremiumPlan:{options:[],groups:[],baseTasks:[]},draft:{scanChecklistEdited:edited}};
-    const el = {tasks:{value:"Kitchen: Clean the sink\nBathroom: Clean the sink",after(){}}};
+    const el = {tasks:{value:"Kitchen: Clean the sink\nBathroom: Clean the sink",after(){},setCustomValidity(){},addEventListener(event,handler){this.onInput=handler}}};
     let host, saves = 0;
     const textNode = (tag,cls,text) => ({tag,cls,text,children:[],dataset:{},setAttribute(){},
       append(...nodes){this.children.push(...nodes)},replaceChildren(...nodes){this.children=nodes}});
@@ -504,10 +504,10 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     el.tasks.after = node => {host=node};
     const build = new Function("state","el","applyCorrection","scanChecklistLines","scanTaskReview",
       "premiumBaseTasks","premiumScope","document","textNode","invalidateScanRequest","premiumChoiceId",
-      "renderPremiumChoices","editableTaskLines","eligiblePremiumSelections","updateResultTotals","saveDraft","refreshScanReview",
-      source.slice(start,end)+";return {correctScanObject,reconcileReviewedChecklist};");
+      "renderPremiumChoices","editableTaskLines","eligiblePremiumSelections","updateResultTotals","saveDraft","refreshScanReview","setChecklistError",
+      source.slice(source.indexOf('el.tasks.addEventListener("input"'), source.indexOf('function editableTaskLines()')) + source.slice(start,end)+";return {correctScanObject,reconcileReviewedChecklist};");
     const api = build(state,el,applyCorrection,scanChecklistLines,scanTaskReview,premiumBaseTasks,premiumScope,
-      document,textNode,()=>{},()=>"",()=>{},()=>el.tasks.value.split("\n").filter(Boolean),()=>[],()=>{},()=>{saves++},()=>{});
+      document,textNode,()=>{},()=>"",()=>{},()=>el.tasks.value.split("\n").filter(Boolean),()=>[],()=>{},()=>{saves++},()=>{},()=>{});
     return {state,el,api,host:()=>host,saves:()=>saves};
   }
   const untouched = fixture();
@@ -517,8 +517,10 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.equal(untouched.saves(),1);
   untouched.api.correctScanObject("Bathroom","sink","removed",true);
   assert.equal(untouched.el.tasks.value,"");
-  const edited = fixture(true);
+  const edited = fixture(false);
   edited.el.tasks.value = "Kitchen: Clean the sink\nKeep my exact instruction";
+  edited.el.tasks.onInput();
+  assert.equal(edited.state.draft.scanChecklistEdited,true);
   edited.api.correctScanObject("Kitchen","sink","condition","clean");
   assert.equal(edited.el.tasks.value,"Kitchen: Clean the sink\nKeep my exact instruction");
   assert.equal(edited.host().hidden,false);
