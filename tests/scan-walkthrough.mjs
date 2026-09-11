@@ -861,3 +861,49 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     assert.equal(reads,retry?1:0,"Unchanged saves must not add provider calls.");
   }
 }
+
+// Customer review exposes the supported quantity correction and preserves its ownership.
+{
+  const {default:vm}=await import("node:vm");
+  const {applyCorrection}=await import("../public/scan-review-render.js");
+  const source=readFileSync(new URL("../public/landlord-journey.js",import.meta.url),"utf8");
+  const controls=source.slice(source.indexOf("function objectControls("),source.indexOf("function renderReviewRooms("));
+  const corrected=source.slice(source.indexOf("function correctedScanRooms("),source.indexOf("// Task links are scoped"));
+  const correction=source.slice(source.indexOf("function correctScanObject("),source.indexOf("// Sends each customer correction"));
+  assert.ok(controls&&corrected&&correction);
+  class Node {
+    children=[];events={};attrs={};
+    append(...items){this.children.push(...items);}
+    setAttribute(key,value){this.attrs[key]=value;}
+    addEventListener(key,fn){this.events[key]=fn;}
+  }
+  const object={inventoryKey:"chair",label:"Chair",displayLabel:"3 × Chair",quantity:3,condition:"clean",conditionConfirmed:true};
+  const state={scanRooms:[{name:"Kitchen",objects:[object]},{name:"Bedroom",objects:[{...object,quantity:2}]}],
+    scanCorrections:[],scanPremiumPlan:{options:[]},scanPremiumSelected:[],draft:{}};
+  const effects={invalidations:0,saves:0,refreshes:0};
+  const context=vm.createContext({state,applyCorrection,document:{createElement:()=>new Node()},
+    textNode:()=>new Node(),premiumChoiceId:()=>"",renderPremiumChoices(){},reconcileReviewedChecklist(){},
+    premiumScope:()=>[],editableTaskLines:()=>[],eligiblePremiumSelections:()=>[],updateResultTotals(){},
+    invalidateScanRequest(){effects.invalidations++;},saveDraft(){effects.saves++;},refreshScanReview(){effects.refreshes++;}});
+  vm.runInContext(controls+"\n"+corrected+"\n"+correction,context);
+  const row=context.objectControls("Kitchen",object);
+  const actions=row.children.at(-1);
+  const select=actions.children.find(node=>node.attrs["aria-label"]==="Quantity of Chair");
+  assert.ok(select,"Customer cannot correct a scanner quantity from the review screen.");
+  assert.equal(select.children.find(option=>option.selected).value,"3");
+  for(const value of ["1","3","2"]) {
+    select.value=value;select.events.change();
+    assert.equal(row.children[0].children[0].textContent,value==="1"?"Chair":`${value} × Chair`,
+      "The visible count must update without waiting for reassessment.");
+  }
+  assert.equal(state.scanCorrections.length,3,"Rapid changes before a review response must all remain effective.");
+  assert.equal(context.correctedScanRooms()[0].objects[0].quantity,2);
+  assert.equal(context.correctedScanRooms()[1].objects[0].quantity,2);
+  assert.equal(state.scanRooms[0].objects[0].quantity,3,"The original observation must remain intact.");
+  assert.equal(context.correctedScanRooms()[0].objects[0].conditionConfirmed,true);
+  assert.deepEqual(effects,{invalidations:3,saves:3,refreshes:3});
+  for(const value of ["0","21","1.5","bad",""]) {select.value=value;select.events.change();}
+  assert.equal(state.scanCorrections.length,3,"Invalid quantities must not enter the correction log.");
+  state.scanRooms=[{name:"Kitchen",objects:[{...object,quantity:4}]},state.scanRooms[1]];
+  assert.equal(context.correctedScanRooms()[0].objects[0].quantity,2,"A later reading must not replace the customer's count.");
+}
