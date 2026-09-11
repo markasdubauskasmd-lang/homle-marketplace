@@ -275,7 +275,10 @@ function saveDraft() {
     if (state.scanRooms?.length) {
       const reviewed = currentReviewedNotes();
       draft.transcript = reviewed.transcript;
-      draft.rooms = (Array.isArray(draft.rooms) ? draft.rooms : []).map(room => ({
+      // The resumable booking scope reflects customer edits; the original
+      // in-memory scan remains intact for correction replay on submission.
+      const reviewedRooms = state.scanCorrections?.length ? correctedScanRooms() : draft.rooms;
+      draft.rooms = (Array.isArray(reviewedRooms) ? reviewedRooms : []).map(room => ({
         ...room, note: reviewed.notes[String(room.name || room.roomName || "").trim().toLowerCase()] ?? room.note
       }));
     }
