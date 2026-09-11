@@ -2071,7 +2071,14 @@ export function openRoomScan() {
       // actually changed: adding one needs it named, and removing one must
       // re-scope the room so a task like "clean the oven" cannot outlive the oven
       // and quietly keep pricing a job for it. An unchanged save reads nothing.
-      const originalCount = Array.isArray(existing.detections) ? existing.detections.length : 0;
+      // Only boxes offered by openRevisit can be deselected. Walking findings
+      // without geometry and boxes beyond the drawing limit remain saved.
+      const previousDetections = Array.isArray(existing.detections) ? existing.detections : [];
+      const offeredIds = new Set(usableLiveBoxes(previousDetections.map((item, index) => ({
+        ...item, id: `s${index}`
+      }))).map(item => item.id));
+      const unoffered = revisit ? previousDetections.filter((item, index) => !offeredIds.has(`s${index}`)) : [];
+      const originalCount = revisit ? offeredIds.size : previousDetections.length;
       const keptCount = chosen.filter((box) => box.kind !== "manual").length;
       const spokenChanged = spokenNote !== String(existing.transcript || "").replace(/\s+/g, " ").trim();
       const changed = chosen.some((box) => box.kind === "manual") || keptCount < originalCount || spokenChanged;
@@ -2198,6 +2205,15 @@ export function openRoomScan() {
           // read that is deliberately framed — and, once the tiers differ, the
           // cheaper model override the dearer one.
           condition: resolveRoomCondition(room.condition, evidence.condition)
+        };
+      }
+
+      if (unoffered.length) {
+        room = {
+          ...room,
+          detections: mergeSavedDetections(room.detections, unoffered),
+          tasks: [...new Set([...(existing.tasks || []), ...(room.tasks || [])])],
+          taskRecords: mergeScanTaskRecords(scanTaskRecordsFor(existing), scanTaskRecordsFor(room))
         };
       }
 
