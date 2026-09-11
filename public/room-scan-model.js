@@ -1791,7 +1791,7 @@ export function mergeInventoryIntoSavedDetections(existing, inventory, dismissed
       && !dismissed.has(inventoryKey(detection.label)))
     .map(detection => {
     const label = correctedLabels.get(detection.inventoryKey);
-    return label ? Object.freeze({ ...detection, label }) : detection;
+    return label ? Object.freeze({ ...detection, label, needsName: false }) : detection;
   }));
 }
 
