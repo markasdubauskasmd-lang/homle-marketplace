@@ -486,7 +486,8 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
 {
   const {applyCorrection} = await import("../public/scan-review-render.js");
   const {premiumBaseTasks,premiumScope} = await import("../public/scan-premium-selection.js");
-  const {scanTaskReview} = await import("../public/room-scan-model.js");
+  const {scanTaskReview,withCurrentRoomInstructions,roomInstructionTasks} = await import("../public/room-scan-model.js");
+  const {checklistFromTranscript} = await import("../public/checklist.js");
   const source = readFileSync(new URL("../public/landlord-journey.js", import.meta.url),"utf8");
   const start = source.indexOf("function correctedScanRooms()");
   const end = source.indexOf("// Sends each customer correction",start);
@@ -504,10 +505,10 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     el.tasks.after = node => {host=node};
     const build = new Function("state","el","applyCorrection","scanChecklistLines","scanTaskReview",
       "premiumBaseTasks","premiumScope","document","textNode","invalidateScanRequest","premiumChoiceId",
-      "renderPremiumChoices","editableTaskLines","eligiblePremiumSelections","updateResultTotals","saveDraft","refreshScanReview","setChecklistError",
+      "renderPremiumChoices","editableTaskLines","eligiblePremiumSelections","updateResultTotals","saveDraft","refreshScanReview","setChecklistError","withCurrentRoomInstructions","roomInstructionTasks","checklistFromTranscript",
       source.slice(source.indexOf('el.tasks.addEventListener("input"'), source.indexOf('function editableTaskLines()')) + source.slice(start,end)+";return {correctScanObject,reconcileReviewedChecklist};");
     const api = build(state,el,applyCorrection,scanChecklistLines,scanTaskReview,premiumBaseTasks,premiumScope,
-      document,textNode,()=>{},()=>"",()=>{},()=>el.tasks.value.split("\n").filter(Boolean),()=>[],()=>{},()=>{saves++},()=>{},()=>{});
+      document,textNode,()=>{},()=>"",()=>{},()=>el.tasks.value.split("\n").filter(Boolean),()=>[],()=>{},()=>{saves++},()=>{},()=>{},withCurrentRoomInstructions,roomInstructionTasks,checklistFromTranscript);
     return {state,el,api,host:()=>host,saves:()=>saves};
   }
   const untouched = fixture();
@@ -529,6 +530,21 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   delete legacy.state.draft.scanChecklistEdited;
   legacy.api.correctScanObject("Kitchen","sink","removed",true);
   assert.equal(legacy.el.tasks.value,"Kitchen: Clean the sink\nBathroom: Clean the sink");
+  const noteEdit = fixture();
+  noteEdit.state.scanRooms[0].taskRecords.push({text:"Kitchen: Clean the oven",origin:"customer",inventoryKeys:[]});
+  noteEdit.state.scanNoteEdits = {kitchen:"Leave the oven alone"};
+  noteEdit.api.reconcileReviewedChecklist();
+  assert.ok(!noteEdit.el.tasks.value.includes("Clean the oven"));
+  assert.ok(noteEdit.el.tasks.value.includes("Leave the oven alone"));
+  assert.ok(noteEdit.el.tasks.value.includes("Bathroom: Clean the sink"));
+  noteEdit.state.scanNoteEdits.kitchen = "";
+  noteEdit.api.reconcileReviewedChecklist();
+  assert.ok(!noteEdit.el.tasks.value.includes("oven"));
+  const protectedNote = fixture(true);
+  protectedNote.el.tasks.value = "Kitchen: Clean the oven";
+  protectedNote.state.scanNoteEdits = {kitchen:"Leave the oven alone"};
+  protectedNote.api.reconcileReviewedChecklist();
+  assert.equal(protectedNote.el.tasks.value,"Kitchen: Clean the oven");
   const renamed = fixture();
   renamed.api.correctScanObject("Kitchen","sink","label","Counter");
   assert.ok(renamed.el.tasks.value.includes("Kitchen: Clean the sink"));
