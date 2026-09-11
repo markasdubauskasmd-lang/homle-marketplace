@@ -526,6 +526,18 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.equal(edited.el.tasks.value,"Kitchen: Clean the sink\nKeep my exact instruction");
   assert.equal(edited.host().hidden,false);
   assert.ok(edited.host().children.some(node=>node.text==="Kitchen: Clean the sink"));
+  edited.el.tasks.value = "Kitchen: My own unrelated instruction";
+  edited.api.reconcileReviewedChecklist();
+  assert.equal(edited.host().hidden,true,"Deleted suggestions remained in the review notice.");
+  assert.equal(edited.el.tasks.value,"Kitchen: My own unrelated instruction");
+  edited.el.tasks.value = "kitchen:  Clean the sink";
+  edited.api.reconcileReviewedChecklist();
+  assert.equal(edited.host().hidden,false,"Whitespace/case differences hid a current conflicting suggestion.");
+  const prefixed = fixture();
+  prefixed.state.scanRooms[0].taskRecords[0].text = "Kitchen: Clean the sink";
+  prefixed.api.correctScanObject("Kitchen","sink","label","Counter");
+  assert.ok(prefixed.host().children.some(node=>node.text==="Kitchen: Clean the sink"),
+    "An existing room prefix was doubled in the notice.");
   const legacy = fixture();
   delete legacy.state.draft.scanChecklistEdited;
   legacy.api.correctScanObject("Kitchen","sink","removed",true);
