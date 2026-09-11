@@ -919,22 +919,31 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
   };
   vm.runInNewContext(overlay.slice(start, end).replaceAll("export function ", "function ")
     + ";globalThis.warm = warmRoomScanDetector;globalThis.loadScript = loadDetectorScript;", context);
+  const failedCore = context.warm();
+  const coreFailure = Promise.allSettled([failedCore]);
+  assert(requests.length === 1, "Dependent scripts were started before core was available.");
+  requests[0].fire("error");
+  assert((await coreFailure)[0].status === "rejected", "Core failure did not reject warm-up.");
+  assert(requests.length === 1 && scripts.length === 0, "Core failure left dependent or failed scripts behind.");
   const first = context.warm();
   const joinedWarmup = context.warm();
   assert(first === joinedWarmup, "Concurrent warm-ups created separate detector loads.");
+  assert(requests.length === 2 && requests[1].src === "/core.js", "Core retry did not make a fresh request.");
+  requests[1].fire("load");
+  await new Promise((resolve) => setImmediate(resolve));
   const joinedScript = context.loadScript("/detector.js");
   const failures = Promise.allSettled([first, joinedWarmup, joinedScript]);
-  requests[0].fire("load");
-  const failed = requests[1];
+  const failed = requests[2];
   failed.fire("error");
   assert((await failures).every((result) => result.status === "rejected"), "A shared failed download left a caller pending.");
   const retry = context.warm();
   const joinedRetry = context.warm();
   assert(retry === joinedRetry, "Concurrent retries created separate model loads.");
-  assert(requests.length === 3 && scripts.length === 2, "Retry redownloaded a ready script or reused the failed tag.");
-  assert(requests[2] !== failed && requests[2].src === "/detector.js", "The failed download was not replaced.");
-  requests[2].fire("load");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert(requests.length === 4 && scripts.length === 2, "Retry redownloaded a ready script or reused the failed tag.");
+  assert(requests[3] !== failed && requests[3].src === "/detector.js", "The failed download was not replaced.");
+  requests[3].fire("load");
   assert(await retry === model && await joinedRetry === model, "The retry did not produce the detector.");
   assert(modelLoads === 1, "Successful warm-up loaded the model more than once.");
-  assert(await context.warm() === model && requests.length === 3, "A ready detector was downloaded again.");
+  assert(await context.warm() === model && requests.length === 4, "A ready detector was downloaded again.");
 }
