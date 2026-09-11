@@ -4,7 +4,7 @@ import {
   conditionReviewAdvice, correctInventoryItem, walkingReadingItems, inventoryDisplayLabel,
   inventoryKey, keyframeDefaults, mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
   resolveRoomCondition, shouldCaptureKeyframe, walkingReadIsBlocked, findRoom, upsertRoom,
-  readingTaskRecords, mergeScanTaskRecords, scanTaskRecordsFor
+  readingTaskRecords, mergeScanTaskRecords, scanTaskRecordsFor, reconcileScanTaskRecords
 } from "../public/room-scan-model.js";
 
 // One complete room, walked end to end through the real pipeline.
@@ -403,4 +403,49 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const saved = {tasks:["Old unlinked task",...evidence.tasks],taskRecords:evidence.taskRecords};
   const records = scanTaskRecordsFor(saved);
   assert.equal(records.filter(record=>record.origin==="legacy").length,1,"Legacy tasks were discarded or new linked records lost their origin");
+}
+
+{
+  const vision = {text:"Wipe the hob", origin:"vision", inventoryKeys:["hob"]};
+  const customer = {...vision, origin:"customer", inventoryKeys:[]};
+  const heavy = {key:"hob", condition:"heavy", conditionConfidence:.9};
+  const clean = {...heavy, condition:"clean", conditionConfirmed:true};
+  const resolve = (records, items, options) => reconcileScanTaskRecords(records, items, options);
+  assert.equal(resolve([vision], [clean])[0].decision, "remove");
+  assert.equal(resolve([vision], [], {removedKeys:["hob"]})[0].decision, "remove");
+  assert.equal(resolve([vision], [heavy])[0].decision, "keep");
+  assert.equal(resolve([vision], [{...clean, conditionConfirmed:false}])[0].decision, "keep",
+    "An automatic clean grade cannot delete a task.");
+  const missing = resolve([vision], [])[0];
+  assert.equal(missing.decision, "keep");
+  assert.equal(missing.reviewRequired, true, "A missing detection needs review, not deletion.");
+  for (const items of [[clean], []]) {
+    assert.equal(resolve([customer], items, {removedKeys:["hob"]})[0].decision, "keep");
+  }
+  const sameText = resolve([vision, customer], [clean]);
+  assert.deepEqual(sameText.map(task => task.decision), ["remove", "keep"]);
+  for (const origin of ["legacy", "vision"]) {
+    const unlinked = resolve([{...vision, origin, inventoryKeys:[]}], [clean], {changedKeys:["hob"]})[0];
+    assert.equal(unlinked.decision, "keep");
+    assert.equal(unlinked.reviewRequired, true);
+  }
+  const grouped = {...vision, text:"Wipe the hob and sink", inventoryKeys:["hob","sink"]};
+  const partial = resolve([grouped], [clean, {key:"sink",condition:"heavy",conditionConfidence:.9}])[0];
+  assert.equal(partial.decision, "keep");
+  assert.equal(partial.reviewRequired, true);
+  assert.equal(resolve([grouped], [clean], {removedKeys:["sink"]})[0].decision, "remove");
+  const renamed = resolve([vision], [heavy], {changedKeys:["hob"]})[0];
+  assert.equal(renamed.decision, "keep");
+  assert.equal(renamed.reviewRequired, true);
+  const ambiguous = resolve([vision], [clean,heavy])[0];
+  assert.equal(ambiguous.decision, "keep");
+  assert.equal(ambiguous.reviewRequired, true);
+  assert.equal(resolve([vision], [heavy], {removedKeys:["hob"]})[0].decision, "keep",
+    "A re-added item must not be deleted by an old dismissal.");
+  const saved = mergeInventoryIntoSavedDetections([], [clean]);
+  assert.equal(resolve([vision], saved)[0].decision, "remove",
+    "Saved inventory identities retain customer clean confirmation.");
+  const before = JSON.stringify({vision, customer, heavy, clean, grouped, saved});
+  resolve([vision, customer, grouped], [clean,heavy], {removedKeys:["sink"]});
+  assert.equal(JSON.stringify({vision, customer, heavy, clean, grouped, saved}), before);
 }
