@@ -37,6 +37,9 @@ import {
   preferredSpeechLanguage,
   roomReadingPayload,
   mergeItemReadings,
+  readingTaskRecords,
+  mergeScanTaskRecords,
+  scanTaskRecordsFor,
   trackDetections,
   drawableTracks,
   frameQualityStats,
@@ -2112,6 +2115,7 @@ export function openRoomScan() {
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: localRoomTasks(roomName, spokenNote),
+          taskRecords: readingTaskRecords({tasks:localRoomTasks(roomName, spokenNote)}, {customer:true}),
           condition: existing?.condition || "",
           transcript: spokenNote,
           readingStatus: "reading",
@@ -2134,6 +2138,7 @@ export function openRoomScan() {
             x: box.x, y: box.y, width: box.width, height: box.height
           })),
           tasks: Array.isArray(existing.tasks) ? existing.tasks : [],
+          taskRecords: scanTaskRecordsFor(existing),
           condition: existing.condition || "",
           transcript: spokenNote,
           readingStatus: existing.readingStatus || "ready",
@@ -2162,6 +2167,7 @@ export function openRoomScan() {
         room = {
           ...room,
           tasks: [...existingTasks, ...evidence.tasks.filter((task) => !seen.has(task.toLowerCase().trim()))],
+          taskRecords: mergeScanTaskRecords(scanTaskRecordsFor(room), scanTaskRecordsFor(evidence)),
           // The confirmation grade wins when it committed to one. Merging it
           // worst-wins with the walking grades let a passing glance override the
           // read that is deliberately framed — and, once the tiers differ, the
@@ -2605,6 +2611,7 @@ export function openRoomScan() {
               ...savedRoom,
               detections: mergeInventoryIntoSavedDetections(savedRoom.detections, inventoryFor(roomName), dismissed),
               tasks: mergeSavedTasks(savedRoom.tasks, reading.tasks),
+              taskRecords: mergeScanTaskRecords(scanTaskRecordsFor(savedRoom), scanTaskRecordsFor(reading)),
               condition: resolveRoomCondition(savedRoom.condition, reading.condition)
             });
             renderHub();
@@ -2769,6 +2776,7 @@ export function openRoomScan() {
       const key = transcriptKey(roomName);
       if (!key || !reading) return;
       const current = state.walkEvidence.get(key) || { tasks: [], condition: "" };
+      const records = mergeScanTaskRecords(scanTaskRecordsFor(current), scanTaskRecordsFor(reading));
       const seen = new Set(current.tasks.map((task) => String(task).toLowerCase().trim()));
       for (const task of Array.isArray(reading.tasks) ? reading.tasks : []) {
         const line = String(task || "").trim();
@@ -2780,6 +2788,7 @@ export function openRoomScan() {
       // The worst grade any angle saw wins. A kitchen that looks tidy from the
       // doorway and heavy behind the bin is a heavy kitchen — taking the last
       // reading instead would let the final glance undercharge the job.
+      current.taskRecords = records;
       current.condition = worseCondition(current.condition, reading.condition);
       state.walkEvidence.set(key, current);
     }
@@ -2879,6 +2888,7 @@ export function openRoomScan() {
               mergeInventoryIntoSavedDetections(reading.detections, inventoryFor(roomName), dismissed)
             ),
             tasks: mergeSavedTasks(current.tasks, reading.tasks),
+            taskRecords: mergeScanTaskRecords(scanTaskRecordsFor(current), scanTaskRecordsFor(reading)),
             condition: resolveRoomCondition(reading.condition, current.condition),
             readingStatus: reading.readingStatus || "ready",
             readingRevision: 0
@@ -2937,7 +2947,7 @@ export function openRoomScan() {
         x: item.x, y: item.y, width: item.width, height: item.height
       }));
       if (!state.readingAllowed || !state.visionAvailable) {
-        return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), condition: "", readingStatus: "manual" };
+        return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), taskRecords: readingTaskRecords({tasks:localRoomTasks(roomName, transcript)}, {customer:true}), condition: "", readingStatus: "manual" };
       }
 
       // Decode the immutable frame rather than reading the shared capture canvas.
@@ -2988,7 +2998,7 @@ export function openRoomScan() {
       });
       if (response.status === 503) {
         state.visionAvailable = false;
-        return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), condition: "", readingStatus: "manual" };
+        return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), taskRecords: readingTaskRecords({tasks:localRoomTasks(roomName, transcript)}, {customer:true}), condition: "", readingStatus: "manual" };
       }
       if (!response.ok) throw new Error("reading-failed");
       const result = await response.json();
@@ -2998,6 +3008,7 @@ export function openRoomScan() {
         // the boxes it asserts still have to be checked against the frame.
         detections: selected.length ? mergeItemReadings(items, result) : usableDetections(result?.detections),
         tasks: Array.isArray(result?.tasks) ? result.tasks : [],
+        taskRecords: readingTaskRecords(result, {selected: selected.length > 0}),
         condition: result?.condition || "",
         readingStatus: "ready"
       };
@@ -3827,6 +3838,7 @@ export function openRoomScan() {
           name: room.name,
           condition: room.condition,
           fixtures: (room.detections || []).map(inventoryDisplayLabel),
+          taskRecords: scanTaskRecordsFor(room),
           note: String(room.transcript || "").trim(),
           // The structured reading, not just its display label.
           //
