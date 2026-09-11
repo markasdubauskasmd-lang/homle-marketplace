@@ -1626,7 +1626,15 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
         : Object.freeze(Array.isArray(current.soiling) ? current.soiling.slice(0, 4) : [])
     });
   }
+  const compareUsefulness = (a, b) => (usefulness(b) - usefulness(a))
+    || (b.sightings - a.sightings) || a.label.localeCompare(b.label, "en");
+  const reviewed = item => item.confirmed === true || item.conditionConfirmed === true;
   return Object.freeze([...merged.values()]
+    // Customer-reviewed rows retain their place in the bounded inventory before
+    // automatic findings compete for the remaining slots. Display order still
+    // follows cleaning priority after retention, so clean rows do not pin the UI.
+    .sort((a, b) => Number(reviewed(b)) - Number(reviewed(a)) || compareUsefulness(a, b))
+    .slice(0, limit)
     // Ordered by USEFULNESS, not by how often it was seen.
     //
     // Sightings-first was a mistake with a very visible symptom. "Wall", "Floor"
@@ -1640,8 +1648,7 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     // What a cleaning quote is actually about is what needs cleaning, so that
     // sorts first. "Wall CLEAN" is the least useful row it is possible to show:
     // true, unactionable, and occupying a slot on a phone screen.
-    .sort((a, b) => (usefulness(b) - usefulness(a)) || (b.sightings - a.sightings) || a.label.localeCompare(b.label, "en"))
-    .slice(0, limit)
+    .sort(compareUsefulness)
     .map((item) => Object.freeze(reviewMixedConditions(item))));
 }
 

@@ -1103,3 +1103,47 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   assert.equal(kitchen.completedCount,0,"Deleted evidence still counted as analysed views");
   assert.equal(kitchen.completedSignatures.length,0,"A stale response recreated removed history");
 }
+
+
+// A later walking read must not silently erase a customer's work at the cap.
+{
+  const fresh = Array.from({ length: 40 }, (_, index) => ({
+    label: `Fixture ${index}`, score: .95, condition: "heavy", conditionConfidence: .9
+  }));
+  for (const change of [{ label: "Study radiator" }, { condition: "clean" }, { confirmed: true }]) {
+    const initial = mergeRoomInventory([], [{ label: "Radiator", score: .8, condition: "" }]);
+    const key = inventoryKey("Radiator");
+    const reviewed = correctInventoryItem(initial, key, change);
+    const before = JSON.stringify(reviewed);
+    let kept = mergeRoomInventory(reviewed, fresh);
+    assert.equal(kept.length, 40, "Protecting reviewed rows expanded the inventory cap");
+    assert.ok(kept.some(item => item.key === key), "New automatic findings evicted a customer-reviewed item");
+    assert.equal(kept[0].condition, "heavy", "Retention priority displaced cleaning-priority display order");
+    assert.equal(kept.find(item => item.key === key).label, change.label || "Radiator");
+    if (change.condition) assert.equal(kept.find(item => item.key === key).condition, change.condition);
+    for (let pass = 0; pass < 3; pass++) kept = mergeRoomInventory(kept, fresh);
+    const saved = mergeInventoryIntoSavedDetections([], kept).find(item => item.inventoryKey === key);
+    assert.ok(saved, "Reviewed item vanished before the room was saved");
+    assert.equal(saved.label, change.label || "Radiator");
+    if (change.condition) assert.equal(saved.condition, change.condition);
+    assert.equal(JSON.stringify(reviewed), before, "Retention mutated the source inventory");
+    const removed = correctInventoryItem(kept, key, { remove: true });
+    assert.equal(mergeRoomInventory(removed, fresh).some(item => item.key === key), false,
+      "Retention resurrected an explicitly removed item");
+  }
+  const full = mergeRoomInventory([], fresh).map(item => ({
+    ...item, confirmed: true, condition: "clean", conditionConfirmed: true
+  }));
+  const other = fresh.map(item => ({ ...item, label: `Other ${item.label}` }));
+  const retained = mergeRoomInventory(full, other);
+  assert.deepEqual(new Set(retained.map(item => item.key)), new Set(full.map(item => item.key)),
+    "A full reviewed inventory lost customer items to automatic findings");
+  assert.equal(retained.length, 40);
+  const ordinary = mergeRoomInventory([], [
+    { label: "Wall", condition: "clean", score: .99 },
+    { label: "Tap", condition: "heavy", score: .9 },
+    { label: "Shelf", condition: "light", score: .8 }
+  ], { limit: 2 });
+  assert.deepEqual(ordinary.map(item => item.label), ["Tap", "Shelf"],
+    "Unreviewed inventory no longer retains the most useful findings");
+}
