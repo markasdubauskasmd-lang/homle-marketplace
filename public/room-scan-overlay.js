@@ -41,6 +41,7 @@ import {
   mergeScanTaskRecords,
   scanTaskRecordsFor,
   withCurrentRoomInstructions,
+  roomInstructionTasks,
   trackDetections,
   drawableTracks,
   frameQualityStats,
@@ -3026,13 +3027,7 @@ export function openRoomScan() {
     }
 
     function localRoomTasks(roomName, transcript) {
-      const note = String(transcript || "").trim();
-      if (!note) return [];
-      return checklistFromTranscript(`In the ${roomName}, ${note}`).map((line) => {
-        const divider = line.indexOf(":");
-        const task = divider >= 0 ? line.slice(divider + 1).trim() : line.trim();
-        return task ? `${roomName}: ${task}` : "";
-      }).filter(Boolean);
+      return roomInstructionTasks(roomName, transcript, checklistFromTranscript);
     }
 
     /* ── Spoken guidance ── */
