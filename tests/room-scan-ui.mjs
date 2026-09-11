@@ -622,9 +622,10 @@ assert(overlay.includes("validatedGuidedRoomPhotoFile(file)") && overlay.include
 // load then overwrites.
 assert(overlay.includes("state.loadingRoom") && /function capture\(\)[\s\S]{0,120}state\.loadingRoom/.test(overlay), "A shutter tap while a revisited room is still loading can race the load.");
 
-// Removing every object on a revisit saves an empty room, rather than reading
-// the whole frame again and rediscovering exactly what was removed.
-assert(overlay.includes("const clearedRevisit = revisit && chosen.length === 0") && /clearedRevisit[\s\S]{0,200}detections: \[\], tasks: \[\], condition: ""/.test(overlay), "Clearing every object re-reads the whole room and brings the removed objects back.");
+// Revisit clearing, unoffered findings and walking-only rooms are exercised
+// through the actual openRevisit/saveRoom functions in scan-walkthrough.mjs.
+// An exact-source assertion here cannot distinguish an empty offered selection
+// from a room whose findings have no selectable boxes.
 
 // The in-progress flag is claimed before the consent prompt is awaited, so a
 // second activation during that await cannot slip in and save an empty room
