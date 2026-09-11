@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import {createWorkerDetectorAdapter} from '../public/room-scan-worker-adapter.js';
 const tick=()=>new Promise(setImmediate);
-function harness({badInit=false}={}){
+function harness({badInit=false,fallbackFailures=0}={}){
   const timers=new Map(),messages=[];let timerId=0,loads=0,terminated=0;
   const fallbackCalls=[];
   const worker={postMessage(message,transfer){messages.push(structuredClone(message,{transfer}));},terminate(){terminated++;}};
   const adapter=createWorkerDetectorAdapter({createWorker:()=>{if(badInit)throw Error('unsupported');return worker;},
     snapshot:source=>({data:source.data.slice(),width:source.width,height:source.height}),
-    loadFallback:async()=>{loads++;return {detect:async(frame,maxBoxes,minimumScore)=>{fallbackCalls.push({pixels:[...frame.data],maxBoxes,minimumScore});return [{class:'fallback',score:1}];}};},
+    loadFallback:async()=>{loads++;if(loads<=fallbackFailures)throw Error('temporary fallback download');return {detect:async(frame,maxBoxes,minimumScore)=>{fallbackCalls.push({pixels:[...frame.data],maxBoxes,minimumScore});return [{class:'fallback',score:1}];}};},
     setTimer:callback=>{timers.set(++timerId,callback);return timerId;},clearTimer:id=>timers.delete(id)});
   return {adapter,worker,messages,timers,fallbackCalls,counts:()=>({loads,terminated}),reply(message,extra){worker.onmessage({data:{id:message.id,...extra}});}};
 }
@@ -42,6 +42,25 @@ for(const phase of ['loading','detecting']){
   const h=harness();if(phase==='detecting'){h.reply(h.messages[0],{backend:'webgpu'});await h.adapter.ready;}
   const p=h.adapter.detect(frame());const settled=assert.rejects(p,/detector-closed/);await tick();h.adapter.dispose();await settled;
   await assert.rejects(h.adapter.detect(frame()),/detector-closed/);assert.equal(h.counts().loads,0);assert.equal(h.timers.size,0);cases++;
+}
+for(const disposeAfterFailure of [false,true]){
+  const h=harness({fallbackFailures:1});h.reply(h.messages[0],{backend:'webgpu'});await h.adapter.ready;
+  const first=h.adapter.detect(frame());const rejected=assert.rejects(first,/temporary fallback download/);
+  await tick();h.reply(h.messages.at(-1),{error:'worker runtime failure'});await rejected;
+  assert.equal(h.counts().loads,1,'One detection must not loop on failed downloads.');
+  if(disposeAfterFailure){
+    h.adapter.dispose();await assert.rejects(h.adapter.detect(frame()),/detector-closed/);
+    assert.equal(h.counts().loads,1,'Disposal must prevent fallback retries.');
+  }else{
+    const original=frame(),second=h.adapter.detect(original,7,.71);original.data[0]=99;
+    const third=h.adapter.detect(frame());
+    assert.equal((await second)[0].class,'fallback');await third;
+    assert.equal(h.counts().loads,2,'Later detections must retry once and reuse success.');
+    assert.deepEqual(h.fallbackCalls[0],{pixels:[12,23,34,255],maxBoxes:7,minimumScore:.71});
+    assert.equal(h.messages.length,2,'A failed worker must not receive new inference requests.');
+    h.adapter.dispose();
+  }
+  assert.equal(h.timers.size,0);cases++;
 }
 console.log(JSON.stringify({passed:cases,scope:'Scanner worker lifecycle with transferred buffers and mocked failure modes.'}));
 
