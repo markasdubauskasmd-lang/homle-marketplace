@@ -145,9 +145,10 @@ function objectLoad(object) {
     // assessment reports how much of itself rests on it. "clean" is held to the
     // higher vocabulary threshold: an uncertain clean contributes NO load, so
     // it is the one verdict whose error only ever understates the level.
-    unresolved: object?.conditionConfirmed !== true
-      && (!condition
-        || number(object?.confidenceCondition) < (condition === "clean" ? cleanConditionReviewThreshold : conditionReviewThreshold))
+    // "Cannot tell" is unresolved even when an older correction record carries
+    // a confirmation flag. Only an actual grade can be confirmed.
+    unresolved: !condition || (object?.conditionConfirmed !== true
+      && number(object?.confidenceCondition) < (condition === "clean" ? cleanConditionReviewThreshold : conditionReviewThreshold))
   };
 }
 
