@@ -240,12 +240,12 @@ assert(await rejects(async () => createAnthropicRoomVision({ apiKey: "k", client
     const focus = inspectionFocus(name);
     for (const word of included) assert(focus.includes(word), name + " missed " + word);
     for (const word of excluded) assert(!focus.includes(word), name + " wrongly included " + word);
-    assert.equal((focus.match(/Grade each only/g) || []).length, 1, "Evidence rule must remain once per focus.");
+    assert((focus.match(/Grade each only/g) || []).length === 1, "Evidence rule must remain once per focus.");
   }
   for (const name of ["Ground floor", "Showroom", "Newcastle", "Marshalled storage", "Outbuilding", "Studio", "Ballroom"]) {
-    assert.equal(inspectionFocus(name), "", name + " was assigned a room type from a substring or guess.");
+    assert(inspectionFocus(name) === "", name + " was assigned a room type from a substring or guess.");
   }
-  assert.equal(inspectionFocus("Kitchen / kitchenette"), inspectionFocus("Kitchen"), "Aliases must not duplicate the same focus.");
+  assert(inspectionFocus("Kitchen / kitchenette") === inspectionFocus("Kitchen"), "Aliases must not duplicate the same focus.");
   for (const name of ["Ground floor kitchen", "Kitchen / living room"]) {
     for (const selected of [false, true]) {
       const capture = {};
