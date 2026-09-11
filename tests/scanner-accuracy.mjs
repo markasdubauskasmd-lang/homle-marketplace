@@ -294,3 +294,22 @@ assert.ok(detectionMinimumScore > 0.5, `The detection threshold is ${detectionMi
 assert.ok(detectionMinimumScore <= 0.75, `The detection threshold is ${detectionMinimumScore}, high enough to hide ordinary furniture. Missing items cost a tap; the manual box exists for that.`);
 
 console.log("Scanner accuracy tests passed: recognised speech is joined idempotently and verbatim, regional English follows the speaker's phone with a UK fallback, cross-room impossible labels are dropped while the filter fails open, same-class boxes stacked on one object merge without collapsing genuinely separate items, and the confidence threshold is above the default that produced the false oven.");
+
+// Shared-use descriptions must not silently apply a single-room exclusion list.
+{
+  const {walkingReadingItems}=await import("../public/room-scan-model.js");
+  for(const name of ["Open-plan kitchen","OPEN PLAN KITCHEN","Open–plan kitchen","Openplan kitchen",
+    "Kitchen diner","Kitchen-diner","Kitchen and dining room","Kitchen / dining area"]) {
+    assert.equal(implausibleForRoom("Sofa",name),false,name);
+    const observations=walkingReadingItems({detections:[{label:"Sofa",confidence:.9,condition:"",note:"Condition not assessed"}]},name);
+    assert.equal(observations.length,1,name+" discarded a potentially valid shared-use finding");
+    assert.equal(observations[0].condition,"","A room name must not invent cleaning-condition evidence");
+    assert.equal(walkingReadingItems({detections:[{label:"Sofa",confidence:.9}]},name,new Set(["sofa"])).length,0,
+      "Explicit customer removal must still apply in a shared-use room");
+  }
+  assert.equal(implausibleForRoom("Oven","Studio bedroom"),false);
+  assert.equal(implausibleForRoom("Sink","Bedroom with dining area"),false);
+  assert.equal(implausibleForRoom("Oven","Main bedroom"),true);
+  assert.equal(implausibleForRoom("Sofa","Kitchen"),true);
+  assert.equal(implausibleForRoom("Sofa","Kitchen studioflat"),true,"A substring must not imply a studio room");
+}
