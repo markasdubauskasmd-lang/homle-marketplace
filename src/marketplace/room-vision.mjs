@@ -532,6 +532,7 @@ export function createAnthropicRoomVision(options = {}) {
         messages: [{ role: "user", content: [imagePayload(image), { type: "text", text: context }] }]
       });
       if (response.stop_reason === "refusal") throw new Error("The room photograph could not be read.");
+      if (response.stop_reason !== "end_turn") throw new Error("The room reading did not finish. Please try again.");
       const text = response.content.filter((block) => block.type === "text").map((block) => block.text).join("");
       let payload;
       try { payload = JSON.parse(text); } catch { throw new Error("The room reading was not valid JSON."); }
@@ -588,6 +589,7 @@ export function createAnthropicRoomVision(options = {}) {
         messages: [{ role: "user", content }]
       });
       if (response.stop_reason === "refusal") throw new Error("The room photograph could not be read.");
+      if (response.stop_reason !== "end_turn") throw new Error("The room reading did not finish. Please try again.");
       const text = response.content.filter((block) => block.type === "text").map((block) => block.text).join("");
       let payload;
       try { payload = JSON.parse(text); } catch { throw new Error("The room reading was not valid JSON."); }
