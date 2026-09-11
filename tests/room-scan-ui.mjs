@@ -289,7 +289,7 @@ assert(overlay.includes('window.addEventListener("beforeunload", onBeforeUnload)
 // widening a number teaches nothing; what is guarded is that the photos handed on
 // are the current rooms' own images.
 const finishBody = overlay.slice(overlay.indexOf("function finishScan()"), overlay.indexOf("function close(result)"));
-assert(/photos: state\.rooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(finishBody), "A completed scan does not hand its current room photos directly to the authenticated booking journey.");
+assert(/photos: checklistRooms\.filter[\s\S]{0,320}dataUrl: room\.image/.test(finishBody), "A completed scan does not hand its current room photos directly to the authenticated booking journey.");
 // Finishing while a room is still being read would carry the provisional tasks
 // and grade into the booking, and close() aborts the read that was about to
 // replace them — so the customer would be quoted from a placeholder.
