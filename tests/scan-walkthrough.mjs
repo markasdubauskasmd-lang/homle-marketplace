@@ -658,3 +658,19 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.notEqual(first.inventoryKey,state.candidates[0].inventoryKey,
     "Selections from separate frozen views must remain independently editable.");
 }
+
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
+  const start = source.indexOf("async function readRoom(image,");
+  const end = source.indexOf("function localRoomTasks",start);
+  assert.ok(start>0 && end>start);
+  const {inventoryKey,mergeSavedDetections} = await import("../public/room-scan-model.js");
+  const read = new Function("state","inventoryKey","localRoomTasks","readingTaskRecords",
+    source.slice(start,end)+";return readRoom;")({readingAllowed:false},inventoryKey,()=>[],()=>[]);
+  const selections = [{id:"m1",inventoryKey:"manual:1",label:"",x:10,y:10,width:20,height:20},
+    {id:"m2",inventoryKey:"manual:2",label:"",x:60,y:60,width:20,height:20}];
+  const fallback = await read("frame","Kitchen",selections);
+  assert.deepEqual(fallback.detections.map(item=>item.inventoryKey),["manual:1","manual:2"]);
+  const provisional=selections.map(item=>({...item,label:"Marked item",needsName:true}));
+  assert.equal(mergeSavedDetections(provisional,fallback.detections).length,2);
+}
