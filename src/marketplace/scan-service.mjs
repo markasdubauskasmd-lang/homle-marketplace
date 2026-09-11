@@ -104,7 +104,7 @@ function scanObject(input, roomLabel, index) {
     soiling: soiling(input?.soiling),
     confidenceLabel: confidence(input?.confidenceLabel ?? input?.confidence),
     confidenceCondition: confidence(input?.confidenceCondition),
-    conditionConfirmed: input?.conditionConfirmed === true,
+    conditionConfirmed: Boolean(itemCondition(input?.condition)) && input?.conditionConfirmed === true,
     evidence: boundedText(input?.evidence ?? input?.note, 200, `${roomLabel} object ${index + 1} evidence`),
     // An unrecognised origin resolves to the on-device detector rather than
     // rejecting the object. 'manual' and 'vision' are the two values a
@@ -161,7 +161,7 @@ function modelAttribution(vision) {
 function objectProjection(record) {
   const conditionValue = itemCondition(record?.condition);
   const confidenceCondition = confidence(record?.confidenceCondition);
-  const confirmed = record?.conditionConfirmed === true;
+  const confirmed = Boolean(conditionValue) && record?.conditionConfirmed === true;
   return Object.freeze({
     objectId: record?.objectId,
     inventoryKey: record?.inventoryKey || "",

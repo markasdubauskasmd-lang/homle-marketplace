@@ -181,7 +181,7 @@ export function applyCorrection(rooms, { roomName, inventoryKey, field, value })
       objects.push(field === "label"
         ? { ...object, label: value, needsName: false, confidenceLabel: 1, origin: "manual" }
         : field === "condition"
-          ? { ...object, condition: value, conditionConfirmed: true, confidenceCondition: 1 }
+          ? { ...object, condition: value, conditionConfirmed: Boolean(value), confidenceCondition: value ? 1 : 0 }
           : { ...object, quantity: Number(value) });
     }
     nextRooms.push({ ...room, objects });

@@ -329,3 +329,43 @@ console.log("Customer scan-review checks passed.");
     assert(h.context.state.scanReview.version === "latest" && !h.context.reviewHost.hidden, "An old failure affected the current review.");
   }
 }
+
+
+// "Cannot tell" must remain a question across client edits, server normalisation,
+// saved-record projection and the final review, including legacy confirmed flags.
+{
+  const { normalizedRoomScan, scanProjection } = await import("../src/marketplace/scan-service.mjs");
+  const { assessCleaningComplexity } = await import("../src/marketplace/cleaning-complexity.mjs");
+  const original = [{ roomName: "Kitchen", objects: [{
+    inventoryKey: "tap", label: "Tap", quantity: 1, condition: "heavy",
+    conditionConfirmed: true, confidenceLabel: .9, confidenceCondition: 1, soiling: ["limescale"]
+  }] }];
+  for (const value of ["", "clean", "light", "medium", "heavy"]) {
+    const corrected = applyCorrection(original, { roomName: "Kitchen", inventoryKey: "tap", field: "condition", value }).rooms;
+    const normalized = normalizedRoomScan({
+      cleaningRequestId: "30000000-0000-4000-8000-000000000001",
+      rooms: corrected
+    });
+    const projected = scanProjection({ rooms: normalized.rooms });
+    const review = scanReview(projected);
+    const unknown = value === "";
+    assert(projected.unresolvedCount === (unknown ? 1 : 0), "Customer condition uncertainty changed during projection.");
+    assert(projected.rooms[0].objects[0].conditionConfirmed === !unknown, "An absent grade was confirmed.");
+    assert(projected.complexity.provisional === unknown, "Cannot tell became a settled assessment.");
+    assert(review.rooms[0].objects[0].needsConfirmation === unknown, "Final review lost the condition question.");
+    if (unknown) {
+      assert(corrected[0].objects[0].confidenceCondition === 0, "Cannot tell retained certainty in a grade.");
+      assert(review.rooms[0].objects[0].state === "We could not tell", "Unknown condition was hidden as merely unassessed.");
+      assert(review.rooms[0].objects[0].recommendation === "", "Unknown grade created a cleaning recommendation.");
+      assert(review.questions.length > 0, "Unknown grade generated no review question.");
+    }
+  }
+  assert(original[0].objects[0].condition === "heavy", "Correction overwrote original evidence.");
+  const legacy = [{roomName:"Kitchen", objects:[{...original[0].objects[0],condition:"",conditionConfirmed:true,confidenceCondition:1}]}];
+  assert(scanProjection({rooms:legacy}).unresolvedCount === 1, "Legacy saved unknown confirmation bypassed review.");
+  assert(assessCleaningComplexity({rooms:legacy}).provisional === true, "Direct assessment trusted a legacy unknown confirmation.");
+  for (const [field,value] of [["label","Kitchen tap"],["quantity",3]]) {
+    const corrected = applyCorrection(legacy,{roomName:"Kitchen",inventoryKey:"tap",field,value}).rooms;
+    assert(scanProjection({rooms:corrected}).unresolvedCount === 1, "Unrelated edit settled an unknown grade.");
+  }
+}
