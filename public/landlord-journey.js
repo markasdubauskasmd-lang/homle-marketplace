@@ -1367,6 +1367,24 @@ function objectControls(roomName, object) {
   grade.addEventListener("change", () => correctScanObject(roomName, object.inventoryKey, "condition", grade.value));
   actions.append(grade);
 
+  const quantity = document.createElement("select");
+  quantity.className = "scan-review-grade";
+  quantity.setAttribute("aria-label", `Quantity of ${object.label}`);
+  for (let count = 1; count <= 20; count += 1) {
+    const option = document.createElement("option");
+    option.value = String(count);
+    option.textContent = `Quantity: ${count}`;
+    option.selected = count === object.quantity;
+    quantity.append(option);
+  }
+  quantity.addEventListener("change", () => {
+    const value = Number(quantity.value);
+    if (Number.isInteger(value) && value >= 1 && value <= 20 && value !== object.quantity) {
+      correctScanObject(roomName, object.inventoryKey, "quantity", value);
+    }
+  });
+  actions.append(quantity);
+
   const remove = textNode("button", "scan-review-remove");
   remove.type = "button";
   remove.textContent = "Not here";
