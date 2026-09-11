@@ -762,3 +762,49 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.equal(merge([{inventoryKey:"tap",label:"Kitchen tap"}],[],new Set(["tap","kitchen tap"])).length,0,
     "The actual removed identity stays removed after a rename.");
 }
+
+// An unchanged revisit must not turn an unnamed placeholder into a fixed name.
+{
+  const {default:vm} = await import("node:vm");
+  const model = await import("../public/room-scan-model.js");
+  const source = readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
+  const start = source.indexOf("async function saveRoom(");
+  const end = source.indexOf("// The shutter freezes first",start);
+  assert.ok(start>0 && end>start);
+  for (const readingStatus of ["manual","ready"]) {
+    const boxes = [
+      {id:"s0",inventoryKey:"manual:1",label:"Marked item",needsName:true,
+        condition:"clean",conditionConfirmed:true,x:10,y:10,width:20,height:20},
+      {id:"s1",inventoryKey:"manual:2",label:"Customer shelf",needsName:false,
+        x:60,y:60,width:20,height:20}
+    ];
+    const state = {rooms:[{name:"Kitchen",transcript:"",detections:boxes,tasks:[],readingStatus}],
+      candidates:boxes,currentRoom:"Kitchen",roomSession:1,consentAsked:true,nextReadingRevision:1,
+      walkEvidence:new Map(),dismissed:new Map()};
+    let reads=0;
+    const context = vm.createContext({...model,state,el:{note:{value:""},readRoom:{},retake:{}},
+      setRoomTranscript(){},roomTranscript:()=>"",scanEvents:{record(){}},elapsedSince:()=>0,renderScanProgress(){},
+      transcriptKey:name=>name.toLowerCase(),inventoryFor:()=>[],localRoomTasks:()=>[],toHub(){},
+      nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},
+      window:{setTimeout:fn=>fn()},readRoomInBackground:()=>{reads+=1}});
+    vm.runInContext(source.slice(start,end),context);
+    for (let revisit=0;revisit<2;revisit+=1) {
+      await context.saveRoom("synthetic-image",state.candidates,{revisit:true});
+      const saved=state.rooms[0].detections;
+      assert.equal(saved[0].needsName,true);
+      assert.equal(saved[1].needsName,false);
+      const identified=model.mergeSavedDetections(saved,[
+        {...boxes[0],label:"Extractor",needsName:false,condition:"heavy",conditionConfirmed:false},
+        {...boxes[1],label:"Wrong shelf"}
+      ]);
+      assert.equal(identified.length,2);
+      assert.equal(identified[0].inventoryKey,"manual:1");
+      assert.equal(identified[0].label,"Extractor");
+      assert.equal(identified[0].condition,"clean");
+      assert.equal(identified[0].conditionConfirmed,true);
+      assert.equal(identified[1].label,"Customer shelf");
+      state.candidates=saved;
+    }
+    assert.equal(reads,0,"Unchanged saves must not request additional provider reads.");
+  }
+}

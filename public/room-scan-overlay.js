@@ -2147,7 +2147,7 @@ export function openRoomScan() {
         room = {
           name: roomName, image: frame,
           detections: chosen.map((box) => ({
-            id: box.id, inventoryKey: box.inventoryKey || inventoryKey(box.label), label: box.label, note: box.note || "",
+            id: box.id, inventoryKey: box.inventoryKey || inventoryKey(box.label), label: box.label, needsName: box.needsName === true || !box.label, note: box.note || "",
             // An unchanged revisit deliberately buys no new reading, which only
             // works if it also keeps the old one. Dropping condition here meant
             // open-then-save was enough to erase every grade in the room.
