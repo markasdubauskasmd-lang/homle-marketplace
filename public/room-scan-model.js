@@ -1737,7 +1737,9 @@ export function mergeSavedDetections(existing, incoming) {
       continue;
     }
     if (currentConfirmed) {
-      merged.set(key, { ...detection, ...current, conditionConfirmed: true });
+      merged.set(key, { ...detection, ...current,
+        ...(current.needsName === true && detection.needsName === false ? { label: detection.label, needsName: false } : {}),
+        conditionConfirmed: true });
       continue;
     }
     const betterGeometry = detection.width > 0 && !(current.width > 0);
