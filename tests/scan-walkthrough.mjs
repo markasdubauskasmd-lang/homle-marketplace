@@ -4,7 +4,7 @@ import {
   conditionReviewAdvice, correctInventoryItem, walkingReadingItems, inventoryDisplayLabel,
   inventoryKey, keyframeDefaults, mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
   resolveRoomCondition, shouldCaptureKeyframe, walkingReadIsBlocked, findRoom, upsertRoom,
-  readingTaskRecords, mergeScanTaskRecords, scanTaskRecordsFor, reconcileScanTaskRecords
+  readingTaskRecords, mergeScanTaskRecords, scanTaskRecordsFor, reconcileScanTaskRecords, scanChecklistLines, scanSummary, mergeItemReadings
 } from "../public/room-scan-model.js";
 
 // One complete room, walked end to end through the real pipeline.
@@ -312,11 +312,11 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       diagnostics:{keyframesRead:0},dismissed:new Map(),rooms:[]};
     const tasks = ["Kitchen: Wipe the table"];
     let requests = 0, remembered = [];
-    const read = new Function("state","roomReadingPayload","recoverCsrf","window","fetch","localRoomTasks","usableDetections","readingTaskRecords",
+    const read = new Function("state","roomReadingPayload","recoverCsrf","window","fetch","localRoomTasks","usableDetections","readingTaskRecords","mergeScanTaskRecords",
       source.slice(readStart, readEnd) + ";return readRoom;")(
       state, () => ({withinLimit:true,body:{synthetic:true}}), async()=>"synthetic-csrf",
       {setTimeout,clearTimeout}, async()=>{requests++;return {status,ok:status===200,json:async()=>({detections:[],tasks,condition:""})};},
-      ()=>tasks, ()=>[], readingTaskRecords);
+      ()=>tasks, ()=>[], readingTaskRecords, mergeScanTaskRecords);
     const reading = await read("synthetic-frame","Kitchen",[],"Wipe the table","walking");
     assert.equal(reading.taskRecords[0].origin,status===503?"customer":"vision","Reading lost task origin");
     const budget = {generation:0,capturedCount:1,completedCount:0,completedSignatures:[]};
@@ -448,4 +448,28 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const before = JSON.stringify({vision, customer, heavy, clean, grouped, saved});
   resolve([vision, customer, grouped], [clean,heavy], {removedKeys:["sink"]});
   assert.equal(JSON.stringify({vision, customer, heavy, clean, grouped, saved}), before);
+}
+
+{
+  const reading = {items:[{id:"d1",label:"Cooktop",condition:"heavy",confidence:.9,conditionConfidence:.9}],
+    tasks:["Degrease the hob"],taskLinks:[{taskIndex:0,itemRefs:["d1"]}]};
+  const selected = [{id:"d1",inventoryKey:"hob",label:"Kitchen hob",x:.1,y:.1,width:.2,height:.2}];
+  const taskRecords = readingTaskRecords(reading,{selected:true,selectedItems:selected});
+  const detections = mergeItemReadings(selected,reading);
+  assert.equal(detections[0].inventoryKey,"hob");
+  assert.deepEqual(taskRecords[0].inventoryKeys,["hob"]);
+  const room = {name:"Kitchen",tasks:reading.tasks,taskRecords,detections};
+  assert.deepEqual(scanChecklistLines([room]),["Kitchen: Degrease the hob"]);
+  const cleared = {...room,detections:detections.map(item=>({...item,condition:"clean",conditionConfirmed:true}))};
+  assert.deepEqual(scanChecklistLines([cleared]),[]);
+  assert.equal(scanSummary([cleared]).minutes,0);
+  assert.equal(scanSummary([cleared]).roomCount,0);
+  const removed = {...room,detections:[],removedInventoryKeys:["hob"]};
+  assert.deepEqual(scanChecklistLines([removed]),[]);
+  assert.deepEqual(scanChecklistLines([{...removed,removedInventoryKeys:[]}]),["Kitchen: Degrease the hob"]);
+  const customer = readingTaskRecords({tasks:reading.tasks},{customer:true});
+  const instructed = {...cleared,taskRecords:mergeScanTaskRecords(taskRecords,customer)};
+  assert.deepEqual(scanChecklistLines([instructed]),["Kitchen: Degrease the hob"]);
+  assert.equal(scanSummary([instructed]).roomCount,1);
+  assert.deepEqual(scanChecklistLines([{name:"Kitchen",tasks:reading.tasks}]),["Kitchen: Degrease the hob"]);
 }
