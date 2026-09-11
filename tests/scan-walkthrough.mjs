@@ -482,3 +482,53 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.deepEqual(scanSummary([{...room,taskRecords:mergeScanTaskRecords(records,customer)}]),
     scanSummary([room]), "Repeated customer/vision wording must not inflate the displayed duration.");
 }
+
+{
+  const {applyCorrection} = await import("../public/scan-review-render.js");
+  const {premiumBaseTasks,premiumScope} = await import("../public/scan-premium-selection.js");
+  const {scanTaskReview} = await import("../public/room-scan-model.js");
+  const source = readFileSync(new URL("../public/landlord-journey.js", import.meta.url),"utf8");
+  const start = source.indexOf("function correctedScanRooms()");
+  const end = source.indexOf("// Sends each customer correction",start);
+  assert.ok(start > 0 && end > start);
+  function fixture(edited = false) {
+    const room = name => ({name,objects:[{inventoryKey:"sink",label:"Sink",condition:"heavy",conditionConfirmed:true}],
+      taskRecords:[{text:"Clean the sink",origin:"vision",inventoryKeys:["sink"]}]});
+    const state = {scanRooms:[room("Kitchen"),room("Bathroom")],scanCorrections:[],scanPremiumSelected:[],
+      scanPremiumPlan:{options:[],groups:[],baseTasks:[]},draft:{scanChecklistEdited:edited}};
+    const el = {tasks:{value:"Kitchen: Clean the sink\nBathroom: Clean the sink",after(){}}};
+    let host, saves = 0;
+    const textNode = (tag,cls,text) => ({tag,cls,text,children:[],dataset:{},setAttribute(){},
+      append(...nodes){this.children.push(...nodes)},replaceChildren(...nodes){this.children=nodes}});
+    const document = {querySelector(){return host || null}};
+    el.tasks.after = node => {host=node};
+    const build = new Function("state","el","applyCorrection","scanChecklistLines","scanTaskReview",
+      "premiumBaseTasks","premiumScope","document","textNode","invalidateScanRequest","premiumChoiceId",
+      "renderPremiumChoices","editableTaskLines","eligiblePremiumSelections","updateResultTotals","saveDraft","refreshScanReview",
+      source.slice(start,end)+";return {correctScanObject,reconcileReviewedChecklist};");
+    const api = build(state,el,applyCorrection,scanChecklistLines,scanTaskReview,premiumBaseTasks,premiumScope,
+      document,textNode,()=>{},()=>"",()=>{},()=>el.tasks.value.split("\n").filter(Boolean),()=>[],()=>{},()=>{saves++},()=>{});
+    return {state,el,api,host:()=>host,saves:()=>saves};
+  }
+  const untouched = fixture();
+  untouched.api.correctScanObject("Kitchen","sink","condition","clean");
+  assert.equal(untouched.el.tasks.value,"Bathroom: Clean the sink");
+  assert.deepEqual(untouched.state.draft.tasks,["Bathroom: Clean the sink"]);
+  assert.equal(untouched.saves(),1);
+  untouched.api.correctScanObject("Bathroom","sink","removed",true);
+  assert.equal(untouched.el.tasks.value,"");
+  const edited = fixture(true);
+  edited.el.tasks.value = "Kitchen: Clean the sink\nKeep my exact instruction";
+  edited.api.correctScanObject("Kitchen","sink","condition","clean");
+  assert.equal(edited.el.tasks.value,"Kitchen: Clean the sink\nKeep my exact instruction");
+  assert.equal(edited.host().hidden,false);
+  assert.ok(edited.host().children.some(node=>node.text==="Kitchen: Clean the sink"));
+  const legacy = fixture();
+  delete legacy.state.draft.scanChecklistEdited;
+  legacy.api.correctScanObject("Kitchen","sink","removed",true);
+  assert.equal(legacy.el.tasks.value,"Kitchen: Clean the sink\nBathroom: Clean the sink");
+  const renamed = fixture();
+  renamed.api.correctScanObject("Kitchen","sink","label","Counter");
+  assert.ok(renamed.el.tasks.value.includes("Kitchen: Clean the sink"));
+  assert.equal(renamed.host().hidden,false);
+}
