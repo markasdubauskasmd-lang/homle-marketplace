@@ -1789,8 +1789,9 @@ export function mergeInventoryIntoSavedDetections(existing, inventory, dismissed
   const walked = items.map(savedDetectionFromInventoryItem).filter(Boolean);
   const correctedLabels = new Map(items.filter(item => item.confirmed).map(item => [item.key, item.label]));
   return Object.freeze(mergeSavedDetections(confirmation, walked)
-    .filter(detection => !dismissed.has(String(detection.inventoryKey || inventoryKey(detection.label)))
-      && !dismissed.has(inventoryKey(detection.label)))
+    // An explicit identity outranks a shared display name. A newly marked
+    // object must not inherit the dismissal of a different same-named item.
+    .filter(detection => !dismissed.has(String(detection.inventoryKey || inventoryKey(detection.label))))
     .map(detection => {
     const label = correctedLabels.get(detection.inventoryKey);
     return label ? Object.freeze({ ...detection, label, needsName: false }) : detection;
