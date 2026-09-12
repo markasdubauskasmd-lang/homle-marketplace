@@ -847,12 +847,13 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
 {
   const detection={label:"Sink",confidence:.99,condition:"clean",conditionConfidence:null,x:5,y:5,width:20,height:20};
   const found=walkingReadingItems({detections:[detection,{...detection,label:"Floor"},{...detection,label:"Bed"},null]},"Kitchen",new Set(["floor"]));
-  assert.equal(found.length,1,"Dismissed/implausible/malformed observations leaked into the inventory");
+  assert.deepEqual(found.map(item=>item.label),["Sink","Bed"],"Dismissed or malformed observations survived, or room prior removed a photographed finding");
   assert.equal(found[0].score,.99);
   assert.equal(found[0].conditionConfidence,null,"Overlay conversion borrowed object confidence");
   const inventory=mergeRoomInventory([],found,{now:1});
   const saved=mergeInventoryIntoSavedDetections([],inventory);
-  assert.equal(saved.length,1);
+  assert.equal(saved.length,2);
+  assert.ok(saved.every(conditionNeedsReview),"An unexpected observation lost its condition uncertainty");
   assert.equal(saved[0].conditionConfidence,null,"Save invented condition evidence");
   assert.equal(conditionNeedsReview(saved[0]),true,"Uncertain live reading became settled after save");
   const correction=correctInventoryItem(inventory,inventory[0].key,{condition:"light"});
