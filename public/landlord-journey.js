@@ -1402,7 +1402,23 @@ function objectControls(roomName, object) {
 
 function renderReviewRooms(review) {
   const host = reviewElement("[data-review-room-list]");
+  // Keep all observations in the review model, but build only one page of
+  // editable controls. In particular, each quantity selector has 20 options.
+  const pageSize = 40;
+  const total = review.rooms.reduce((sum, room) => sum + room.objects.length, 0);
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  if (state.scanReviewPageRooms !== state.scanRooms) {
+    state.scanReviewPageRooms = state.scanRooms;
+    state.scanReviewPage = 0;
+  }
+  const page = Math.min(pages - 1, Math.max(0, state.scanReviewPage || 0));
+  state.scanReviewPage = page;
+  let offset = 0;
   host.replaceChildren(...review.rooms.map((room) => {
+    const first = offset;
+    offset += room.objects.length;
+    const visible = room.objects.slice(Math.max(0, page * pageSize - first), Math.max(0, (page + 1) * pageSize - first));
+    if (room.objects.length && !visible.length) return null;
     const block = textNode("section", "scan-review-room");
     block.append(textNode("h4", "scan-review-room-name", room.roomName));
     for (const measurement of room.measurements) block.append(textNode("p", "hint", measurement));
@@ -1428,9 +1444,27 @@ function renderReviewRooms(review) {
       block.append(measureButton);
     }
     if (!room.objects.length) block.append(textNode("p", "hint", "Nothing was picked out in this room."));
-    for (const object of room.objects) block.append(objectControls(room.roomName, object));
+    for (const object of visible) block.append(objectControls(room.roomName, object));
     return block;
-  }));
+  }).filter(Boolean));
+  if (pages > 1) {
+    const navigation = textNode("div", "scan-review-room");
+    const label = textNode("p", "hint", "Items " + (page * pageSize + 1) + "–" + Math.min(total, (page + 1) * pageSize) + " of " + total);
+    label.setAttribute("role", "status");
+    navigation.append(label);
+    for (const [name, delta] of [["Previous items", -1], ["Next items", 1]]) {
+      const button = textNode("button", "btn", name);
+      button.type = "button";
+      button.disabled = page + delta < 0 || page + delta >= pages;
+      button.addEventListener("click", () => {
+        state.scanReviewPage = page + delta;
+        renderReviewRooms(review);
+        host.querySelector(".scan-review-edit, select")?.focus({ preventScroll: true });
+      });
+      navigation.append(button);
+    }
+    host.append(navigation);
+  }
 }
 
 /* ── Measuring from the room photo ──────────────────────────────────────── */
