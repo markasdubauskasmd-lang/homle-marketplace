@@ -1459,7 +1459,7 @@ function renderReviewRooms(review) {
       button.addEventListener("click", () => {
         state.scanReviewPage = page + delta;
         renderReviewRooms(review);
-        host.querySelector(".scan-review-edit, select")?.focus({ preventScroll: true });
+        host.querySelector(".scan-review-edit, select")?.focus();
       });
       navigation.append(button);
     }
