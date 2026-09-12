@@ -391,3 +391,33 @@ console.log("Customer scan-review checks passed.");
   vm.runInNewContext(script.slice(start,end)+"\nrenderReview();",context);
   assert(context.reviewHost.hidden && messages.length===1 && messages[0]==="","Reset left a stale review-recovery message");
 }
+
+// Execute the actual paged renderer and navigation callbacks, preserving identities.
+{
+  const {default:vm}=await import("node:vm");
+  const node=(tag,cls,text)=>({tag,cls,text,children:[],handlers:{},append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;},setAttribute(){},addEventListener(event,handler){this.handlers[event]=handler;},querySelector(){return {focus(){}};}});
+  const host=node("div"),rendered=[];
+  const context={state:{scanRooms:[]},reviewElement:()=>host,textNode:node,pendingMeasurements:()=>[],photoForRoom:()=>null,
+    objectControls(room,object){rendered.push(room+":"+object.inventoryKey);return node("div");}};
+  const start=script.indexOf("function renderReviewRooms(review) {");
+  const end=script.indexOf("/* ── Measuring from the room photo",start);
+  vm.runInNewContext(script.slice(start,end),context);
+  const review={rooms:Array.from({length:20},(_,r)=>({roomName:"Room "+r,measurements:[],objects:Array.from({length:200},(_,i)=>({inventoryKey:"item-"+i}))}))};
+  const all=[];
+  context.renderReviewRooms(review);
+  for(let page=0;page<100;page++){
+    assert(rendered.length===40,"Final review created more than one page of editable controls");
+    all.push(...rendered);rendered.length=0;
+    const navigation=host.children.at(-1),previous=navigation.children[1],next=navigation.children[2];
+    assert(previous.disabled===(page===0) && next.disabled===(page===99),"Review navigation boundary is incorrect");
+    if(page<99)next.handlers.click();
+  }
+  assert(new Set(all).size===4000,"Paging lost or duplicated room/item identities");
+  const snapshot=JSON.stringify(review);
+  context.state.scanRooms=[];context.renderReviewRooms(review);
+  assert(context.state.scanReviewPage===0,"New scan retained the old page");
+  assert(JSON.stringify(review)===snapshot,"Rendering changed captured findings");
+  context.state.scanReviewPage=99;rendered.length=0;
+  context.renderReviewRooms({rooms:[{roomName:"Room 0",measurements:[],objects:[{inventoryKey:"last"}]}]});
+  assert(context.state.scanReviewPage===0 && rendered[0]==="Room 0:last","Removing later findings left an unreachable page");
+}
