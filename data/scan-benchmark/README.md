@@ -54,3 +54,31 @@ good result can be checked against whether the dataset held anything hard.
 node tools/run-scan-benchmark.mjs
 node tools/run-scan-benchmark.mjs data/scan-benchmark/synthetic-seed.json
 ```
+
+## Incomplete evidence and processing time
+
+Benchmark v3 reports missingTargets separately from failed measured targets.
+measuredTargetsMet means only that the available target comparisons passed.
+acceptable also requires every required target to have a measurement and no
+synthetic cases. It does not establish the representative coverage described
+above. Measurement error is not implemented by this harness yet and therefore
+remains explicitly unmeasured; missing price truth is likewise not a price pass.
+The priceErrorWithin value is a tolerance used by priceErrorCoverage, not a
+separate measurement.
+
+An optional numeric processingTimeMs records the measured duration from submitting
+the captured view to receiving the usable scanner result, including processing
+and network delay. It excludes the user's time positioning the camera. Measure
+with a monotonic clock in the capture runner; do not substitute the time taken
+to score an existing case in this benchmark. Use the same start/end definition
+across a comparison and document model, backend, cold/warm loading and network
+conditions with the evaluation run. A case containing multiple views should
+measure the complete submitted scan, not sum overlapping request durations.
+
+Omit the field or use null when unavailable. Zero is a measured zero; strings,
+negative values and non-finite numbers are invalid. Reports include measured
+and missing case counts, median and nearest-rank p95 in milliseconds, both
+pooled and by deviceClass. Small samples do not establish a stable p95. Keep
+device classes specific enough for meaningful comparisons and do not treat
+synthetic timings or desktop results as measurements of real phones. No global
+latency pass threshold is asserted.
