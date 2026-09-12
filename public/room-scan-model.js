@@ -1966,6 +1966,11 @@ export function objectFramingAdvice(tracks, { maximumTinyAreaRatio = 0.015, mini
 // middling confidence from a walking frame, and displayed as settled.
 export const conditionReviewThreshold = 0.5;
 export const cleanConditionReviewThreshold = 0.7;
+// These observations conflict with an automatic "clean" verdict. Damage and
+// clutter are deliberately excluded: either can exist on a clean surface.
+const cleanConflictingSoiling = new Set([
+  "dust", "grease", "limescale", "stain", "mould", "soap-scum", "food-debris", "pet-hair"
+]);
 
 // A recognised object without a cleaning grade is not a finished result. Keep
 // this separate from label confidence: a high-confidence "Tap" can still have no
@@ -1974,6 +1979,10 @@ export function conditionNeedsReview(item) {
   const condition = String(item?.condition || "").toLowerCase().trim();
   if (!["clean", "light", "medium", "heavy"].includes(condition)) return true;
   if (item?.conditionConfirmed === true) return false;
+  // Confidence cannot settle mutually inconsistent model observations. Ask the
+  // customer to resolve them without replacing either observation with a guess.
+  if (condition === "clean" && Array.isArray(item?.soiling)
+    && item.soiling.some(kind => cleanConflictingSoiling.has(String(kind || "").trim().toLowerCase()))) return true;
   const confidence = conditionEvidenceConfidence(item);
   // A grade carrying no confidence at all is not settled evidence. Treating it
   // as settled (the old `confidence !== null &&` guard) let an unscored machine

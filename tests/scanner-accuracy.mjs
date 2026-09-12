@@ -341,3 +341,24 @@ console.log("Scanner accuracy tests passed: recognised speech is joined idempote
   }
   assert.deepEqual(walkingReadingItems({detections:[]},'Bedroom'),[],'Room name must not invent a fixture');
 }
+
+
+// A confidently clean grade cannot hide conflicting reported soiling. This is
+// a consistency check, not a claim that the model's dirt observation is true.
+{
+  const { conditionNeedsReview, conditionReviewAdvice } = await import("../public/room-scan-model.js");
+  for (const soiling of ["dust", "grease", "limescale", "stain", "mould", "soap-scum", "food-debris", "pet-hair", " GREASE "]) {
+    const item = { label: "Sink", condition: "clean", conditionConfidence: 0.99, soiling: [soiling] };
+    const before = JSON.stringify(item);
+    assert.equal(conditionNeedsReview(item), true, "Conflicting clean verdict skipped review: " + soiling);
+    assert.ok(conditionReviewAdvice([item]), "Contradiction did not produce existing review guidance");
+    assert.equal(JSON.stringify(item), before, "Review detection rewrote the evidence");
+    assert.equal(conditionNeedsReview({ ...item, conditionConfirmed: true }), false, "Explicit customer confirmation was overridden");
+  }
+  for (const soiling of [[], ["damage"], ["clutter"], ["damage", "clutter"], ["unrecognised"], null]) {
+    assert.equal(conditionNeedsReview({ condition: "clean", conditionConfidence: .99, soiling }), false, "A non-conflicting clean surface became uncertain");
+  }
+  assert.equal(conditionNeedsReview({condition:"clean",conditionConfidence:.99,soiling:["damage","grease"]}),true);
+  assert.equal(conditionNeedsReview({condition:"medium",conditionConfidence:.99,soiling:["grease"]}),false);
+}
+console.log("Contradictory clean-reading review checks passed.");
