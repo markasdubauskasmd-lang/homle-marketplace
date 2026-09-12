@@ -879,7 +879,7 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   const overlapping = mergeInventoryIntoSavedDetections(saved.slice(0, 12), inventory);
   assert.equal(overlapping.length, 40, "Confirmation overlap displaced walking findings");
   assert.ok(overlapping.every(item => item.quantity === 1), "Confirmation double-counted walking items");
-  assert.equal(mergeSavedDetections(saved, [{ label: "Additional surface", quantity: 1 }]).length, 40, "Save lost its bounded room limit");
+  assert.equal(mergeSavedDetections(saved, [{ label: "Additional surface", quantity: 1 }]).length, 41, "Saving lost a newly observed surface");
 }
 
 // Duplicate labels must retain the best condition evidence independently of naming.
@@ -1120,7 +1120,7 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
     const reviewed = correctInventoryItem(initial, key, change);
     const before = JSON.stringify(reviewed);
     let kept = mergeRoomInventory(reviewed, fresh);
-    assert.equal(kept.length, 40, "Protecting reviewed rows expanded the inventory cap");
+    assert.equal(kept.length, 41, "New findings were lost alongside the reviewed row");
     assert.ok(kept.some(item => item.key === key), "New automatic findings evicted a customer-reviewed item");
     assert.equal(kept[0].condition, "heavy", "Retention priority displaced cleaning-priority display order");
     assert.equal(kept.find(item => item.key === key).label, change.label || "Radiator");
@@ -1140,9 +1140,9 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   }));
   const other = fresh.map(item => ({ ...item, label: `Other ${item.label}` }));
   const retained = mergeRoomInventory(full, other);
-  assert.deepEqual(new Set(retained.map(item => item.key)), new Set(full.map(item => item.key)),
+  assert.ok(full.every(item => retained.some(candidate => candidate.key === item.key)),
     "A full reviewed inventory lost customer items to automatic findings");
-  assert.equal(retained.length, 40);
+  assert.equal(retained.length, 80);
   const ordinary = mergeRoomInventory([], [
     { label: "Wall", condition: "clean", score: .99 },
     { label: "Tap", condition: "heavy", score: .9 },
