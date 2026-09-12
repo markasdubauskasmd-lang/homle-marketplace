@@ -14,7 +14,9 @@ export const defaultWalkingModel = "claude-haiku-4-5";
 export const defaultConfirmationModel = "claude-opus-4-8";
 
 const maximumImageBytes = 4 * 1024 * 1024;
-const maximumDetections = 12;
+// Whole-room responses feed the existing forty-item saved inventory.
+// Camera-selected annotation requests retain their separate twelve-item bound.
+const maximumDetections = 40;
 const maximumTasks = 8;
 
 // Bumped whenever the reading schema or the condition scale changes meaning.
