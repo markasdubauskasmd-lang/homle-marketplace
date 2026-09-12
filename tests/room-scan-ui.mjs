@@ -604,7 +604,7 @@ assert((overlay.match(/session !== state\.roomSession/g) || []).length >= 3, "A 
 // Crops decode from the immutable captured frame rather than the shared canvas,
 // so scanning a later room cannot corrupt a background confirmation.
 assert(/function snapshotCropSource\(frame\)[\s\S]{0,700}image\.src = frame/.test(overlay), "Selected-item crops are not tied to the immutable captured room frame.");
-assert(/const cropSource = items\.length \? await snapshotCropSource\(image\) : null[\s\S]{0,500}await cropFor\(item, cropSource\)[\s\S]{0,900}await recoverCsrf\(\)/.test(overlay), "Selected-item crops do not consistently use the decoded captured-frame snapshot.");
+assert(/const cropSource = items\.length \? await snapshotCropSource\(image\) : null[\s\S]{0,500}await cropFor\(item, cropSource\)[\s\S]{0,900}const payload = roomReadingPayload/.test(overlay), "Selected-item crops do not consistently use the decoded captured-frame snapshot before building the payload.");
 // The confirmed room and toast paint before background crop preparation begins.
 assert(/toHub\(\)[\s\S]{0,1800}toast\([\s\S]{0,900}window\.setTimeout\(\(\) => \{[\s\S]{0,240}readRoomInBackground/.test(overlay), "Condition crop preparation can still delay the red-button save confirmation.");
 // Rescanning a revisited room takes a fresh photo, which must read on save.

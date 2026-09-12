@@ -2519,20 +2519,24 @@ export function openRoomScan() {
       }
     }
 
-    async function recoverCsrf() {
+    async function recoverCsrf(signal) {
+      signal?.throwIfAborted();
       const current = storedCsrf();
       if (current) return current;
       try {
         const response = await fetch("/api/marketplace/auth/session", {
           method: "POST", credentials: "same-origin", cache: "no-store",
-          headers: { "Content-Type": "application/json", Accept: "application/json" }, body: "{}"
+          headers: { "Content-Type": "application/json", Accept: "application/json" }, body: "{}", signal
         });
         if (!response.ok) return "";
         const result = await response.json();
         if (!result?.csrfToken) return "";
         sessionStorage.setItem("tideway_csrf", result.csrfToken);
         return sessionStorage.getItem("tideway_csrf") || "";
-      } catch { return ""; }
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        return "";
+      }
     }
 
     // Reads the view the Landlord is currently standing in front of, if it is one
@@ -3080,9 +3084,6 @@ export function openRoomScan() {
       const payload = roomReadingPayload({ roomName, transcript: String(transcript || "").slice(-1200), roomFrame: image, items: selected, purpose });
       if (!payload.withinLimit) throw new Error("reading-too-large");
 
-      const csrf = await recoverCsrf();
-      if (!csrf) throw Object.assign(new Error("A signed-in Landlord session is required."), { code: "sign-in-required" });
-
       // Each read owns its own controller, and starting one no longer cancels the
       // one before it.
       //
@@ -3100,6 +3101,11 @@ export function openRoomScan() {
       if (state.closed) controller.abort();
       const timer = window.setTimeout(() => controller.abort(), 32_000);
       try {
+      // Session restoration is part of the same bounded, cancellable request.
+      // A missing token must not leave the scanner waiting before its timer starts.
+      const csrf = await recoverCsrf(controller.signal);
+      controller.signal.throwIfAborted();
+      if (!csrf) throw Object.assign(new Error("A signed-in Landlord session is required."), { code: "sign-in-required" });
       const response = await fetch("/api/marketplace/landlord/room-reading", {
         method: "POST", credentials: "same-origin", cache: "no-store",
         headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRF-Token": csrf },
