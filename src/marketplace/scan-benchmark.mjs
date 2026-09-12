@@ -22,7 +22,7 @@ import { itemConditions, soilingKinds } from "./room-condition-vocabulary.mjs";
 // Pure and deterministic: no clock, no network, no database. A benchmark that
 // cannot be re-run to the same figure is not a benchmark.
 
-export const benchmarkVersion = 2;
+export const benchmarkVersion = 3;
 
 // The targets from §10 of the audit. Kept here so a report states what it was
 // measured against, rather than leaving the reader to look them up and trust
@@ -144,12 +144,16 @@ export function conditionAgreement(pairs) {
  * product acts on it — the review threshold, the price range and the cleaner's
  * "check this on arrival" all read it as if it meant something.
  */
+function usableConfidence(value) {
+  return Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
 export function calibration(readings) {
   const usable = (Array.isArray(readings) ? readings : []).filter((reading) =>
-    Number.isFinite(Number(reading?.confidence)) && typeof reading?.correct === "boolean");
+    usableConfidence(reading?.confidence) && typeof reading?.correct === "boolean");
   if (!usable.length) return { brier: null, readings: 0 };
   const total = usable.reduce((sum, reading) => {
-    const confidence = Math.max(0, Math.min(1, Number(reading.confidence)));
+    const confidence = reading.confidence;
     return sum + (confidence - (reading.correct ? 1 : 0)) ** 2;
   }, 0);
   return { brier: Math.round((total / usable.length) * 10000) / 10000, readings: usable.length };
@@ -169,6 +173,9 @@ function normalizedCase(entry, index) {
     deviceClass: String(entry?.deviceClass || "unknown"),
     lighting: String(entry?.lighting || "unstated"),
     propertyType: String(entry?.propertyType || "unstated"),
+    // Measured scan processing duration supplied by the capture runner, not
+    // the time taken to score these already-computed observations.
+    processingTimeMs: Number.isFinite(entry?.processingTimeMs) && entry.processingTimeMs >= 0 ? entry.processingTimeMs : null,
     rooms,
     truth: entry?.truth || {}
   };
@@ -202,8 +209,9 @@ export function runBenchmarkCase(entry, index = 0, ruleset = defaultPricingRules
       if (itemConditions.includes(match.condition) && itemConditions.includes(object.condition)) {
         conditionPairs.push({ expected: match.condition, observed: object.condition });
       }
-      if (Number.isFinite(Number(object?.confidenceCondition))) {
-        calibrationReadings.push({ confidence: Number(object.confidenceCondition), correct: match.condition === object.condition });
+      if (itemConditions.includes(match.condition) && itemConditions.includes(object.condition)
+        && usableConfidence(object?.confidenceCondition)) {
+        calibrationReadings.push({ confidence: object.confidenceCondition, correct: match.condition === object.condition });
       }
     }
   }
@@ -217,6 +225,7 @@ export function runBenchmarkCase(entry, index = 0, ruleset = defaultPricingRules
     synthetic: scanCase.synthetic,
     deviceClass: scanCase.deviceClass,
     lighting: scanCase.lighting,
+    processingTimeMs: scanCase.processingTimeMs,
     counts: Object.freeze(counts),
     conditionPairs: Object.freeze(conditionPairs),
     calibrationReadings: Object.freeze(calibrationReadings),
@@ -301,6 +310,18 @@ export function runScanBenchmark(cases, { ruleset = defaultPricingRuleset } = {}
       return Object.freeze({ metric: name, target, value, met: lowerIsBetter ? value <= target : value >= target });
     });
 
+  // priceErrorWithin is the tolerance used by priceErrorCoverage, not a separate metric.
+  const missingTargets = Object.keys(benchmarkTargets).filter(name => name !== "priceErrorWithin"
+    && !comparisons.some(comparison => comparison.metric === name));
+  const measuredTargetsMet = comparisons.length > 0 && comparisons.every(comparison => comparison.met);
+  const timing = rows => {
+    const values = rows.map(row => row.processingTimeMs).filter(Number.isFinite).sort((a,b) => a-b);
+    return Object.freeze({measuredCases:values.length, missingCases:rows.length-values.length,
+      medianMs:median(values), p95Ms:values.length ? values[Math.ceil(values.length*.95)-1] : null});
+  };
+  const processingTime = Object.freeze({...timing(results),
+    byDevice: Object.freeze([...new Set(results.map(result=>result.deviceClass))].sort().map(deviceClass =>
+      Object.freeze({deviceClass,...timing(results.filter(result=>result.deviceClass===deviceClass))}))) });
   const syntheticCases = results.filter((result) => result.synthetic).length;
   return Object.freeze({
     benchmarkVersion,
@@ -324,9 +345,12 @@ export function runScanBenchmark(cases, { ruleset = defaultPricingRuleset } = {}
     metrics,
     targets: benchmarkTargets,
     comparisons: Object.freeze(comparisons),
-    // True only when every measured target is met AND the dataset is real.
-    // A fixture run can never report a pass, whatever the numbers say.
-    acceptable: comparisons.length > 0 && comparisons.every((comparison) => comparison.met) && syntheticCases === 0,
+    missingTargets: Object.freeze(missingTargets),
+    measuredTargetsMet,
+    processingTime,
+    // Missing evidence is incomplete, never a passing target. Timing is descriptive:
+    // no device-independent latency target has been established here.
+    acceptable: measuredTargetsMet && missingTargets.length === 0 && syntheticCases === 0,
     cases: Object.freeze(results)
   });
 }
@@ -360,6 +384,11 @@ export function benchmarkCaseErrors(entry) {
     }
   } else if (entry.synthetic !== true) {
     errors.push(`${entry.caseId || "case"}: state whether this case is synthetic.`);
+  }
+
+  if (entry.processingTimeMs !== undefined && entry.processingTimeMs !== null
+    && (!Number.isFinite(entry.processingTimeMs) || entry.processingTimeMs < 0)) {
+    errors.push(entry.caseId + ": processingTimeMs must be a finite non-negative number or null.");
   }
 
   // No image data in a dataset file. Benchmark cases are structured readings,

@@ -67,3 +67,5 @@ node tests/photo-evaluation.mjs
 ```
 
 Uses the actual production adapter with a fake provider transport and a one-pixel synthetic fixture. Tests validation, tier selection, confidence separation, duplicate scoring, failed reads and checkpoint errors. No provider calls or real accuracy claims.
+
+Successful reads also copy elapsedMs into the scorer-compatible case processingTimeMs before checkpointing. Benchmark timing therefore measures this server-reader diagnostic, not the phone model named by deviceClass. Failed reads retain their attempt duration in reads but use null for successful-result timing; they remain in accuracy denominators and missing timing counts. Do not compare these results with browser end-to-end latency without accounting for the different scope.

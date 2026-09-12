@@ -67,6 +67,10 @@ try {
   assert.equal(report.benchmark.metrics.objectPrecision, 0.5);
   assert.equal(report.benchmark.metrics.duplicateRate, 0.5);
   assert.equal(report.timing.medianMs, 25);
+  assert.equal(report.cases[0].processingTimeMs,25);
+  assert.equal(report.benchmark.processingTime.medianMs,25);
+  assert.equal(report.benchmark.processingTime.measuredCases,1);
+  assert.equal(checkpoints[0].case.processingTimeMs,25);
   assert.equal(report.validationComplete, false);
   assert.equal(report.measuredTargetsMet, false);
   assert.equal(checkpoints.length, 1);
@@ -80,6 +84,9 @@ try {
   assert.equal(failure.failedReads, 1);
   assert.equal(failure.benchmark.metrics.objectRecall, 0);
   assert.equal(failure.timing.medianMs, null);
+  assert.equal(failure.cases[0].processingTimeMs,null);
+  assert.equal(failure.benchmark.processingTime.measuredCases,0);
+  assert.equal(failure.benchmark.processingTime.missingCases,1);
   assert.ok(!JSON.stringify(failure).includes("SECRET_REQUEST"));
   const twoPhotos = await prepare([entry, { ...entry, caseId: "second-synthetic-photo" }]);
   const times = [0, 10, 10, 40];
@@ -88,6 +95,8 @@ try {
   });
   assert.equal(timing.timing.medianMs, 20);
   assert.equal(timing.timing.p95Ms, 30);
+  assert.equal(timing.benchmark.processingTime.medianMs,20);
+  assert.equal(timing.benchmark.processingTime.p95Ms,30);
   let attempts = 0;
   const mixed = await evaluatePhotos(twoPhotos, { reader: { readRoom: async () => {
     if (++attempts === 1) throw new Error("first read failed");
