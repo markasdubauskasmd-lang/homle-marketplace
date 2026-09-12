@@ -474,3 +474,16 @@ console.log("Structured room-scan service checks passed.");
  const retained=normalizedRoomScan(scan({rooms:[{roomName:"Kitchen",objects:Array.from({length:160},(_,i)=>object({inventoryKey:"fixture-"+i,label:"Fixture "+i}))}]}));
  assert(retained.rooms[0].objects.length===160,"Multi-view room findings could not reach structured review");
 }
+
+{
+ const {Readable}=await import("node:stream");
+ const {maximumRoomScanBodyBytes,readJsonObject}=await import("../src/marketplace/http-support.mjs");
+ const full=scan({rooms:Array.from({length:maximumScanRooms},(_,r)=>({roomName:("Room "+r).padEnd(120,"漢"),note:"漢".repeat(1000),objects:Array.from({length:maximumRoomObjects},(_,i)=>object({inventoryKey:("item-"+i).padEnd(60,"漢"),label:"漢".repeat(40),evidence:"漢".repeat(200)}))}))});
+ const bytes=Buffer.from(JSON.stringify(full));
+ assert(bytes.length<maximumRoomScanBodyBytes,"Full allowed UTF-8 property cannot pass the HTTP byte limit");
+ const request=Readable.from([bytes]);request.headers={"content-type":"application/json"};
+ const normalized=normalizedRoomScan(await readJsonObject(request,maximumRoomScanBodyBytes));
+ assert(normalized.rooms.reduce((n,r)=>n+r.objects.length,0)===maximumScanObjects,"HTTP parsing lost property findings");
+ const oversized=Readable.from([Buffer.alloc(maximumRoomScanBodyBytes+1,32)]);oversized.headers={"content-type":"application/json"};
+ assert(await rejects(()=>readJsonObject(oversized,maximumRoomScanBodyBytes),"too large"),"Structured request byte guard was lost");
+}
