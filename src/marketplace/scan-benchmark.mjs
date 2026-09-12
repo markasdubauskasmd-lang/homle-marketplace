@@ -144,12 +144,16 @@ export function conditionAgreement(pairs) {
  * product acts on it — the review threshold, the price range and the cleaner's
  * "check this on arrival" all read it as if it meant something.
  */
+function usableConfidence(value) {
+  return Number.isFinite(value) && value >= 0 && value <= 1;
+}
+
 export function calibration(readings) {
   const usable = (Array.isArray(readings) ? readings : []).filter((reading) =>
-    Number.isFinite(Number(reading?.confidence)) && typeof reading?.correct === "boolean");
+    usableConfidence(reading?.confidence) && typeof reading?.correct === "boolean");
   if (!usable.length) return { brier: null, readings: 0 };
   const total = usable.reduce((sum, reading) => {
-    const confidence = Math.max(0, Math.min(1, Number(reading.confidence)));
+    const confidence = reading.confidence;
     return sum + (confidence - (reading.correct ? 1 : 0)) ** 2;
   }, 0);
   return { brier: Math.round((total / usable.length) * 10000) / 10000, readings: usable.length };
@@ -205,8 +209,9 @@ export function runBenchmarkCase(entry, index = 0, ruleset = defaultPricingRules
       if (itemConditions.includes(match.condition) && itemConditions.includes(object.condition)) {
         conditionPairs.push({ expected: match.condition, observed: object.condition });
       }
-      if (Number.isFinite(Number(object?.confidenceCondition))) {
-        calibrationReadings.push({ confidence: Number(object.confidenceCondition), correct: match.condition === object.condition });
+      if (itemConditions.includes(match.condition) && itemConditions.includes(object.condition)
+        && usableConfidence(object?.confidenceCondition)) {
+        calibrationReadings.push({ confidence: object.confidenceCondition, correct: match.condition === object.condition });
       }
     }
   }

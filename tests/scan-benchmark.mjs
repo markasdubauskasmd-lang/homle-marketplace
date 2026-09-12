@@ -338,3 +338,23 @@ console.log("Scan benchmark checks passed.");
   assert(/100.00 ms/.test(formatBenchmarkReport(report)),'Milliseconds were formatted as percentages');
   assert(report.acceptable===false && report.datasetIsSynthetic,'Timing samples changed provenance');
 }
+
+// Missing or malformed certainty cannot become a perfectly calibrated zero.
+{
+  for(const confidence of [null,undefined,'','0.9',false,NaN,Infinity,-.1,1.1]) {
+    for(const correct of [true,false]) {
+      const result=calibration([{confidence,correct}]);
+      assert(result.readings===0 && result.brier===null,'Invalid confidence manufactured calibration evidence');
+    }
+    const report=runScanBenchmark([singleCase({rooms:[{roomName:'Kitchen',objects:[object('worktop','light',{confidenceCondition:confidence})]}]})]);
+    assert(report.metrics.calibrationBrier===null,'Case scorer coerced absent or malformed confidence');
+  }
+  for(const condition of [undefined,null,'','unknown','unrecognised']) {
+    const missingTruth=singleCase({truth:{rooms:[{roomName:'Kitchen',objects:[{inventoryKey:'worktop',condition}]}]}});
+    assert(runScanBenchmark([missingTruth]).metrics.calibrationBrier===null,'Unlabelled truth was treated as an incorrect prediction');
+    const missingObservation=singleCase({rooms:[{roomName:'Kitchen',objects:[object('worktop',condition)]}]});
+    assert(runScanBenchmark([missingObservation]).metrics.calibrationBrier===null,'Unknown condition manufactured a calibration trial');
+  }
+  const mixed=calibration([{confidence:.8,correct:true},{confidence:.2,correct:false},{confidence:null,correct:false}]);
+  assert(mixed.readings===2 && mixed.brier===.04,'Missing evidence biased valid calibration trials');
+}
