@@ -78,17 +78,17 @@ function compose(roomName, inventory, detections, at) {
   return mergeRoomInventory(inventory, found, { now: at });
 }
 
-// Reading one, from the doorway. A hallucinated bed, an aliased tap, two chairs.
+// Reading one, from the doorway. An unexpected bed with unknown condition, an aliased tap, two chairs.
 let kitchen = compose("Kitchen", [], [
   { label: "Wall", confidence: 0.9, condition: "clean", conditionConfidence: 0.9 },
   { label: "Worktop", confidence: 0.8, condition: "medium", conditionConfidence: 0.7, soiling: ["grease"], note: "Greasy — sheen by the hob" },
   { label: "the taps", confidence: 0.4, condition: "light", conditionConfidence: 0.3, soiling: ["limescale"], note: "Limescale — faint marks" },
-  { label: "Bed", confidence: 0.9, condition: "clean", conditionConfidence: 0.9 },
+  { label: "Bed", confidence: 0.9, condition: "", conditionConfidence: null },
   { label: "Chair", confidence: 0.7, condition: "clean", conditionConfidence: 0.6, x: 10, y: 60, width: 15, height: 25 },
   { label: "Chair", confidence: 0.6, condition: "clean", conditionConfidence: 0.6, x: 70, y: 60, width: 15, height: 25 }
 ], 1000);
 
-assert.ok(!kitchen.some((item) => item.label === "Bed"), "A bed was inventoried in a kitchen. The implausibility filter is not applied on the walking path.");
+assert.ok(kitchen.some((item) => item.label === "Bed" && !item.condition), "An unexpected photographed item must remain available for review with its uncertainty intact.");
 const chairs = kitchen.find((item) => item.key === inventoryKey("Chair"));
 assert.equal(chairs.quantity, 2, "Two chairs in one frame were not counted as two.");
 assert.match(inventoryDisplayLabel(chairs), /2/, "The display label hides the quantity, so the customer cannot see both chairs were counted.");
@@ -148,13 +148,13 @@ assert.ok(savedTap.width > 0, "Merging the walk's grade onto the confirmation lo
 const savedWorktop = saved.find((detection) => detection.inventoryKey === inventoryKey("Marble worktop") || detection.label === "Marble worktop");
 assert.ok(savedWorktop, "A walking-only item never boxed by the confirmation was dropped from the saved room.");
 assert.deepEqual([...savedWorktop.soiling], ["grease"], "The worktop's soiling evidence was lost on save.");
-assert.equal(saved.find((detection) => detection.label === "Bed"), undefined, "The hallucinated bed reached the saved room after all.");
+assert.ok(saved.some((detection) => detection.label === "Bed" && !detection.condition), "An unexpected uncertain finding disappeared before saved review.");
 
 // The room's own grade: the confirmation commits, the walk fills gaps only.
 assert.equal(resolveRoomCondition("medium", "heavy"), "medium", "A walking glimpse overrode the confirmation's committed room grade.");
 assert.equal(resolveRoomCondition("unknown", "heavy"), "heavy", "A confirmation that could not judge discarded the walk's coverage.");
 
-console.log(`Scan walkthrough passed: a kitchen walked end to end through the real pipeline — ${keyframeDefaults.maxPerRoom} bounded reads with quality and motion gates, an alias and a quantity resolved, a hallucinated bed filtered, three customer corrections surviving a contradicting later reading, uncertainty surfaced for review, and every grade, quantity and soiling fact arriving intact in the saved room.`);
+console.log(`Scan walkthrough passed: a kitchen walked end to end through the real pipeline — ${keyframeDefaults.maxPerRoom} bounded reads with quality and motion gates, an alias and a quantity resolved, an unexpected observation retained for review, three customer corrections surviving a contradicting later reading, uncertainty surfaced for review, and every grade, quantity and soiling fact arriving intact in the saved room.`);
 
 // A better view clears obsolete dirt notes together with the superseded grade.
 {
