@@ -996,7 +996,8 @@ console.log("Private photo expiry HTTP checks passed for request and booking ima
   for (const selected of [false, true]) {
     for (const disconnect of [false, true]) {
       const started = deferred(), finished = deferred(), release = deferred();
-      const events = [];
+      const events = [], timings = [];
+      const originalInfo = console.info;
       let receivedSignal, serverResponse, failure;
       const read = async ({ signal }) => {
         receivedSignal = signal;
@@ -1027,7 +1028,10 @@ console.log("Private photo expiry HTTP checks passed for request and booking ima
         res.on("end", () => resolve({ status: res.statusCode, body: JSON.parse(body) }));
       }));
       try {
-        client.end(JSON.stringify({ image: "data:image/jpeg;base64,AA", items: selected ? [{ id: "sink" }] : [] }));
+        console.info = (label, details) => {
+          if (label === "[room-reading] timing") timings.push(JSON.parse(details));
+        };
+        client.end(JSON.stringify({ image: "data:image/jpeg;base64,AA", roomName: "Private room", transcript: "Private note", items: selected ? [{ id: "sink" }] : [], purpose: "untrusted-purpose" }));
         await bounded(started.promise);
         await nextTurn();
         assert(receivedSignal instanceof AbortSignal && !receivedSignal.aborted, "Completed upload cancelled its reading.");
@@ -1038,11 +1042,18 @@ console.log("Private photo expiry HTTP checks passed for request and booking ima
         assert(serverResponse.listenerCount("close") === 0, "Reading retained a close listener.");
         assert(!events.includes("scan.reading.failed"), "Disconnect was counted as a provider failure.");
         assert(events.includes("scan.reading.succeeded") === !disconnect, "Cancelled read was counted as success.");
+        assert(timings.length === 1, "Each completed or cancelled provider attempt needs one timing record.");
+        const timing = timings[0];
+        assert(timing.mode === (selected ? "selected-confirmation" : "walking"), "Timing mode must follow the actual model-selection path.");
+        assert(timing.outcome === (disconnect ? "cancelled" : "ok"), "Timing outcome was misclassified.");
+        assert(Object.keys(timing).sort().join(",") === "bodyReadMs,mode,outcome,providerMs", "Timing record included unexpected private data.");
+        for (const value of [timing.bodyReadMs, timing.providerMs]) assert(Number.isFinite(value) && value >= 0 && value % 100 === 0, "Durations must be nonnegative and rounded to 100ms.");
         if (!disconnect) {
           const result = await bounded(received);
           assert(result.status === 200 && result.body.ok, "Normal reading response changed.");
         }
       } finally {
+        console.info = originalInfo;
         release.resolve(); client.destroy(); server.closeAllConnections();
         await new Promise(resolve => server.close(resolve));
       }
