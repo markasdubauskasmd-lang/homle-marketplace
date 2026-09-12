@@ -824,9 +824,8 @@ assert(overlay.includes('`spotted · ${currentRoomBusy ? "reading…" : "hold st
 assert(/state\.tracks\.length !== state\.lastSpottedCount[\s\S]{0,160}if \(inventoryFor\(\)\.length === 0\) renderInventory\(\);/.test(overlay), "The spotted count does not follow the glow it describes — or re-renders the inventory on every detection frame.");
 
 // The detector's megabytes travel from the journey page's idle time, before
-// the scanner opens — and a failed warm-up clears the memo so the overlay's
-// own (final) attempt starts fresh instead of inheriting a network hiccup.
-assert(/export function warmRoomScanDetector\(\)[\s\S]{0,220}if \(detectorLoad === attempt\) detectorLoad = null/.test(overlay), "The pre-warm hook is gone, or a failed background warm-up now burns the overlay's single detector attempt.");
+// the scanner opens. Both entry points recover after failed loads below.
+assert(/export function warmRoomScanDetector\(\)\s*\{\s*return loadDetectorOnce\(\);/.test(overlay), "The pre-warm hook must share the scanner's detector loader.");
 assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmScanner/.test(journey) && /setTimeout\(warmScanner/.test(journey), "The journey page no longer warms the detector from idle time, so the scanner is back to loading its model after opening.");
 
 
@@ -877,8 +876,8 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
 
 
 // A failed idle download must not strand the real scanner on listeners for an
-// event that already fired. Exercise the actual loader and warm-up lifecycle.
-{
+// event that already fired. Exercise idle warm-up and direct scanner opening.
+for (const entryPoint of ["warm", "load"]) {
   const { default: vm } = await import("node:vm");
   const start = overlay.indexOf("function loadDetectorScript(");
   const end = overlay.indexOf("// Some mobile browsers resolve getUserMedia", start);
@@ -918,15 +917,16 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
     }
   };
   vm.runInNewContext(overlay.slice(start, end).replaceAll("export function ", "function ")
-    + ";globalThis.warm = warmRoomScanDetector;globalThis.loadScript = loadDetectorScript;", context);
-  const failedCore = context.warm();
+    + ";globalThis.warm = warmRoomScanDetector;globalThis.load = loadDetectorOnce;globalThis.loadScript = loadDetectorScript;", context);
+  const openDetector = () => context[entryPoint]();
+  const failedCore = openDetector();
   const coreFailure = Promise.allSettled([failedCore]);
   assert(requests.length === 1, "Dependent scripts were started before core was available.");
   requests[0].fire("error");
   assert((await coreFailure)[0].status === "rejected", "Core failure did not reject warm-up.");
   assert(requests.length === 1 && scripts.length === 0, "Core failure left dependent or failed scripts behind.");
-  const first = context.warm();
-  const joinedWarmup = context.warm();
+  const first = openDetector();
+  const joinedWarmup = openDetector();
   assert(first === joinedWarmup, "Concurrent warm-ups created separate detector loads.");
   assert(requests.length === 2 && requests[1].src === "/core.js", "Core retry did not make a fresh request.");
   requests[1].fire("load");
@@ -936,8 +936,8 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
   const failed = requests[2];
   failed.fire("error");
   assert((await failures).every((result) => result.status === "rejected"), "A shared failed download left a caller pending.");
-  const retry = context.warm();
-  const joinedRetry = context.warm();
+  const retry = openDetector();
+  const joinedRetry = openDetector();
   assert(retry === joinedRetry, "Concurrent retries created separate model loads.");
   await new Promise((resolve) => setImmediate(resolve));
   assert(requests.length === 4 && scripts.length === 2, "Retry redownloaded a ready script or reused the failed tag.");
@@ -945,6 +945,5 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
   requests[3].fire("load");
   assert(await retry === model && await joinedRetry === model, "The retry did not produce the detector.");
   assert(modelLoads === 1, "Successful warm-up loaded the model more than once.");
-  assert(await context.warm() === model && requests.length === 4, "A ready detector was downloaded again.");
+  assert(await openDetector() === model && requests.length === 4, "A ready detector was downloaded again.");
 }
-
