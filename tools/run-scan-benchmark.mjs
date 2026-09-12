@@ -51,6 +51,11 @@ export function formatBenchmarkReport(report) {
     lines.push(`  ${name.padEnd(26)} ${shown}${target}`);
   }
   lines.push("");
+  const duration = value => value === null ? "not measured" : value.toFixed(2) + " ms";
+  const timing = report.processingTime;
+  lines.push("Processing time: " + timing.measuredCases + " measured, " + timing.missingCases + " missing; median " + duration(timing.medianMs) + ", p95 " + duration(timing.p95Ms));
+  for (const device of timing.byDevice) lines.push("  " + device.deviceClass + ": " + device.measuredCases + " measured, " + device.missingCases + " missing; median " + duration(device.medianMs) + ", p95 " + duration(device.p95Ms));
+  if (report.missingTargets.length) lines.push("Targets not measured: " + report.missingTargets.join(", "));
   const missed = report.comparisons.filter((entry) => !entry.met);
   if (missed.length) lines.push(`${missed.length} target${missed.length === 1 ? "" : "s"} missed: ${missed.map((entry) => entry.metric).join(", ")}`);
   else if (report.comparisons.length) lines.push(`Every measured target met (${report.comparisons.length}).`);
@@ -59,7 +64,9 @@ export function formatBenchmarkReport(report) {
     ? "ACCEPTABLE: measured on real consented cases and every target met."
     : report.datasetIsSynthetic
       ? "NOT ACCEPTABLE as evidence: the dataset contains synthetic cases."
-      : "NOT ACCEPTABLE: at least one measured target was missed.");
+      : report.missingTargets.length
+        ? "INCOMPLETE: required targets were not measured; inspect measured results separately."
+        : "NOT ACCEPTABLE: at least one measured target was missed.");
   return lines.join("\n");
 }
 

@@ -36,8 +36,7 @@ const singleCase = (overrides = {}) => ({
   assert(/may be quoted/i.test(printed), "The printed report does not say the figures cannot be quoted.");
 }
 
-// Even a perfect real dataset only becomes acceptable when every measured target
-// is met — and a real one can.
+// Perfect measured values cannot establish the targets this case did not measure.
 {
   const real = {
     ...singleCase({ synthetic: false }),
@@ -46,7 +45,10 @@ const singleCase = (overrides = {}) => ({
   };
   const report = runScanBenchmark([real]);
   assert(report.datasetIsSynthetic === false && report.realCases === 1, "A real case was treated as synthetic.");
-  assert(report.acceptable === true, `A perfect real dataset was not acceptable: ${JSON.stringify(report.comparisons)}`);
+  assert(report.acceptable === false && report.measuredTargetsMet, "Partial real-declared evidence must not report a full pass.");
+  assert(report.missingTargets.includes("measurementErrorGuidedWeb") && report.missingTargets.includes("priceErrorCoverage"), "Missing targets were concealed.");
+  assert(!report.missingTargets.includes("priceErrorWithin"), "A pricing tolerance was treated as a separately measured target.");
+  assert(/INCOMPLETE/.test(formatBenchmarkReport(report)), "Partial evidence was reported as a failed measured target or a full pass.");
 }
 
 /* ── A dataset is where an unconsented scan does the most damage ────────── */
@@ -318,4 +320,21 @@ console.log("Scan benchmark checks passed.");
   assert(result.counts.falsePositives===1 && result.counts.duplicates===0,"First wrong label was mislabeled as a duplicate");
   const repeated=runBenchmarkCase({synthetic:true,rooms:[{roomName:"Bathroom",objects:[phantom,phantom]}],truth:{rooms:[]}});
   assert(repeated.counts.falsePositives===2 && repeated.counts.duplicates===1,"Repeated wrong labels were not separately counted");
+}
+
+// Durations are capture-runner measurements, never benchmark execution time.
+{
+  const cases=[singleCase({processingTimeMs:0,deviceClass:'phone'}),singleCase({processingTimeMs:100,deviceClass:'phone'}),singleCase({processingTimeMs:300,deviceClass:'desktop'}),singleCase({deviceClass:'phone'})];
+  const report=runScanBenchmark(cases);
+  assert(report.processingTime.measuredCases===3 && report.processingTime.missingCases===1,'Timing coverage is wrong');
+  assert(report.processingTime.medianMs===100 && report.processingTime.p95Ms===300,'Timing percentiles are wrong');
+  const phone=report.processingTime.byDevice.find(row=>row.deviceClass==='phone');
+  assert(phone.medianMs===50 && phone.p95Ms===100 && phone.missingCases===1,'Device times were mixed or missing samples became zero');
+  assert(runScanBenchmark([]).processingTime.p95Ms===null,'Empty timing became a fast result');
+  for(const invalid of [-1,Infinity,NaN,'20',false]) {
+    assert(benchmarkCaseErrors(singleCase({processingTimeMs:invalid})).some(error=>error.includes('processingTimeMs')),'Invalid duration accepted');
+    assert(runScanBenchmark([singleCase({processingTimeMs:invalid})]).processingTime.measuredCases===0,'Direct scorer coerced invalid duration');
+  }
+  assert(/100.00 ms/.test(formatBenchmarkReport(report)),'Milliseconds were formatted as percentages');
+  assert(report.acceptable===false && report.datasetIsSynthetic,'Timing samples changed provenance');
 }
