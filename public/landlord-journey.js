@@ -1678,22 +1678,31 @@ function renderReview() {
   renderReviewRooms(review);
 }
 
-// Asks the server to assess the scan the customer is still holding.
-//
-// Deliberately silent on failure. The review panel is additional information;
-// the checklist below it is what the booking has always run on, and losing the
-// assessment must not cost the customer their scan.
+function setScanReviewStatus(message, retry = false) {
+  const status = document.querySelector("[data-review-status]");
+  if (!status) return;
+  status.hidden = !message;
+  status.querySelector("[data-review-status-message]").textContent = message;
+  status.querySelector("[data-review-retry]").hidden = !retry;
+}
+document.querySelector("[data-review-retry]")?.addEventListener("click", () => refreshScanReview());
+
+// Failed assessment must neither discard the scan nor look like a current review.
 let scanReviewRequestVersion = 0;
 async function refreshScanReview() {
   const requestVersion = ++scanReviewRequestVersion;
   const sourceRooms = state.scanRooms;
   const isCurrent = () => requestVersion === scanReviewRequestVersion && state.scanRooms === sourceRooms;
-  if (!reviewHost || !sourceRooms.length) return;
-  // Cached after the first call; a newer edit may arrive while it loads.
-  await loadPricingConfig();
-  if (!isCurrent()) return;
-  const rooms = correctedScanRooms();
+  if (!reviewHost || !sourceRooms.length) {
+    setScanReviewStatus("");
+    return;
+  }
+  setScanReviewStatus("Updating your scan review…");
   try {
+    // Dependency failures use the same visible recovery as assessment failures.
+    await loadPricingConfig();
+    if (!isCurrent()) return;
+    const rooms = correctedScanRooms();
     const csrf = await recoverCsrf();
     if (!isCurrent()) return;
     const result = await requestJson("/api/marketplace/landlord/scan-preview", {
@@ -1710,11 +1719,13 @@ async function refreshScanReview() {
     // Responses can arrive out of order, or after the customer starts a new scan.
     if (!isCurrent()) return;
     state.scanReview = scanReview(result.scan);
+    setScanReviewStatus("");
     renderReview();
   } catch (error) {
     if (!isCurrent()) return;
-    // A rate-limited or unavailable assessment leaves the panel as it was.
-    if (!state.scanReview) reviewHost.hidden = true;
+    state.scanReview = null;
+    reviewHost.hidden = true;
+    setScanReviewStatus("Your scan is still here. We couldn’t update its review. Try again.", true);
   }
 }
 

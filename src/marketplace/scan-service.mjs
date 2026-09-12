@@ -30,9 +30,9 @@ import { instructionKinds } from "./speech-summary.mjs";
 // This module records observations. It computes no price and no duration.
 
 export const maximumScanRooms = 20;
-// A room can use the existing scan-wide budget across several views.
+// Each allowed room can retain its own findings across several views.
 export const maximumRoomObjects = 200;
-export const maximumScanObjects = 200;
+export const maximumScanObjects = maximumScanRooms * maximumRoomObjects;
 const deviceClasses = Object.freeze(["guided-web", "camera-fallback", "unknown"]);
 // A preview is never stored, so it has no request. This satisfies the shared
 // normaliser's id check without implying a request exists.

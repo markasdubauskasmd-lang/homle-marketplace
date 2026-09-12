@@ -278,6 +278,7 @@ console.log("Customer scan-review checks passed.");
     const requests = [], renders = [];
     const context = {
       scanReviewRequestVersion: 0, reviewHost: { hidden: false },
+      setScanReviewStatus: (message,retry=false) => { context.reviewStatus={message,retry}; },
       state: { scanRooms: [{ name: "Kitchen", objects: [] }], scanReview: null },
       loadPricingConfig: async () => {}, recoverCsrf: async () => "synthetic",
       requestJson(url, options) { const pending = deferred(); requests.push({ ...pending, body: JSON.parse(options.body) }); return pending.promise; },
@@ -303,6 +304,9 @@ console.log("Customer scan-review checks passed.");
     h.requests[1].reject(new Error("offline")); await latest;
     h.requests[0].resolve({ scan: { version: "old" } }); await old;
     assert(h.context.state.scanReview === null && !h.renders.length, "A failed latest request let stale success resurrect an old assessment.");
+    assert(h.context.reviewStatus.retry && h.context.reviewStatus.message.includes("still here"), "Failed review offers no visible recovery");
+    const retry=h.refresh(); await tick(); h.requests[2].resolve({scan:{version:"retry"}}); await retry;
+    assert(h.context.state.scanRooms.length===1 && h.context.reviewStatus.message==="" && h.context.state.scanReview.version==="retry", "Retry lost scan data or retained failure state");
   }
   for (const replacement of [[], [{ name: "Bedroom", objects: [] }]]) {
     const h = harness(), old = h.refresh(); await tick();

@@ -131,9 +131,12 @@ assert(throwsWith(() => normalizedRoomScan(scan({
 assert(throwsWith(() => normalizedRoomScan(scan({
   rooms: [{ roomName: "Kitchen", objects: Array.from({ length: maximumRoomObjects + 1 }, () => object()) }]
 })), `more than ${maximumRoomObjects} objects`), "A room beyond the object limit was accepted.");
-assert(throwsWith(() => normalizedRoomScan(scan({
-  rooms: Array.from({ length: 6 }, (unused, index) => ({ roomName: `Room ${index}`, objects: Array.from({ length: 40 }, () => object()) }))
-})), `at most ${maximumScanObjects} objects`), "A scan beyond the total object limit was accepted.");
+{
+  const full = normalizedRoomScan(scan({rooms:Array.from({length:maximumScanRooms},(_,r)=>({
+    roomName:"Room "+r,objects:Array.from({length:maximumRoomObjects},(_,i)=>object({inventoryKey:"item-"+i}))}))}));
+  assert(full.rooms.reduce((n,room)=>n+room.objects.length,0)===maximumScanObjects,"An allowed property lost room findings");
+}
+
 assert(throwsWith(() => normalizedRoomScan(scan({ rooms: [{ roomName: "", objects: [] }] })), "Room 1 name"), "A nameless room was accepted.");
 assert(throwsWith(() => normalizedRoomScan(scan({ cleaningRequestId: "not-a-uuid" })), "cleaning request id"), "A malformed request id was accepted.");
 assert(throwsWith(() => normalizedRoomScan(scan({ capturedAt: "the other day" })), "valid timestamp"), "A malformed capture time was accepted.");
