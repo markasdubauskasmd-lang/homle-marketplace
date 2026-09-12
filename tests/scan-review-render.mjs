@@ -308,6 +308,14 @@ console.log("Customer scan-review checks passed.");
     const retry=h.refresh(); await tick(); h.requests[2].resolve({scan:{version:"retry"}}); await retry;
     assert(h.context.state.scanRooms.length===1 && h.context.reviewStatus.message==="" && h.context.state.scanReview.version==="retry", "Retry lost scan data or retained failure state");
   }
+  for (const dependency of ["loadPricingConfig", "recoverCsrf"]) {
+    const h=harness();
+    h.context.state.scanReview={version:"previous"};
+    h.context[dependency]=async()=>{throw new Error("unavailable");};
+    await h.refresh();
+    assert(h.context.reviewStatus.retry && h.context.reviewHost.hidden && h.context.state.scanRooms.length===1 && h.context.state.scanReview===null,
+      "Dependency failure discarded scan data or left stale review visible");
+  }
   for (const replacement of [[], [{ name: "Bedroom", objects: [] }]]) {
     const h = harness(), old = h.refresh(); await tick();
     h.context.state.scanRooms = replacement;
