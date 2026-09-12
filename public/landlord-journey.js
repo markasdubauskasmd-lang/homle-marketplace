@@ -1666,6 +1666,7 @@ if (measureUi.host) {
 
 function renderReview() {
   if (!reviewHost) return;
+  if (!state.scanRooms.length) setScanReviewStatus("");
   const review = state.scanReview;
   if (!review?.assessed) {
     reviewHost.hidden = true;
