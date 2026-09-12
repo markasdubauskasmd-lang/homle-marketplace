@@ -113,6 +113,9 @@ export async function evaluatePhotos(plan, { reader, now = () => performance.now
       imageSha256: photo.imageSha256, imageBytes: photo.imageBytes, mediaType: photo.mediaType,
       ...(status === "ok" ? { reading } : {})
     };
+    // Only successful reads produced a usable result. Failed attempts retain
+    // their elapsedMs in reads and remain in the accuracy denominator.
+    result.processingTimeMs = status === "ok" ? read.elapsedMs : null;
     cases.push(result);
     reads.push(read);
     await checkpoint({ case: result, read });
