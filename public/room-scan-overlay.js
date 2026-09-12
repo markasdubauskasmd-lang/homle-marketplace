@@ -335,9 +335,8 @@ function loadDetectorScript(source) {
 // not disposed when the overlay closes. The weights are several megabytes and
 // each load creates a WebGL context; building a new one every time the scan is
 // reopened would re-parse all of it and stack up contexts until the browser
-// refuses to create any more. A single attempt is made, and a failed one is
-// remembered rather than retried — a phone without a working WebGL backend will
-// not grow one, and retrying just costs battery.
+// refuses to create any more. Concurrent callers share an attempt; a failed
+// download can be retried on a later opening without reloading the page.
 let detectorLoad = null;
 // The model is shared, so the guard against overlapping inference has to be
 // shared too. An overlay closed and reopened mid-inference would otherwise have
@@ -433,7 +432,11 @@ function loadDetectorOnce() {
     }
     return loadMainThreadDetector();
   })();
-  return detectorLoad;
+  const attempt = detectorLoad;
+  // Do not retry in a loop. Release a failed attempt so a later explicit scan
+  // or warm-up can recover after a temporary download or backend failure.
+  attempt.catch(() => { if (detectorLoad === attempt) detectorLoad = null; });
+  return attempt;
 }
 
 // The journey page calls this from idle time while the customer is still
@@ -441,12 +444,10 @@ function loadDetectorOnce() {
 // scanner opens instead of after — the difference between a scanner that
 // starts finding things immediately and the "getting the object finder ready"
 // wait the third field trial reported. Opportunistic on purpose: a failed
-// warm-up clears the memo so the overlay's own attempt — whose failure IS
-// final — starts fresh rather than inheriting a background network hiccup.
+// load clears its failed memo so the next opening starts fresh rather than
+// inheriting a background network hiccup.
 export function warmRoomScanDetector() {
-  const attempt = loadDetectorOnce();
-  attempt.catch(() => { if (detectorLoad === attempt) detectorLoad = null; });
-  return attempt;
+  return loadDetectorOnce();
 }
 
 // Some mobile browsers resolve getUserMedia() before the video element has
