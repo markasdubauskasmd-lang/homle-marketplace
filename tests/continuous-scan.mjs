@@ -290,7 +290,7 @@ assert.ok(
 // A correction outranks the reader's own opinion: the customer looked at it.
 const regraded = correctInventoryItem(repeated, inventoryKey("Floor"), { condition: "heavy" });
 assert.equal(mergeRoomInventory(regraded, [], { now: 9 })[0].label, "Floor", "An item the customer graded themselves did not rise to the top.");
-assert.ok(mergeRoomInventory([], Array.from({ length: 60 }, (_, index) => ({ label: `Item ${index}`, score: 0.5 })), { now: 1 }).length <= 40, "The inventory is unbounded, so a long walk could render hundreds of rows on a phone.");
+assert.equal(mergeRoomInventory([], Array.from({ length: 60 }, (_, index) => ({ label: `Item ${index}`, score: 0.5 })), { now: 1 }).length, 60, "A later view silently lost distinct findings.");
 
 /* ── A Landlord's correction is final ── */
 
@@ -879,7 +879,7 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   const overlapping = mergeInventoryIntoSavedDetections(saved.slice(0, 12), inventory);
   assert.equal(overlapping.length, 40, "Confirmation overlap displaced walking findings");
   assert.ok(overlapping.every(item => item.quantity === 1), "Confirmation double-counted walking items");
-  assert.equal(mergeSavedDetections(saved, [{ label: "Additional surface", quantity: 1 }]).length, 40, "Save lost its bounded room limit");
+  assert.equal(mergeSavedDetections(saved, [{ label: "Additional surface", quantity: 1 }]).length, 41, "Saving lost a newly observed surface");
 }
 
 // Duplicate labels must retain the best condition evidence independently of naming.
@@ -1120,7 +1120,7 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
     const reviewed = correctInventoryItem(initial, key, change);
     const before = JSON.stringify(reviewed);
     let kept = mergeRoomInventory(reviewed, fresh);
-    assert.equal(kept.length, 40, "Protecting reviewed rows expanded the inventory cap");
+    assert.equal(kept.length, 41, "New findings were lost alongside the reviewed row");
     assert.ok(kept.some(item => item.key === key), "New automatic findings evicted a customer-reviewed item");
     assert.equal(kept[0].condition, "heavy", "Retention priority displaced cleaning-priority display order");
     assert.equal(kept.find(item => item.key === key).label, change.label || "Radiator");
@@ -1140,9 +1140,9 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   }));
   const other = fresh.map(item => ({ ...item, label: `Other ${item.label}` }));
   const retained = mergeRoomInventory(full, other);
-  assert.deepEqual(new Set(retained.map(item => item.key)), new Set(full.map(item => item.key)),
+  assert.ok(full.every(item => retained.some(candidate => candidate.key === item.key)),
     "A full reviewed inventory lost customer items to automatic findings");
-  assert.equal(retained.length, 40);
+  assert.equal(retained.length, 80);
   const ordinary = mergeRoomInventory([], [
     { label: "Wall", condition: "clean", score: .99 },
     { label: "Tap", condition: "heavy", score: .9 },
@@ -1150,4 +1150,34 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   ], { limit: 2 });
   assert.deepEqual(ordinary.map(item => item.label), ["Tap", "Shelf"],
     "Unreviewed inventory no longer retains the most useful findings");
+}
+
+
+// Four distinct bounded readings must survive merging, saving and paging.
+{
+  const {inventoryPage, usableDetections} = await import("../public/room-scan-model.js");
+  let all = [];
+  for (let view = 0; view < 4; view++) {
+    const found = usableDetections(Array.from({length:40}, (_,i) => ({label:"Fixture " + (view*40+i),confidence:.9,condition:"heavy",conditionConfidence:.9,x:5,y:5,width:20,height:20})));
+    assert.equal(found.length,40);
+    all = mergeRoomInventory(all, found);
+  }
+  assert.equal(all.length,160);
+  const saved = mergeInventoryIntoSavedDetections([],all);
+  assert.equal(saved.length,160);
+  assert.equal(mergeSavedDetections(saved,saved).length,160,"Rereading duplicated identities");
+  const visited=[];
+  for(let i=0;i<4;i++) {
+    const page=inventoryPage(all,i);
+    assert.equal(page.items.length,40);
+    visited.push(...page.items.map(item=>item.key));
+  }
+  assert.equal(new Set(visited).size,160,"Some retained rows are unreachable");
+  assert.equal(inventoryPage(all,99).page,3);
+  assert.equal(inventoryPage(all.slice(0,40),3).page,0,"Removing a last-page row left an empty page");
+  const reviewed = all.slice(0,40).map(item=>({...item,confirmed:true,conditionConfirmed:true}));
+  const added=mergeRoomInventory(reviewed,[{label:"Floor",score:.9,condition:"heavy",conditionConfidence:.9}]);
+  assert.equal(added.length,41);
+  assert.equal(added.filter(item=>item.conditionConfirmed).length,40);
+  assert.ok(mergeInventoryIntoSavedDetections([],added).some(item=>item.label==="Floor"));
 }
