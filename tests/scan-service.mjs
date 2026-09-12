@@ -130,7 +130,7 @@ assert(throwsWith(() => normalizedRoomScan(scan({
 })), "1 to 20 rooms"), "A scan beyond the room limit was accepted.");
 assert(throwsWith(() => normalizedRoomScan(scan({
   rooms: [{ roomName: "Kitchen", objects: Array.from({ length: maximumRoomObjects + 1 }, () => object()) }]
-})), "more than 40 objects"), "A room beyond the object limit was accepted.");
+})), `more than ${maximumRoomObjects} objects`), "A room beyond the object limit was accepted.");
 assert(throwsWith(() => normalizedRoomScan(scan({
   rooms: Array.from({ length: 6 }, (unused, index) => ({ roomName: `Room ${index}`, objects: Array.from({ length: 40 }, () => object()) }))
 })), `at most ${maximumScanObjects} objects`), "A scan beyond the total object limit was accepted.");
@@ -465,4 +465,9 @@ console.log("Structured room-scan service checks passed.");
   assert(corrected.unresolvedCount === 0, "Server projection ignored the customer's explicit correction");
   assert(corrected.rooms[0].objects[0].condition === "medium", "Server projection changed the customer's grade");
   }
+}
+
+{
+ const retained=normalizedRoomScan(scan({rooms:[{roomName:"Kitchen",objects:Array.from({length:160},(_,i)=>object({inventoryKey:"fixture-"+i,label:"Fixture "+i}))}]}));
+ assert(retained.rooms[0].objects.length===160,"Multi-view room findings could not reach structured review");
 }

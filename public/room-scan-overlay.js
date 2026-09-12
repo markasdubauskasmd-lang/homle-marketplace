@@ -24,6 +24,7 @@ import {
   mergeSavedDetections,
   mergeInventoryIntoSavedDetections,
   inventoryDisplayLabel,
+  inventoryPage,
   inventoryConditionCounts,
   itemQuantity,
   inventoryKey,
@@ -660,6 +661,7 @@ export function openRoomScan() {
       // What the room has accumulated so far, keyed by room name. Survives the
       // Landlord walking out and back in, which one-shot capture never did.
       inventories: new Map(),
+      inventoryPages: new Map(),
       // Tasks and condition from the walking reads. Labels alone were a display:
       // an item shown as saved that produced no checklist line and no condition
       // grade contributes nothing to what the Cleaner is asked to do or what the
@@ -2796,7 +2798,9 @@ export function openRoomScan() {
           : `${totalItems === 1 ? "item found" : "items found"}${counts.uncertain ? ` · ${counts.uncertain} to check` : ""}`;
       }
 
-      const rows = items.map((item) => {
+      const page = inventoryPage(items, state.inventoryPages.get(transcriptKey()) || 0);
+      state.inventoryPages.set(transcriptKey(), page.page);
+      const rows = page.items.map((item) => {
         const row = document.createElement("li");
         row.className = "found-item";
         // Seen from more than one angle, or confirmed by the Landlord. Both mean
@@ -2850,6 +2854,25 @@ export function openRoomScan() {
         row.append(name, remove);
         return row;
       });
+      if (page.pages > 1) {
+        const navigation = document.createElement("li");
+        navigation.className = "found-item";
+        const status = document.createElement("span");
+        status.textContent = "Page " + (page.page + 1) + " of " + page.pages;
+        status.setAttribute("aria-live", "polite");
+        for (const [label, offset] of [["Previous", -1], ["Next", 1]]) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "found-name";
+          button.textContent = label;
+          button.dataset.inventoryPage = String(page.page + offset);
+          button.disabled = page.page + offset < 0 || page.page + offset >= page.pages;
+          button.setAttribute("aria-label", label + " items");
+          navigation.append(button);
+        }
+        navigation.insertBefore(status, navigation.lastChild);
+        rows.push(navigation);
+      }
       list.replaceChildren(...rows);
     }
 
@@ -4035,6 +4058,14 @@ export function openRoomScan() {
     // Correcting the list is deliberately one tap away, on the item itself. An
     // automatic scan that cannot be argued with is worse than one that asks.
     el.foundList.addEventListener("click", (event) => {
+      const pageButton = event.target.closest("[data-inventory-page]");
+      if (pageButton && !pageButton.disabled) {
+        state.inventoryPages.set(transcriptKey(), Number(pageButton.dataset.inventoryPage));
+        renderInventory();
+        el.foundList.scrollTop = 0;
+        el.foundList.querySelector("[data-inventory-rename]")?.focus({ preventScroll: true });
+        return;
+      }
       const remove = event.target.closest("[data-inventory-remove]");
       if (remove) {
         const key = transcriptKey(state.currentRoom);

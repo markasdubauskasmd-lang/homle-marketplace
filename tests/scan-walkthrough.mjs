@@ -1085,7 +1085,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(report.taskRecords[0].inventoryKeys))
   const {readFileSync} = await import("node:fs");
   const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
   const start = source.indexOf("    function renderInventory() {");
-  const end = source.indexOf("      const rows = items.map", start);
+  const end = source.indexOf("      const page = inventoryPage", start);
   assert.ok(start >= 0 && end > start);
   const draw = (items, {busy = false, spotted = 0} = {}) => {
     const el = {foundList:[],found:{},foundBusy:{},foundCount:{},foundNoun:{}};

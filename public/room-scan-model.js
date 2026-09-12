@@ -1428,7 +1428,16 @@ export function inventoryKey(label) {
   return inventoryLabelAliases[singular] || singular;
 }
 
+// Limit one provider response, not the union of different room views.
 export const inventoryLimit = 40;
+export const inventoryPageSize = 40;
+
+export function inventoryPage(items, requestedPage = 0) {
+  const source = Array.isArray(items) ? items : [];
+  const pages = Math.max(1, Math.ceil(source.length / inventoryPageSize));
+  const page = Math.min(pages - 1, Math.max(0, Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 0));
+  return Object.freeze({page, pages, items: Object.freeze(source.slice(page * inventoryPageSize, (page + 1) * inventoryPageSize))});
+}
 
 // A grouped row cannot assign one object's grade or certainty to other objects.
 // conditionMixed also covers incomplete evidence for a member of the group.
@@ -1525,7 +1534,7 @@ export function walkingReadingItems(reading, roomName, dismissed = new Set()) {
     }));
 }
 
-export function mergeRoomInventory(existing, incoming, { now = 0, limit = inventoryLimit } = {}) {
+export function mergeRoomInventory(existing, incoming, { now = 0, limit = Infinity } = {}) {
   const merged = new Map();
   for (const item of Array.isArray(existing) ? existing : []) {
     // The key an item was FIRST filed under, not one recomputed from its current
@@ -1647,9 +1656,8 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = invent
     || (b.sightings - a.sightings) || a.label.localeCompare(b.label, "en");
   const reviewed = item => item.confirmed === true || item.conditionConfirmed === true;
   return Object.freeze([...merged.values()]
-    // Customer-reviewed rows retain their place in the bounded inventory before
-    // automatic findings compete for the remaining slots. Display order still
-    // follows cleaning priority after retention, so clean rows do not pin the UI.
+    // Retain the complete union by default. Explicit bounded callers still protect
+    // customer-reviewed rows first. The live DOM is paged independently.
     .sort((a, b) => Number(reviewed(b)) - Number(reviewed(a)) || compareUsefulness(a, b))
     .slice(0, limit)
     // Ordered by USEFULNESS, not by how often it was seen.
@@ -1799,7 +1807,7 @@ export function mergeSavedDetections(existing, incoming) {
   return Object.freeze([...merged.entries()].map(([key, detection]) => Object.freeze(reviewMixedConditions({
     ...detection,
     quantity: Math.min(20, Math.max(existingCounts.get(key) || 0, incomingCounts.get(key) || 0, 1))
-  }))).slice(0, inventoryLimit));
+  }))));
 }
 
 export function mergeInventoryIntoSavedDetections(existing, inventory, dismissed = new Set()) {
