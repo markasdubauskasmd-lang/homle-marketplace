@@ -1,11 +1,68 @@
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
+import vm from "node:vm";
 import {
   conditionReviewAdvice, correctInventoryItem, walkingReadingItems, inventoryDisplayLabel,
   inventoryKey, keyframeDefaults, mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
   resolveRoomCondition, shouldCaptureKeyframe, walkingReadIsBlocked, findRoom, upsertRoom,
   readingTaskRecords, mergeScanTaskRecords, scanTaskRecordsFor, reconcileScanTaskRecords, scanChecklistLines, scanSummary, mergeItemReadings
 } from "../public/room-scan-model.js";
+
+// A missing token must not put session recovery outside the reading deadline
+// or the overlay's close cancellation. Execute both actual functions together.
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
+  const section = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
+  for (const scenario of ["deadline", "close", "body-deadline", "already-closed", "restored", "cached", "signed-out"]) {
+    const state = { readingAllowed: true, visionAvailable: true, closed: scenario === "already-closed", roomReadControllers: new Set() };
+    const timers = new Map(), calls = [];
+    let timerId = 0, token = scenario === "cached" ? "cached-token" : "";
+    const waitForAbort = signal => new Promise((resolve, reject) => {
+      signal.throwIfAborted();
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    });
+    const context = {
+      state, AbortController, roomReadingPayload: () => ({ withinLimit: true, body: {} }),
+      storedCsrf: () => token,
+      sessionStorage: { setItem(key, value) { token = value; }, getItem() { return token; } },
+      window: { setTimeout(callback, duration) { assert.equal(duration, 32_000); timers.set(++timerId, callback); return timerId; }, clearTimeout(id) { timers.delete(id); } },
+      localRoomTasks: () => [], usableDetections: () => [], readingTaskRecords, mergeScanTaskRecords,
+      fetch: async (url, options) => {
+        calls.push({ url, options });
+        assert.ok(options.signal, "Both session restoration and analysis must be cancellable");
+        if (url.endsWith("/auth/session")) {
+          if (["deadline", "close"].includes(scenario)) return waitForAbort(options.signal);
+          return { ok: scenario !== "signed-out", json: () => scenario === "body-deadline" ? waitForAbort(options.signal) : Promise.resolve({ csrfToken: "restored-token" }) };
+        }
+        return { ok: true, status: 200, json: async () => ({ detections: [], tasks: [] }) };
+      }
+    };
+    vm.runInNewContext(section("async function recoverCsrf(", "// Reads the view the Landlord") + section("async function readRoom(image,", "function localRoomTasks(") + ";globalThis.read = readRoom;", context);
+    const reading = context.read("synthetic-frame", "Kitchen");
+    const outcome = reading.then(value => ({ value }), error => ({ error }));
+    await new Promise(setImmediate);
+    if (["deadline", "close", "body-deadline"].includes(scenario)) {
+      assert.equal(state.roomReadControllers.size, 1, "Session wait must already belong to the overlay");
+      assert.equal(timers.size, 1, "Session wait must already have a deadline");
+      if (scenario === "close") {
+        state.closed = true;
+        for (const controller of state.roomReadControllers) controller.abort();
+      } else for (const fire of timers.values()) fire();
+    }
+    const result = await outcome;
+    if (["restored", "cached"].includes(scenario)) {
+      assert.equal(result.value?.readingStatus, "ready");
+      assert.equal(calls.length, scenario === "cached" ? 1 : 2);
+      assert.equal(calls.at(-1).options.headers["X-CSRF-Token"], token);
+      if (scenario === "restored") assert.equal(calls[0].options.signal, calls[1].options.signal);
+    } else {
+      assert.equal(result.error?.code, scenario === "signed-out" ? "sign-in-required" : "reading-timeout");
+      assert.equal(calls.length, scenario === "already-closed" ? 0 : 1, "Failed session recovery must not send a photo");
+    }
+    assert.equal(state.roomReadControllers.size, 0);
+    assert.equal(timers.size, 0);
+  }
+}
 
 // One complete room, walked end to end through the real pipeline.
 //
