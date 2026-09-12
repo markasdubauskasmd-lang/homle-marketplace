@@ -979,3 +979,74 @@ for (const [path, code] of [[privatePhotoPath, "request-photo-link-expired"], [j
   assert(expired.response.headers["Cache-Control"].includes("no-store"), "Expired photo errors can be cached.");
 }
 console.log("Private photo expiry HTTP checks passed for request and booking images.");
+
+
+// Real HTTP disconnects must stop both reading shapes without confusing a
+// fully uploaded request with a departed client.
+{
+  const { createServer, request: httpRequest } = await import("node:http");
+  const { once } = await import("node:events");
+  const { setImmediate: nextTurn } = await import("node:timers/promises");
+  const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
+  const bounded = async promise => {
+    let timer;
+    try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Cancellation test timed out")), 3000); })]); }
+    finally { clearTimeout(timer); }
+  };
+  for (const selected of [false, true]) {
+    for (const disconnect of [false, true]) {
+      const started = deferred(), finished = deferred(), release = deferred();
+      const events = [];
+      let receivedSignal, serverResponse, failure;
+      const read = async ({ signal }) => {
+        receivedSignal = signal;
+        started.resolve();
+        await new Promise((resolve, reject) => {
+          const abort = () => reject(signal.reason);
+          signal.addEventListener("abort", abort, { once: true });
+          release.promise.then(() => { signal.removeEventListener("abort", abort); resolve(); });
+        });
+        return { condition: "light", detections: [], items: [] };
+      };
+      const tested = createMarketplaceHttpRouter({ ...dependencies,
+        roomVision: { readRoom: read, readSelectedItems: read },
+        scanTelemetry: { record(metric) { events.push(metric); return true; } }
+      }, { clientKey: () => trustedClientKey });
+      const server = createServer(async (req, res) => {
+        serverResponse = res;
+        try { await tested.handle(req, res); } catch (error) { failure = error; }
+        finally { finished.resolve(); }
+      });
+      server.listen(0, "127.0.0.1");
+      await once(server, "listening");
+      const client = httpRequest({ hostname: "127.0.0.1", port: server.address().port,
+        path: "/api/marketplace/landlord/room-reading", method: "POST", headers: authHeaders });
+      client.on("error", () => {});
+      const received = new Promise(resolve => client.on("response", res => {
+        let body = ""; res.on("data", chunk => { body += chunk; });
+        res.on("end", () => resolve({ status: res.statusCode, body: JSON.parse(body) }));
+      }));
+      try {
+        client.end(JSON.stringify({ image: "data:image/jpeg;base64,AA", items: selected ? [{ id: "sink" }] : [] }));
+        await bounded(started.promise);
+        await nextTurn();
+        assert(receivedSignal instanceof AbortSignal && !receivedSignal.aborted, "Completed upload cancelled its reading.");
+        if (disconnect) client.destroy(); else release.resolve();
+        await bounded(finished.promise);
+        assert(!failure, "Room-reading handler failed: " + failure);
+        assert(receivedSignal.aborted === disconnect, "Disconnect did not propagate to reader.");
+        assert(serverResponse.listenerCount("close") === 0, "Reading retained a close listener.");
+        assert(!events.includes("scan.reading.failed"), "Disconnect was counted as a provider failure.");
+        assert(events.includes("scan.reading.succeeded") === !disconnect, "Cancelled read was counted as success.");
+        if (!disconnect) {
+          const result = await bounded(received);
+          assert(result.status === 200 && result.body.ok, "Normal reading response changed.");
+        }
+      } finally {
+        release.resolve(); client.destroy(); server.closeAllConnections();
+        await new Promise(resolve => server.close(resolve));
+      }
+    }
+  }
+}
+console.log("Room-reading connection cancellation checks passed.");
