@@ -1516,10 +1516,12 @@ function usefulness(item) {
 
 // Shared by the live overlay and replay tests: convert a provider reading once,
 // keeping object identity distinct from condition evidence and user dismissals.
+// A room name is not evidence that a photographed fixture is absent. Preserve
+// the reader's observations and uncertainty for review, including unusual layouts.
+// The separate live COCO detector still applies its room-specific false-label filter.
 export function walkingReadingItems(reading, roomName, dismissed = new Set()) {
   return (Array.isArray(reading?.detections) ? reading.detections : [])
     .filter((detection) => detection && inventoryKey(detection.label))
-    .filter((detection) => !implausibleForRoom(detection.label, roomName))
     .filter((detection) => !dismissed.has(inventoryKey(detection.label)))
     .map((detection) => ({
       label: detection.label,

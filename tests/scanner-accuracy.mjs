@@ -313,3 +313,31 @@ console.log("Scanner accuracy tests passed: recognised speech is joined idempote
   assert.equal(implausibleForRoom("Sofa","Kitchen"),true);
   assert.equal(implausibleForRoom("Sofa","Kitchen studioflat"),true,"A substring must not imply a studio room");
 }
+
+// Photographed findings must survive a room prior: a room's use does not prove
+// absence of a fixture. These are pipeline regressions, not detector accuracy data.
+{
+  const {walkingReadingItems,mergeRoomInventory,mergeInventoryIntoSavedDetections,conditionNeedsReview}=await import('../public/room-scan-model.js');
+  for(const [room,label] of [['Bedroom','Sink'],['Office','Fridge'],['Kitchen','Sofa'],['Garage','Toilet']]) {
+    const detection={label,confidence:.93,condition:'',conditionConfidence:null,note:'Condition not assessed',soiling:[],x:10,y:20,width:30,height:40};
+    const read={detections:[detection]};
+    assert.equal(implausibleForRoom(label,room),true,'Fixture must exercise the live-detector room prior');
+    const observations=walkingReadingItems(read,room);
+    assert.equal(observations.length,1,room+' silently discarded its photographed '+label);
+    assert.equal(observations[0].score,.93,'Room name must not fabricate a confidence score');
+    assert.equal(observations[0].conditionConfidence,null);
+    assert.equal(observations[0].note,detection.note);
+    assert.deepEqual([observations[0].x,observations[0].y,observations[0].width,observations[0].height],[10,20,30,40]);
+    const inventory=mergeRoomInventory([],observations);
+    const saved=mergeInventoryIntoSavedDetections([],inventory);
+    assert.equal(saved.length,1,'Observed fixture disappeared before saved review');
+    assert.ok(conditionNeedsReview(saved[0]),'Unassessed fixture became established cleaning work');
+    assert.equal(walkingReadingItems(read,room,new Set([inventory[0].key])).length,0,'Customer dismissal must remain final');
+    const evidenced=walkingReadingItems({detections:[{...detection,condition:'medium',conditionConfidence:.82,soiling:['dust'],note:'Visible dust on the top edge'}]},room);
+    assert.equal(evidenced[0].condition,'medium');
+    assert.equal(evidenced[0].conditionConfidence,.82);
+    assert.deepEqual(evidenced[0].soiling,['dust']);
+    assert.equal(detection.condition,'','Input was mutated');
+  }
+  assert.deepEqual(walkingReadingItems({detections:[]},'Bedroom'),[],'Room name must not invent a fixture');
+}
