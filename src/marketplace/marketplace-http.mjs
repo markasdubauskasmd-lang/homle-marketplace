@@ -1038,12 +1038,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             sendJson(response, 503, { ok: false, error: "Assisted room reading is not configured." });
             return true;
           }
+          const bodyReadStartedAt = performance.now();
           const body = await readJsonObject(request, maximumRoomPhotoBodyBytes);
+          const bodyReadMs = Math.max(0, Math.round((performance.now() - bodyReadStartedAt) / 100) * 100);
           // Start only after authentication, rate limiting and bounded JSON
           // parsing have succeeded. This measures the provider-facing read the
           // customer is waiting for, not unrelated request setup. The collector
-          // immediately converts it to a coarse bucket, so the exact duration
-          // never leaves this call.
+          // immediately converts it to a coarse bucket. Operational logs below
+          // record rounded phase durations without photo or account information.
           const readingStartedAt = Date.now();
           const readingController = new AbortController();
           // IncomingMessage.close also fires after a fully received body. Use
@@ -1094,6 +1096,17 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           } finally {
             response.removeListener?.("close", cancelReading);
             observeScan("scan.reading.latency_ms", { durationMs: Date.now() - readingStartedAt });
+            // Body time covers receiving/parsing after authorization, not the
+            // entire phone upload. Provider time includes SDK retries and parsing.
+            // Fixed fields only: never log bodies, room names, IDs or AI output.
+            try {
+              console.info("[room-reading] timing", JSON.stringify({
+                mode: Array.isArray(body?.items) && body.items.length ? "selected-confirmation" : body?.purpose === "confirmation" ? "confirmation" : "walking",
+                outcome: readingController.signal.aborted ? "cancelled" : response.statusCode === 200 ? "ok" : "failed",
+                bodyReadMs,
+                providerMs: Math.max(0, Math.round((Date.now() - readingStartedAt) / 100) * 100)
+              }));
+            } catch { /* Diagnostics must never change the scanner response. */ }
           }
           return true;
         }
