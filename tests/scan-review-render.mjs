@@ -278,6 +278,7 @@ console.log("Customer scan-review checks passed.");
     const requests = [], renders = [];
     const context = {
       scanReviewRequestVersion: 0, reviewHost: { hidden: false },
+      setScanReviewStatus: (message,retry=false) => { context.reviewStatus={message,retry}; },
       state: { scanRooms: [{ name: "Kitchen", objects: [] }], scanReview: null },
       loadPricingConfig: async () => {}, recoverCsrf: async () => "synthetic",
       requestJson(url, options) { const pending = deferred(); requests.push({ ...pending, body: JSON.parse(options.body) }); return pending.promise; },
@@ -303,6 +304,17 @@ console.log("Customer scan-review checks passed.");
     h.requests[1].reject(new Error("offline")); await latest;
     h.requests[0].resolve({ scan: { version: "old" } }); await old;
     assert(h.context.state.scanReview === null && !h.renders.length, "A failed latest request let stale success resurrect an old assessment.");
+    assert(h.context.reviewStatus.retry && h.context.reviewStatus.message.includes("still here"), "Failed review offers no visible recovery");
+    const retry=h.refresh(); await tick(); h.requests[2].resolve({scan:{version:"retry"}}); await retry;
+    assert(h.context.state.scanRooms.length===1 && h.context.reviewStatus.message==="" && h.context.state.scanReview.version==="retry", "Retry lost scan data or retained failure state");
+  }
+  for (const dependency of ["loadPricingConfig", "recoverCsrf"]) {
+    const h=harness();
+    h.context.state.scanReview={version:"previous"};
+    h.context[dependency]=async()=>{throw new Error("unavailable");};
+    await h.refresh();
+    assert(h.context.reviewStatus.retry && h.context.reviewHost.hidden && h.context.state.scanRooms.length===1 && h.context.state.scanReview===null,
+      "Dependency failure discarded scan data or left stale review visible");
   }
   for (const replacement of [[], [{ name: "Bedroom", objects: [] }]]) {
     const h = harness(), old = h.refresh(); await tick();
@@ -368,4 +380,44 @@ console.log("Customer scan-review checks passed.");
     const corrected = applyCorrection(legacy,{roomName:"Kitchen",inventoryKey:"tap",field,value}).rooms;
     assert(scanProjection({rooms:corrected}).unresolvedCount === 1, "Unrelated edit settled an unknown grade.");
   }
+}
+
+{
+  const {default:vm}=await import("node:vm");
+  const start=script.indexOf("function renderReview() {");
+  const end=script.indexOf("function setScanReviewStatus",start);
+  const messages=[];
+  const context={state:{scanRooms:[],scanReview:null},reviewHost:{hidden:false},setScanReviewStatus:message=>messages.push(message)};
+  vm.runInNewContext(script.slice(start,end)+"\nrenderReview();",context);
+  assert(context.reviewHost.hidden && messages.length===1 && messages[0]==="","Reset left a stale review-recovery message");
+}
+
+// Execute the actual paged renderer and navigation callbacks, preserving identities.
+{
+  const {default:vm}=await import("node:vm");
+  const node=(tag,cls,text)=>({tag,cls,text,children:[],handlers:{},append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;},setAttribute(){},addEventListener(event,handler){this.handlers[event]=handler;},querySelector(){return {focus(){}};}});
+  const host=node("div"),rendered=[];
+  const context={state:{scanRooms:[]},reviewElement:()=>host,textNode:node,pendingMeasurements:()=>[],photoForRoom:()=>null,
+    objectControls(room,object){rendered.push(room+":"+object.inventoryKey);return node("div");}};
+  const start=script.indexOf("function renderReviewRooms(review) {");
+  const end=script.indexOf("/* ── Measuring from the room photo",start);
+  vm.runInNewContext(script.slice(start,end),context);
+  const review={rooms:Array.from({length:20},(_,r)=>({roomName:"Room "+r,measurements:[],objects:Array.from({length:200},(_,i)=>({inventoryKey:"item-"+i}))}))};
+  const all=[];
+  context.renderReviewRooms(review);
+  for(let page=0;page<100;page++){
+    assert(rendered.length===40,"Final review created more than one page of editable controls");
+    all.push(...rendered);rendered.length=0;
+    const navigation=host.children.at(-1),previous=navigation.children[1],next=navigation.children[2];
+    assert(previous.disabled===(page===0) && next.disabled===(page===99),"Review navigation boundary is incorrect");
+    if(page<99)next.handlers.click();
+  }
+  assert(new Set(all).size===4000,"Paging lost or duplicated room/item identities");
+  const snapshot=JSON.stringify(review);
+  context.state.scanRooms=[];context.renderReviewRooms(review);
+  assert(context.state.scanReviewPage===0,"New scan retained the old page");
+  assert(JSON.stringify(review)===snapshot,"Rendering changed captured findings");
+  context.state.scanReviewPage=99;rendered.length=0;
+  context.renderReviewRooms({rooms:[{roomName:"Room 0",measurements:[],objects:[{inventoryKey:"last"}]}]});
+  assert(context.state.scanReviewPage===0 && rendered[0]==="Room 0:last","Removing later findings left an unreachable page");
 }
