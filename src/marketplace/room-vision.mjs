@@ -524,7 +524,8 @@ export function createAnthropicRoomVision(options = {}) {
     // `purpose` decides the tier. A confirmation where the customer tapped nothing
     // still comes through here, which is why the split cannot key off the method:
     // that read sets the price and would silently get the cheap model.
-    async readRoom({ image, roomName, transcript, purpose } = {}) {
+    async readRoom({ image, roomName, transcript, purpose, signal } = {}) {
+      signal?.throwIfAborted();
       const selectedModel = modelFor(purpose);
       const context = [
         `This photograph is of the ${boundedText(roomName, 60) || "room"}.`,
@@ -540,7 +541,7 @@ export function createAnthropicRoomVision(options = {}) {
         system: cachedSystem(instructions),
         output_config: outputConfig(selectedModel, readingSchema, purpose),
         messages: [{ role: "user", content: [imagePayload(image), { type: "text", text: context }] }]
-      });
+      }, { signal });
       if (response.stop_reason === "refusal") throw new Error("The room photograph could not be read.");
       if (response.stop_reason !== "end_turn") throw new Error("The room reading did not finish. Please try again.");
       const text = response.content.filter((block) => block.type === "text").map((block) => block.text).join("");
@@ -554,7 +555,8 @@ export function createAnthropicRoomVision(options = {}) {
     // Only ever reached from a confirmation — the device has already boxed the
     // objects and the customer has chosen them — so it takes the confirmation
     // tier unconditionally rather than trusting a field for it.
-    async readSelectedItems({ image, items, roomName, transcript } = {}) {
+    async readSelectedItems({ image, items, roomName, transcript, signal } = {}) {
+      signal?.throwIfAborted();
       const selected = (Array.isArray(items) ? items : [])
         .map((item) => ({
           id: boundedText(item?.id, 40),
@@ -597,7 +599,7 @@ export function createAnthropicRoomVision(options = {}) {
         // checklist, whatever the customer tapped.
         output_config: outputConfig(confirmationModel, selectionSchema, "confirmation"),
         messages: [{ role: "user", content }]
-      });
+      }, { signal });
       if (response.stop_reason === "refusal") throw new Error("The room photograph could not be read.");
       if (response.stop_reason !== "end_turn") throw new Error("The room reading did not finish. Please try again.");
       const text = response.content.filter((block) => block.type === "text").map((block) => block.text).join("");

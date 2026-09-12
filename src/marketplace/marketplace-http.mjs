@@ -1045,7 +1045,16 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           // immediately converts it to a coarse bucket, so the exact duration
           // never leaves this call.
           const readingStartedAt = Date.now();
+          const readingController = new AbortController();
+          // IncomingMessage.close also fires after a fully received body. Use
+          // the response lifetime so a completed upload does not cancel its read.
+          const cancelReading = () => {
+            if (!response.writableEnded) readingController.abort();
+          };
+          response.once?.("close", cancelReading);
+          if (response.destroyed) cancelReading();
           try {
+            readingController.signal.throwIfAborted();
             // Two shapes, one route. When the device has already found and
             // boxed the objects it sends them for naming only. When it has not —
             // the phone-camera fallback has no live viewfinder and so no boxes —
@@ -1060,11 +1069,14 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             // escalate, only stay cheap.
             const purpose = body?.purpose === "confirmation" ? "confirmation" : "walking";
             const result = selectedItems.length
-              ? await roomVision.readSelectedItems({ image: body?.image, items: selectedItems, roomName: body?.roomName, transcript: body?.transcript })
-              : await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript, purpose });
+              ? await roomVision.readSelectedItems({ image: body?.image, items: selectedItems, roomName: body?.roomName, transcript: body?.transcript, signal: readingController.signal })
+              : await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript, purpose, signal: readingController.signal });
+            if (readingController.signal.aborted) return true;
             observeScan("scan.reading.succeeded", { dimensions: { outcome: "ok" } });
             sendJson(response, 200, { ok: true, ...result });
           } catch (error) {
+            // A departed client is not a provider failure, and cannot receive a reply.
+            if (readingController.signal.aborted) return true;
             // Bucketed by cause, so a provider outage and a malformed photograph
             // are distinguishable without recording either.
             observeScan("scan.reading.failed", {
@@ -1080,6 +1092,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             });
             sendJson(response, 502, { ok: false, error: "This room could not be read automatically." });
           } finally {
+            response.removeListener?.("close", cancelReading);
             observeScan("scan.reading.latency_ms", { durationMs: Date.now() - readingStartedAt });
           }
           return true;

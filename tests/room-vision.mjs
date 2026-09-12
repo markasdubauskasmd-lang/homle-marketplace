@@ -448,3 +448,24 @@ assert(readingSchemaVersion === 3, "Task references must be recorded under schem
   assert(readingTaskRecords({...payload,taskLinks:[link]})[0].inventoryKeys[0]==="hob",
     "Valid bounded task metadata stopped mapping to inventory.");
 }
+
+
+// The SDK receives cancellation as a request option, never inside model input.
+for (const method of ["readRoom", "readSelectedItems"]) {
+  const controller = new AbortController();
+  let calls = 0;
+  const reader = createAnthropicRoomVision({ apiKey: "test-key", client: { messages: {
+    create(input, options) {
+      calls += 1;
+      assert(!("signal" in input) && options.signal === controller.signal, "Cancellation was not passed to SDK request options.");
+      return new Promise((_, reject) => options.signal.addEventListener("abort", () => reject(options.signal.reason), { once: true }));
+    }
+  } } });
+  const params = { image: pixel, items: [{ id: "sink", label: "Sink" }], signal: controller.signal };
+  const reading = reader[method](params);
+  controller.abort(new Error("scan cancelled"));
+  assert(await rejects(() => reading, "scan cancelled"), "In-flight cancellation did not reject the reader.");
+  assert(await rejects(() => reader[method](params), "scan cancelled"), "Already cancelled read was started.");
+  assert(calls === 1, "Already cancelled read consumed another provider request.");
+}
+console.log("Room-vision cancellation checks passed.");
