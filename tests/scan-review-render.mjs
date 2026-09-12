@@ -381,3 +381,13 @@ console.log("Customer scan-review checks passed.");
     assert(scanProjection({rooms:corrected}).unresolvedCount === 1, "Unrelated edit settled an unknown grade.");
   }
 }
+
+{
+  const {default:vm}=await import("node:vm");
+  const start=script.indexOf("function renderReview() {");
+  const end=script.indexOf("function setScanReviewStatus",start);
+  const messages=[];
+  const context={state:{scanRooms:[],scanReview:null},reviewHost:{hidden:false},setScanReviewStatus:message=>messages.push(message)};
+  vm.runInNewContext(script.slice(start,end)+"\nrenderReview();",context);
+  assert(context.reviewHost.hidden && messages.length===1 && messages[0]==="","Reset left a stale review-recovery message");
+}
