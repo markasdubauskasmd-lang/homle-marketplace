@@ -1467,6 +1467,21 @@ export function inventoryDisplayLabel(item) {
   return quantity > 1 ? `${quantity} × ${label}` : label;
 }
 
+// Use the same condition evidence gate as the item rows. A confident object
+// name or an uncertain dirty grade cannot count as established cleaning work.
+// Quantities count the members of each group, including groups needing review.
+export function inventoryConditionCounts(items) {
+  const counts = { total: 0, needsWork: 0, clean: 0, uncertain: 0 };
+  for (const item of Array.isArray(items) ? items : []) {
+    const quantity = itemQuantity(item);
+    counts.total += quantity;
+    if (conditionNeedsReview(item)) counts.uncertain += quantity;
+    else if (String(item.condition).toLowerCase().trim() === "clean") counts.clean += quantity;
+    else counts.needsWork += quantity;
+  }
+  return Object.freeze(counts);
+}
+
 // Merges a fresh reading into what the room already holds. Returns a new array;
 // nothing is mutated, so the caller can render from the result directly.
 
