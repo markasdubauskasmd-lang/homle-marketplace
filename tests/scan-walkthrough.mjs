@@ -1076,3 +1076,38 @@ assert.equal(report.maxTokens,2048,"This change must not increase the output-tok
 assert.deepEqual(JSON.parse(JSON.stringify(report.taskRecords[0].inventoryKeys)),["floor"],"A later finding lost its task ownership");
 }
 }
+
+// A live heading must not contradict rows asking the customer to check a grade.
+// Exercise the actual renderer prefix, including its empty/busy/tracked states.
+{
+  const {default:vm} = await import("node:vm");
+  const model = await import("../public/room-scan-model.js");
+  const {readFileSync} = await import("node:fs");
+  const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
+  const start = source.indexOf("    function renderInventory() {");
+  const end = source.indexOf("      const rows = items.map", start);
+  assert.ok(start >= 0 && end > start);
+  const draw = (items, {busy = false, spotted = 0} = {}) => {
+    const el = {foundList:[],found:{},foundBusy:{},foundCount:{},foundNoun:{}};
+    const context = {...model, el,
+      state:{keyframeActiveRooms:new Set(busy ? ["room"] : []),frozen:false,screen:"live",tracks:Array(spotted).fill({})},
+      renderScanDebug(){},inventoryFor:()=>items,transcriptKey:()=>"room"};
+    vm.runInNewContext(source.slice(start,end)+"}\nrenderInventory();",context);
+    return [el.foundCount.textContent,el.foundNoun.textContent,el.found.hidden,el.foundBusy.hidden];
+  };
+  const uncertain = {label:"Chair",condition:"heavy",conditionConfidence:.1,quantity:3};
+  assert.deepEqual(draw([uncertain]).slice(0,2),["3","items found · 3 to check"]);
+  assert.deepEqual(draw([{label:"Sink",condition:"clean",conditionConfidence:.6}]).slice(0,2),["1","item found · 1 to check"]);
+  const mixed = [{label:"Hob",condition:"heavy",conditionConfidence:.9,quantity:2},
+    {label:"Tap",condition:"clean",conditionConfidence:.9}, {...uncertain,quantity:4}];
+  assert.deepEqual(draw(mixed).slice(0,2),["2","to clean · 1 clean · 4 to check"]);
+  assert.deepEqual(draw([{...uncertain,conditionConfirmed:true}]).slice(0,2),["3","to clean"]);
+  assert.deepEqual(draw([{...uncertain,condition:"clean",conditionConfirmed:true}]).slice(0,2),["3","items found"]);
+  for (const item of [{...uncertain,condition:""},{...uncertain,conditionConfidence:null},{...uncertain,condition:"clean",conditionConfidence:.69}])
+    assert.equal(model.inventoryConditionCounts([item]).uncertain,3);
+  assert.deepEqual(model.inventoryConditionCounts([{...uncertain,conditionConfidence:.5},{label:"Tap",condition:"clean",conditionConfidence:.7}]),
+    {total:4,needsWork:3,clean:1,uncertain:0});
+  assert.deepEqual(draw([]),["","Reading the room…",true,true]);
+  assert.deepEqual(draw([],{busy:true,spotted:2}),["2","spotted · reading…",false,false]);
+  assert.deepEqual(draw([],{spotted:2}),["2","spotted · hold steady to read",false,true]);
+}

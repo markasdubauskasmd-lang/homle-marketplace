@@ -24,6 +24,7 @@ import {
   mergeSavedDetections,
   mergeInventoryIntoSavedDetections,
   inventoryDisplayLabel,
+  inventoryConditionCounts,
   itemQuantity,
   inventoryKey,
   resolveRoomCondition,
@@ -2776,10 +2777,9 @@ export function openRoomScan() {
       // Says how many need attention, not how many exist. "16 items found" over a
       // list whose visible rows all read CLEAN told a customer nothing and looked
       // like padding; what they want to know is how much work this room is.
-      const totalItems = items.reduce((total, item) => total + itemQuantity(item), 0);
-      const needsWork = items
-        .filter((item) => item.condition && item.condition !== "clean")
-        .reduce((total, item) => total + itemQuantity(item), 0);
+      const counts = inventoryConditionCounts(items);
+      const totalItems = counts.total;
+      const needsWork = counts.needsWork;
       if (items.length === 0) {
         el.foundCount.textContent = spotted ? String(spotted) : "";
         // "Reading" only while a read is genuinely in flight; before that the
@@ -2789,9 +2789,11 @@ export function openRoomScan() {
           : "Reading the room…";
       } else {
         el.foundCount.textContent = String(needsWork || totalItems);
+        const remaining = [counts.clean ? `${counts.clean} clean` : "",
+          counts.uncertain ? `${counts.uncertain} to check` : ""].filter(Boolean).join(" · ");
         el.foundNoun.textContent = needsWork
-          ? `to clean${totalItems > needsWork ? ` · ${totalItems - needsWork} clean` : ""}`
-          : totalItems === 1 ? "item found" : "items found";
+          ? `to clean${remaining ? ` · ${remaining}` : ""}`
+          : `${totalItems === 1 ? "item found" : "items found"}${counts.uncertain ? ` · ${counts.uncertain} to check` : ""}`;
       }
 
       const rows = items.map((item) => {
