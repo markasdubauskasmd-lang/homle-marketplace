@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { createReadingPreview } from "./room-reading-preview.mjs";
 import { itemConditions, soilingKinds } from "./room-condition-vocabulary.mjs";
 
 // Reads one captured room photo and returns what is actually visible in it:
@@ -524,7 +525,7 @@ export function createAnthropicRoomVision(options = {}) {
     // `purpose` decides the tier. A confirmation where the customer tapped nothing
     // still comes through here, which is why the split cannot key off the method:
     // that read sets the price and would silently get the cheap model.
-    async readRoom({ image, roomName, transcript, purpose, signal } = {}) {
+    async readRoom({ image, roomName, transcript, purpose, signal, onPreview } = {}) {
       signal?.throwIfAborted();
       const selectedModel = modelFor(purpose);
       const context = [
@@ -535,13 +536,22 @@ export function createAnthropicRoomVision(options = {}) {
         boundedText(transcript, 1200) ? `The customer said, while walking through: "${boundedText(transcript, 1200)}"` : ""
       ].filter(Boolean).join(" ");
 
-      const response = await client.messages.create({
+      const request = {
         model: selectedModel,
         max_tokens: 2048,
         system: cachedSystem(instructions),
         output_config: outputConfig(selectedModel, readingSchema, purpose),
         messages: [{ role: "user", content: [imagePayload(image), { type: "text", text: context }] }]
-      }, { signal });
+      };
+      let response;
+      if (purpose === "walking" && typeof onPreview === "function") {
+        const preview = createReadingPreview(onPreview);
+        const stream = client.messages.stream(request, { signal });
+        stream.on("text", text => preview.push(text));
+        response = await stream.finalMessage();
+      } else {
+        response = await client.messages.create(request, { signal });
+      }
       if (response.stop_reason === "refusal") throw new Error("The room photograph could not be read.");
       if (response.stop_reason !== "end_turn") throw new Error("The room reading did not finish. Please try again.");
       const text = response.content.filter((block) => block.type === "text").map((block) => block.text).join("");

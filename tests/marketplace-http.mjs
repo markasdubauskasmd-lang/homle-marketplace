@@ -1061,3 +1061,57 @@ console.log("Private photo expiry HTTP checks passed for request and booking ima
   }
 }
 console.log("Room-reading connection cancellation checks passed.");
+
+// A real socket must deliver previews while the provider is still blocked.
+// Rejection after headers must end with an error event, never a success result.
+{
+  const { createServer } = await import("node:http");
+  const { once } = await import("node:events");
+  for (const outcome of ["success", "failure", "disconnect"]) {
+    let release, providerSignal;
+    const gate = new Promise(resolve => { release = resolve; });
+    const tested = createMarketplaceHttpRouter({ ...dependencies, roomVision: {
+      async readRoom({ onPreview, signal }) {
+        providerSignal = signal;
+        onPreview({ index: 0, label: "Basin" });
+        await Promise.race([gate, new Promise(resolve => signal.addEventListener("abort", resolve, { once: true }))]);
+        signal.throwIfAborted();
+        if (outcome === "failure") throw new Error("private provider detail");
+        return { detections: [], tasks: [], condition: "" };
+      }
+    } }, { clientKey: () => trustedClientKey });
+    const server = createServer((req, res) => tested.handle(req, res));
+    server.listen(0, "127.0.0.1"); await once(server, "listening");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    try {
+      const response = await fetch(`http://127.0.0.1:${server.address().port}/api/marketplace/landlord/room-reading`, {
+        method: "POST", headers: { ...authHeaders, accept: "application/x-ndjson" },
+        body: JSON.stringify({ image: "synthetic", purpose: "walking" }), signal: controller.signal
+      });
+      assert(response.headers.get("content-type").includes("application/x-ndjson"), "Preview response was buffered as JSON.");
+      const reader = response.body.getReader();
+      const first = new TextDecoder().decode((await reader.read()).value);
+      assert(JSON.parse(first).item.label === "Basin", "No preview before final provider completion.");
+      if (outcome === "disconnect") {
+        controller.abort();
+        await new Promise((resolve, reject) => {
+          if (providerSignal.aborted) return resolve();
+          const timeout = setTimeout(() => reject(new Error("Stream disconnect did not cancel provider")), 1000);
+          providerSignal.addEventListener("abort", () => { clearTimeout(timeout); resolve(); }, { once: true });
+        });
+      } else {
+        release();
+        let rest = "";
+        while (true) { const chunk = await reader.read(); if (chunk.done) break; rest += new TextDecoder().decode(chunk.value); }
+        const final = JSON.parse(rest);
+        assert(final.type === (outcome === "success" ? "complete" : "error"), "Stream ended with the wrong outcome.");
+        assert(!rest.includes("private provider detail"), "Provider details leaked into stream.");
+      }
+    } finally {
+      clearTimeout(timer); release(); controller.abort(); server.closeAllConnections();
+      await new Promise(resolve => server.close(resolve));
+    }
+  }
+}
+console.log("Room-reading HTTP streaming checks passed: early delivery, final success/failure and cancellation.");

@@ -1,4 +1,5 @@
 import { createAnthropicRoomVision, inspectionFocus, roomVisionFromEnvironment } from "../src/marketplace/room-vision.mjs";
+import "./room-reading-stream.mjs";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
 async function rejects(run, fragment) {

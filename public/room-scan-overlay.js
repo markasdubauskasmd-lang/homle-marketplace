@@ -1,4 +1,5 @@
 import { containScannerFocus } from "./scanner-modal-focus.js";
+import { readRoomResponse } from "./room-reading-stream.js";
 import {
   canFinishScan,
   usableDetections,
@@ -76,6 +77,7 @@ import { storedCsrf } from "./session-csrf.js";
 // checklist to itself through storage and hope it survives a navigation.
 
 const markup = `
+<link rel="stylesheet" href="/room-reading-stream.css">
 <div class="scan-stage" data-scan-stage>
   <div class="vf" data-viewfinder>
     <video class="vf-feed" data-camera playsinline muted autoplay></video>
@@ -704,6 +706,7 @@ export function openRoomScan() {
       // room reading that is still in flight.
       detectionGeneration: 0,
       tracks: [], nextTrackId: 1, lastSpottedCount: 0, liveDetectionAvailable: true,
+      walkingPreviews: new Map(),
       roomReadController: null, frameCallbackKind: ""
     };
 
@@ -2664,7 +2667,13 @@ export function openRoomScan() {
       // relying on the default, so adding a caller cannot quietly put a walking
       // frame on the dearer tier.
       const readStartedAt = Date.now();
-      readRoom(image, roomName, [], roomTranscript(roomName), "walking")
+      const previewItems = [];
+      readRoom(image, roomName, [], roomTranscript(roomName), "walking", item => {
+        if (state.closed || keyframeBudget(roomName).generation !== generation) return;
+        previewItems[item.index] = item;
+        state.walkingPreviews.set(roomKey, previewItems);
+        renderInventory();
+      })
         .then((reading) => {
           // The room may have been removed while this was in flight. Landing its
           // result anyway would recreate an inventory the Landlord just deleted.
@@ -2713,6 +2722,7 @@ export function openRoomScan() {
           state.diagnostics.lastReadFailure = String(error?.code || error?.message || "failed").slice(0, 60);
         })
         .finally(() => {
+          if (state.walkingPreviews.get(roomKey) === previewItems) state.walkingPreviews.delete(roomKey);
           state.keyframeActiveRooms.delete(roomKey);
           if (!state.closed) {
             renderInventory();
@@ -2803,6 +2813,24 @@ export function openRoomScan() {
           : `${totalItems === 1 ? "item found" : "items found"}${counts.uncertain ? ` · ${counts.uncertain} to check` : ""}`;
       }
 
+      // A streamed name is useful before the whole reading finishes, but it is
+      // not yet a validated inventory item or a cleaning/price assessment.
+      const previews = state.screen === "live" && !state.frozen && items.length === 0
+        ? (state.walkingPreviews.get(transcriptKey() || "unnamed") || []).filter(Boolean) : [];
+      if (previews.length) {
+        el.found.hidden = false;
+        el.foundCount.textContent = String(previews.length);
+        el.foundNoun.textContent = "provisional · still assessing";
+        list.replaceChildren(...previews.map(item => {
+          const row = document.createElement("li"); row.className = "found-item is-provisional";
+          const label = document.createElement("span"); label.className = "found-name";
+          label.textContent = item.label;
+          const grade = document.createElement("em"); grade.className = "found-grade";
+          grade.dataset.grade = "uncertain"; grade.textContent = "cleanliness not assessed";
+          label.append(" ", grade); row.append(label); return row;
+        }));
+        return;
+      }
       const page = inventoryPage(items, state.inventoryPages.get(transcriptKey()) || 0);
       state.inventoryPages.set(transcriptKey(), page.page);
       const rows = page.items.map((item) => {
@@ -3053,7 +3081,7 @@ export function openRoomScan() {
       renderHub();
     }
 
-    async function readRoom(image, roomName, items = [], transcript = "", purpose = "confirmation") {
+    async function readRoom(image, roomName, items = [], transcript = "", purpose = "confirmation", onPreview) {
       const localDetections = items.map((item) => ({
         id: item.id, inventoryKey: item.inventoryKey || inventoryKey(item.label),
         label: item.label || "Marked item", needsName: item.needsName === true || !item.label, note: item.note || "",
@@ -3108,7 +3136,7 @@ export function openRoomScan() {
       if (!csrf) throw Object.assign(new Error("A signed-in Landlord session is required."), { code: "sign-in-required" });
       const response = await fetch("/api/marketplace/landlord/room-reading", {
         method: "POST", credentials: "same-origin", cache: "no-store",
-        headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRF-Token": csrf },
+        headers: { "Content-Type": "application/json", Accept: purpose === "walking" ? "application/x-ndjson" : "application/json", "X-CSRF-Token": csrf },
         body: JSON.stringify(payload.body),
         signal: controller.signal
       });
@@ -3117,7 +3145,7 @@ export function openRoomScan() {
         return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), taskRecords: readingTaskRecords({tasks:localRoomTasks(roomName, transcript)}, {customer:true}), condition: "", readingStatus: "manual" };
       }
       if (!response.ok) throw new Error("reading-failed");
-      const result = await response.json();
+      const result = await readRoomResponse(response, onPreview);
       return {
         // With a selection the device already owns the geometry and only the
         // names come back; without one the whole frame was read the old way and
