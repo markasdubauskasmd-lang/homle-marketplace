@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import vm from "node:vm";
+import { readRoomResponse } from "../public/room-reading-stream.js";
 import {
   conditionReviewAdvice, correctInventoryItem, walkingReadingItems, inventoryDisplayLabel,
   inventoryKey, keyframeDefaults, mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
@@ -22,7 +23,7 @@ import {
       signal.addEventListener("abort", () => reject(signal.reason), { once: true });
     });
     const context = {
-      state, AbortController, roomReadingPayload: () => ({ withinLimit: true, body: {} }),
+      state, AbortController, readRoomResponse, roomReadingPayload: () => ({ withinLimit: true, body: {} }),
       storedCsrf: () => token,
       sessionStorage: { setItem(key, value) { token = value; }, getItem() { return token; } },
       window: { setTimeout(callback, duration) { assert.equal(duration, 32_000); timers.set(++timerId, callback); return timerId; }, clearTimeout(id) { timers.delete(id); } },
@@ -34,7 +35,7 @@ import {
           if (["deadline", "close"].includes(scenario)) return waitForAbort(options.signal);
           return { ok: scenario !== "signed-out", json: () => scenario === "body-deadline" ? waitForAbort(options.signal) : Promise.resolve({ csrfToken: "restored-token" }) };
         }
-        return { ok: true, status: 200, json: async () => ({ detections: [], tasks: [] }) };
+        return { ok: true, status: 200, headers: new Headers({ "content-type": "application/json" }), json: async () => ({ detections: [], tasks: [] }) };
       }
     };
     vm.runInNewContext(section("async function recoverCsrf(", "// Reads the view the Landlord") + section("async function readRoom(image,", "function localRoomTasks(") + ";globalThis.read = readRoom;", context);
@@ -325,7 +326,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
 // Execute the actual walking callback with controlled response ordering.
 {
   const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
-  const start = source.indexOf('readRoom(image, roomName, [], roomTranscript(roomName), "walking")');
+  const start = source.indexOf('readRoom(image, roomName, [], roomTranscript(roomName), "walking", item =>');
   assert.ok(start > 0);
   const callback = source.slice(start).match(/\.then\(\(reading\) => \{([\s\S]*?)\n        \}\)/)?.[1];
   assert.ok(callback);
@@ -361,7 +362,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
   const readStart = source.indexOf("async function readRoom(image,");
   const readEnd = source.indexOf("function localRoomTasks(", readStart);
-  const start = source.indexOf('readRoom(image, roomName, [], roomTranscript(roomName), "walking")');
+  const start = source.indexOf('readRoom(image, roomName, [], roomTranscript(roomName), "walking", item =>');
   const callback = source.slice(start).match(/\.then\(\(reading\) => \{([\s\S]*?)\n        \}\)/)?.[1];
   assert.ok(callback && readStart >= 0 && readEnd > readStart);
   for (const status of [503, 200]) {
@@ -369,11 +370,11 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       diagnostics:{keyframesRead:0},dismissed:new Map(),rooms:[]};
     const tasks = ["Kitchen: Wipe the table"];
     let requests = 0, remembered = [];
-    const read = new Function("state","roomReadingPayload","recoverCsrf","window","fetch","localRoomTasks","usableDetections","readingTaskRecords","mergeScanTaskRecords",
+    const read = new Function("state","roomReadingPayload","recoverCsrf","window","fetch","localRoomTasks","usableDetections","readingTaskRecords","mergeScanTaskRecords","readRoomResponse",
       source.slice(readStart, readEnd) + ";return readRoom;")(
       state, () => ({withinLimit:true,body:{synthetic:true}}), async()=>"synthetic-csrf",
-      {setTimeout,clearTimeout}, async()=>{requests++;return {status,ok:status===200,json:async()=>({detections:[],tasks,condition:""})};},
-      ()=>tasks, ()=>[], readingTaskRecords, mergeScanTaskRecords);
+      {setTimeout,clearTimeout}, async()=>{requests++;return {status,ok:status===200,headers:new Headers({"content-type":"application/json"}),json:async()=>({detections:[],tasks,condition:""})};},
+      ()=>tasks, ()=>[], readingTaskRecords, mergeScanTaskRecords, readRoomResponse);
     const reading = await read("synthetic-frame","Kitchen",[],"Wipe the table","walking");
     assert.equal(reading.taskRecords[0].origin,status===503?"customer":"vision","Reading lost task origin");
     const budget = {generation:0,capturedCount:1,completedCount:0,completedSignatures:[]};
@@ -1103,9 +1104,9 @@ for(const count of [15,40,45]){
  const state={readingAllowed:true,visionAvailable:true,roomReadControllers:new Set(),rooms:[],currentRoom:'Kitchen',roomSession:1,consentAsked:true,nextReadingRevision:1,walkEvidence:new Map(),dismissed:new Map()};
  let inventory=[],closed;
  const el={note:{value:''},readRoom:{},retake:{},canvas:{getContext:()=>({drawImage(){}})},still:{},selection:{},viewfinder:{classList:{add(){}}}};
- const context=vm.createContext({...model,state,el,AbortController,Date,
+ const context=vm.createContext({...model,state,el,AbortController,Date,readRoomResponse,
   roomReadingPayload:()=>({withinLimit:true,body:{}}),recoverCsrf:async()=> 'test',
-  fetch:async()=>({ok:true,status:200,json:async()=>payload}),window:{setTimeout,clearTimeout},localRoomTasks:()=>[],
+  fetch:async()=>({ok:true,status:200,headers:new Headers({"content-type":"application/json"}),json:async()=>payload}),window:{setTimeout,clearTimeout},localRoomTasks:()=>[],
   Image:class{naturalWidth=100;naturalHeight=100;set src(value){this.onload();}},
   prepareLiveRoom(){throw Error('Unexpected capture');},stopDetection(){},layoutFrozen(){},refreshSelection(){},
   setRoomTranscript(){},roomTranscript:()=>'',scanEvents:{record(){},flush(){}},elapsedSince:()=>0,renderScanProgress(){},
@@ -1147,7 +1148,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(report.taskRecords[0].inventoryKeys))
   const draw = (items, {busy = false, spotted = 0} = {}) => {
     const el = {foundList:[],found:{},foundBusy:{},foundCount:{},foundNoun:{}};
     const context = {...model, el,
-      state:{keyframeActiveRooms:new Set(busy ? ["room"] : []),frozen:false,screen:"live",tracks:Array(spotted).fill({})},
+      state:{keyframeActiveRooms:new Set(busy ? ["room"] : []),walkingPreviews:new Map(),frozen:false,screen:"live",tracks:Array(spotted).fill({})},
       renderScanDebug(){},inventoryFor:()=>items,transcriptKey:()=>"room"};
     vm.runInNewContext(source.slice(start,end)+"}\nrenderInventory();",context);
     return [el.foundCount.textContent,el.foundNoun.textContent,el.found.hidden,el.foundBusy.hidden];
