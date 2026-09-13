@@ -21,13 +21,13 @@ for(const section of Object.keys(sections)) extraFiles['/api/marketplace/cleaner
 const server=await serveStatic({extraFiles});const browser=await launchBrowser();
 const run=script=>browser.evaluate(script+'; return true;');
 async function waitFor(expression){for(let i=0;i<100;i++){try{if(await browser.evaluate(expression))return;}catch{}await new Promise(r=>setTimeout(r,50));}throw Error('Timed out: '+expression);}
-async function open(path,ready){await browser.goto(server.origin+path);await waitFor(ready);await browser.evaluate("sessionStorage.setItem('tideway_csrf','test-csrf')");}
+async function open(path,ready){await browser.goto(server.origin+path);await waitFor(ready);await browser.evaluate("sessionStorage.setItem('tideway_csrf','expired-test-csrf')");}
 try{
  await open('/cleaner/experience',"document.querySelector('[data-employment-row]')");
  await run(`{const row=document.querySelector('[data-employment-row]');for(const [key,value] of Object.entries({company:'Demo Previous',startDate:'2020-01',endDate:'2019-01',reasonForLeaving:'Demo move'}))row.querySelector('[data-employment-field="'+key+'"]').value=value;document.querySelector('[data-experience-form]').requestSubmit();}`);
  assert.equal(saves,0,'Invalid chronology must not save');
  await run(`document.querySelector('[data-employment-field="endDate"]').value='2022-01';document.querySelector('[data-employment-add]').click();{const row=document.querySelectorAll('[data-employment-row]')[1];row.querySelector('[data-employment-field="company"]').value='Demo Current';row.querySelector('[data-employment-field="startDate"]').value='2022-02';row.querySelector('[data-employment-field="current"]').click();}document.querySelector('[data-experience-form]').requestSubmit();`);
- await waitFor("location.pathname==='/cleaner/onboarding'");assert.equal(sections.experience.data.employmentHistory.length,2);assert.equal(sections.experience.data.employmentHistory[1].current,true);
+ await waitFor("location.pathname==='/cleaner/onboarding'");assert.equal(await browser.evaluate("sessionStorage.getItem('tideway_csrf')"),'test-csrf');assert.equal(sections.experience.data.employmentHistory.length,2);assert.equal(sections.experience.data.employmentHistory[1].current,true);
  await open('/cleaner/experience',"document.querySelectorAll('[data-employment-row]').length===2");
  assert.equal(await browser.evaluate("document.querySelector('[data-employment-field=company]').value"),'Demo Previous');
  await run("document.querySelector('[data-employment-row] button').click();document.querySelector('[data-experience-form]').requestSubmit()");

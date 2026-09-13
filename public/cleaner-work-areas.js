@@ -1,5 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-import { storedCsrf } from "./session-csrf.js";
+import { refreshOnboardingCsrf } from "./cleaner-onboarding-client.js?v=20260913-history-areas-2";
 import { normalizedWorkZones } from "./cleaner-work-zones.js?v=20260805-1";
 import { postcodeZoneCentres } from "./postcode-zone-centres.js?v=20260805-1";
 import {
@@ -641,14 +641,10 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
       showFeedback("Add at least one Primary or Secondary postcode before saving.", "error");
       return;
     }
-    const csrf = storedCsrf();
-    if (!csrf) {
-      showFeedback("Your secure editing token is missing. Sign in again before saving.", "error");
-      return;
-    }
     const submit = form.querySelector('button[type="submit"]');
     if (submit instanceof HTMLButtonElement) submit.disabled = true;
     try {
+      const csrf = await refreshOnboardingCsrf(requestJson);
       const savedProfile = await requestJson("/api/marketplace/cleaner/profile", {
         method: "PUT", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(profileUpdate(profile))
       });

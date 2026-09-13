@@ -67,3 +67,9 @@ export async function saveOnboardingForm(requestJson, section, form, { status = 
   });
   return result.section;
 }
+
+export async function refreshOnboardingCsrf(requestJson) {
+  const session = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  if (!session.csrfToken || !saveCsrf(session.csrfToken)) throw new Error("Your secure editing token could not be restored. Sign in again before saving.");
+  return session.csrfToken;
+}

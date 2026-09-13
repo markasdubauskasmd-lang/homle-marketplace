@@ -1,6 +1,6 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
 import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
-import { storedCsrf } from "./session-csrf.js";
+import { refreshOnboardingCsrf } from "./cleaner-onboarding-client.js?v=20260913-history-areas-2";
 import { hydrateOnboardingDocumentInputs, selectedDocumentCopy, storedDocumentCopy, uploadOnboardingFormDocuments, validateOnboardingDocument } from "./cleaner-onboarding-documents.js?v=20260805-1";
 
 const serviceTypes = new Set(["cleaner", "beautician"]);
@@ -278,14 +278,10 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
       form.querySelector(`[data-experience-specialisms="${serviceType}"] input`)?.focus();
       return;
     }
-    const csrf = storedCsrf();
-    if (!csrf) {
-      showFeedback("Your secure editing token is missing. Sign in again before saving.", "error");
-      return;
-    }
     const submit = form.querySelector('button[type="submit"]');
     if (submit instanceof HTMLButtonElement) submit.disabled = true;
     try {
+      const csrf = await refreshOnboardingCsrf(requestJson);
       const uploaded = await uploadOnboardingFormDocuments(form, "experience", "[data-experience-file]", ({ current, total }) => showFeedback(`Uploading document ${current} of ${total} securely…`));
       for (const document of uploaded) {
         const input = form.elements.namedItem(document.documentType);
