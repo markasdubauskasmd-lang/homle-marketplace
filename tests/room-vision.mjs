@@ -471,3 +471,27 @@ for (const method of ["readRoom", "readSelectedItems"]) {
   assert(calls === 1, "Already cancelled read consumed another provider request.");
 }
 console.log("Room-vision cancellation checks passed.");
+
+// Both provider paths must flag unsupported machine grades, even when the
+// model reports high confidence. The object and reviewable proposal survive.
+{
+  const { conditionNeedsReview } = await import("../public/room-scan-model.js");
+  for (const method of ["readRoom", "readSelectedItems"]) {
+    for (const condition of ["clean", "light", "medium", "heavy"]) {
+      for (const evidence of [undefined, null, "", "  \n\t", true, [], "Visible marks around the tap base"]) {
+        const item = {id:"tap",label:"Tap",condition,evidence,soiling:[],labelConfidence:.97,conditionConfidence:.91,x:1,y:1,width:20,height:20};
+        const provider = createAnthropicRoomVision({apiKey:"synthetic",client:stub(jsonReply({condition:"unknown",detections:[item],items:[item],tasks:[],taskLinks:[]}))});
+        const result = await provider[method]({image:pixel,items:[{id:"tap"}]});
+        const actual = (result.detections || result.items)[0];
+        const supported = evidence === "Visible marks around the tap base";
+        assert(actual.label === "Tap" && actual.confidence === .97 && actual.condition === condition,
+          "Missing condition evidence damaged identity or discarded the reviewable proposal.");
+        assert(actual.conditionConfidence === (supported ? .91 : 0) && conditionNeedsReview(actual) === !supported,
+          "An unsupported machine grade bypassed review, or a supported grade lost its confidence.");
+        assert(conditionNeedsReview({...actual,conditionConfirmed:true}) === false,
+          "The provider evidence gate prevented a subsequent explicit customer correction.");
+      }
+    }
+  }
+}
+console.log("Condition evidence checks passed: empty/malformed evidence cannot settle any machine grade; identity and customer review remain intact.");
