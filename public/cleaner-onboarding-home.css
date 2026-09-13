@@ -93,9 +93,6 @@ body.homlle-onboarding-home .oh-next strong{font-size:16px}
 }
 
 @media(min-width:901px){
- html body.homlle-onboarding-home .hc-side.cleaner-site-header[data-preview-sidebar] .hc-nav{min-height:0;padding-bottom:78px}
- html body.homlle-onboarding-home .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav]{height:100%;min-height:0;display:grid;grid-template-rows:repeat(14,minmax(26px,1fr));justify-items:center;gap:0;padding:0}
- html body.homlle-onboarding-home .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub[data-preview-page]{width:34px!important;min-width:34px!important;height:32px!important;min-height:26px!important;max-height:100%;margin:0!important;align-self:center}
  body.homlle-onboarding-home .hc-main-inner .hc-foot{margin-top:10px;padding-top:8px}
 }
 
@@ -120,3 +117,11 @@ body.homlle-onboarding-home .oh-benefits{color:#201e1d}
 /* Small, consistent symbols for the welcome benefits. */
 body.homlle-onboarding-home .oh-benefits li{display:flex;align-items:center;gap:10px}
 .oh-benefit-icon{display:block;flex:0 0 22px;width:22px;height:22px}
+
+/* Match step-page buttons and distribute them above the exit control. */
+@media(min-width:901px){
+ html body.homlle-onboarding-home .hc-side.cleaner-site-header[data-preview-sidebar] .hc-nav{min-height:0}
+ html body.homlle-onboarding-home .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-group]{height:100%}
+ html body.homlle-onboarding-home .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav]{height:100%;display:grid;grid-template-rows:repeat(14,minmax(0,1fr));justify-items:center;gap:0;padding:0}
+ html body.homlle-onboarding-home .hc-side.cleaner-site-header[data-preview-sidebar] [data-onboarding-nav] .hc-nav-sub[data-preview-page]{margin:0!important;max-height:100%;min-height:0!important;align-self:center}
+}

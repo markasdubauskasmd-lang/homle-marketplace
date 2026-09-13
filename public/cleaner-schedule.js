@@ -1,3 +1,4 @@
+import { connectBookingRefresh } from "./booking-live-refresh.js?v=20260913-1";
 import { bookingSummaryBuckets, bookingSummaryStatusLabels, formatBookingMoney } from "./booking-summary-model.js?v=20260723-3";
 import { activeJobMessagingOpen } from "./active-job-model.js?v=20260728-1";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
@@ -449,7 +450,7 @@ async function loadSchedule() {
     const requestedRevision = bookingRevision;
     const [bookingResult, availabilitySection] = await Promise.all([
       requestJson("/api/marketplace/bookings?limit=50"),
-      loadOnboardingForm(requestJson, "availability", timeOffForm).catch(() => null)
+      loadOnboardingForm(requestJson, "availability", timeOffForm).then((section) => section || { data: {} }).catch(() => null)
     ]);
     const liveBookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
     previewMode = !activityRedesign && liveBookings.length === 0;
@@ -503,3 +504,14 @@ const yearNode = document.querySelector("[data-year]");
 if (yearNode) yearNode.textContent = String(new Date().getFullYear());
 updateNetworkStatus();
 loadSchedule();
+
+connectBookingRefresh(async () => {
+  if (loading || !gate.hidden) return;
+  const revision = bookingRevision;
+  const result = await requestJson("/api/marketplace/bookings?limit=50");
+  if (revision !== bookingRevision) return;
+  const next = activityRedesign ? activityRecords(result.bookings || []) : (result.bookings || []);
+  if (!previewMode && JSON.stringify(bookings) === JSON.stringify(next)) return;
+  bookings = next;
+  previewMode = false; view.dataset.preview = "false"; renderAll();
+});

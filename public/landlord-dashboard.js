@@ -1,3 +1,4 @@
+import { connectBookingRefresh } from "./booking-live-refresh.js?v=20260913-1";
 import { createManualRequestRecovery } from "./manual-request-recovery.js";
 import { checklistFromTranscript } from "./checklist.js";
 import { checklistChangeReview } from "./checklist-change-review.js";
@@ -2869,7 +2870,7 @@ function clearLandlordInvitationDeadlineTimer() {
   landlordInvitationDeadlineTimer = null;
 }
 
-async function refreshBookingTransition({ manual = false } = {}) {
+async function refreshBookingTransition({ manual = false, quiet = false } = {}) {
   if (bookingTransitionRefresh) return bookingTransitionRefresh;
   const before = new Map(bookings.map((booking) => [booking.bookingId, booking.status]));
   bookingRefresh.disabled = true;
@@ -2880,13 +2881,16 @@ async function refreshBookingTransition({ manual = false } = {}) {
         requestJson("/api/marketplace/bookings?limit=50"),
         requestJson("/api/marketplace/cleaning-requests")
       ]);
-      bookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
-      requests = Array.isArray(requestResult.cleaningRequests) ? requestResult.cleaningRequests : [];
+      const nextBookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
+      const nextRequests = Array.isArray(requestResult.cleaningRequests) ? requestResult.cleaningRequests : [];
+      const changed = JSON.stringify([bookings, requests]) !== JSON.stringify([nextBookings, nextRequests]);
+      bookings = nextBookings;
+      requests = nextRequests;
       const invited = bookings.find((booking) => !before.has(booking.bookingId) && booking.status === "pending-cleaner-acceptance");
       const accepted = bookings.find((booking) => before.get(booking.bookingId) === "pending-cleaner-acceptance" && booking.status === "confirmed");
       const closed = bookings.find((booking) => before.get(booking.bookingId) === "pending-cleaner-acceptance" && booking.status === "cancelled");
-      renderRequests();
-      renderBookings();
+      if (changed || !quiet) { renderRequests(); renderBookings(); }
+      else { syncInvitationStream(); }
       // Acceptance is the moment the exact total exists, so the same update
       // that announces it carries the way to authorize it. Following the link
       // is still optional and the booking card keeps its own copy of the
@@ -4922,7 +4926,7 @@ window.addEventListener("pagehide", () => { closeInvitationStream(); clearLandlo
 // waiting on a Cleaner sat on a page that had quietly stopped listening.
 // refreshBookingTransition refetches and rerenders, and renderBookings reaches
 // syncInvitationStream, which reopens because closeInvitationStream cleared the
-// key. No polling is introduced.
+// key. The shared refresh also catches later job progress and completion.
 window.addEventListener("pageshow", (event) => { if (event.persisted) void refreshBookingTransition(); });
 window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", () => {
@@ -4935,3 +4939,6 @@ renderTaskPreview();
 configureSpeech();
 updateNetworkStatus();
 loadWorkspace();
+connectBookingRefresh(() => {
+  if (!loading && !workspace.hidden && !requestDirty && !propertyDirty && !landlordProfileDirty) return refreshBookingTransition({ quiet: true });
+});

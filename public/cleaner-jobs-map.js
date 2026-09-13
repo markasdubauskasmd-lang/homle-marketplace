@@ -1,3 +1,4 @@
+import { connectBookingRefresh } from "./booking-live-refresh.js?v=20260913-1";
 import {
   bookingSummaryBuckets,
   bookingSummaryStatusLabels,
@@ -20,6 +21,8 @@ const pinHost = document.querySelector("[data-map-pins]");
 const listHost = document.querySelector("[data-map-list]");
 const mapState = { latitude: 51.372, longitude: -0.102, zoom: 12 };
 let mappedJobs = [];
+let lastBookingSnapshot = "";
+let mapRevision = 0;
 let pointer = null;
 
 function previewDate(daysAhead, hour, durationHours) {
@@ -221,15 +224,15 @@ async function resolveMatchedJobs(bookings) {
   const cache = new Map();
   const resolved = [];
   for (const booking of bookings) {
-    let latitude = Number(booking.latitude);
-    let longitude = Number(booking.longitude);
+    let latitude = booking.latitude == null ? Number.NaN : Number(booking.latitude);
+    let longitude = booking.longitude == null ? Number.NaN : Number(booking.longitude);
     let district = String(booking.mapDistrict || booking.locationLabel || "").split(",")[0].trim();
     const outcode = String(booking.propertyArea || "").trim().toUpperCase();
     if ((!Number.isFinite(latitude) || !Number.isFinite(longitude)) && outcode) {
       let location = cache.get(outcode);
       if (location === undefined) {
         try {
-          const response = await fetch(`https://api.postcodes.io/outcodes/${encodeURIComponent(outcode)}`, { headers: { Accept: "application/json" } });
+          const response = await fetch(`https://api.postcodes.io/outcodes/${encodeURIComponent(outcode)}`, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8000) });
           const record = response.ok ? (await response.json())?.result : null;
           location = Number.isFinite(Number(record?.latitude)) && Number.isFinite(Number(record?.longitude))
             ? { latitude: Number(record.latitude), longitude: Number(record.longitude), district: String(record.admin_district || "").trim() }
@@ -245,7 +248,10 @@ async function resolveMatchedJobs(bookings) {
 }
 
 async function updateMatchedAreaMap(bookings) {
-  mappedJobs = await resolveMatchedJobs(bookings);
+  const revision = ++mapRevision;
+  const resolved = await resolveMatchedJobs(bookings);
+  if (revision !== mapRevision) return;
+  mappedJobs = resolved;
   const districts = [...new Set(mappedJobs.map((job) => job.district).filter(Boolean))];
   const outcodes = [...new Set(mappedJobs.map((job) => job.outcode).filter(Boolean))];
   const areaTitle = document.querySelector("[data-map-area-title]");
@@ -403,7 +409,9 @@ async function loadRealJobs({ showFeedback }) {
     const result = await requestJson("/api/marketplace/bookings?limit=50");
     const bookings = Array.isArray(result.bookings) ? result.bookings : [];
     const available = bookingSummaryBuckets(bookings, "cleaner").pending;
-    renderJobs(available);
+    const snapshot = JSON.stringify(available);
+    if (snapshot !== lastBookingSnapshot) { renderJobs(available); lastBookingSnapshot = snapshot; }
+    showFeedback("");
     const profileResult = await requestJson('/api/marketplace/cleaner/profile').catch(() => null);
     const distance = document.querySelector('[data-workspace-travel]');
     if (distance) {
@@ -411,7 +419,6 @@ async function loadRealJobs({ showFeedback }) {
       distance.textContent = Number.isFinite(km) ? 'Maximum distance: ' + Math.round(km * 0.621371) + ' miles' : 'Set your travel distance in Work areas.';
     }
   } catch (error) {
-    renderJobs([]);
     showFeedback(error?.message || "Available jobs could not be loaded. Try again shortly.", "error");
   }
 }
@@ -424,5 +431,9 @@ if (localPreview) {
   document.querySelector("[data-year]").textContent = String(new Date().getFullYear());
   renderJobs(previewJobs(), { preview: true });
 } else {
-  createCleanerPage("map", loadRealJobs);
+  let connected = false;
+  createCleanerPage("map", async (context) => {
+    await loadRealJobs(context);
+    if (!connected) { connected = true; connectBookingRefresh(() => loadRealJobs(context)); }
+  });
 }

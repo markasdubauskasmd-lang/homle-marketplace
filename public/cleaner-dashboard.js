@@ -1,3 +1,4 @@
+import { connectBookingRefresh } from "./booking-live-refresh.js?v=20260913-1";
 import { bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPrimaryAction, bookingSummaryPriceLabel, bookingSummaryStatusLabels, cleanerDashboardSummary, cleanerInvitationDeadlineState, cleanerInvitationDecisionState, cleanerMarketplaceCapabilityState, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining } from "./booking-summary-model.js?v=20260723-3";
 import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-9";
 import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260729-6";
@@ -637,11 +638,13 @@ async function loadOptionalPayoutStatus() {
   }
 }
 
-async function refreshBookings() {
+async function refreshBookings({ quiet = false } = {}) {
   const result = await requestJson("/api/marketplace/bookings?limit=50");
-  bookings = Array.isArray(result.bookings) ? result.bookings : [];
+  const next = Array.isArray(result.bookings) ? result.bookings : [];
+  const changed = !bookingsAvailable || JSON.stringify(bookings) !== JSON.stringify(next);
+  bookings = next;
   bookingsAvailable = true;
-  renderBookings();
+  if (changed || !quiet) renderBookings();
 }
 
 async function reconcileDecision(bookingId, decision) {
@@ -812,3 +815,5 @@ window.addEventListener("homle:notification-updated", () => {
 window.addEventListener("pagehide", () => window.clearTimeout(invitationDeadlineTimer));
 updateNetworkStatus();
 loadDashboard();
+
+connectBookingRefresh(() => { if (accountRecord && !loading && !responding && gate.hidden) return refreshBookings({ quiet: true }); });

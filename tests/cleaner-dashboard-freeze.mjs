@@ -11,11 +11,10 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // Pin that approved frontend and keep the backend boundary intact.
 // Pinning the complete dedicated surface and the shared browser assets it loads
 // makes an accidental change fail in CI before it can be merged or deployed.
-const expectedFileCount = 96;
+const expectedFileCount = 97;
+// User approved dashboard job updates and onboarding sidebar spacing, 13 September 2026.
 // User approved employment history and service area fixes, 13 September 2026.
-// User approved Performance ranking and shared styling release, 13 September 2026.
-// User approved Performance ranking and shared styling release, 13 September 2026.
-const expectedDigest = "d2f92c6c0ee94302add8110323a6e97e92bc91c523d28dc3a40a4d416a89fcde";
+const expectedDigest = "8883709ae3875b9c0a8446fb931271798fe3082e8d2a4c90624c9d24e0847744";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
@@ -24,6 +23,7 @@ const sharedBrowserDependencies = Object.freeze([
   "public/active-job.js",
   "public/active-job-model.js",
   "public/booking-summary-model.js",
+  "public/booking-live-refresh.js",
   "public/homle-logo.png",
   "public/homlle-activity.css",
   "public/homlle-activity.js",
