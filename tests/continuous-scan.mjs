@@ -1110,8 +1110,12 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   assert.equal(context.keyframeBudget("Bedroom").completedCount,1);
   // Removal resets evidence but retains the spent allowance and isolates stale reads.
   await submit(Array(48).fill(.95),"Kitchen");
+  pending[4].onPreview({index:0,label:"Removed room preview"});
   context.key="kitchen";
   vm.runInContext(overlay.slice(discardStart,discardEnd),context);
+  assert.equal(state.walkingPreviews.has("kitchen"),false,"Removing a room left its preview visible");
+  pending[4].onPreview({index:1,label:"Late removed room preview"});
+  assert.equal(state.walkingPreviews.has("kitchen"),false,"A stale stream recreated a removed room preview");
   pending[4].resolve({readingStatus:"ready"}); await tick();
   assert.equal(kitchen.capturedCount,4,"Room removal reset the bounded allowance");
   assert.equal(kitchen.completedCount,0,"Deleted evidence still counted as analysed views");

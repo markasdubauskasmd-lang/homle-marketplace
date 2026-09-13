@@ -849,6 +849,7 @@ export function openRoomScan() {
       // promises. The room keeps its generation bump below, so anything still in
       // flight for it lands nowhere.
       const budget = state.keyframeBudgets.get(key);
+      state.walkingPreviews.delete(key);
       if (budget) {
         budget.generation += 1;
         // Removed evidence is no longer coverage; retain attempts to bound cost.
