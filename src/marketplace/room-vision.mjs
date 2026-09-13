@@ -200,7 +200,12 @@ function confidencePair(value = {}) {
   const condition = value?.conditionConfidence === undefined
     ? legacy
     : confidenceValue(value.conditionConfidence);
-  return Object.freeze({ label, condition });
+  // A self-reported score cannot replace the visual evidence required by both
+  // schemas. Preserve the proposed grade for review, but never present it as
+  // settled when the reader supplied no evidence. Identity is independent.
+  const supported = !itemCondition(value?.condition)
+    || (typeof value?.evidence === "string" && value.evidence.trim().length > 0);
+  return Object.freeze({ label, condition: supported ? condition : 0 });
 }
 
 const soilingWords = Object.freeze({
