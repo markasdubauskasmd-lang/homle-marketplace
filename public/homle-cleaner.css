@@ -7560,3 +7560,22 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
     text-align: center;
   }
 }
+
+/* User requested performance ranking visuals, September 2026. */
+#cleaner-performance-main .hc-rank { gap:28px; align-items:center; }
+.hp-ring { flex:0 0 136px; width:136px; height:136px; border:9px solid #ffffffaa; border-radius:50%; display:flex; flex-direction:column; justify-content:center; align-items:center; color:white; position:relative; }
+.hp-ring strong { font-size:38px; line-height:1.1; } .hp-ring span { font-size:11px; }
+#cleaner-performance-main .hc-criteria { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:24px 0; }
+#cleaner-performance-main .hc-criterion { border:1px solid #ded9d6; box-shadow:none; }
+#cleaner-performance-main .hc-criterion-label { margin:0; font-size:13px; letter-spacing:0; color:#292626; }
+#cleaner-performance-main .hc-criterion-chip { white-space:nowrap; color:#8f1735; background:#fff0f3; }
+#cleaner-performance-main .hc-criterion-value { font-size:24px; }
+.hp-icon { display:inline-flex; width:34px; height:34px; align-items:center; justify-content:center; background:#fff0f3; color:#e9003b; border-radius:10px; font-size:24px; margin-bottom:12px; }
+.hp-meter { height:7px; background:#e9e5e3; border-radius:10px; overflow:hidden; margin-top:12px; }
+.hp-meter span { display:block; height:100%; background:#eb003c; border-radius:inherit; }
+.hp-source { font-size:11px; color:#655d59; margin:8px 0; }
+.hp-detail { font-size:13px; color:#453f3c; line-height:1.55; margin-bottom:0; }
+@media(max-width:1000px) { #cleaner-performance-main .hc-criteria { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:600px) { #cleaner-performance-main .hc-criteria { grid-template-columns:1fr; } #cleaner-performance-main .hc-rank { flex-direction:column; align-items:flex-start; } }
+
+.hp-faq { margin:24px 0; line-height:1.6; } .hp-faq details { border-top:1px solid #ddd; padding:14px 0; } .hp-faq summary { cursor:pointer; font-weight:700; } .hp-faq summary:focus-visible { outline:3px solid #e9003b; outline-offset:4px; } .hp-table-wrap { overflow-x:auto; } .hp-faq table { width:100%; border-collapse:collapse; text-align:left; } .hp-faq th,.hp-faq td { padding:10px; border-bottom:1px solid #ddd; } .hp-faq caption { text-align:left; margin:12px 0; font-weight:700; } .hp-calculator { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; } .hp-calculator label { font-size:13px; font-weight:600; } .hp-calculator input { display:block; width:100%; box-sizing:border-box; padding:12px; border:1px solid #888; border-radius:10px; font:inherit; margin-top:5px; } .hp-calculator-result { display:block; font-size:24px; font-weight:800; padding:20px 0 0; } @media(max-width:650px) { .hp-calculator { grid-template-columns:1fr; } }

@@ -12,13 +12,13 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260807-4">
-  <script src="/cleaner-performance.js?v=20260908-1" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260913-2">
+  <script src="/cleaner-performance.js?v=20260913-2" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 <link rel="stylesheet" href="/homlle-activity.css?v=20260908-1">
-<link rel="stylesheet" href="/cleaner-workspace-design.css?v=20260908-1">
-<script src="/cleaner-workspace-design.js?v=20260908-1" type="module"></script>
+<link rel="stylesheet" href="/cleaner-workspace-design.css?v=20260913-stripes">
+<script src="/cleaner-workspace-design.js?v=20260913-3" type="module"></script>
 </head>
 <body class="cleaner-workspace-page homlle-activity-page homlle-workspace-design">
   <a class="hc-skip" href="#cleaner-performance-main">Skip to Performance</a>
@@ -139,105 +139,28 @@
           </div>
 
         <h1 class="hc-page-title">Performance</h1>
-        <p class="hc-page-sub hc-page-sub-wide">Your rank is calculated from reviews, punctuality, completed jobs and cancellations — updated after every job.</p>
+        <p class="hc-page-sub hc-page-sub-wide">Good work, recognised. Your customer feedback and the proposed path to a Homlle rank.</p>
 
-        <section class="hc-rank">
+        <section class="hc-rank"><div class="hp-ring" aria-label="Proposed score: 100 possible points"><strong>100</strong><span>possible points</span></div>
           <div class="hc-rank-body">
-            <div class="hc-rank-eyebrow">YOUR RANK</div>
+            <div class="hc-rank-eyebrow">YOUR PERFORMANCE</div>
             <h2 class="hc-rank-tier" data-perf-tier>Not ranked yet</h2>
             <div class="hc-rank-perks" data-perf-perks></div>
           </div>
         </section>
 
         <section class="hc-panel hc-panel-spaced">
-          <h4 class="hc-h4">Rank ladder</h4>
+          <h4 class="hc-h4">Proposed rank ladder</h4>
           <div class="hc-ladder" data-perf-ladder></div>
         </section>
 
         <div class="hc-criteria" data-perf-criteria></div>
 
-        <div class="hc-split">
-          <section class="hc-panel">
-            <h4 class="hc-h4">How to guide</h4>
-            <div class="hc-guide">
-              <div><span aria-hidden="true">✓</span>Arrive within the app's check-in window on every job — it's tracked automatically by GPS check-in.</div>
-              <div><span aria-hidden="true">✓</span>Finish within the booked time, or message the client early if you're running over.</div>
-              <div><span aria-hidden="true">✓</span>Only accept jobs you're confident you can keep — cancelling after accepting hurts your rate more than never accepting.</div>
-              <div><span aria-hidden="true">✓</span>Send sign-off photos every time — clients who see them rate higher on average.</div>
-              <div><span aria-hidden="true">✓</span>Keep completing jobs steadily — your total job count only ever goes up.</div>
-            </div>
-          </section>
-          <section class="hc-panel">
-            <h4 class="hc-h4">Why rankings matter</h4>
-            <p class="hc-prose">Homle uses your rank to decide which jobs you see first. Gold and Platinum cleaners are shown to clients before Bronze and Silver cleaners for every matching job — and pay a lower platform fee.</p>
-            <p class="hc-prose">Ranks are recalculated after every completed job, so a slow patch never locks you out permanently — it just takes consistent, reliable work to climb back up.</p>
-          </section>
-        </div>
-
-        <!--
-          Punctuality, cancellation rate and the rank tiers themselves are not recorded
-          anywhere in this codebase. The tiles below show the two figures Homle does hold
-          (completed jobs and approved rating) and state which inputs are not yet tracked,
-          rather than presenting a rank derived from data that does not exist.
-        -->
-        <p class="hc-boundary" data-perf-boundary>Ranking is not live yet. Homle records completed jobs and approved reviews, but does not yet track arrival punctuality or cancellation rate, so no rank is assigned.</p>
-
-        <section class="hc-performance-reviews" aria-labelledby="performance-reviews-title">
-          <div class="hc-page-head">
-            <div>
-              <h2 class="hc-page-title" id="performance-reviews-title">Reviews &amp; ratings</h2>
-              <p class="hc-page-sub">Clients rate every completed job. Ratings drive how often you're offered work.</p>
-            </div>
-            <a class="hc-btn-outline" href="/cleaner/profile/preview">View public profile &nearr;</a>
-          </div>
-
-          <ul class="hc-tiles">
-            <li class="hc-tile">
-              <div class="hc-tile-label">OVERALL RATING</div>
-              <div class="hc-tile-value"><span data-reviews-overall>&mdash;</span></div>
-              <div class="hc-tile-sub" data-reviews-count>No approved reviews yet</div>
-            </li>
-            <li class="hc-tile">
-              <div class="hc-tile-label">COMPLETED JOBS</div>
-              <div class="hc-tile-value" data-reviews-completed>0</div>
-              <div class="hc-tile-sub">verified marketplace jobs</div>
-            </li>
-            <li class="hc-tile">
-              <div class="hc-tile-label">PUBLIC LISTING</div>
-              <div class="hc-tile-value" data-reviews-public>&mdash;</div>
-              <div class="hc-tile-sub">what clients can see</div>
-            </li>
-            <li class="hc-tile">
-              <div class="hc-tile-label">AWAITING MODERATION</div>
-              <div class="hc-tile-value" data-reviews-pending>&mdash;</div>
-              <div class="hc-tile-sub">held until Homle approves</div>
-            </li>
-          </ul>
-
-          <div class="hc-two-col">
-            <div class="hc-col">
-              <div class="hc-rev-empty" data-reviews-empty hidden>
-                <div class="hc-rev-empty-mark" aria-hidden="true">&#9733;</div>
-                <div class="hc-rev-empty-title">No client reviews yet</div>
-                <p class="hc-rev-empty-copy">Reviews appear here after your first completed job. A client can only review a booking they confirmed as finished.</p>
-              </div>
-              <div data-reviews-list></div>
-            </div>
-
-            <div class="hc-col hc-col-wide">
-              <section class="hc-panel">
-                <h3 class="hc-h4">Rating breakdown</h3>
-                <div class="hc-bars" data-reviews-bars></div>
-              </section>
-              <section class="hc-panel">
-                <h3 class="hc-h4">Earn your first 5&#9733;</h3>
-                <div class="hc-tip">Arrive on time &middot; follow the client's checklist &middot; send finish photos &middot; reply to messages quickly.</div>
-              </section>
-            </div>
-          </div>
-        </section>
-
-          <div class="hc-feedback" data-perf-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
+<div class="hc-split">
+<section class="hc-panel"><h3 class="hc-h4">How your score works</h3><p class="hc-prose">Your score is out of <strong>100</strong>. Good customer reviews, arriving on time and keeping your bookings help you earn more points.</p><p class="hc-prose"><strong>Example:</strong> 4 out of 5 stars in every category, with all bookings kept, gives you <strong>82 points — Silver</strong>.</p><p class="hc-prose">To get a rank, you need <strong>10 completed jobs</strong> and <strong>5 customer ratings in each category</strong> over the last 90 days. We also need a record of the bookings you kept or cancelled. Until then, you’ll see “Building your picture”.</p><p class="hc-prose">Your rank updates <strong>weekly</strong>. Below 60 points means “Developing” — your work needs to improve to meet Homlle’s standards. Confirmed serious safety breaches can lower your whole score.</p></section>
+<section class="hc-panel"><h3 class="hc-h4">A fair route to recognition</h3><p class="hc-prose">Count each completed booking once, use approved reviews and allow disputed records to be corrected. Exclude approved exceptional cancellations. Safety affects the entire rating scale. A confirmed serious safety breach heavily reduces the total score out of 100 and can lower your overall rank, including to Developing. The impact is not limited to the 15 points allocated to Professionalism &amp; safety. Homlle must review the evidence and record its decision before applying a scoring adjustment.</p><p class="hc-prose">Under the planned weekly ranking system, higher ranks receive greater priority for suitable job pings. Quality work, reliable attendance and happy customers help you progress. This preview does not yet assign ranks or change job offers.</p></section></div>
+<p class="hc-boundary" data-perf-boundary>Ranking preview: customer feedback is connected. Reliability scoring, procedure adherence scoring and automatic tier assignment still need implementation. Category averages use up to 20 recent approved reviews; overall totals below use your full profile history.</p>
+        <section class="hc-panel hp-faq" aria-labelledby="ranking-faq-title"><h2 id="ranking-faq-title">Ranking FAQ</h2><p>Proposed policy · Preview only. These rules do not assign a live rank.</p><details open><summary>Does a 4-star review give me 4 points?</summary><div>Yes: 4 stars gives 4 out of 5 raw points. Customer satisfaction is worth 20 ranking points, so 4 ÷ 5 × 20 = <strong>16 out of 20 points</strong>. A 4-star quality average earns 4 ÷ 5 × 25 = 20 points. Add the weighted category points to get a total out of 100.</div></details><details ><summary>What counts towards the 100 points?</summary><div><div class="hp-table-wrap"><table><caption>Example: 4/5 in each customer category and perfect reliability</caption><thead><tr><th>Category</th><th>Maximum</th><th>Points earned</th></tr></thead><tbody><tr><th>Work quality</th><td>25</td><td>20</td></tr><tr><th>Customer satisfaction</th><td>20</td><td>16</td></tr><tr><th>Punctuality</th><td>20</td><td>16</td></tr><tr><th>Professionalism &amp; safety</th><td>15</td><td>12</td></tr><tr><th>Communication and Procedure adherence</th><td>10</td><td>8</td></tr><tr><th>Reliability</th><td>10</td><td>10</td></tr></tbody><tfoot><tr><th>Total</th><td>100</td><td><strong>82 · Silver</strong></td></tr></tfoot></table></div><p>Overall satisfaction and category feedback are related measures. Review these weights after the pilot to avoid counting the same feedback too heavily.</p></div></details><details ><summary>What are the ranking thresholds?</summary><div><ul><li>Developing: below 60 — you are not meeting Homlle’s required standards and need to improve.</li><li>Bronze: 60 to below 75.</li><li>Silver: 75 to below 85.</li><li>Gold: 85 to below 95.</li><li>Platinum: 95 to 100.</li></ul><p>Assign the tier using the exact score, then display two decimal places. 94.99 stays Gold. With perfect reliability, 3/5 in every category earns 64 (Bronze); 4/5 earns 82 (Silver); 4.5/5 earns 91 (Gold); 4.8/5 earns 96.4 (Platinum).</p></div></details><details ><summary>How much evidence do I need?</summary><div>Proposed minimum: 10 completed jobs and at least 5 approved ratings in each customer category in the last 90 days, plus complete reliability records. Until then, show <strong>Building your picture</strong>. Count each booking once per category. Average all eligible ratings within each category before applying its weight. Missing answers are excluded, never zero and never replaced by the overall rating. Fewer than 5 answers in any category means no tier. The current preview loads up to 20 reviews; final scoring must use the full eligible history.</div></details><details ><summary>How is reliability scored?</summary><div>Completed eligible bookings ÷ all resolved eligible accepted bookings × 10. For example, 18 completions and 2 cleaner-attributable cancellations or no-shows earn 18 ÷ 20 × 10 = <strong>9 points</strong>. Exclude future and unresolved bookings. Exclude client or platform cancellations, agreed reschedules and approved emergencies from both counts. Declining an offer does not count as a cancellation. Exceptions need a recorded reason and administrator decision. No eligible bookings means unavailable, not 100%.</div></details><details ><summary>What does Professionalism &amp; safety cover?</summary><div>Professionalism &amp; safety covers clean appropriate workwear, hygiene, suitable equipment, respectful conduct and care for the property. Never score attractiveness, body shape, age or other personal characteristics. Safety affects your entire rating scale, not only the Professionalism &amp; safety category. A confirmed serious breach heavily reduces your total score out of 100 and can move you down from Platinum, Gold, Silver or Bronze, including to Developing. High ratings in other categories cannot cancel out a confirmed serious safety breach. A report alone is not a confirmed breach: Homlle must review the evidence, give the cleaner an opportunity to respond and record the outcome. The exact deduction rules and safety adjustments are not implemented in this preview. Punctuality ratings describe the customer experience; they are not verified arrival timestamps.</div></details><details ><summary>Can I challenge a review?</summary><div>Cleaners should be able to flag inaccurate or abusive feedback. Each approved review has equal weight within its category; one review can change the average but does not automatically remove a rank. A pending dispute does not silently remove a rating. Only a recorded moderation decision changes what counts; approved corrections feed into the next weekly ranking update.</div></details><details ><summary>How often do my reviews and ranking update?</summary><div>Your review summary, score and rank will refresh once every week. Each weekly update includes newly approved reviews, approved corrections and finalised booking outcomes from the rolling last 90 days. Individual customer reviews are not rewritten or reset. Your published rank stays the same between weekly updates. Use the booking completion or cancellation date for the window. If evidence falls below the minimum, show Building your picture rather than Developing. Weekly automation is planned and is not active in this preview.</div></details><details ><summary>Why does my ranking matter?</summary><div>Higher ranks will give you greater priority for suitable job pings, creating more opportunities to receive work. Platinum has the highest priority, followed by Gold, Silver and Bronze. Developing means you are below Homlle’s required standards and need to improve your service. Arrive on time, be prepared and presentable, clean thoroughly, communicate clearly and keep customers happy. Job pings still depend on demand, your area, availability and job suitability; no rank guarantees a set number of jobs. This policy does not change pay or fees. Required verification is completed before jobs. Following these checks and Homlle’s job procedures is part of Communication and Procedure adherence. Rank-based job priority is planned and is not active in this preview.</div></details></section><section class="hc-panel hp-faq" aria-labelledby="ranking-calculator-title"><h2 id="ranking-calculator-title">Try the points calculator</h2><p>Illustration only, assuming the minimum evidence requirements are met. This shows the base score before any confirmed safety-breach adjustment. These values do not save to your account.</p><div class="hp-calculator"><label for="rank-example-0">Quality · out of 5<input id="rank-example-0" type="number" min="1" max="5" step="0.1" value="4" data-rank-example="25"></label><label for="rank-example-1">Customer satisfaction · out of 5<input id="rank-example-1" type="number" min="1" max="5" step="0.1" value="4" data-rank-example="20"></label><label for="rank-example-2">Punctuality · out of 5<input id="rank-example-2" type="number" min="1" max="5" step="0.1" value="4" data-rank-example="20"></label><label for="rank-example-3">Professionalism &amp; safety · out of 5<input id="rank-example-3" type="number" min="1" max="5" step="0.1" value="4" data-rank-example="15"></label><label for="rank-example-4">Communication and Procedure adherence · out of 5<input id="rank-example-4" type="number" min="1" max="5" step="0.1" value="4" data-rank-example="10"></label><label for="rank-example-reliability">Reliability · percent<input id="rank-example-reliability" type="number" min="0" max="100" step="1" value="100" data-rank-reliability></label></div><output class="hp-calculator-result" data-rank-result aria-live="polite">82.00 / 100 · Silver</output></section><div class="hc-feedback" data-perf-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
 
           <footer class="hc-foot">
             <span>© <span data-year></span> Homle.</span>

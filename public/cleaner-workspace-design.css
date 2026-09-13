@@ -51,3 +51,17 @@ body.homlle-workspace-design .hc-pp{padding:0;overflow:hidden;width:100%;max-wid
 body.homlle-workspace-design .hw-card.hw-menu{padding:0;overflow:hidden}
 body.homlle-workspace-design .hw-card.hw-menu a.hw-link{display:flex;width:100%;justify-content:space-between;border:0;border-top:1px solid #ddd;border-radius:0;padding:18px 22px;min-height:56px;background:white;color:#201e1d}
 body.homlle-workspace-design .hc-pp-banner .hc-pp-avatar{box-shadow:none}
+
+/* One shared background keeps the header and sidebar stripes continuous. */
+body.homlle-workspace-design .hc {
+  background: repeating-linear-gradient(45deg,#ffffff22 0 2px,transparent 2px 15px),linear-gradient(118deg,#f7123d,#ee0026 46%,#dc0a30);
+}
+body.homlle-workspace-design .hc-side.cleaner-site-header,
+body.homlle-workspace-design .hw-header,
+body.homlle-workspace-design .hc-main-inner { background:transparent; }
+@media(max-width:700px) {
+  body.homlle-workspace-design .hc-side.cleaner-site-header { background:repeating-linear-gradient(45deg,#ffffff22 0 2px,transparent 2px 15px),#e90030; }
+}
+
+/* Centre the account icon rather than spacing its grid track to the left. */
+body.homlle-workspace-design .hc-nav > [data-account-group] > .hc-nav-group-summary { justify-content:center; align-content:center; margin:0; }

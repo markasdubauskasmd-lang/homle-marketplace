@@ -1,100 +1,10 @@
 import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260807-1";
 
-// The design's four rank tiers. Homle assigns none of them: there is no ranking engine,
-// and two of the four inputs the design names (punctuality, cancellation rate) are not
-// recorded anywhere. The ladder renders so the page matches the design, with no tier
-// marked as reached.
-const ladder = ["Bronze", "Silver", "Gold", "Platinum"];
-const reviewDateFormat = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "Europe/London",
-  day: "numeric",
-  month: "short",
-  year: "numeric"
-});
-
-function starText(rating) {
-  const whole = Math.max(0, Math.min(5, Math.round(Number(rating) || 0)));
-  return "★".repeat(whole) + "☆".repeat(5 - whole);
-}
-
-function reviewDate(value) {
-  const date = new Date(value);
-  return Number.isFinite(date.getTime()) ? reviewDateFormat.format(date) : "Date unavailable";
-}
-
-function renderReviews(reviews) {
-  const empty = document.querySelector("[data-reviews-empty]");
-  const list = document.querySelector("[data-reviews-list]");
-  if (empty) empty.hidden = reviews.length > 0;
-  if (!list) return;
-  list.replaceChildren(...reviews.map((review) => {
-    const card = element("article", "hc-rev");
-    const head = element("div", "hc-rev-head");
-    head.append(element("div", "hc-rev-avatar", "C"));
-    const who = element("div", "hc-rev-who");
-    who.append(
-      element("div", "hc-rev-name", "Verified client"),
-      element("div", "hc-rev-meta", `Completed job · ${reviewDate(review.createdAt)}`)
-    );
-    head.append(who, element("span", "hc-rev-stars", starText(review.rating)));
-    card.append(head);
-    if (review.writtenReview) card.append(element("p", "hc-rev-body", review.writtenReview));
-    if (review.cleanerResponse) {
-      const response = element("div", "hc-rev-response");
-      response.append(element("span", "hc-rev-response-label", "Your response"), document.createTextNode(review.cleanerResponse));
-      card.append(response);
-    }
-    return card;
-  }));
-}
-
-function renderBreakdown(reviews) {
-  const bars = document.querySelector("[data-reviews-bars]");
-  if (!bars) return;
-  const counts = [5, 4, 3, 2, 1].map((star) => ({
-    star,
-    count: reviews.filter((review) => Math.round(Number(review.rating) || 0) === star).length
-  }));
-  const highest = Math.max(1, ...counts.map((row) => row.count));
-  bars.replaceChildren(...counts.map((row) => {
-    const line = element("div", "hc-bar-row");
-    const track = element("div", "hc-bar-track");
-    const fill = element("div", "hc-bar-fill");
-    fill.style.width = `${Math.round(row.count / highest * 100)}%`;
-    track.append(fill);
-    line.append(element("span", "hc-bar-label", `${row.star}★`), track, element("span", "hc-bar-count", String(row.count)));
-    return line;
-  }));
-}
-
+const ladder = ["Bronze · 60–74", "Silver · 75–84", "Gold · 85–94", "Platinum · 95–100"];
 createCleanerPage("perf", async ({ showFeedback }) => {
   const profileResult = await requestJson("/api/marketplace/cleaner/profile").catch(() => null);
   const profile = profileResult?.profile && typeof profileResult.profile === "object" ? profileResult.profile : null;
-  const badges = document.querySelector('[data-workspace-badges]');
-  if (badges) {
-    if (!profileResult) badges.textContent = 'Verification status could not be loaded. Refresh to try again.';
-    else badges.replaceChildren(...[
-      ['Identity', profile?.identityCheckStatus === 'verified'],
-      ['Background check', profile?.backgroundCheckStatus === 'verified']
-    ].map(([label, verified]) => {
-      const card = element('div', 'hw-badge');
-      card.dataset.verified = String(verified);
-      card.append(element('strong', '', label), element('span', '', verified ? 'Verified by Homlle' : 'Not verified yet'));
-      return card;
-    }), element('a', 'hw-badge-link', 'Review your registration →'));
-    const registration = badges.querySelector('a');
-    if (registration) registration.href = '/cleaner/onboarding';
-  }
-  const completed = Number(profile?.completedJobCount) || 0;
   const reviewCount = Number(profile?.reviewCount) || 0;
-  const rating = reviewCount > 0 && Number.isFinite(profile?.averageRating) ? Number(profile.averageRating) : null;
-
-  setText("[data-reviews-overall]", rating === null ? "—" : `${rating.toFixed(1)} ★`);
-  setText("[data-reviews-count]", reviewCount > 0 ? `${reviewCount} approved ${reviewCount === 1 ? "review" : "reviews"}` : "No approved reviews yet");
-  setText("[data-reviews-completed]", String(completed));
-  setText("[data-reviews-public]", profile?.isPublic === true ? "Live" : "Not published");
-  setText("[data-reviews-pending]", "Private");
-
   let reviews = [];
   if (profile?.cleanerId && reviewCount > 0) {
     try {
@@ -106,14 +16,13 @@ createCleanerPage("perf", async ({ showFeedback }) => {
       showFeedback("Your performance totals loaded, but individual reviews could not be fetched. Nothing was changed.", "error");
     }
   }
-  renderReviews(reviews);
-  renderBreakdown(reviews);
 
-  setText("[data-perf-tier]", "Not ranked yet");
+
+  setText("[data-perf-tier]", "Building your picture");
 
   const perks = document.querySelector("[data-perf-perks]");
   if (perks) perks.replaceChildren(
-    element("span", "hc-rank-perk", "Ranking is not live"),
+    element("span", "hc-rank-perk", "Proposed ranking"),
     element("span", "hc-rank-perk", "No tier assigned")
   );
 
@@ -124,24 +33,42 @@ createCleanerPage("perf", async ({ showFeedback }) => {
     return step;
   }));
 
-  // Only the two figures Homle genuinely records carry a value. The other two say what is
-  // missing rather than showing a number nothing computed.
+
   const criteria = [
-    { label: "COMPLETED JOBS", value: String(completed), chip: "Tracked", tracked: true },
-    { label: "APPROVED RATING", value: rating === null ? "—" : `${rating.toFixed(1)} ★`, chip: reviewCount > 0 ? "Tracked" : "No reviews yet", tracked: true },
-    { label: "ON-TIME ARRIVAL", value: "—", chip: "Not tracked", tracked: false, need: "arrival punctuality is not recorded" },
-    { label: "CANCELLATION RATE", value: "—", chip: "Not tracked", tracked: false, need: "cancellations are not recorded" }
+    ['Work quality', 'qualityRating', 25, '✓', 'Follow the agreed checklist, clean thoroughly and leave the space ready to use.'],
+    ['Customer satisfaction', 'rating', 20, '★', 'The overall customer rating of a completed booking.'],
+    ['Punctuality', 'punctualityRating', 20, '◷', 'Arrive at the agreed time and communicate delays. This is customer feedback, not a GPS measurement.'],
+    ['Professionalism & safety', 'professionalismRating', 15, '◇', 'Clean appropriate workwear, hygiene, prepared equipment and respectful, safe working. Confirmed serious safety breaches affect the entire score out of 100 and can lower your overall rank, not just this category. Never physical appearance.'],
+    ['Communication and Procedure adherence', 'communicationRating', 10, '☏', 'Communicate clearly, complete required checks before jobs and follow Homlle’s check-in, cleaning and completion procedures.'],
+    ['Reliability', null, 10, '▣', 'Proposed: accepted bookings kept, excluding client cancellations, agreed changes and approved emergencies.']
   ];
-  const host = document.querySelector("[data-perf-criteria]");
-  if (host) host.replaceChildren(...criteria.map((metric) => {
-    const card = element("div", "hc-criterion");
-    const head = element("div", "hc-criterion-head");
-    head.append(
-      element("span", "hc-criterion-label", metric.label),
-      element("span", `hc-criterion-chip${metric.tracked ? "" : " hc-criterion-chip-off"}`, metric.chip)
-    );
-    card.append(head, element("div", "hc-criterion-value", metric.value));
-    if (metric.need) card.append(element("div", "hc-criterion-need", `Need ${metric.need}`));
+  const host = document.querySelector('[data-perf-criteria]');
+  if (host) host.replaceChildren(...criteria.map(([label,key,weight,icon,detail]) => {
+    const values = key ? reviews.map(r => r[key]).filter(v => typeof v === 'number' && Number.isFinite(v) && v >= 1 && v <= 5) : [];
+    const average = values.length ? values.reduce((a,b) => a+b,0) / values.length : null;
+    const card = element('article','hc-criterion');
+    const mark = element('span','hp-icon',icon); mark.setAttribute('aria-hidden','true');
+    const head = element('div','hc-criterion-head');
+    head.append(element('h3','hc-criterion-label',label), element('span','hc-criterion-chip',weight + '% weight'));
+    const track = element('div','hp-meter'); track.setAttribute('aria-hidden','true');
+    const fill = element('span'); fill.style.width = (average === null ? 0 : average / 5 * 100) + '%'; track.append(fill);
+    card.append(mark,head,element('div','hc-criterion-value',average === null ? 'Awaiting data' : average.toFixed(1) + ' / 5'),track,element('p','hp-source',key ? values.length + (key === 'professionalismRating' ? ' professionalism ratings · safety adjustments not connected' : key === 'communicationRating' ? ' communication ratings · procedure scoring not connected' : ' ratings in the loaded review sample') : 'Cancellation scoring not connected'),element('p','hp-detail',detail));
     return card;
   }));
 });
+
+// Isolated illustration: never writes a profile or assigns a live tier.
+const exampleInputs = [...document.querySelectorAll('[data-rank-example], [data-rank-reliability]')];
+function updateRankingExample() {
+  const output = document.querySelector('[data-rank-result]');
+  if (!output) return;
+  if (exampleInputs.some(input => input.value.trim() === '' || !input.validity.valid)) {
+    output.textContent = 'Enter ratings from 1 to 5 and reliability from 0 to 100.';
+    return;
+  }
+  const score = exampleInputs.reduce((total,input) => total + (input.hasAttribute('data-rank-example') ? Math.round(Number(input.value) * 10) * Number(input.dataset.rankExample) : Number(input.value) * 5),0) / 50;
+  const tier = score >= 95 ? 'Platinum' : score >= 85 ? 'Gold' : score >= 75 ? 'Silver' : score >= 60 ? 'Bronze' : 'Developing';
+  output.textContent = score.toFixed(2) + ' / 100 · ' + tier;
+}
+exampleInputs.forEach(input => input.addEventListener('input', updateRankingExample));
+updateRankingExample();

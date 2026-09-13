@@ -6,7 +6,7 @@ const pages = {
  '/cleaner/messages':['Messages','PRIVATE BOOKING CONVERSATIONS','Chat with clients and the Homlle team. Numbers stay private — everything goes through the app.','messages'],
  '/cleaner/payouts':['Earnings','CLEANER PAYOUTS','Agreed Cleaner pay on completed jobs, and how payouts get set up.','payout'],
  '/cleaner/reviews':['Reviews & ratings','REVIEWS & RATINGS','Reviews from clients after completed jobs.','reviews'],
- '/cleaner/performance':['Performance','RATING & BADGES','Your recorded reviews and verification status.','perf'],
+ '/cleaner/performance':['Performance','RATING & BADGES','Your work, customer feedback and ranking.','perf'],
  '/cleaner/profile/preview':['Your public profile','YOUR PUBLIC PROFILE','Your profile updates as you edit your registration.','profile']
 };
 const config=pages[location.pathname];
@@ -35,11 +35,6 @@ if(config){
  if(key==='reviews') content.prepend(link('View public profile ↗','/cleaner/profile/preview','hw-link hw-review-profile'));
  if(key==='reviews'||key==='perf'){
   const tabs=el('nav','hw-tabs');tabs.setAttribute('aria-label','Reviews and performance');for(const [label,url] of [['Reviews & ratings','/cleaner/reviews'],['Performance','/cleaner/performance']]){const a=link(label,url);if(url===location.pathname)a.setAttribute('aria-current','page');tabs.append(a);}content.prepend(tabs);
- }
- if(key==='perf'){
-  for(const item of content.querySelectorAll('.hc-rank,.hc-panel-spaced,.hc-criteria,.hc-split,.hc-boundary,.hc-performance-reviews'))item.classList.add('hw-retired-performance');
-  const card=el('section','hw-card hw-performance-summary');card.append(el('span','hw-chip','NOT RANKED YET'),el('h2','','No performance rank assigned'),el('p','','Homlle records completed jobs and approved reviews. Arrival punctuality and cancellation rates are not yet tracked, so no rank is assigned.'),link('See your reviews & ratings ↗','/cleaner/reviews'));content.querySelector('.hw-tabs').after(card);
-  const badges=el('section','hw-card');badges.append(el('h2','','Your verifications'),el('p','','Only checks confirmed by Homlle appear as verified.'));const list=el('div','hw-badges');list.dataset.workspaceBadges='';list.textContent='Loading your verification status…';badges.append(list);card.after(badges);
  }
  if(key==='profile'){
   const photo=content.querySelector('[data-profile-avatar]');if(photo)content.querySelector('.hc-pp-banner')?.append(photo);
