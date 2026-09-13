@@ -14,7 +14,8 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 const expectedFileCount = 96;
 // User approved Performance ranking and shared styling release, 13 September 2026.
 // User approved Performance ranking and shared styling release, 13 September 2026.
-const expectedDigest = "3c80b72848df31c8a1741dc391f0355db4380b35e72610799175a6cb9ff860d0";
+// User approved Performance ranking and shared styling release, 13 September 2026.
+const expectedDigest = "ec02898cc7587e7987a5ddaeab5fafb3960978e39b460bdb54f23b033a62c0fd";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",

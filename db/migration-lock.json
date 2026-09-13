@@ -531,6 +531,11 @@
       "order": 106,
       "file": "106_customer_receipt_access.sql",
       "sha256": "f2bab60b1b404620852ff4495c6a4e2f25427a10613f65c08386520ba8cea457"
+    },
+    {
+      "order": 107,
+      "file": "107_onboarding_save_conflict.sql",
+      "sha256": "4589637fff98a5acdf20e9fc2b0c37ff5240b2c703ccffb802ca17e98c68a56a"
     }
   ],
   "grantFiles": [

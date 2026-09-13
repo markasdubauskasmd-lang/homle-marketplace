@@ -219,6 +219,11 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   if (personal) personal.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
+  if (!account.email) {
+    const session = await requestJson('/api/marketplace/auth/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => null);
+    account = { ...account, email: session?.account?.email || '' };
+  }
+  if (!account.email) showFeedback('Your account email could not be loaded. Please sign in again before saving Personal details.', 'error');
   const [profileResult, availabilityResult, payoutResult, onboardingResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
@@ -257,7 +262,7 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
     }
     try {
       storage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), fields: formFields(form) }));
-      if (status) status.textContent = "Progress is saved for this browser tab as you type.";
+      if (status) status.textContent = "Draft kept in this tab only. Select Save & continue to save it to your account.";
     } catch {
       if (status) status.textContent = "This browser could not save the tab-only draft.";
     }
@@ -290,6 +295,7 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
   });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!account.email) { showFeedback("Sign in again to restore your account email before saving.", "error"); return; }
     if (!form.reportValidity()) {
       showFeedback("Complete the required Personal details before continuing.", "error");
       return;
