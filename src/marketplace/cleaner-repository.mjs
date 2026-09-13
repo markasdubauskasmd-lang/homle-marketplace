@@ -17,7 +17,7 @@ export function createCleanerProfileRepository(database) {
              FROM cleaner_services service WHERE service.cleaner_user_id = profile.user_id
            ) services ON true
            LEFT JOIN LATERAL (
-             SELECT jsonb_agg(jsonb_build_object('outwardPostcode', area.outward_postcode, 'latitude', area.latitude, 'longitude', area.longitude) ORDER BY area.outward_postcode) AS records
+             SELECT jsonb_agg(jsonb_build_object('outwardPostcode', area.outward_postcode, 'latitude', area.latitude, 'longitude', area.longitude, 'role', area.role) ORDER BY area.outward_postcode) AS records
              FROM cleaner_service_areas area WHERE area.cleaner_user_id = profile.user_id
            ) areas ON true
            WHERE profile.user_id=$1::uuid`,
@@ -43,8 +43,8 @@ export function createCleanerProfileRepository(database) {
         await client.query("DELETE FROM cleaner_service_areas WHERE cleaner_user_id=$1::uuid", [actor.userId]);
         if (profile.serviceAreas.length) {
           await client.query(
-            "INSERT INTO cleaner_service_areas (cleaner_user_id, outward_postcode, latitude, longitude) SELECT $1::uuid, outward_postcode, latitude, longitude FROM unnest($2::text[], $3::numeric[], $4::numeric[]) AS supplied(outward_postcode, latitude, longitude)",
-            [actor.userId, profile.serviceAreas.map((area) => area.outwardPostcode), profile.serviceAreas.map((area) => area.latitude), profile.serviceAreas.map((area) => area.longitude)]
+            "INSERT INTO cleaner_service_areas (cleaner_user_id, outward_postcode, latitude, longitude, role) SELECT $1::uuid, outward_postcode, latitude, longitude, role FROM unnest($2::text[], $3::numeric[], $4::numeric[], $5::text[]) AS supplied(outward_postcode, latitude, longitude, role)",
+            [actor.userId, profile.serviceAreas.map((area) => area.outwardPostcode), profile.serviceAreas.map((area) => area.latitude), profile.serviceAreas.map((area) => area.longitude), profile.serviceAreas.map((area) => area.role || "primary")]
           );
         }
         return updated.rows[0];

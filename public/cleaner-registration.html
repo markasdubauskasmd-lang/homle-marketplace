@@ -12,11 +12,11 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-<link rel="stylesheet" href="/homle-cleaner.css?v=20260810-4">
+<link rel="stylesheet" href="/homle-cleaner.css?v=20260913-history-areas-1">
 <link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260817-sharp-visuals-1">
 <link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260817-sharp-visuals-1">
 <link rel="stylesheet" href="/cleaner-onboarding-home.css?v=20260910-team-divider-1">
-<script src="/cleaner-registration.js?v=20260913-save-1" type="module"></script>
+<script src="/cleaner-registration.js?v=20260913-history-areas-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 <link rel="stylesheet" href="/cleaner-onboarding-flow.css?v=20260910-stripes-45-1">
@@ -736,19 +736,11 @@
                   </div>
                 </fieldset>
 
-                <fieldset class="hc-experience-section hc-experience-preview-section" disabled aria-describedby="experience-history-note">
-                  <legend>Employment history &mdash; most recent role</legend>
-                  <p class="hc-sr-only" id="experience-history-note">Secure employment-history storage is being connected. These fields are shown in place but do not accept or store information yet.</p>
-                  <div class="hc-experience-history">
-                    <label><span>Company</span><input name="company" autocomplete="organization"></label>
-                    <label><span>Start date</span><input name="employmentStart" type="month"></label>
-                    <label><span>End date</span><input name="employmentEnd" type="month"></label>
-                    <label><span>Reason for leaving</span><input name="reasonForLeaving" maxlength="160"></label>
-                  </div>
-                  <div class="hc-experience-add">
-                    <span>Add more</span>
-                    <button type="button" disabled>+ Add another role</button>
-                  </div>
+                <fieldset class="hc-experience-section">
+                  <legend>Employment history</legend>
+                  <p>Add your previous roles, most recent first. Leave this section empty if you have no employment history.</p>
+                  <div data-employment-rows></div>
+                  <button type="button" data-employment-add>+ Add another role</button>
                 </fieldset>
 
                 <fieldset class="hc-experience-section" aria-describedby="experience-files-note">
@@ -1164,7 +1156,7 @@
                       <label><input type="radio" name="workAreaRole" value="secondary"><span>Secondary</span></label>
                       <label><input type="radio" name="workAreaRole" value="excluded"><span>Excluded</span></label>
                     </div>
-                    <p class="hc-work-role-note">Primary areas can be saved for matching. Secondary and excluded labels are a design preview until those rules are supported.</p>
+                    <p class="hc-work-role-note">Primary areas are preferred. Secondary areas are also available for work. Excluded postcodes block job matching, even inside your travel radius.</p>
 
                     <section class="hc-work-base" aria-labelledby="cleaner-work-base-title">
                       <div><strong id="cleaner-work-base-title">Profile base</strong><span data-work-base>Not set</span></div>

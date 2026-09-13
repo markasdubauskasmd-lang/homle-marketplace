@@ -68,7 +68,9 @@ function serviceAreas(value) {
     const latitude = optionalNumber(area?.latitude, -90, 90, "Service-area latitude");
     const longitude = optionalNumber(area?.longitude, -180, 180, "Service-area longitude");
     if ((latitude == null) !== (longitude == null)) throw new TypeError("Service-area coordinates must be supplied together.");
-    return { outwardPostcode, latitude, longitude };
+    const role = area.role ?? "primary";
+    if (!["primary", "secondary", "excluded"].includes(role)) throw new TypeError("Choose a valid work-area role.");
+    return { outwardPostcode, latitude, longitude, role };
   });
 }
 
@@ -78,7 +80,7 @@ export function profileCompletionPercent(profile) {
     profile.services.length > 0,
     profile.hourlyRatePence != null || profile.fixedPriceOptions.length > 0 || profile.services.some((service) => service.pricePence != null),
     profile.travelRadiusKm != null,
-    profile.serviceAreas.length > 0,
+    profile.serviceAreas.some(area => area.role !== "excluded"),
     profile.yearsExperience != null,
     profile.languages.length > 0,
     profile.equipmentSupplied.length + profile.productsSupplied.length > 0,

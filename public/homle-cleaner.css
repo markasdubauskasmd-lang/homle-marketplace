@@ -4000,6 +4000,12 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
   gap: 10px;
 }
 
+[data-employment-row] { padding-bottom: 18px; margin-bottom: 18px; border-bottom: 1px solid #ddd; }
+[data-employment-row] h3, [data-employment-row] > button, [data-employment-row] label:has(input[type="checkbox"]) { grid-column: 1 / -1; }
+[data-employment-row] h3 { margin: 0; font-size: 15px; }
+[data-employment-row] label:has(input[type="checkbox"]) { display: flex; align-items: center; gap: 10px; }
+[data-employment-row] input[type="checkbox"] { width: 20px; height: 20px; }
+[data-employment-row] > button, [data-employment-add] { justify-self: start; padding: 10px 16px; border: 1px solid #aaa; border-radius: 12px; background: white; cursor: pointer; }
 .hc-experience-history input:disabled {
   color: var(--hc-muted-2);
   background: #fcfaf6;

@@ -7,13 +7,13 @@ import { setupBusinessDetails } from "./cleaner-business-details.js?v=20260910-b
 import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=20260728-1";
 import { setupRightToWork } from "./cleaner-right-to-work.js?v=20260808-1";
 import { setupBackgroundChecks } from "./cleaner-background-checks.js?v=20260728-1";
-import { setupWorkAreas } from "./cleaner-work-areas.js?v=20260807-1";
-import { setupExperience } from "./cleaner-experience.js?v=20260909-1";
+import { setupWorkAreas } from "./cleaner-work-areas.js?v=20260913-history-areas-1";
+import { setupExperience } from "./cleaner-experience.js?v=20260913-history-areas-1";
 import { setupInsurance } from "./cleaner-insurance.js?v=20260810-3";
 import { setupBanking } from "./cleaner-banking.js?v=20260729-1";
 import { setupEquipment } from "./cleaner-equipment.js?v=20260807-1";
 import { setupAvailability } from "./cleaner-availability.js?v=20260805-1";
-import { setupCongratulations, setupReviewSubmit } from "./cleaner-review-submit.js?v=20260807-1";
+import { setupCongratulations, setupReviewSubmit } from "./cleaner-review-submit.js?v=20260913-history-areas-1";
 
 function stepIcon(name) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");

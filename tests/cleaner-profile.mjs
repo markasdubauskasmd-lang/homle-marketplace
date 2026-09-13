@@ -192,3 +192,10 @@ assert(!returnedColumns.includes("email") && !returnedColumns.includes("phone") 
 assert(publicLookupSql.includes("SECURITY DEFINER") && publicLookupSql.includes("account.account_status = 'active'") && publicLookupSql.includes("profile.is_public") && publicLookupSql.includes("profile.profile_completion_percent = 100") && publicLookupSql.includes("service.is_active") && publicLookupSql.includes("REVOKE ALL ON FUNCTION tideway_private.get_public_cleaner_profile(uuid) FROM PUBLIC") && !publicLookupSql.includes("account.email") && !publicLookupSql.includes("phone") && runtimeGrantsSql.includes("get_public_cleaner_profile(uuid)"), "Direct public Cleaner lookup lacks active/public/completion gates, leaks private contact data or is executable outside the restricted application role.");
 
 console.log("Cleaner profile tests passed: validated ownership-only editing, deterministic completion, exact future availability, publish gating, privacy-safe projections, requested discovery filters and non-public service-area coordinates.");
+
+for (const role of ['primary','secondary','excluded']) {
+  const p=normalizedCleanerProfile({...completeInput,isPublic:false,serviceAreas:[{outwardPostcode:'SW1A',role}]});
+  assert(p.serviceAreas[0].role === role,'Work-area roles must survive normalization');
+  if(role === 'excluded') assert(p.profileCompletionPercent < 100,'Excluded-only coverage cannot make a profile complete');
+}
+assert(throws(()=>normalizedCleanerProfile({...completeInput,serviceAreas:[{outwardPostcode:'SW1A',role:'unknown'}]}),'valid work-area role'),'Invalid roles must fail');

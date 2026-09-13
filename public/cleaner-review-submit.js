@@ -60,7 +60,7 @@ function sectionSummary(key, data = {}, profile = null, documents = []) {
     return `${equipment.length} equipment item${equipment.length === 1 ? "" : "s"} · ${safeText(data.primaryTransport, "Travel method recorded")}`;
   }
   if (key === "areas") {
-    const areas = selectedValues(data.serviceAreas || profile?.serviceAreas).map((area) => safeText(typeof area === "object" ? area.outwardPostcode || area.postcode : area)).slice(0, 8);
+    const areas = (Array.isArray(data.serviceAreas || profile?.serviceAreas) ? (data.serviceAreas || profile.serviceAreas) : []).map((area) => safeText(typeof area === "object" ? (area.outwardPostcode || area.postcode) + (area.role ? " (" + area.role + ")" : "") : area)).slice(0, 8);
     return areas.length ? `Postcode areas: ${areas.join(", ")}` : "Work areas recorded securely";
   }
   if (key === "training") return "Only required training is active at this stage";

@@ -104,4 +104,25 @@ BEGIN
 END
 $payout_ready$;
 
+-- Each work-area role affects matching; excluded wins over coverage.
+DO $area_roles$
+DECLARE primary_score numeric; secondary_score numeric; matched_count integer;
+BEGIN
+ SELECT base_match_score INTO primary_score FROM tideway_private.recommend_cleaners_for_request_v3('30000000-0000-4000-8000-000000000003',25,false) WHERE cleaner_id='10000000-0000-4000-8000-000000000002';
+ PERFORM set_config('app.user_id','10000000-0000-4000-8000-000000000002',true);
+ PERFORM set_config('app.user_roles','cleaner',true);
+ UPDATE cleaner_service_areas SET role='secondary' WHERE cleaner_user_id='10000000-0000-4000-8000-000000000002' AND outward_postcode='SW1A';
+ PERFORM set_config('app.user_id','10000000-0000-4000-8000-000000000001',true);
+ PERFORM set_config('app.user_roles','landlord',true);
+ SELECT base_match_score INTO secondary_score FROM tideway_private.recommend_cleaners_for_request_v3('30000000-0000-4000-8000-000000000003',25,false) WHERE cleaner_id='10000000-0000-4000-8000-000000000002';
+ IF primary_score IS NULL OR secondary_score IS NULL OR primary_score-secondary_score<>10 THEN RAISE EXCEPTION 'Secondary exact-area preference did not reduce location score by ten'; END IF;
+ PERFORM set_config('app.user_id','10000000-0000-4000-8000-000000000002',true);
+ PERFORM set_config('app.user_roles','cleaner',true);
+ UPDATE cleaner_service_areas SET role='excluded' WHERE cleaner_user_id='10000000-0000-4000-8000-000000000002' AND outward_postcode='SW1A';
+ PERFORM set_config('app.user_id','10000000-0000-4000-8000-000000000001',true);
+ PERFORM set_config('app.user_roles','landlord',true);
+ SELECT count(*) INTO matched_count FROM tideway_private.recommend_cleaners_for_request_v3('30000000-0000-4000-8000-000000000003',25,false) WHERE cleaner_id='10000000-0000-4000-8000-000000000002';
+ IF matched_count<>0 THEN RAISE EXCEPTION 'Excluded postcode received a recommendation'; END IF;
+END
+$area_roles$;
 ROLLBACK;

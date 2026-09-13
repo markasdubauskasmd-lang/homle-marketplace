@@ -151,6 +151,46 @@ function renderExperienceDocument(input, copyText) {
   if (action) action.textContent = "Replace";
 }
 
+
+function setupEmploymentHistory(form, stored = []) {
+  const container = form.querySelector('[data-employment-rows]');
+  const add = form.querySelector('[data-employment-add]');
+  function refresh() {
+    add.disabled = container.children.length >= 10;
+    [...container.children].forEach((row, i) => { row.querySelector('h3').textContent = 'Role ' + (i + 1); });
+  }
+  function append(value = {}) {
+    const row = document.createElement('div'); row.className = 'hc-experience-history'; row.dataset.employmentRow = '';
+    const heading = document.createElement('h3'); row.append(heading);
+    for (const [key,label,type] of [['company','Company','text'],['startDate','Start date','month'],['endDate','End date','month'],['reasonForLeaving','Reason for leaving','text'],['current','I still work here','checkbox']]) {
+      const wrapper = document.createElement('label'); const span = document.createElement('span'); span.textContent = label;
+      const input = document.createElement('input'); input.type = type; input.dataset.employmentField = key;
+      if (type === 'checkbox') input.checked = value[key] === true;
+      else { input.value = value[key] || ''; if (type === 'text') input.maxLength = key === 'company' ? 160 : 300; }
+      wrapper.append(span,input); row.append(wrapper);
+    }
+    const current = row.querySelector('[data-employment-field="current"]'); const end = row.querySelector('[data-employment-field="endDate"]');
+    const update = () => { end.disabled = current.checked; if(current.checked) end.value = ''; };
+    current.addEventListener('change',update); update();
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = 'Remove role';
+    remove.addEventListener('click',()=>{row.remove(); refresh();}); row.append(remove); container.append(row); refresh();
+  }
+  for (const role of Array.isArray(stored) && stored.length ? stored : [{}]) append(role);
+  add.addEventListener('click',()=>{if(container.children.length < 10) append();});
+}
+
+function employmentHistory(form) {
+  const today = new Date().toISOString().slice(0,7);
+  return [...form.querySelectorAll('[data-employment-row]')].map(row=>Object.fromEntries([...row.querySelectorAll('[data-employment-field]')].map(input=>[input.dataset.employmentField,input.type === 'checkbox' ? input.checked : input.value.trim()])))
+    .filter(role=>role.company || role.startDate || role.endDate || role.reasonForLeaving || role.current)
+    .map(role=>{
+      if (!role.company || !role.startDate) throw new Error('Enter a company and start date for each employment role, or remove the empty role.');
+      if (!role.current && !role.endDate) throw new Error('Enter an end date or select “I still work here”.');
+      if (role.startDate > today || role.endDate > today || (role.endDate && role.endDate < role.startDate)) throw new Error('Employment dates must be in the past or current month, with the end after the start.');
+      return role;
+    });
+}
+
 export async function setupExperience({ account, showFeedback, requestJson }) {
   document.title = "Skills and Experience | Homle";
   const overview = document.querySelector("[data-registration-overview]");
@@ -194,11 +234,12 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
   const experienceSection = experienceResult.status === "fulfilled" ? experienceResult.value.section : null;
   const businessSection = businessResult.status === "fulfilled" ? businessResult.value.section : null;
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
-  if (!profile) {
+  if (!profile || experienceResult.status !== "fulfilled" || businessResult.status !== "fulfilled") {
     showFeedback("Skills and Experience could not be loaded. Nothing was changed.", "error");
     return;
   }
   hydrateExperience(form, profile, experienceSection?.data, businessSection?.data);
+  setupEmploymentHistory(form, experienceSection?.data?.employmentHistory || []);
   await hydrateOnboardingDocumentInputs(requestJson, "experience", form, "[data-experience-file]", (input, document) => renderExperienceDocument(input, storedDocumentCopy(document))).catch(() => null);
 
   form.querySelectorAll('input[name="serviceType"]').forEach((input) => {
@@ -223,6 +264,8 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    let history;
+    try { history = employmentHistory(form); } catch(error) { showFeedback(error.message, 'error'); return; }
     const serviceType = selectedServiceType(form);
     const specialisms = selectedSpecialisms(form, serviceType);
     if (!form.elements.yearsExperience.value) {
@@ -249,7 +292,7 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
         if (input instanceof HTMLInputElement) renderExperienceDocument(input, storedDocumentCopy(document));
       }
       const operations = [
-        saveOnboardingForm(requestJson, "experience", form, { extra: { serviceType, specialisms } }),
+        saveOnboardingForm(requestJson, "experience", form, { extra: { serviceType, specialisms, employmentHistory: history } }),
         requestJson("/api/marketplace/cleaner/profile", {
           method: "PUT",
           headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },

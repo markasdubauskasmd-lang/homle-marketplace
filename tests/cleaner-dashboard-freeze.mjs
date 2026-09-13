@@ -12,10 +12,8 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // Pinning the complete dedicated surface and the shared browser assets it loads
 // makes an accidental change fail in CI before it can be merged or deployed.
 const expectedFileCount = 96;
-// User approved Performance ranking and shared styling release, 13 September 2026.
-// User approved Performance ranking and shared styling release, 13 September 2026.
-// User approved Performance ranking and shared styling release, 13 September 2026.
-const expectedDigest = "ec02898cc7587e7987a5ddaeab5fafb3960978e39b460bdb54f23b033a62c0fd";
+// User approved employment history and service area fixes, 13 September 2026.
+const expectedDigest = "630ca1c1c9bb4f4465996b67d0d2c16542462879d2e0026f373ce9f44b4d6b09";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",

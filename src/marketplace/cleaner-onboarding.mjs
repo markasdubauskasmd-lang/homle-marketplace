@@ -59,6 +59,20 @@ export function normalizedCleanerOnboardingInput(sectionValue, input = {}) {
   const section = normalizedCleanerOnboardingSection(sectionValue);
   const status = input.status === "submitted" ? "submitted" : "draft";
   const payload = cleanValue(input.data && typeof input.data === "object" && !Array.isArray(input.data) ? input.data : {}, section);
+  if (section === "experience" && Object.hasOwn(payload, "employmentHistory")) {
+    if (!Array.isArray(payload.employmentHistory) || payload.employmentHistory.length > 10) throw new TypeError("Add no more than 10 employment roles.");
+    const today = new Date().toISOString().slice(0, 7);
+    payload.employmentHistory = payload.employmentHistory.map(role => {
+      if (!role || typeof role !== "object" || Array.isArray(role)) throw new TypeError("Invalid employment role.");
+      const company = typeof role.company === "string" ? role.company.trim() : "";
+      const startDate = role.startDate; const current = role.current === true; const endDate = current ? "" : role.endDate;
+      const month = value => typeof value === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) && value >= "1900-01" && value <= today;
+      if (!company || company.length > 160 || !month(startDate) || (!current && (!month(endDate) || endDate < startDate))) throw new TypeError("Enter a company and valid employment dates for every role.");
+      const reasonForLeaving = typeof role.reasonForLeaving === "string" ? role.reasonForLeaving.trim() : "";
+      if (reasonForLeaving.length > 300) throw new TypeError("Reason for leaving must be 300 characters or fewer.");
+      return {company,startDate,endDate,current,reasonForLeaving};
+    });
+  }
   if (Buffer.byteLength(JSON.stringify(payload), "utf8") > 64 * 1024) throw new TypeError("This onboarding section is too large to save.");
   return Object.freeze({ section, status, data: payload, schemaVersion: 1 });
 }

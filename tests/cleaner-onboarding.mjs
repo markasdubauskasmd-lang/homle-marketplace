@@ -86,3 +86,10 @@ assert.equal((await service.submitOwnApplication(actor, { confirmed: true })).re
 await assert.rejects(() => service.listOwnSections({ userId: cleanerId, roles: ["landlord"] }), /Cleaner account/);
 
 console.log("Cleaner onboarding encryption, validation and persistence service passed.");
+
+const employmentRole = {company:'Demo Employer',startDate:'2020-01',endDate:'2022-12',current:false,reasonForLeaving:'Test move'};
+assert.deepEqual(normalizedCleanerOnboardingInput('experience',{data:{employmentHistory:[employmentRole]}}).data.employmentHistory,[employmentRole]);
+for(const role of [{...employmentRole,startDate:'2024-01'}, {...employmentRole,startDate:'2039-01'}, {...employmentRole,company:''}, {...employmentRole,endDate:'2022-13'}]) assert.throws(()=>normalizedCleanerOnboardingInput('experience',{data:{employmentHistory:[role]}}));
+assert.throws(()=>normalizedCleanerOnboardingInput('experience',{data:{employmentHistory:Array(11).fill(employmentRole)}}));
+assert.deepEqual(normalizedCleanerOnboardingInput('experience',{data:{employmentHistory:[]}}).data.employmentHistory,[]);
+assert.equal(normalizedCleanerOnboardingInput('experience',{data:{employmentHistory:[{...employmentRole,current:true}]}}).data.employmentHistory[0].endDate,'');

@@ -536,6 +536,11 @@
       "order": 107,
       "file": "107_onboarding_save_conflict.sql",
       "sha256": "4589637fff98a5acdf20e9fc2b0c37ff5240b2c703ccffb802ca17e98c68a56a"
+    },
+    {
+      "file": "108_work_area_roles.sql",
+      "sha256": "79d5f59fcd2699ade8be5ed4a4c0f16ebddc3c9327c8ed8723fb630ca1793e71",
+      "order": 108
     }
   ],
   "grantFiles": [

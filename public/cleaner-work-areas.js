@@ -455,8 +455,8 @@ function renderAreas() {
       renderAreas();
       const status = document.querySelector("[data-work-save-status]");
       if (status) status.textContent = area.role === "primary"
-        ? "Primary areas can be saved for matching."
-        : "Secondary and excluded labels are preview-only and cannot be saved yet.";
+        ? "Primary areas receive preference in matching."
+        : "Secondary areas allow work; excluded postcodes block matching even within your travel radius.";
     });
     const remove = element("button", "hc-work-area-remove", "Remove");
     remove.type = "button";
@@ -507,7 +507,7 @@ function profileUpdate(currentProfile) {
     residentialPreference: currentProfile.residentialPreference === true,
     commercialPreference: currentProfile.commercialPreference === true,
     services: currentProfile.services || [],
-    serviceAreas: areas.map(({ outwardPostcode: code, latitude, longitude }) => ({ outwardPostcode: code, latitude, longitude })),
+    serviceAreas: areas.map(({ outwardPostcode: code, latitude, longitude, role }) => ({ outwardPostcode: code, latitude, longitude, role })),
     isPublic: currentProfile.isPublic === true
   };
 }
@@ -550,13 +550,13 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
     : 0;
   const payoutState = payoutResult.status === "fulfilled" && payoutResult.value.payoutAccount?.payoutsEnabled ? "ready" : "unavailable";
   renderRail(onboardingProgress({ account, profile, payoutState, availabilityCount }));
-  if (!profile) {
+  if (!profile || workZoneResult.status !== "fulfilled") {
     showFeedback("Work areas could not be loaded. Nothing was changed.", "error");
     return;
   }
 
   areas = Array.isArray(profile.serviceAreas)
-    ? profile.serviceAreas.map((area) => ({ outwardPostcode: area.outwardPostcode, latitude: area.latitude, longitude: area.longitude, role: "primary" }))
+    ? profile.serviceAreas.map((area) => ({ outwardPostcode: area.outwardPostcode, latitude: area.latitude, longitude: area.longitude, role: area.role || "primary" }))
     : [];
   savedWorkZones = normalizedWorkZones(workZoneResult.status === "fulfilled" ? workZoneResult.value.section?.data?.workZones : []);
   travelRadiusMiles = Number.isFinite(profile.travelRadiusKm) ? Math.max(1, Math.min(50, Math.round(profile.travelRadiusKm * milesPerKilometre))) : 15;
@@ -586,7 +586,7 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
     renderAreas();
     showFeedback(role === "primary"
       ? `${normalized} added. Save to use it for postcode matching.`
-      : `${normalized} added as a preview-only ${role} area.`, "success");
+      : `${normalized} added as a ${role} area. Save to apply it.`, "success");
     return area;
   }
 
@@ -637,12 +637,8 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (areas.some((area) => area.role !== "primary")) {
-      showFeedback("Change every area to Primary or remove it before saving. Secondary and excluded matching rules are not connected yet.", "error");
-      return;
-    }
-    if (areas.length === 0 && savedWorkZones.length === 0) {
-      showFeedback("Click the UK map or enter at least one outward postcode before saving.", "error");
+    if (!areas.some(area => area.role !== "excluded") && savedWorkZones.length === 0) {
+      showFeedback("Add at least one Primary or Secondary postcode before saving.", "error");
       return;
     }
     const csrf = storedCsrf();
@@ -653,6 +649,11 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
     const submit = form.querySelector('button[type="submit"]');
     if (submit instanceof HTMLButtonElement) submit.disabled = true;
     try {
+      const savedProfile = await requestJson("/api/marketplace/cleaner/profile", {
+        method: "PUT", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(profileUpdate(profile))
+      });
+      profile = savedProfile.profile;
+      areas = profile.serviceAreas.map(area => ({...area, role: area.role || "primary"}));
       await requestJson("/api/marketplace/cleaner/onboarding/areas", {
         method: "PUT",
         headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
@@ -661,22 +662,14 @@ export async function setupWorkAreas({ account, showFeedback, requestJson }) {
           data: {
             workZones: savedWorkZones,
             outwardPostcodes: areas.map((area) => area.outwardPostcode),
+            serviceAreas: areas,
             travelRadiusMiles
           }
         })
       });
-      if (areas.length > 0) {
-        const result = await requestJson("/api/marketplace/cleaner/profile", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-          body: JSON.stringify(profileUpdate(profile))
-        });
-        profile = result.profile;
-        areas = profile.serviceAreas.map((area) => ({ ...area, role: "primary" }));
-      }
       renderAreas();
       showFeedback("Your outward postcodes and travel radius were saved for precise matching.", "success");
-      location.assign("/cleaner/review-submit");
+      location.assign("/cleaner/experience");
     } catch (error) {
       showFeedback(error.message || "Work areas could not be saved.", "error");
     } finally {
