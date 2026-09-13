@@ -5,6 +5,8 @@ await mkdir('artifacts',{recursive:true});
 const account={userId:'11111111-1111-4111-8111-111111111111',displayName:'Preview Cleaner',roles:['cleaner'],selectedRole:'cleaner'};
 let reviews=[{rating:5,qualityRating:4,punctualityRating:5,professionalismRating:4,communicationRating:null,createdAt:'2026-09-12T12:00:00Z',writtenReview:'Preview fixture: thorough and friendly.'}];
 const server=await serveStatic({extraFiles:{
+'/cleaner/payouts':await readFile('public/cleaner-payouts.html','utf8'),
+'/api/marketplace/cleaner/payout-account':()=>({status:503,body:{error:'Preview: payouts unavailable'}}),
 '/cleaner/performance':await readFile('public/cleaner-performance.html','utf8'),
 '/api/marketplace/account':()=>({body:{account}}),
 '/api/marketplace/cleaner/profile':()=>({body:{profile:{cleanerId:account.userId,completedJobCount:10,reviewCount:1,averageRating:5}}}),
@@ -37,5 +39,10 @@ await writeFile('artifacts/ranking-faq-preview.png',await browser.screenshot({fu
 await browser.setViewport({width:390,height:844,mobile:true});
 assert.equal(await browser.evaluate(`document.documentElement.scrollWidth > innerWidth`),false);
 await writeFile('artifacts/performance-mobile.png',await browser.screenshot({fullPage:true}));
+await browser.goto(server.origin+'/cleaner/payouts');
+for(let i=0;i<100;i++){try{if(await browser.evaluate(`document.querySelector('[data-payout-title]')?.textContent === 'Payout setup is not connected yet'`))break;}catch{}await new Promise(r=>setTimeout(r,50));}
+assert.equal(await browser.evaluate(`document.querySelector('[data-cleaner-payout-link]').hidden`),false);
+assert.equal(await browser.evaluate(`document.querySelector('[data-cleaner-payout-link]').getAttribute('aria-current')`),'page');
+assert.equal(await browser.evaluate(`document.querySelector('[data-cleaner-payout-link]').getBoundingClientRect().width > 0`),true);
 console.log('PASS: six criteria, actual rating average, correct bar, missing data, mobile width.');
 }finally{await browser.close();await server.close();}

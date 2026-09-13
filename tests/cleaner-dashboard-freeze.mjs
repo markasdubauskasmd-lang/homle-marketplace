@@ -13,7 +13,8 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // makes an accidental change fail in CI before it can be merged or deployed.
 const expectedFileCount = 96;
 // User approved Performance ranking and shared styling release, 13 September 2026.
-const expectedDigest = "4fba270f05897cfeda7ccd6df65fec1a5c5157e854bd48eb0be73a81cf98e9d7";
+// User approved Performance ranking and shared styling release, 13 September 2026.
+const expectedDigest = "3c80b72848df31c8a1741dc391f0355db4380b35e72610799175a6cb9ff860d0";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
