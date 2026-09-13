@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import {readFile,writeFile} from 'node:fs/promises';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {serveStatic,launchBrowser} from '../tools/browser-harness.mjs';
+await mkdir('artifacts',{recursive:true});
 const account={userId:'11111111-1111-4111-8111-111111111111',displayName:'Preview Cleaner',roles:['cleaner'],selectedRole:'cleaner'};
 let reviews=[{rating:5,qualityRating:4,punctualityRating:5,professionalismRating:4,communicationRating:null,createdAt:'2026-09-12T12:00:00Z',writtenReview:'Preview fixture: thorough and friendly.'}];
 const server=await serveStatic({extraFiles:{
