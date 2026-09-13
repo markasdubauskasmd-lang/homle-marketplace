@@ -1048,6 +1048,17 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           // record rounded phase durations without photo or account information.
           const readingStartedAt = Date.now();
           const readingController = new AbortController();
+          let streamed = false;
+          let readingSucceeded = false;
+          let firstPreviewMs = null;
+          const streamEvent = (event) => {
+            if (readingController.signal.aborted || response.destroyed) return;
+            if (!streamed) {
+              response.writeHead(200, { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Accel-Buffering": "no" });
+              streamed = true;
+            }
+            response.write(JSON.stringify(event) + "\n");
+          };
           // IncomingMessage.close also fires after a fully received body. Use
           // the response lifetime so a completed upload does not cancel its read.
           const cancelReading = () => {
@@ -1070,12 +1081,19 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             // hand-crafted — has to land on the cheaper tier. It can never
             // escalate, only stay cheap.
             const purpose = body?.purpose === "confirmation" ? "confirmation" : "walking";
+            const onPreview = !selectedItems.length && purpose === "walking" && request.headers.accept === "application/x-ndjson"
+              ? item => {
+                if (firstPreviewMs === null) firstPreviewMs = Math.max(0, Math.round((Date.now() - readingStartedAt) / 100) * 100);
+                streamEvent({ type: "preview", item });
+              } : undefined;
             const result = selectedItems.length
               ? await roomVision.readSelectedItems({ image: body?.image, items: selectedItems, roomName: body?.roomName, transcript: body?.transcript, signal: readingController.signal })
-              : await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript, purpose, signal: readingController.signal });
+              : await roomVision.readRoom({ image: body?.image, roomName: body?.roomName, transcript: body?.transcript, purpose, signal: readingController.signal, onPreview });
             if (readingController.signal.aborted) return true;
             observeScan("scan.reading.succeeded", { dimensions: { outcome: "ok" } });
-            sendJson(response, 200, { ok: true, ...result });
+            readingSucceeded = true;
+            if (streamed) { streamEvent({ type: "complete", result: { ok: true, ...result } }); response.end(); }
+            else sendJson(response, 200, { ok: true, ...result });
           } catch (error) {
             // A departed client is not a provider failure, and cannot receive a reply.
             if (readingController.signal.aborted) return true;
@@ -1092,7 +1110,8 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
               status: Number.isInteger(error?.status) ? error.status : null,
               type: String(error?.error?.type || error?.type || "").slice(0, 80)
             });
-            sendJson(response, 502, { ok: false, error: "This room could not be read automatically." });
+            if (streamed) { streamEvent({ type: "error" }); response.end(); }
+            else sendJson(response, 502, { ok: false, error: "This room could not be read automatically." });
           } finally {
             response.removeListener?.("close", cancelReading);
             observeScan("scan.reading.latency_ms", { durationMs: Date.now() - readingStartedAt });
@@ -1102,9 +1121,10 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             try {
               console.info("[room-reading] timing", JSON.stringify({
                 mode: Array.isArray(body?.items) && body.items.length ? "selected-confirmation" : body?.purpose === "confirmation" ? "confirmation" : "walking",
-                outcome: readingController.signal.aborted ? "cancelled" : response.statusCode === 200 ? "ok" : "failed",
+                outcome: readingController.signal.aborted ? "cancelled" : readingSucceeded ? "ok" : "failed",
                 bodyReadMs,
-                providerMs: Math.max(0, Math.round((Date.now() - readingStartedAt) / 100) * 100)
+                providerMs: Math.max(0, Math.round((Date.now() - readingStartedAt) / 100) * 100),
+                ...(firstPreviewMs === null ? {} : { firstPreviewMs })
               }));
             } catch { /* Diagnostics must never change the scanner response. */ }
           }

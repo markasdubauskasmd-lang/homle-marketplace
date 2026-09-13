@@ -1068,7 +1068,7 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   const pending = [];
   const noop = () => {};
   const state = {readingAllowed:true,visionAvailable:true,currentRoom:"Kitchen",frozen:false,closed:false,
-    keyframeActiveRooms:new Set(),keyframeBudgets:new Map(),networkOffline:false,qualityKind:"",
+    keyframeActiveRooms:new Set(),keyframeBudgets:new Map(),walkingPreviews:new Map(),networkOffline:false,qualityKind:"",
     lastQuality:{detail:10},diagnostics:{keyframesRead:0,detectorErrors:0,keyframeEncodeErrors:0},
     dismissed:new Map(),rooms:[]};
   const context = {state,Date:{now:()=>time},shouldCaptureKeyframe,walkingReadIsBlocked,keyframeDefaults,
@@ -1076,7 +1076,7 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
     document:{createElement:()=>({getContext:()=>({drawImage:noop})})},
     viewfinderSourceRect:()=>({sx:0,sy:0,sWidth:640,sHeight:480}),
     encodeCanvasJpeg:async()=>"synthetic-image",roomTranscript:()=>"",
-    readRoom:()=>new Promise((resolve,reject)=>pending.push({resolve,reject})),
+    readRoom:(_image,_room,_items,_note,_purpose,onPreview)=>new Promise((resolve,reject)=>pending.push({resolve,reject,onPreview})),
     walkingReadingItems:()=>[],rememberWalkEvidence:noop,findRoom:()=>null};
   vm.createContext(context);
   vm.runInContext(overlay.slice(budgetStart,budgetEnd)+overlay.slice(start,end),context);
@@ -1085,14 +1085,23 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
     state.currentRoom=roomName; state.signature=[...signature]; state.previousSignature=[...signature]; time+=2000;
     await context.maybeReadKeyframe({videoWidth:640,videoHeight:480});
   }
-  await submit(a); pending[0].resolve({readingStatus:"ready"}); await tick();
+  await submit(a);
+  pending[0].onPreview({index:0,label:"Basin"});
+  assert.equal(state.walkingPreviews.get("kitchen")[0].label,"Basin","A streamed name was not visible while the read was pending");
+  assert.equal(state.rooms.length,0,"A provisional name created a saved room");
+  state.closed=true; pending[0].onPreview({index:1,label:"Late"}); state.closed=false;
+  assert.equal(state.walkingPreviews.get("kitchen").length,1,"A closed scanner accepted a preview");
+  pending[0].resolve({readingStatus:"ready"}); await tick();
+  assert.equal(state.walkingPreviews.size,0,"Successful final reading left provisional names behind");
   await submit(b); pending[1].resolve({readingStatus:"ready"}); await tick();
   await submit(a); await submit(b);
   assert.equal(pending.length,2,"Actual overlay submitted repeated A/B views");
   const kitchen=context.keyframeBudget("Kitchen");
   assert.equal(kitchen.completedCount,2);
   assert.equal(kitchen.capturedCount,2);
-  await submit(c); pending[2].reject(new Error("synthetic failure")); await tick();
+  await submit(c); pending[2].onPreview({index:0,label:"Unfinished"});
+  pending[2].reject(new Error("synthetic failure")); await tick();
+  assert.equal(state.walkingPreviews.size,0,"Failed reading retained partial names");
   assert.equal(kitchen.capturedCount,3,"Failed attempt was refunded");
   assert.equal(kitchen.completedSignatures.length,2,"Failure entered successful history");
   await submit(a,"Bedroom");
@@ -1101,8 +1110,12 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   assert.equal(context.keyframeBudget("Bedroom").completedCount,1);
   // Removal resets evidence but retains the spent allowance and isolates stale reads.
   await submit(Array(48).fill(.95),"Kitchen");
+  pending[4].onPreview({index:0,label:"Removed room preview"});
   context.key="kitchen";
   vm.runInContext(overlay.slice(discardStart,discardEnd),context);
+  assert.equal(state.walkingPreviews.has("kitchen"),false,"Removing a room left its preview visible");
+  pending[4].onPreview({index:1,label:"Late removed room preview"});
+  assert.equal(state.walkingPreviews.has("kitchen"),false,"A stale stream recreated a removed room preview");
   pending[4].resolve({readingStatus:"ready"}); await tick();
   assert.equal(kitchen.capturedCount,4,"Room removal reset the bounded allowance");
   assert.equal(kitchen.completedCount,0,"Deleted evidence still counted as analysed views");
