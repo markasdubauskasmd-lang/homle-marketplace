@@ -343,8 +343,9 @@ assert(readingSchemaVersion >= 2, "The clean-verdict semantics changed without b
 // The whole-frame reader must survive: the phone-camera fallback has no live
 // viewfinder, so it has no boxes to send and still needs the room read for it.
 assert(/async readRoom\(/.test(source) && /async readSelectedItems\(/.test(source), "The scan lost one of its two readers; the denied-camera fallback depends on the whole-frame one.");
-// Window widened for the `purpose` normalisation that now sits between the two.
-assert(/const selectedItems = Array\.isArray\(body\?\.items\)[\s\S]{0,900}readSelectedItems[\s\S]{0,300}readRoom/.test(marketplaceHttpSource), "The room-reading route no longer chooses between naming selected items and reading a whole frame.");
+// Check the actual selection and dispatch, independent of intervening preview setup.
+assert(/const selectedItems = Array\.isArray\(body\?\.items\) \? body.items : \[\]/.test(marketplaceHttpSource)
+  && /const result = selectedItems.length\s*\? await roomVision.readSelectedItems\([\s\S]{0,300}: await roomVision.readRoom\(/.test(marketplaceHttpSource), "The room-reading route no longer chooses between naming selected items and reading a whole frame.");
 // `purpose` selects a model that costs several times more, and it arrives in a
 // request body. Compared against the exact string so an unrecognised value lands
 // on the cheap tier: it must never be able to escalate, only stay cheap.
