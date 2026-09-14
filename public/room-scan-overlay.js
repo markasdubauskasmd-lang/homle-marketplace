@@ -44,6 +44,7 @@ import {
   readingTaskRecords,
   mergeScanTaskRecords,
   scanTaskRecordsFor,
+  withManualInventoryTasks,
   withCurrentRoomInstructions,
   roomInstructionTasks,
   trackDetections,
@@ -3963,7 +3964,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       // done its job and should not survive to be offered again.
       forgetRoomNotes();
       const checklistRooms = state.rooms.map(room => ({
-        ...withCurrentRoomInstructions(room, localRoomTasks(room.name, roomTranscript(room.name))),
+        ...withCurrentRoomInstructions(withManualInventoryTasks(room, inventoryFor(room.name)), localRoomTasks(room.name, roomTranscript(room.name))),
         transcript: roomTranscript(room.name),
         removedInventoryKeys: [...(state.dismissed.get(transcriptKey(room.name)) || [])],
         changedInventoryKeys: inventoryFor(room.name).filter(item => item.confirmed).map(item => item.key)

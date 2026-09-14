@@ -1726,7 +1726,7 @@ export function savedDetectionFromInventoryItem(item) {
 // same-label detections are simultaneous and therefore counted. The result keeps
 // one grouped row/label while retaining the best real box and condition evidence.
 export function mergeSavedDetections(existing, incoming) {
-  const confirmedQuantities = new Map([...(existing || []), ...(incoming || [])].filter(item => item?.quantityConfirmed === true)
+  const confirmedQuantities = new Map([...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])].filter(item => item?.quantityConfirmed === true)
     .map(item => [item.inventoryKey || inventoryKey(item.label), itemQuantity(item)]));
   const existingCounts = new Map();
   const incomingCounts = new Map();
@@ -2154,6 +2154,17 @@ export function scanTaskRecordsFor(room) {
     .filter(text => !represented.has(text))
     .map(text => ({text, origin:"legacy", inventoryKeys:[]}));
   return mergeScanTaskRecords(records, legacy);
+}
+
+// A manually added item still needs a checklist entry when vision is offline.
+// Link only the generated default, so later removal never deletes user notes.
+export function withManualInventoryTasks(room, inventory) {
+  const records = scanTaskRecordsFor(room);
+  const additions = (Array.isArray(inventory) ? inventory : [])
+    .filter(item => item.source === "manual" && !records.some(record => record.inventoryKeys.includes(item.key)))
+    .map(item => ({text: `Clean the ${inventoryDisplayLabel(item).toLowerCase()}`, origin: "vision", inventoryKeys: [item.key]}));
+  const taskRecords = mergeScanTaskRecords(records, additions);
+  return {...room, taskRecords, tasks: [...new Set(taskRecords.map(record => record.text))]};
 }
 
 // Reconcile only explicit item links. Missing detections and matching words are

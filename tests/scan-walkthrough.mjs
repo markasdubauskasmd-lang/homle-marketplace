@@ -622,7 +622,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
 }
 
 {
-  const {withCurrentRoomInstructions,scanTaskReview} = await import("../public/room-scan-model.js");
+  const {withCurrentRoomInstructions,withManualInventoryTasks,scanTaskReview} = await import("../public/room-scan-model.js");
   const old = {name:"Kitchen",transcript:"Clean inside the oven",tasks:["Kitchen: Clean inside the oven","Wipe the hob"],
     taskRecords:[{text:"Kitchen: Clean inside the oven",origin:"customer",inventoryKeys:[]},
       {text:"Wipe the hob",origin:"vision",inventoryKeys:["hob"]}],
@@ -646,9 +646,9 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const start = source.indexOf("const checklistRooms =");
   const end = source.indexOf('scanEvents.record("scan.session.duration_ms"',start);
   assert.ok(start>0 && end>start);
-  const finish = new Function("state","withCurrentRoomInstructions","localRoomTasks","roomTranscript",
+  const finish = new Function("state","withCurrentRoomInstructions","withManualInventoryTasks","localRoomTasks","roomTranscript",
     "transcriptKey","inventoryFor","scanSummary",source.slice(start,end)+";return {checklistRooms,summary};");
-  const result = finish({rooms:[old],dismissed:new Map()},withCurrentRoomInstructions,
+  const result = finish({rooms:[old],dismissed:new Map()},withCurrentRoomInstructions,withManualInventoryTasks,
     (name,note)=>note?[name+": "+note]:[],()=>"Leave the oven alone",name=>name.toLowerCase(),()=>[],scanSummary);
   assert.equal(result.checklistRooms[0].transcript,"Leave the oven alone");
   assert.ok(result.summary.tasks.includes("Kitchen: Leave the oven alone"));

@@ -11,6 +11,7 @@ rooms=editScanRooms(rooms,{action:"add-room",name:"Utility"});
 const original=JSON.stringify(rooms);
 assert.throws(()=>editScanRooms(rooms,{action:"rename-room",roomName:"Utility",name:" KITCHEN "}));
 assert.equal(JSON.stringify(rooms),original);
+assert.throws(()=>editScanRooms(rooms,{action:"rename-room",roomName:"Utility",name:"Utility: wrong"}));
 rooms=editScanRooms(rooms,{action:"move-item",roomName:"Kitchen",inventoryKey:"air fryer",destination:"Utility"});
 assert.equal(rooms[0].objects.length,0);
 assert.ok(!scanChecklistLines(rooms).includes("Kitchen: Clean the air fryer"));
@@ -33,6 +34,17 @@ assert.equal(mergeRoomInventory(corrected,[{label:"Chair",quantity:4,score:1}])[
 assert.equal(mergeInventoryIntoSavedDetections([{inventoryKey:"chair",label:"Chair",quantity:4}],corrected)[0].quantity,1);
 for(const [label,expected] of [["Microwave oven","microwave"],["Air-fryer","air fryer"],["Refrigerator","fridge"],["Electric cooker","cooker"]]) assert.equal(inventoryKey(label),expected);
 console.log("Scan structural review: local edits, duplicate names, moves, scope, room type, quantities and saved projection passed.");
+
+{
+  const {withManualInventoryTasks} = await import("../public/room-scan-model.js");
+  const inventory=[{key:"air fryer",label:"Air fryer",source:"manual",quantity:2}];
+  const room={name:"Kitchen",detections:inventory,taskRecords:[{text:"Leave the keys alone",origin:"customer",inventoryKeys:[]}]};
+  const saved=withManualInventoryTasks(room,inventory);
+  assert.ok(scanChecklistLines([saved]).includes("Kitchen: Clean the 2 × air fryer"));
+  assert.equal(withManualInventoryTasks(saved,inventory).taskRecords.length,2);
+  const removed={...saved,detections:[],removedInventoryKeys:["air fryer"]};
+  assert.deepEqual(scanChecklistLines([removed]),["Kitchen: Leave the keys alone"]);
+}
 
 // Whole-room-only results must be offered by the actual editor's inventory path.
 {

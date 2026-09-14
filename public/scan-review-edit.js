@@ -32,7 +32,7 @@ export function editScanRooms(rooms, edit) {
   const next = [...list];
   if (edit.action === "rename-room") {
     const name = text(edit.name, 80);
-    if (!name) throw new Error("Enter a room name.");
+    if (!name || /[:\r\n]/.test(name)) throw new Error("Enter a room name without a colon or line break.");
     if (list.some((entry, i) => i !== index && key(entry.name || entry.roomName) === key(name))) throw new Error("Choose a distinct room name.");
     const renamePrefix = value => String(value).startsWith(room.name + ":") ? name + String(value).slice(room.name.length) : value;
     next[index] = { ...room, name, roomName: name, roomType: inferredRoomType(room),
@@ -61,7 +61,7 @@ export function editScanRooms(rooms, edit) {
     if (!object || destination < 0) throw new Error("Choose an item and its destination room.");
     if (destination === index) return list;
     const target = list[destination], targetObjects = target.objects || [];
-    if (targetObjects.length >= 100) throw new Error("The destination room is full.");
+    if (targetObjects.length >= 200) throw new Error("The destination room is full.");
     let identity = object.inventoryKey, suffix = 2;
     while (targetObjects.some(entry => entry.inventoryKey === identity)) identity = `${object.inventoryKey}-${suffix++}`;
     next[index] = changed(room, objects.filter(entry => entry !== object), [object.inventoryKey]);
