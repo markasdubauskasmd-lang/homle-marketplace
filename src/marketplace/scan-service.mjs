@@ -120,6 +120,7 @@ function scanRoom(input, index) {
   if (objects.length > maximumRoomObjects) throw new TypeError(`${roomName} contains more than ${maximumRoomObjects} objects.`);
   return {
     roomName,
+    roomType: ["kitchen", "bathroom", "bedroom", "living-room", "dining-room", "hallway", "other"].includes(input?.roomType) ? input.roomType : "other",
     condition: roomCondition(input?.condition),
     note: boundedText(input?.note ?? input?.transcript, 1000, `${roomName} note`),
     objects: objects.map((object, objectIndex) => scanObject(object, roomName, objectIndex))
@@ -219,6 +220,7 @@ function roomProjection(record) {
   return Object.freeze({
     roomScanId: record?.roomScanId,
     roomName: record?.roomName || "",
+    roomType: record?.roomType || "other",
     condition: roomCondition(record?.condition),
     note: String(record?.note || ""),
     measurements: Object.freeze(measurements),

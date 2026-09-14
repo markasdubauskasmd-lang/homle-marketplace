@@ -3,6 +3,7 @@
 
 import { defaultPricingConfig, normalizedPricingConfig } from "../public/pricing-config.js";
 import { quoteInputFromScan, quoteRooms } from "../public/pricing-engine.js";
+import { inferredRoomType } from "../public/scan-review-edit.js";
 import { defaultPricingEconomics, normalizedPricingEconomics, quoteEconomics, reviewedQuote } from "../src/marketplace/pricing-economics.mjs";
 
 function assert(condition, message) { if (!condition) throw new Error(message); }
@@ -350,7 +351,7 @@ assert(JSON.stringify(premiumBaseTasks(plan, selectedOnlyOven)) === JSON.stringi
     } };
   const el = { tasks: { value: plan.baseTasks.join("\n") } };
   const context = vm.createContext({
-    state, el, premiumScope, premiumChoiceId, selectedScanRooms, quoteInputFromScan, reviewedScanNotes, scanNoteLines, premiumRestrictions,
+    state, el, premiumScope, premiumChoiceId, selectedScanRooms, quoteInputFromScan, reviewedScanNotes, scanNoteLines, premiumRestrictions, inferredRoomType,
     pricingConfig: config, defaultPricingConfig, pricingServiceTypeByCode: { "regular-domestic": "standard" },
     requestedWindow: (date, time, duration) => requestedWindow(date, time, duration, new Date("2099-08-19T12:00:00Z")), requestTasksFromLines, saveDraft() {},
     correctedScanRooms() { return state.scanRooms; },
@@ -433,7 +434,7 @@ for (const restriction of ["Kitchen: Do not clean inside the oven", "Kitchen: Do
   const writes = [];
   const stop = new Error("Stop before storage upload");
   const context = vm.createContext({
-    state, reviewedScanNotes, requestTasksFromLines, el: { checkoutState: {} }, console,
+    state, reviewedScanNotes, requestTasksFromLines, inferredRoomType, el: { checkoutState: {} }, console,
     randomId: () => "11111111-1111-4111-8111-111111111111",
     replayScanCorrections: async () => {}, saveVoiceInstructions: async () => {}, saveScanMeasurements: async () => {},
     dataUrlFile: () => ({ type: "image/jpeg", size: 10 }), sha256: async () => "synthetic",

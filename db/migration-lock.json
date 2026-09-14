@@ -541,6 +541,11 @@
       "file": "108_work_area_roles.sql",
       "sha256": "79d5f59fcd2699ade8be5ed4a4c0f16ebddc3c9327c8ed8723fb630ca1793e71",
       "order": 108
+    },
+    {
+      "file": "109_editable_scan_rooms.sql",
+      "sha256": "e7caecac8f989106a13e3ab1efc77f968f0b5d4a76557cf03b250632426085a6",
+      "order": 109
     }
   ],
   "grantFiles": [

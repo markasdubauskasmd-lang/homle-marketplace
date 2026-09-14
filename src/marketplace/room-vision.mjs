@@ -132,6 +132,8 @@ export const instructions = [
   "Report only what is actually visible in this photograph:",
   "- Identify the objects in the room, with a box around each one. Coordinates are percentages of the image, with 0,0 at the top left.",
   "- Include anything a cleaner would clean, clean around, move, or need to know about: surfaces and fixtures (worktops, floors, windows, sills, mirrors, shower screens, sinks, baths, toilets, radiators, skirting, tiles), appliances large and small (oven, hob, extractor, fridge, microwave, air fryer, kettle, toaster, washing machine, dishwasher), and furniture (sofa, bed, table, chairs, shelving, wardrobe, rug).",
+  "- Inspect each visible region, including worktop appliances and built-in appliance fronts. A room name is context, not proof an appliance cannot be present. Distinguish an oven door from cabinet drawers using visible handles, controls and glass; distinguish a microwave from an air fryer only when their features support it.",
+  "- A cooker with an oven and hob is one appliance; do not count the same appliance again under a synonym. Separate appliances remain separate objects. Never infer hidden appliances or grade unseen interiors.",
   "- Name each object as a person would: 'Air fryer', 'Window', 'Floor', 'Extractor hood'. Not a category like 'appliance' or 'surface'.",
   "- Prefer naming the specific object over a general one: 'Air fryer' rather than 'small appliance', 'Shower screen' rather than 'glass'.",
   "- Use consistent UK object names across different views: tap, worktop, sofa, fridge, hob, bath, sink, TV, bedside table, wardrobe, curtain, skirting board, extractor hood and shower screen.",

@@ -1386,6 +1386,13 @@ const inventoryLabelAliases = Object.freeze({
   couch: "sofa",
   settee: "sofa",
   refrigerator: "fridge",
+  "fridge freezer": "fridge",
+  "microwave oven": "microwave",
+  airfryer: "air fryer",
+  "air-fryer": "air fryer",
+  "electric cooker": "cooker",
+  "gas cooker": "cooker",
+  "range cooker": "cooker",
   stovetop: "hob",
   cooktop: "hob",
   bathtub: "bath",
@@ -1631,7 +1638,7 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = Infini
       // Never add quantities across views: that would count the same chair every
       // time the camera turned back towards it. Keep only the largest simultaneous
       // count one frame actually proved.
-      quantity: Math.max(itemQuantity(current), quantity),
+      quantity: current.quantityConfirmed ? itemQuantity(current) : Math.max(itemQuantity(current), quantity),
       conditionMixed: current.conditionMixed === true || conditionMixed || confirmationGrew,
       conditionConfirmed: current.conditionConfirmed === true && !confirmationGrew,
       lastSeenAt: now,
@@ -1697,6 +1704,7 @@ export function savedDetectionFromInventoryItem(item) {
     inventoryKey: key,
     label,
     quantity: itemQuantity(item),
+    quantityConfirmed: item?.quantityConfirmed === true,
     note: evidence || (item?.confirmed ? "Confirmed while scanning" : "Seen while scanning"),
     condition: String(item?.condition || "").trim().slice(0, 12),
     // Label and condition certainty are different evidence. Preserve both while
@@ -1718,6 +1726,8 @@ export function savedDetectionFromInventoryItem(item) {
 // same-label detections are simultaneous and therefore counted. The result keeps
 // one grouped row/label while retaining the best real box and condition evidence.
 export function mergeSavedDetections(existing, incoming) {
+  const confirmedQuantities = new Map([...(Array.isArray(existing) ? existing : []), ...(Array.isArray(incoming) ? incoming : [])].filter(item => item?.quantityConfirmed === true)
+    .map(item => [item.inventoryKey || inventoryKey(item.label), itemQuantity(item)]));
   const existingCounts = new Map();
   const incomingCounts = new Map();
   const prepareBatch = (source, target) => {
@@ -1808,7 +1818,8 @@ export function mergeSavedDetections(existing, incoming) {
   }
   return Object.freeze([...merged.entries()].map(([key, detection]) => Object.freeze(reviewMixedConditions({
     ...detection,
-    quantity: Math.min(20, Math.max(existingCounts.get(key) || 0, incomingCounts.get(key) || 0, 1))
+    quantityConfirmed: confirmedQuantities.has(key),
+    quantity: confirmedQuantities.get(key) ?? Math.min(20, Math.max(existingCounts.get(key) || 0, incomingCounts.get(key) || 0, 1))
   }))));
 }
 
@@ -1834,6 +1845,8 @@ export function mergeInventoryIntoSavedDetections(existing, inventory, dismissed
     // object must not inherit the dismissal of a different same-named item.
     .filter(detection => !dismissed.has(String(detection.inventoryKey || inventoryKey(detection.label))))
     .map(detection => {
+    const corrected = items.find(item => item.key === detection.inventoryKey && item.quantityConfirmed);
+    if (corrected) detection = { ...detection, quantity: itemQuantity(corrected), quantityConfirmed: true };
     const label = correctedLabels.get(detection.inventoryKey);
     return label ? Object.freeze({ ...detection, label, needsName: false }) : detection;
   }));
@@ -1853,6 +1866,7 @@ export function correctInventoryItem(items, key, change = {}) {
     return Object.freeze({
       ...item,
       label: renamed || item.label,
+      ...(Number.isInteger(change.quantity) && change.quantity >= 1 && change.quantity <= 20 ? { quantity: change.quantity, quantityConfirmed: true } : {}),
       ...(renamed ? { needsName: false } : {}),
       condition: regraded || item.condition,
       // A customer standing in front of the item is the authoritative condition
@@ -2140,6 +2154,17 @@ export function scanTaskRecordsFor(room) {
     .filter(text => !represented.has(text))
     .map(text => ({text, origin:"legacy", inventoryKeys:[]}));
   return mergeScanTaskRecords(records, legacy);
+}
+
+// A manually added item still needs a checklist entry when vision is offline.
+// Link only the generated default, so later removal never deletes user notes.
+export function withManualInventoryTasks(room, inventory) {
+  const records = scanTaskRecordsFor(room);
+  const additions = (Array.isArray(inventory) ? inventory : [])
+    .filter(item => item.source === "manual" && !records.some(record => record.inventoryKeys.includes(item.key)))
+    .map(item => ({text: `Clean the ${inventoryDisplayLabel(item).toLowerCase()}`, origin: "vision", inventoryKeys: [item.key]}));
+  const taskRecords = mergeScanTaskRecords(records, additions);
+  return {...room, taskRecords, tasks: [...new Set(taskRecords.map(record => record.text))]};
 }
 
 // Reconcile only explicit item links. Missing detections and matching words are

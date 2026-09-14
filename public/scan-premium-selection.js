@@ -26,10 +26,10 @@ export function createPremiumPlan(rooms = [], taskLines = [], config = {}) {
   for (const room of rooms) {
     const roomName = text(room.name || room.roomName);
     for (const object of room.objects || []) {
-      const code = text(object.inventoryKey || object.code).toLowerCase();
+      const code = text(object.pricingCode || object.inventoryKey || object.code).toLowerCase();
       const premium = Object.hasOwn(config.premiumItems || {}, code) ? config.premiumItems[code] : null;
       if (!premium) continue;
-      const id = premiumChoiceId(roomName, code);
+      const id = premiumChoiceId(roomName, object.inventoryKey || code);
       if (seen.has(id)) continue;
       seen.add(id);
       const names = [words(object.label), words(code), words(premium.label)];

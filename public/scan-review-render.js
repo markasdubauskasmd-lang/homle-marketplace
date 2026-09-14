@@ -6,7 +6,7 @@
 // check what the scan got wrong, and every decision here is about not
 // overstating what we know.
 
-import { recommendedAction } from "./room-scan-model.js";
+import { recommendedAction, conditionNeedsReview, inventoryKey as pricingKey, scanTaskRecordsFor } from "./room-scan-model.js";
 
 const conditionWords = Object.freeze({
   clean: "looks clean", light: "light", medium: "needs proper attention", heavy: "heavily soiled"
@@ -117,12 +117,14 @@ export function scanReview(scan) {
   }
   const rooms = (Array.isArray(scan.rooms) ? scan.rooms : []).map(roomSummary);
   const estimate = scan.estimate;
+  const allObjects = rooms.flatMap(room => room.objects);
+  const awaitingConditions = allObjects.length > 0 && allObjects.every(object => object.needsConfirmation);
   return Object.freeze({
     assessed: true,
     level: complexity.level,
-    levelLabel: complexity.levelLabel,
-    levelScale: `Level ${complexity.level} of 5`,
-    explanation: complexity.explanation,
+    levelLabel: awaitingConditions ? "Condition needs checking" : complexity.levelLabel,
+    levelScale: awaitingConditions ? "" : `Level ${complexity.level} of 5`,
+    explanation: awaitingConditions ? "Check the items below before relying on a cleaning-level estimate." : complexity.explanation,
     // Said plainly. A level presented as settled when the scan is unsure about
     // half of it is the confident-but-wrong assessment this whole feature was
     // built to avoid.
@@ -179,12 +181,29 @@ export function applyCorrection(rooms, { roomName, inventoryKey, field, value })
       // A customer renaming an object settles its identity; it does not tell us
       // anything about the surface condition, which keeps its own score.
       objects.push(field === "label"
-        ? { ...object, label: value, needsName: false, confidenceLabel: 1, origin: "manual" }
+        ? { ...object, label: value, pricingCode: pricingKey(value), needsName: false, confidenceLabel: 1, origin: "manual" }
         : field === "condition"
           ? { ...object, condition: value, conditionConfirmed: Boolean(value), confidenceCondition: value ? 1 : 0 }
           : { ...object, quantity: Number(value) });
     }
-    nextRooms.push({ ...room, objects });
+    const before = (room.objects || []).find(object => object.inventoryKey === inventoryKey);
+    const after = objects.find(object => object.inventoryKey === inventoryKey);
+    let taskRecords = scanTaskRecordsFor(room);
+    if (before && after && (field === "label" || field === "quantity")) {
+      const escaped = String(before.label).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp("(?:[0-9]+ × )?\\b" + escaped + "\\b", "gi");
+      const label = (Number(after.quantity) > 1 ? after.quantity + " × " : "") + after.label.toLowerCase();
+      taskRecords = taskRecords.map(record => record.origin === "vision" && record.inventoryKeys.length === 1 && record.inventoryKeys[0] === inventoryKey
+        ? { ...record, text: record.text.replace(pattern, () => label) } : record);
+    }
+    nextRooms.push({ ...room, objects, taskRecords, tasks: taskRecords.map(record => record.text) });
   }
   return { rooms: nextRooms, corrections: recorded };
+}
+
+// Editing remains available before assessment, offline, and after a failed preview.
+export function localScanReview(rooms) {
+  return { assessed: true, levelLabel: "Review your rooms", levelScale: "", explanation: "Check the items, quantities and rooms before continuing.",
+    provisional: "Automatic cleanliness suggestions need your review.", price: null, refusal: "", questions: [],
+    rooms: (rooms || []).map(room => roomSummary({ ...room, roomName: room.name || room.roomName, objects: (room.objects || []).map(object => ({ ...object, needsConfirmation: conditionNeedsReview({ ...object, conditionConfidence: object.confidenceCondition }) })) })) };
 }

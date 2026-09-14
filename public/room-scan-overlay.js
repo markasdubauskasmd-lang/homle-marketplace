@@ -1,4 +1,5 @@
 import { containScannerFocus } from "./scanner-modal-focus.js";
+import { createManualCameraZoom } from "./manual-camera-zoom.js";
 import { readRoomResponse } from "./room-reading-stream.js";
 import {
   canFinishScan,
@@ -43,6 +44,7 @@ import {
   readingTaskRecords,
   mergeScanTaskRecords,
   scanTaskRecordsFor,
+  withManualInventoryTasks,
   withCurrentRoomInstructions,
   roomInstructionTasks,
   trackDetections,
@@ -67,7 +69,7 @@ import { clearRoomNotesDraft, readRoomNotesDraft, saveRoomNotesDraft } from "./r
 import { validatedGuidedRoomPhotoDimensions, validatedGuidedRoomPhotoFile } from "./room-photo-selection.js";
 import { extractRoomVideoFrames, maximumRoomVideoFrames, roomVideoContactSheetLayout } from "./room-video-frames.js";
 import { applyRedaction, redactedAreaRatio, redactionRegions, redactionSummary, shouldRedact, unusableRedactionRatio } from "./room-photo-redaction.js";
-import { nextAutoZoom, nextManualZoom, shouldEnableTorch, torchLumaThreshold, torchSupported, zoomLabel, zoomRange } from "./camera-assist.js";
+import { shouldEnableTorch, torchLumaThreshold, torchSupported, zoomLabel, zoomRange } from "./camera-assist.js";
 import { createScanEventReporter, elapsedSince } from "./scan-events.js";
 import { storedCsrf } from "./session-csrf.js";
 
@@ -111,12 +113,13 @@ const markup = `
     </button>
     <div class="scan-room-lbl"><span class="rec-dot" aria-hidden="true"></span><span data-room-label>Kitchen</span></div>
     <!-- Hidden until the camera reports it can actually do these. The torch
-         comes ON by itself when the room stays dark and the zoom steps in by
-         itself when everything stays far away — these are the off switches. -->
+         can help when the room stays dark. Zoom changes only on a manual tap;
+         Reset always requests the camera’s widest supported view. -->
     <button class="scan-assist scan-torch" type="button" data-torch aria-pressed="false" aria-label="Torch" hidden>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2h8l-1 7h-6z"/><path d="M10 9h4v11a2 2 0 0 1-4 0z"/></svg>
     </button>
     <button class="scan-assist scan-zoom" type="button" data-zoom-reset hidden></button>
+    <button class="scan-assist scan-zoom" type="button" data-zoom-wide hidden aria-label="Reset camera to widest view">Reset</button>
     <button class="scan-speech" type="button" data-speech-toggle aria-pressed="false" aria-label="Speak the scanning guidance aloud">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path class="scan-speech-waves" d="M15.5 8.5a5 5 0 0 1 0 7M18.4 5.6a9 9 0 0 1 0 12.8"/></svg>
     </button>
@@ -155,6 +158,7 @@ const markup = `
     <div class="found" data-found hidden>
       <p class="found-head"><span data-found-count>0</span> <span data-found-noun>items found</span> <span class="found-busy" data-found-busy hidden aria-hidden="true"></span></p>
       <ul class="found-list" data-found-list aria-live="polite"></ul>
+      <button type="button" class="button ghost" data-add-inventory>Add missing item</button>
     </div>
     <p class="deck-hint" data-hint role="status">Just walk around the room — items save themselves</p>
     <!-- Opt-in (?scanDebug=1). Every screenshot of a misbehaving scan has forced
@@ -233,6 +237,8 @@ const markup = `
       <h2 id="homle-item-editor-title">Name and cleaning level</h2>
       <label class="scan-item-editor-label" for="homle-item-editor-name">Item name</label>
       <input class="scan-item-editor-name" id="homle-item-editor-name" data-item-editor-name type="text" maxlength="40" autocomplete="off" required>
+      <label class="scan-item-editor-label" for="homle-item-quantity">Quantity</label>
+      <input class="scan-item-editor-name" id="homle-item-quantity" data-item-editor-quantity type="number" min="1" max="20" step="1" required>
       <fieldset class="scan-item-condition">
         <legend>How much cleaning does it need?</legend>
         <div class="scan-item-condition-options">
@@ -554,7 +560,7 @@ export function encodeCanvasJpeg(canvas, quality) {
  * Resolves with the scan result, or null if the Landlord closed it without
  * finishing — the caller never has to guess which happened.
  */
-export function openRoomScan() {
+export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "scan-overlay";
@@ -580,7 +586,7 @@ export function openRoomScan() {
       liveProgress: $("[data-live-progress]"), liveProgressStep: $("[data-live-progress-step]"), liveProgressCopy: $("[data-live-progress-copy]"),
       liveProgressMeter: $("[data-live-progress-meter]"),
       mic: $("[data-mic]"), shutter: $("[data-shutter]"), speechToggle: $("[data-speech-toggle]"),
-      torch: $("[data-torch]"), zoomReset: $("[data-zoom-reset]"),
+      torch: $("[data-torch]"), zoomReset: $("[data-zoom-reset]"), zoomWide: $("[data-zoom-wide]"),
       scanDebug: $("[data-scan-debug]"),
       found: $("[data-found]"), foundList: $("[data-found-list]"), foundCount: $("[data-found-count]"),
       foundNoun: $("[data-found-noun]"), foundBusy: $("[data-found-busy]"),
@@ -596,7 +602,7 @@ export function openRoomScan() {
       deck: $("[data-camera-deck]"),
       consent: $("[data-consent]"), consentAllow: $("[data-consent-allow]"), consentDecline: $("[data-consent-decline]"),
       itemEditor: $("[data-item-editor]"), itemEditorForm: $("[data-item-editor-form]"),
-      itemEditorName: $("[data-item-editor-name]"), itemEditorCancel: $("[data-item-editor-cancel]"),
+      itemEditorName: $("[data-item-editor-name]"), itemEditorQuantity: $("[data-item-editor-quantity]"), itemEditorCancel: $("[data-item-editor-cancel]"),
       discard: $("[data-discard]"), discardEyebrow: $("[data-discard-eyebrow]"),
       discardTitle: $("[data-discard-title]"), discardCopy: $("[data-discard-copy]"),
       discardKeep: $("[data-discard-keep]"), discardConfirm: $("[data-discard-confirm]"),
@@ -674,7 +680,7 @@ export function openRoomScan() {
       // next one, merges the same label straight back and the removal looks broken.
       dismissed: new Map(),
       timers: { wave: null, clock: null, cameraResume: null, noteRecovery: null, capabilityProbes: [] }, recognition: null,
-      visionAvailable: true, readingAllowed: false, consentAsked: false,
+      visionAvailable: true, readingAllowed: false, consentAsked: false, itemOnly,
       generation: 0, closed: false,
       // Which screen is showing, and which room is being worked on. The hub is
       // where a room is chosen, the whole scan reviewed, and a scanned room
@@ -730,9 +736,10 @@ export function openRoomScan() {
 
     function setScanBackgroundInert(inert, except = el.discard) {
       for (const child of el.stage.children) {
-        if (child === except) continue;
-        child.inert = inert;
-        if (inert) child.setAttribute("aria-hidden", "true");
+        if (child === except) { child.inert = false; child.removeAttribute("aria-hidden"); continue; }
+        const blocked = inert || (state.screen === "hub" && child !== el.hub);
+        child.inert = blocked;
+        if (blocked) child.setAttribute("aria-hidden", "true");
         else child.removeAttribute("aria-hidden");
       }
     }
@@ -752,15 +759,16 @@ export function openRoomScan() {
 
     function openItemEditor(key, trigger) {
       const current = inventoryFor().find((item) => item.key === key);
-      if (!current || state.closed) return;
+      if ((!current && key !== "__new__") || state.closed) return;
       itemEditorKey = key;
       itemEditorPreviousFocus = trigger instanceof HTMLElement ? trigger : document.activeElement;
-      el.itemEditorName.value = current.label;
+      el.itemEditorName.value = current?.label || "";
+      el.itemEditorQuantity.value = String(itemQuantity(current));
       const options = el.itemEditorForm.elements["homle-item-condition"];
       // An automatic suggestion is not a customer choice. A name-only edit
       // must not silently turn an uncertain grade into confirmed evidence.
       for (const option of options ? [...options] : []) {
-        option.checked = current.conditionConfirmed === true && option.value === current.condition;
+        option.checked = current?.conditionConfirmed === true && option.value === current.condition;
       }
       stopDetection();
       el.itemEditor.hidden = false;
@@ -1020,6 +1028,7 @@ export function openRoomScan() {
     function showScreen(name) {
       state.screen = name;
       el.hub.hidden = name === "live";
+      setScanBackgroundInert(name !== "live", el.hub);
       // Showing or hiding the hub changes the viewfinder's box.
       state.viewRect = null;
       if (name === "live") { el.roomLabel.textContent = state.currentRoom; startDetection(); }
@@ -1205,9 +1214,7 @@ export function openRoomScan() {
       {
         const range = zoomRange(state.cameraCapabilities);
         if (range && state.zoom > range.min && state.cameraTrack) {
-          void applyTrackConstraint({ zoom: range.min }).then((applied) => {
-            if (applied) { state.zoom = range.min; renderCameraAssist(); }
-          });
+          void changeCameraZoom(true);
         }
       }
       // Advice about the last room's lighting must not carry into this one.
@@ -1233,6 +1240,7 @@ export function openRoomScan() {
     // camera, no fresh capture — removing an object is immediate and costs
     // nothing; the room only reads again on save if its objects actually changed.
     function openRevisit(room, session) {
+      seedSavedInventory(room);
       if (!room?.image) { prepareLiveRoom(); return; }
       // Block the shutter until the stored photo is in place, so a tap during the
       // load cannot start a fresh capture that install() then overwrites.
@@ -1383,19 +1391,20 @@ export function openRoomScan() {
       renderCameraAssist();
     }
 
-    /* ── Automatic capture assists: torch and zoom ── */
+    /* ── Camera controls ── */
 
-    // "Too dark" and "too far" are the two physical causes of bad condition
-    // grades, and advice alone fixes neither. Where the camera supports it
-    // (Android Chrome; iPhone Safari supports neither and everything below
-    // stays dormant), the fix is applied automatically after the problem has
-    // persisted, with a visible control to undo it. The decision rules live in
-    // camera-assist.js; this is only the wiring.
+    // Darkness may enable the torch; zoom is always chosen by the customer.
+    const initializedZoomTracks = new WeakSet();
+    const changeCameraZoom = createManualCameraZoom({
+      getTrack: () => state.closed ? null : state.cameraTrack,
+      onChange: (zoom) => { state.zoom = zoom; renderCameraAssist(); },
+      onError: () => toast("The camera could not change zoom. Try Reset or reopen the camera.")
+    });
 
     async function applyTrackConstraint(constraint) {
       const track = state.cameraTrack;
       if (!track?.applyConstraints) return false;
-      try { await track.applyConstraints({ advanced: [constraint] }); return true; }
+      try { await track.applyConstraints({ advanced: [constraint] }); return track === state.cameraTrack && !state.closed; }
       catch { return false; }
     }
 
@@ -1414,6 +1423,10 @@ export function openRoomScan() {
       const range = zoomRange(state.cameraCapabilities);
       if (range && !(Number.isFinite(state.zoom) && state.zoom >= range.min)) {
         try { state.zoom = Number(track.getSettings?.()?.zoom) || range.min; } catch { state.zoom = range.min; }
+      }
+      if (range && !initializedZoomTracks.has(track)) {
+        initializedZoomTracks.add(track);
+        void changeCameraZoom(true);
       }
       renderCameraAssist();
     }
@@ -1439,7 +1452,8 @@ export function openRoomScan() {
         const range = zoomRange(state.cameraCapabilities);
         el.zoomReset.hidden = !state.stream || !range;
         el.zoomReset.textContent = zoomLabel(state.zoom || range?.min || 0);
-        el.zoomReset.setAttribute("aria-label", "Change the camera zoom");
+        el.zoomReset.setAttribute("aria-label", `Camera zoom ${zoomLabel(state.zoom)}. Tap to zoom in; Reset returns to the widest view.`);
+        if (el.zoomWide) el.zoomWide.hidden = el.zoomReset.hidden;
       }
     }
 
@@ -1469,30 +1483,6 @@ export function openRoomScan() {
           state.torchDeclined = true;
         }
       }
-      const target = nextAutoZoom({
-        range: zoomRange(state.cameraCapabilities),
-        zoom: state.zoom,
-        declined: state.zoomDeclined,
-        distanceStreak: state.distanceStreak,
-        emptyStreak: state.emptyStreak
-      });
-      if (target !== null && !state.frozen) {
-        if (await applyTrackConstraint({ zoom: target })) {
-          state.zoom = target;
-          // The streaks restart so the next step needs the problem to persist
-          // again — one nudge per confirmed problem, not a runaway crawl.
-          state.distanceStreak = 0;
-          state.emptyStreak = 0;
-          renderCameraAssist();
-          scanEvents.record("scan.assist.zoom");
-          if (!state.zoomAnnounced) {
-            state.zoomAnnounced = true;
-            toast("Zoomed in — everything looked far away. Tap the zoom chip to reset.");
-          }
-        } else {
-          state.zoomDeclined = true;
-        }
-      }
     }
 
     async function toggleTorch() {
@@ -1510,16 +1500,7 @@ export function openRoomScan() {
     }
 
     async function cycleZoom() {
-      const range = zoomRange(state.cameraCapabilities);
-      if (!range || !state.cameraTrack) return;
-      const target = nextManualZoom(range, state.zoom);
-      if (target === null) return;
-      await applyTrackConstraint({ zoom: target });
-      state.zoom = target;
-      // A manual tap takes over: the automation stays out of the way for the
-      // rest of the room, whatever the customer stepped to.
-      state.zoomDeclined = true;
-      renderCameraAssist();
+      return changeCameraZoom(false);
     }
 
     function scheduleCameraResume() {
@@ -2556,6 +2537,7 @@ export function openRoomScan() {
     // eighty classes contain no radiator, wardrobe, blind, shower or air fryer,
     // which is most of what a cleaning quote actually turns on.
     async function maybeReadKeyframe(video) {
+      if (state.itemOnly) return;
       if (!state.readingAllowed || !state.visionAvailable || state.frozen || state.closed) return;
       const roomName = state.currentRoom;
       const roomKey = transcriptKey(roomName);
@@ -2786,7 +2768,7 @@ export function openRoomScan() {
       // reader is behind the glow, the header says what is actually
       // happening: how many things are spotted and that reading is under way.
       const spotted = !state.frozen && state.screen === "live" ? state.tracks.length : 0;
-      el.found.hidden = items.length === 0 && !currentRoomBusy && spotted === 0;
+      el.found.hidden = !state.currentRoom;
       el.foundBusy.hidden = !currentRoomBusy;
       // The sweep line inside each glow runs only while a read is genuinely in
       // flight — an animation that claims analysis which is not happening
@@ -2804,7 +2786,7 @@ export function openRoomScan() {
         // truthful message is the one that starts it — holding steady.
         el.foundNoun.textContent = spotted
           ? `spotted · ${currentRoomBusy ? "reading…" : "hold steady to read"}`
-          : "Reading the room…";
+          : currentRoomBusy ? "Reading the room…" : "No items yet · add one or scan another view";
       } else {
         el.foundCount.textContent = String(needsWork || totalItems);
         const remaining = [counts.clean ? `${counts.clean} clean` : "",
@@ -2947,10 +2929,34 @@ export function openRoomScan() {
       return state.inventories.get(transcriptKey(roomName)) || [];
     }
 
+    function seedSavedInventory(room) {
+      if (!room) return;
+      const previous = inventoryFor(room.name);
+      const saved = (room.detections || []).map(item => ({
+        ...item, key: item.inventoryKey || inventoryKey(item.label), score: item.confidence || 1,
+        sightings: 1, source: "read"
+      }));
+      const byKey = new Map(saved.map(item => [item.key, item]));
+      for (const item of previous) byKey.set(item.key, { ...byKey.get(item.key), ...item });
+      const dismissed = state.dismissed.get(transcriptKey(room.name)) || new Set();
+      state.inventories.set(transcriptKey(room.name), [...byKey.values()].filter(item => !dismissed.has(item.key)));
+      renderInventory();
+    }
+
     function setInventory(roomName, items) {
       const key = transcriptKey(roomName);
       if (!key) return;
       state.inventories.set(key, items);
+      if (state.frozen && transcriptKey() === key) {
+        const dismissed = state.dismissed.get(key) || new Set();
+        state.candidates = state.candidates.filter(box => !dismissed.has(box.inventoryKey || inventoryKey(box.label))).map(box => {
+          const item = items.find(entry => entry.key === (box.inventoryKey || inventoryKey(box.label)));
+          return item ? { ...box, ...item, id: box.id, inventoryKey: item.key } : box;
+        });
+        const present = new Set(state.candidates.map(box => box.id));
+        state.selectedIds = new Set([...state.selectedIds].filter(id => present.has(id)));
+        refreshSelection();
+      }
       // Revisiting a saved room can end at the hub without another capture.
       // Keep the final handoff in sync with edits visible in its live list.
       const savedRoom = findRoom(state.rooms, roomName);
@@ -3034,6 +3040,7 @@ export function openRoomScan() {
             readingStatus: reading.readingStatus || "ready",
             readingRevision: 0
           });
+          seedSavedInventory(findRoom(state.rooms, roomName));
           renderHub();
         })
         .catch((error) => {
@@ -3957,7 +3964,7 @@ export function openRoomScan() {
       // done its job and should not survive to be offered again.
       forgetRoomNotes();
       const checklistRooms = state.rooms.map(room => ({
-        ...withCurrentRoomInstructions(room, localRoomTasks(room.name, roomTranscript(room.name))),
+        ...withCurrentRoomInstructions(withManualInventoryTasks(room, inventoryFor(room.name)), localRoomTasks(room.name, roomTranscript(room.name))),
         transcript: roomTranscript(room.name),
         removedInventoryKeys: [...(state.dismissed.get(transcriptKey(room.name)) || [])],
         changedInventoryKeys: inventoryFor(room.name).filter(item => item.confirmed).map(item => item.key)
@@ -4007,6 +4014,7 @@ export function openRoomScan() {
           objects: (room.detections || []).map((detection) => ({
             inventoryKey: detection.inventoryKey || inventoryKey(detection.label),
             label: detection.label,
+            pricingCode: inventoryKey(detection.label),
             quantity: itemQuantity(detection),
             condition: detection.condition || "",
             soiling: Array.isArray(detection.soiling) ? [...detection.soiling] : [],
@@ -4120,6 +4128,7 @@ export function openRoomScan() {
       if (!current) return;
       openItemEditor(key, rename);
     });
+    $("[data-add-inventory]").addEventListener("click", (event) => openItemEditor("__new__", event.currentTarget));
     el.itemEditorCancel.addEventListener("click", () => closeItemEditor());
     el.itemEditor.addEventListener("click", (event) => {
       if (event.target === el.itemEditor) closeItemEditor();
@@ -4127,7 +4136,7 @@ export function openRoomScan() {
     el.itemEditorForm.addEventListener("submit", (event) => {
       event.preventDefault();
       const current = inventoryFor().find((item) => item.key === itemEditorKey);
-      if (!current) return closeItemEditor({ restoreFocus: false });
+      if (!current && itemEditorKey !== "__new__") return closeItemEditor({ restoreFocus: false });
       const label = String(el.itemEditorName.value || "").trim();
       if (!label) {
         el.itemEditorName.setCustomValidity("Enter a name for this item.");
@@ -4137,11 +4146,22 @@ export function openRoomScan() {
       el.itemEditorName.setCustomValidity("");
       const selected = el.itemEditorForm.elements["homle-item-condition"];
       const condition = [...(selected ? selected : [])].find((option) => option.checked)?.value || "";
-      const change = { label, confirmed: true };
+      const quantity = Number(el.itemEditorQuantity.value);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) return el.itemEditorQuantity.reportValidity();
+      let targetKey = itemEditorKey;
+      if (!current) {
+        targetKey = inventoryKey(label);
+        const existing = inventoryFor().find(item => item.key === targetKey);
+        if (existing) return toast("That item is already listed. Edit its quantity instead.");
+        const dismissed = state.dismissed.get(transcriptKey()) || new Set();
+        dismissed.delete(targetKey); state.dismissed.set(transcriptKey(), dismissed);
+        state.inventories.set(transcriptKey(), [...inventoryFor(), { key: targetKey, label, quantity, score: 1, sightings: 1, condition: "", source: "manual" }]);
+      }
+      const change = { label, quantity, confirmed: true };
       if (condition) change.condition = condition;
-      setInventory(state.currentRoom, correctInventoryItem(inventoryFor(), itemEditorKey, change));
+      setInventory(state.currentRoom, correctInventoryItem(inventoryFor(), targetKey, change));
       closeItemEditor({ restoreFocus: false });
-      toast(label !== current.label || (condition && condition !== current.condition) ? `${label} updated.` : `${label} confirmed.`);
+      toast(!current || label !== current.label || (condition && condition !== current.condition) ? `${label} updated.` : `${label} confirmed.`);
     });
     el.viewfinder.addEventListener("click", onViewfinderTap);
     el.detections.addEventListener("click", (event) => {
@@ -4159,6 +4179,7 @@ export function openRoomScan() {
     // The assists' off switches. Turning either off is final for the room.
     el.torch.addEventListener("click", () => { void toggleTorch(); });
     el.zoomReset.addEventListener("click", () => { void cycleZoom(); });
+    el.zoomWide.addEventListener("click", () => { void changeCameraZoom(true); });
     // The explicit in-panel controls. Stop is the same action as tapping the
     // recording mic — two visible ways to do the one thing that must never be
     // hard to find.
@@ -4244,6 +4265,7 @@ export function openRoomScan() {
     // camera permission prompt and the room choice, so entering the first room is
     // not the moment the download begins.
     warmDetector();
-    el.hubOther.focus?.({ preventScroll: true });
+    if (initialRoom) enterRoom(initialRoom);
+    else el.hubOther.focus?.({ preventScroll: true });
   });
 }

@@ -34,7 +34,8 @@ import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInT
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { checklistFromTranscript } from "./checklist.js";
 import { scanChecklistLines, scanTaskReview, withCurrentRoomInstructions, roomInstructionTasks } from "./room-scan-model.js";
-import { applyCorrection, scanReview } from "./scan-review-render.js";
+import { editScanRooms, scanRoomTypes, inferredRoomType } from "./scan-review-edit.js";
+import { applyCorrection, scanReview, localScanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
 import { pricingRequestFromManualTasks, requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
 import { landlordRequestDraftLifetimeMs } from "./landlord-request-draft.js?v=20260830-1";
@@ -271,13 +272,13 @@ async function recoverCsrf() {
 function saveDraft() {
   if (!state.draftOwner) return;
   try {
-    const draft = {...state.draft};
+    const draft = {...state.draft, scanPremiumSelected: state.scanPremiumSelected || []};
     if (state.scanRooms?.length) {
       const reviewed = currentReviewedNotes();
       draft.transcript = reviewed.transcript;
       // The resumable booking scope reflects customer edits; the original
       // in-memory scan remains intact for correction replay on submission.
-      const reviewedRooms = state.scanCorrections?.length ? correctedScanRooms() : draft.rooms;
+      const reviewedRooms = correctedScanRooms();
       draft.rooms = (Array.isArray(reviewedRooms) ? reviewedRooms : []).map(room => ({
         ...room, note: reviewed.notes[String(room.name || room.roomName || "").trim().toLowerCase()] ?? room.note
       }));
@@ -312,6 +313,11 @@ function restoreDraft() {
       && Date.now() < expiresAt;
     if (stored && !live) return discardDraft();
     if (stored?.draft && typeof stored.draft === "object") Object.assign(state.draft, stored.draft);
+    state.scanRooms = Array.isArray(state.draft.rooms) ? state.draft.rooms : [];
+    state.scanCorrections = [];
+    state.scanReview = null;
+    state.scanPremiumSelected = Array.isArray(state.draft.scanPremiumSelected) ? state.draft.scanPremiumSelected : [];
+    state.restoredScan = state.scanRooms.length > 0;
     if (typeof stored?.step === "string" && stepIndex(stored.step) >= 0) state.step = stored.step;
     if (!durationChoices.includes(Number(state.draft.durationMinutes))) setRequestScopeValue("durationMinutes", 120);
     for (const key of ["propertyDraftId", "requestId"]) {
@@ -633,6 +639,11 @@ el.skipScan.addEventListener("click", () => {
 
 /* ── Step 3: results ────────────────────────────────── */
 function renderResults() {
+  if (state.restoredScan) {
+    state.restoredScan = false;
+    state.scanPremiumPlan = createPremiumPlan(state.scanRooms, state.draft.tasks, pricingConfig || defaultPricingConfig);
+    void refreshScanReview();
+  }
   const scanned = Boolean(state.draft.rooms.length || state.draft.transcript);
   el.resultsEyebrow.textContent = scanned ? "Scan complete" : "Your checklist";
   el.resultsTitle.innerHTML = scanned ? "Here’s what<br>we found." : "What needs<br>cleaning?";
@@ -645,6 +656,7 @@ function renderResults() {
   renderRoomNotes();
   renderTaskReview();
   updateResultTotals();
+  renderReview();
 }
 
 function updateResultTotals() {
@@ -1233,7 +1245,7 @@ const pricingServiceTypeByCode = Object.freeze({
 function currentPricingRequest() {
   return quoteInputFromScan({
     rooms: selectedScanRooms(correctedScanRooms(), state.scanPremiumPlan, eligiblePremiumSelections())
-      .map((room) => ({ roomName: room.name, objects: room.objects }))
+      .map((room) => ({ roomName: room.name, roomType: inferredRoomType(room), objects: (room.objects || []).flatMap(object => Array.from({ length: Math.min(20, Math.max(1, Number(object.quantity) || 1)) }, () => ({...object, inventoryKey: object.pricingCode || object.inventoryKey}))) }))
   }, {
     config: pricingConfig || defaultPricingConfig,
     serviceType: pricingServiceTypeByCode[state.draft.serviceCode] || "standard",
@@ -1322,6 +1334,22 @@ function renderReviewQuestions(review) {
 
 // A correction control per object, and only for the things a person can actually
 // judge about their own home. Nothing here offers to edit a confidence score.
+function openScanTextEditor(host, {label, value = "", maxLength, trigger, onSave}) {
+  host.querySelector("[data-scan-inline-editor]")?.remove();
+  const panel = textNode("div", "scan-review-inline-editor"); panel.dataset.scanInlineEditor = "";
+  const caption = textNode("label", "", label);
+  const input = document.createElement("input"); input.className = "scan-review-grade"; input.value = value;
+  input.maxLength = maxLength; input.required = true; input.setAttribute("aria-label", label);
+  caption.append(input); panel.append(caption);
+  const save = textNode("button", "scan-review-edit", "Save"); save.type = "button";
+  const cancel = textNode("button", "scan-review-edit", "Cancel"); cancel.type = "button";
+  const close = () => { panel.remove(); if (trigger?.isConnected) trigger.focus(); };
+  const submit = () => { const value = input.value.trim(); if (!value) { input.setCustomValidity("Enter a name."); input.reportValidity(); return; } input.setCustomValidity(""); if (onSave(value) !== false) close(); };
+  input.addEventListener("input", () => input.setCustomValidity(""));
+  input.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); submit(); } if (event.key === "Escape") { event.preventDefault(); close(); } });
+  save.addEventListener("click", submit); cancel.addEventListener("click", close); panel.append(save,cancel); host.append(panel); input.focus(); input.select();
+}
+
 function objectControls(roomName, object) {
   const row = textNode("div", "scan-review-object");
   const head = textNode("div", "scan-review-object-head");
@@ -1346,13 +1374,10 @@ function objectControls(roomName, object) {
   const rename = textNode("button", "scan-review-edit");
   rename.type = "button";
   rename.textContent = "Rename";
-  rename.addEventListener("click", () => {
-    const value = window.prompt(`What is this? (currently "${object.label}")`, object.label);
-    if (value === null) return;
-    const trimmed = value.trim().slice(0, 40);
-    if (!trimmed) return toast("An object needs a name.");
-    correctScanObject(roomName, object.inventoryKey, "label", trimmed);
-  });
+  rename.addEventListener("click", () => openScanTextEditor(actions, {
+    label: "Item name", value: object.label, maxLength: 40, trigger: rename,
+    onSave: value => { correctScanObject(roomName, object.inventoryKey, "label", value); return true; }
+  }));
   actions.append(rename);
 
   // The grade a customer sets is evidence, so the options are the same scale the
@@ -1396,6 +1421,16 @@ function objectControls(roomName, object) {
   remove.addEventListener("click", () => correctScanObject(roomName, object.inventoryKey, "removed", ""));
   actions.append(remove);
 
+  const move = document.createElement("select");
+  move.className = "scan-review-grade";
+  move.setAttribute("aria-label", "Room for " + object.label);
+  for (const room of correctedScanRooms()) {
+    const option = document.createElement("option"); option.value = room.name; option.textContent = room.name; option.selected = room.name === roomName; move.append(option);
+  }
+  move.addEventListener("change", () => changeScanStructure({ action: "move-item", roomName, inventoryKey: object.inventoryKey, destination: move.value }));
+  actions.append(move);
+  const rescan = textNode("button", "scan-review-edit", "Rescan item"); rescan.type = "button";
+  rescan.addEventListener("click", () => rescanReviewRoom(roomName, object.inventoryKey)); actions.append(rescan);
   row.append(actions);
   return row;
 }
@@ -1421,6 +1456,29 @@ function renderReviewRooms(review) {
     if (room.objects.length && !visible.length) return null;
     const block = textNode("section", "scan-review-room");
     block.append(textNode("h4", "scan-review-room-name", room.roomName));
+    const roomActions = textNode("div", "scan-review-object-actions");
+    const name = document.createElement("input"); name.className = "scan-review-grade"; name.value = room.roomName; name.maxLength = 80;
+    name.setAttribute("aria-label", "Room name for " + room.roomName);
+    name.addEventListener("change", () => changeScanStructure({ action: "rename-room", roomName: room.roomName, name: name.value })); roomActions.append(name);
+    const type = document.createElement("select"); type.className = "scan-review-grade"; type.setAttribute("aria-label", "Room type for " + room.roomName);
+    const source = correctedScanRooms().find(entry => entry.name === room.roomName) || {};
+    for (const value of scanRoomTypes) { const option = document.createElement("option"); option.value = value; option.textContent = value.replaceAll("-", " "); option.selected = value === inferredRoomType(source); type.append(option); }
+    type.addEventListener("change", () => changeScanStructure({ action: "room-type", roomName: room.roomName, value: type.value })); roomActions.append(type);
+    for (const [label, action] of [["Add missing item", "add-item"], ["Rescan room", "rescan"], ["Remove room", "remove-room"]]) {
+      const button = textNode("button", "scan-review-edit", label); button.type = "button";
+      button.addEventListener("click", () => {
+        if (action === "rescan") return rescanReviewRoom(room.roomName);
+        if (action === "add-item") return openScanTextEditor(roomActions, {
+          label: "Missing item name", maxLength: 40, trigger: button,
+          onSave: label => changeScanStructure({ action, roomName: room.roomName, label })
+        });
+        if (button.dataset.confirm === "yes") return changeScanStructure({ action, roomName: room.roomName });
+        button.dataset.confirm = "yes"; button.textContent = "Confirm remove room";
+        const cancel = textNode("button", "scan-review-edit", "Keep room"); cancel.type = "button";
+        cancel.addEventListener("click", () => { delete button.dataset.confirm; button.textContent = "Remove room"; cancel.remove(); }); roomActions.append(cancel);
+      }); roomActions.append(button);
+    }
+    block.append(roomActions);
     for (const measurement of room.measurements) block.append(textNode("p", "hint", measurement));
     // Measurements taken in this session, not yet stored. Each states its band —
     // the label came from the server's own arithmetic — and can be discarded.
@@ -1447,6 +1505,8 @@ function renderReviewRooms(review) {
     for (const object of visible) block.append(objectControls(room.roomName, object));
     return block;
   }).filter(Boolean));
+  const addRoom = textNode("button", "scan-review-edit", "Add room"); addRoom.type = "button";
+  addRoom.addEventListener("click", () => openScanTextEditor(host, { label: "New room name", maxLength: 80, trigger: addRoom, onSave: name => changeScanStructure({ action: "add-room", name }) })); host.append(addRoom);
   if (pages > 1) {
     const navigation = textNode("div", "scan-review-room");
     const label = textNode("p", "hint", "Items " + (page * pageSize + 1) + "–" + Math.min(total, (page + 1) * pageSize) + " of " + total);
@@ -1701,11 +1761,11 @@ if (measureUi.host) {
 function renderReview() {
   if (!reviewHost) return;
   if (!state.scanRooms.length) setScanReviewStatus("");
-  const review = state.scanReview;
-  if (!review?.assessed) {
+  if (!state.scanRooms.length && !state.scanPremiumPlan) {
     reviewHost.hidden = true;
     return;
   }
+  const review = state.scanReview || localScanReview(correctedScanRooms());
   reviewHost.hidden = false;
   renderReviewLevel(review);
   renderReviewPrice(review);
@@ -1732,7 +1792,8 @@ async function refreshScanReview() {
     setScanReviewStatus("");
     return;
   }
-  setScanReviewStatus("Updating your scan review…");
+  renderReview();
+  setScanReviewStatus("Updating your scan review… You can keep editing.");
   try {
     // Dependency failures use the same visible recovery as assessment failures.
     await loadPricingConfig();
@@ -1746,7 +1807,7 @@ async function refreshScanReview() {
       body: JSON.stringify({
         deviceClass: state.scanDeviceClass || "unknown",
         rooms: rooms.map((room) => ({
-          roomName: room.name, condition: room.condition || "", note: room.note || "",
+          roomName: room.name, roomType: inferredRoomType(room), condition: room.condition || "", note: room.note || "",
           objects: Array.isArray(room.objects) ? room.objects : []
         }))
       })
@@ -1759,8 +1820,8 @@ async function refreshScanReview() {
   } catch (error) {
     if (!isCurrent()) return;
     state.scanReview = null;
-    reviewHost.hidden = true;
-    setScanReviewStatus("Your scan is still here. We couldn’t update its review. Try again.", true);
+    renderReview();
+    setScanReviewStatus("Your edits are saved on this device. Automatic assessment is unavailable; keep editing or retry.", true);
   }
 }
 
@@ -1829,6 +1890,13 @@ function correctScanObject(roomName, inventoryKey, field, value) {
   const { corrections } = applyCorrection(correctedScanRooms(), { roomName, inventoryKey, field, value });
   if (!corrections.length) return;
   state.scanCorrections.push({ roomName, inventoryKey, field, value, originalValue: corrections[0].originalValue });
+  if (field === "label") {
+    const previous = state.scanPremiumPlan;
+    state.scanPremiumPlan = createPremiumPlan(correctedScanRooms(), scanChecklistLines(taskReviewRooms()), pricingConfig || defaultPricingConfig);
+    state.scanPremiumSelected = state.scanPremiumSelected.filter(id => state.scanPremiumPlan.options.some(option => option.id === id && previous.options.some(old => old.id === id && old.code === option.code)));
+  }
+  state.scanReview = null;
+  renderReview();
   invalidateScanRequest();
   if (field === "removed") state.scanPremiumSelected = state.scanPremiumSelected.filter((id) => id !== premiumChoiceId(roomName, inventoryKey));
   renderPremiumChoices();
@@ -1839,6 +1907,66 @@ function correctScanObject(roomName, inventoryKey, field, value) {
   refreshScanReview();
 }
 
+
+function commitScanStructure(rooms, edit = {}) {
+  if (edit.action === "rename-room") {
+    const oldKey = roomKeyOf(edit.roomName), newKey = roomKeyOf(edit.name);
+    if (Object.hasOwn(state.scanNoteEdits, oldKey)) { state.scanNoteEdits[newKey] = state.scanNoteEdits[oldKey]; delete state.scanNoteEdits[oldKey]; }
+    state.scanPhotos = state.scanPhotos.map(photo => roomKeyOf(photo.roomName) === oldKey ? { ...photo, roomName: edit.name.trim() } : photo);
+    state.scanMeasurements = state.scanMeasurements.map(entry => roomKeyOf(entry.roomName) === oldKey ? { ...entry, roomName: edit.name.trim() } : entry);
+  }
+  const names = new Set(rooms.map(room => roomKeyOf(room.name)));
+  state.scanPhotos = state.scanPhotos.filter(photo => names.has(roomKeyOf(photo.roomName)));
+  state.scanMeasurements = state.scanMeasurements.filter(entry => names.has(roomKeyOf(entry.roomName)));
+  state.scanRooms = rooms;
+  state.draft.rooms = rooms;
+  state.scanCorrections = [];
+  state.scanReview = null;
+  state.scanSessionId = "";
+  invalidateScanRequest();
+  state.scanPremiumPlan = createPremiumPlan(rooms, scanChecklistLines(rooms), pricingConfig || defaultPricingConfig);
+  state.scanPremiumSelected = state.scanPremiumSelected.filter(id => state.scanPremiumPlan.options.some(option => option.id === id));
+  reconcileReviewedChecklist();
+  state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+  renderPremiumChoices(); renderRoomNotes(); updateResultTotals(); saveDraft(); renderReview();
+  void refreshScanReview();
+}
+function changeScanStructure(edit) {
+  try { commitScanStructure(editScanRooms(taskReviewRooms(), edit), edit); return true; }
+  catch (error) { toast(error.message); return false; }
+}
+async function rescanReviewRoom(roomName, inventoryKey = "") {
+  if (state.rescanningRoom) return;
+  state.rescanningRoom = true;
+  try {
+    const result = await openRoomScan({ initialRoom: roomName, itemOnly: Boolean(inventoryKey) });
+    if (!result?.rooms?.length) return;
+    const current = taskReviewRooms();
+    const old = current.find(room => room.name === roomName);
+    const replacement = result.rooms.find(room => room.name === roomName);
+    if (!old || !replacement) return toast("The original room is unchanged. Rescan the room under its existing name.");
+    if (inventoryKey) {
+      // The rescan is shown in full for choosing the replacement, never silently
+      // assigning the first detected appliance to the selected object.
+      const labels = replacement.objects || [];
+      if (labels.length !== 1) return toast("For an item rescan, select just that item before confirming. Your original item is unchanged.");
+      replacement.objects = (old.objects || []).map(item => item.inventoryKey === inventoryKey ? { ...labels[0], inventoryKey } : item);
+      replacement.taskRecords = old.taskRecords;
+    }
+    let updated = { ...replacement, name: old.name, roomType: inferredRoomType(old), note: old.note };
+    if (inventoryKey) {
+      const detected = replacement.objects.find(item => item.inventoryKey === inventoryKey);
+      let corrected = applyCorrection([old], {roomName, inventoryKey, field: "label", value: detected.label}).rooms;
+      corrected = applyCorrection(corrected, {roomName, inventoryKey, field: "quantity", value: detected.quantity}).rooms;
+      updated = {...corrected[0], objects: replacement.objects};
+    } else {
+      state.scanPhotos = [...state.scanPhotos.filter(photo => photo.roomName !== roomName), ...(result.photos || []).filter(photo => photo.roomName === roomName)];
+    }
+    commitScanStructure(current.map(room => room === old ? updated : room));
+  } catch (error) {
+    toast("The rescan could not finish. Your original room is unchanged; try again.");
+  } finally { state.rescanningRoom = false; }
+}
 
 // Sends each customer correction against the object the server actually stored.
 //
@@ -1870,7 +1998,7 @@ async function replayScanCorrections(csrf, requestId, savedScan) {
           trainingConsent: false
         })
       });
-    } catch { /* one lost label, not a lost booking */ }
+    } catch (error) { throw new Error("Your item correction could not be saved. Please retry before booking.", { cause: error }); }
   }
 }
 
@@ -1933,6 +2061,7 @@ async function saveStructuredScan(csrf, requestId) {
     .filter((room) => room && String(room.name || "").trim())
     .map((room) => ({
       roomName: room.name,
+      roomType: inferredRoomType(room),
       condition: room.condition || "",
       note: reviewedNotes.notes[String(room.name).trim().toLowerCase()] || "",
       objects: Array.isArray(room.objects) ? room.objects : []
@@ -2182,10 +2311,7 @@ async function confirmJourney() {
     // to browser storage.
     const scanSaved = await saveStructuredScanWithRetry(csrf, request.requestId);
     if (!scanSaved && state.scanRooms.length) {
-      // Said rather than swallowed. The booking still proceeds on the reviewed
-      // checklist, which is what it has always run on, but the customer is not
-      // told everything worked when part of it did not.
-      el.checkoutState.textContent = "Your checklist is saved. The detailed room findings could not be, so your cleaner will work from the checklist alone.";
+      throw new Error("Your room findings could not be saved. Your draft is kept; retry to save all corrections before booking.");
     }
     let submitted = false;
     let invitation = { invited: false, reason: "" };

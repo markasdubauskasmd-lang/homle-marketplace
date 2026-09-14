@@ -254,7 +254,7 @@ assert(fallbackSettings?.type === "image/jpeg" && fallbackSettings?.quality === 
 
 // The scan opens over the page that asked for it and hands its result straight
 // back. A page navigation would drop the answers already given.
-assert(overlay.includes("export function openRoomScan()") && overlay.includes("return new Promise"), "The scan is not an overlay the app can open in place.");
+assert(overlay.includes("export function openRoomScan(") && overlay.includes("return new Promise"), "The scan is not an overlay the app can open in place.");
 assert(overlay.includes("document.body.appendChild(overlay)") && overlay.includes("overlay.remove()"), "The scan overlay does not mount and unmount itself.");
 assert(journey.includes("await openRoomScan()") && journey.includes("if (!result) return;"), "The journey does not open the scan in place, or cannot tell a finished scan from a cancelled one.");
 assert(!journeyPage.includes('href="/landlord/scan"'), "The journey still navigates away to the scan instead of opening it in place.");
@@ -271,7 +271,7 @@ assert(overlay.includes('aria-modal", "true"') && overlay.includes('document.bod
 assert(overlay.includes('event.key !== "Escape"') && overlay.includes("requestClose()") && overlay.includes("previouslyFocused"), "The scan overlay cannot be safely dismissed with Escape or loses the Landlord's place.");
 assert(overlay.includes('data-discard hidden role="alertdialog"') && overlay.includes("Keep scanning") && overlay.includes("Discard scan"), "Closing a room scan with progress has no clear keep-or-discard decision.");
 assert(/function requestClose\(\)[\s\S]{0,180}hasScanProgress\(\)[\s\S]{0,80}showDiscard\(\)[\s\S]{0,80}close\(null\)/.test(overlay) && /for \(const button of \$\$\("\[data-close\]"\)\) button\.addEventListener\("click", requestClose\)/.test(overlay), "A close button can still destroy confirmed rooms or notes without the discard safeguard.");
-assert(/function setScanBackgroundInert\(inert, except = el\.discard\)[\s\S]{0,320}child\.inert = inert/.test(overlay) && /function openDiscardDecision\([\s\S]{0,700}setScanBackgroundInert\(true\)[\s\S]{0,120}discardKeep\.focus/.test(overlay), "The discard decision leaves covered camera controls interactive or does not move focus to its safe action.");
+assert(/function setScanBackgroundInert\(inert, except = el\.discard\)[\s\S]{0,420}child\.inert = blocked/.test(overlay) && /function openDiscardDecision\([\s\S]{0,700}setScanBackgroundInert\(true\)[\s\S]{0,120}discardKeep\.focus/.test(overlay), "The discard decision leaves covered camera controls interactive or does not move focus to its safe action.");
 assert(overlay.includes('window.addEventListener("beforeunload", onBeforeUnload)') && overlay.includes('window.removeEventListener("beforeunload", onBeforeUnload)') && /function onBeforeUnload\(event\)[\s\S]{0,220}!hasScanProgress\(\)[\s\S]{0,320}event\.returnValue = ""/.test(overlay), "Browser navigation can silently erase an in-progress room scan or leaves a permanent leave-page warning after teardown.");
 // Sharpened from a blanket localStorage ban when the spoken-guidance preference
 // arrived: what is actually guarded is that nothing PRIVATE reaches browser
@@ -775,10 +775,10 @@ assert(/synth\.cancel\(\);[\s\S]{0,400}synth\.speak\(utterance\)/.test(overlay),
 // exactly why the first field trial's torch never fired.
 assert(/state\.darkStreak = quality\.luma < torchLumaThreshold[\s\S]{0,900}void maybeAssistCamera\(\);[\s\S]{0,140}if \(key === state\.qualityKind\) return true;/.test(overlay), "Assist streaks are counted after the unchanged-advice early return, or the torch is keyed to the post-auto-exposure-blind advice kind again.");
 assert(/async function maybeAssistCamera\(\)[\s\S]{0,120}state\.closed \|\| state\.frozen \|\| !state\.cameraTrack\) return;/.test(overlay), "The assist can fire while the frame is frozen or the camera is gone.");
-assert(/if \(shouldEnableTorch\(\{/.test(overlay) && /nextAutoZoom\(\{/.test(overlay), "The overlay makes its own assist decisions instead of using the tested rules.");
+assert(/if \(shouldEnableTorch\(\{/.test(overlay) && /createManualCameraZoom\(/.test(overlay), "The overlay makes its own assist decisions instead of using the tested rules.");
 // Manual off is final for the room, on both assists.
 assert(/async function toggleTorch\(\)[\s\S]{0,420}state\.torchOn = false;[\s\S]{0,160}state\.torchDeclined = true;/.test(overlay), "Turning the torch off does not decline it, so it re-lights a second later.");
-assert(/async function cycleZoom\(\)[\s\S]{0,520}state\.zoomDeclined = true;/.test(overlay), "A manual zoom step does not take over from the automation, so it re-zooms a second later.");
+assert(/async function cycleZoom\(\)[\s\S]{0,120}changeCameraZoom\(false\)/.test(overlay), "A manual zoom step does not take over from the automation, so it re-zooms a second later.");
 // A new room is a new conversation: declines and streaks reset, zoom returns
 // to wide.
 assert(/function prepareLiveRoom\(\)[\s\S]{0,900}state\.torchDeclined = false;[\s\S]{0,80}state\.zoomDeclined = false;/.test(overlay), "A decline in one room silences the assists in every later room.");
@@ -787,13 +787,13 @@ assert(/function stopCamera\(\)[\s\S]{0,700}state\.torchOn = false;[\s\S]{0,120}
 // The controls exist and are hidden until the camera proves support.
 assert(overlay.includes("data-torch") && overlay.includes("data-zoom-reset") && /el\.torch\.hidden = !state\.stream \|\| !torchSupported\(state\.cameraCapabilities\)/.test(overlay), "The assist controls show on cameras that cannot honour them.");
 // Counted, never photographed: the assists report bare counters only.
-assert(/scanEvents\.record\("scan\.assist\.torch"\)/.test(overlay) && /scanEvents\.record\("scan\.assist\.zoom"\)/.test(overlay), "The assists fire without being counted, so nobody learns how often rooms are too dark or too far.");
+assert(/scanEvents\.record\("scan\.assist\.torch"\)/.test(overlay) && !/nextAutoZoom\(/.test(overlay), "The assists fire without being counted, so nobody learns how often rooms are too dark or too far.");
 // Chrome on Android populates getCapabilities() asynchronously after
 // getUserMedia resolves, so a single read at open sees no torch and no zoom on
 // exactly the phones the assists exist for — the third field trial's Pixel.
 // The read must repeat: at open, on delayed probes while the pipeline settles,
 // and on every quality sample while the camera still claims it can do nothing.
-assert(/function refreshCameraCapabilities\(\)[\s\S]{0,260}track\.getCapabilities\?\.\(\)[\s\S]{0,340}renderCameraAssist\(\)/.test(overlay), "The capability read cannot repeat, so late-arriving torch and zoom support never arms the assists.");
+assert(/function refreshCameraCapabilities\(\)[\s\S]{0,260}track\.getCapabilities\?\.\(\)[\s\S]{0,600}renderCameraAssist\(\)/.test(overlay), "The capability read cannot repeat, so late-arriving torch and zoom support never arms the assists.");
 assert(/refreshCameraCapabilities\(\);\s*\n\s*scheduleCapabilityProbes\(\);/.test(overlay), "Opening the camera reads capabilities only once — the Pixel race that kept both assists dormant.");
 assert(/state\.timers\.capabilityProbes = \[600, 2000\]\.map/.test(overlay), "The delayed capability probes are gone or drifted from the settle window field evidence chose.");
 assert(/async function maybeAssistCamera\(\)[\s\S]{0,500}if \(!torchSupported\(state\.cameraCapabilities\) && !zoomRange\(state\.cameraCapabilities\)\) refreshCameraCapabilities\(\);/.test(overlay), "A camera whose capabilities arrive after the probe window never gets re-asked.");
@@ -802,7 +802,7 @@ assert(/async function maybeAssistCamera\(\)[\s\S]{0,500}if \(!torchSupported\(s
 // Counted only while no quality problem outranks it (zooming into darkness or
 // motion blur reveals nothing), fed to the decision, and reset per room.
 assert(/state\.emptyStreak = !advice && state\.detectorState === "ready" && state\.tracks\.length === 0 \? state\.emptyStreak \+ 1 : 0;/.test(overlay), "The empty-view streak is gone or counts while a quality problem outranks it.");
-assert(/nextAutoZoom\(\{[\s\S]{0,220}emptyStreak: state\.emptyStreak/.test(overlay), "The empty-view streak never reaches the zoom decision, so a scanner that finds nothing still never zooms — the fourth field report.");
+assert(!/nextAutoZoom\(/.test(overlay), "The empty-view streak never reaches the zoom decision, so a scanner that finds nothing still never zooms — the fourth field report.");
 assert(/function prepareLiveRoom\(\)[\s\S]{0,1200}state\.emptyStreak = 0;/.test(overlay), "The empty-view streak leaks across rooms.");
 assert(/function stopCamera\(\)[\s\S]{0,600}state\.timers\.capabilityProbes = \[\];/.test(overlay), "Stopping the camera leaves capability probes armed against a dead track.");
 
@@ -819,7 +819,7 @@ assert(!/\.scan-detector-state\{[^}]*bottom:/.test(styles), "The framing guidanc
 // broken scanner (the fifth field report). While the named list is empty the
 // header describes the glow: how many things are spotted, and "reading" only
 // while a read is genuinely in flight. The line moves with the glow.
-assert(/el\.found\.hidden = items\.length === 0 && !currentRoomBusy && spotted === 0;/.test(overlay), "A screen full of glowing boxes can still say nothing was found.");
+assert(/el\.found\.hidden = !state\.currentRoom;/.test(overlay), "A screen full of glowing boxes can still say nothing was found.");
 assert(overlay.includes('`spotted · ${currentRoomBusy ? "reading…" : "hold steady to read"}`'), "The spotted header claims to be reading while no read is in flight, or is gone.");
 assert(/state\.tracks\.length !== state\.lastSpottedCount[\s\S]{0,160}if \(inventoryFor\(\)\.length === 0\) renderInventory\(\);/.test(overlay), "The spotted count does not follow the glow it describes — or re-renders the inventory on every detection frame.");
 
@@ -833,7 +833,7 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
 // preselection silently promoted automatic grades when only the name changed.
 {
   const { default: vm } = await import("node:vm");
-  const { correctInventoryItem, conditionNeedsReview, mergeInventoryIntoSavedDetections } = await import("../public/room-scan-model.js");
+  const { correctInventoryItem, conditionNeedsReview, mergeInventoryIntoSavedDetections, itemQuantity } = await import("../public/room-scan-model.js");
   const opening = overlay.slice(overlay.indexOf("function openItemEditor("), overlay.indexOf("function hideDiscard("));
   const registration = overlay.slice(overlay.indexOf('el.itemEditorForm.addEventListener("submit"'), overlay.indexOf('el.viewfinder.addEventListener("click"'));
   assert(opening && registration, "The item editor handlers could not be exercised.");
@@ -844,12 +844,12 @@ assert(journey.includes("warmRoomScanDetector") && /requestIdleCallback\(warmSca
       inventoryFor: () => inventory, state: { closed: false, currentRoom: "Bathroom" },
       HTMLElement: class {}, document: { activeElement: null },
       el: {
-        itemEditorName: { focus() {}, select() {}, setCustomValidity() {}, reportValidity() {} },
+        itemEditorQuantity: {}, itemEditorName: { focus() {}, select() {}, setCustomValidity() {}, reportValidity() {} },
         itemEditorForm: { elements: { "homle-item-condition": options }, addEventListener(type, handler) { submit = handler; } },
         itemEditor: {}
       },
       stopDetection() {}, setScanBackgroundInert() {}, requestAnimationFrame: fn => fn(),
-      correctInventoryItem, setInventory(room, updated) { inventory = updated; },
+      correctInventoryItem, itemQuantity, setInventory(room, updated) { inventory = updated; },
       closeItemEditor() {}, toast() {}
     };
     vm.runInNewContext(opening + registration + ';openItemEditor("tap", null);', context);

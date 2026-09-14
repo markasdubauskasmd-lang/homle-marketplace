@@ -232,7 +232,7 @@ assert(/attempt \* 700/.test(script), "The retry has no backoff.");
 // The scan is idempotent by session id, which is what makes retrying safe.
 assert(script.includes("state.scanSessionId"), "The retry has no stable session id, so a retry could duplicate the scan.");
 // And when it ultimately fails, the customer is told rather than reassured.
-assert(/could not be, so your cleaner will work from the checklist alone/.test(script),
+assert(/retry to save all corrections before booking/.test(script),
   "A failed scan save is reported as success.");
 
 /* ── Restrictions are persisted in their own shape ─────────────────────── */
@@ -282,10 +282,10 @@ console.log("Customer scan-review checks passed.");
       state: { scanRooms: [{ name: "Kitchen", objects: [] }], scanReview: null },
       loadPricingConfig: async () => {}, recoverCsrf: async () => "synthetic",
       requestJson(url, options) { const pending = deferred(); requests.push({ ...pending, body: JSON.parse(options.body) }); return pending.promise; },
-      scanReview: value => value
+      inferredRoomType: () => "kitchen", scanReview: value => value
     };
     context.correctedScanRooms = () => context.state.scanRooms;
-    context.renderReview = () => renders.push(context.state.scanReview);
+    context.renderReview = () => { context.reviewHost.hidden = false; if (context.state.scanReview) renders.push(context.state.scanReview); };
     vm.createContext(context); vm.runInContext(refreshSource, context);
     return { context, requests, renders, refresh: () => context.refreshScanReview() };
   }
@@ -304,7 +304,7 @@ console.log("Customer scan-review checks passed.");
     h.requests[1].reject(new Error("offline")); await latest;
     h.requests[0].resolve({ scan: { version: "old" } }); await old;
     assert(h.context.state.scanReview === null && !h.renders.length, "A failed latest request let stale success resurrect an old assessment.");
-    assert(h.context.reviewStatus.retry && h.context.reviewStatus.message.includes("still here"), "Failed review offers no visible recovery");
+    assert(h.context.reviewStatus.retry && h.context.reviewStatus.message.includes("edits are saved"), "Failed review offers no visible recovery");
     const retry=h.refresh(); await tick(); h.requests[2].resolve({scan:{version:"retry"}}); await retry;
     assert(h.context.state.scanRooms.length===1 && h.context.reviewStatus.message==="" && h.context.state.scanReview.version==="retry", "Retry lost scan data or retained failure state");
   }
@@ -313,7 +313,7 @@ console.log("Customer scan-review checks passed.");
     h.context.state.scanReview={version:"previous"};
     h.context[dependency]=async()=>{throw new Error("unavailable");};
     await h.refresh();
-    assert(h.context.reviewStatus.retry && h.context.reviewHost.hidden && h.context.state.scanRooms.length===1 && h.context.state.scanReview===null,
+    assert(h.context.reviewStatus.retry && !h.context.reviewHost.hidden && h.context.state.scanRooms.length===1 && h.context.state.scanReview===null,
       "Dependency failure discarded scan data or left stale review visible");
   }
   for (const replacement of [[], [{ name: "Bedroom", objects: [] }]]) {
@@ -397,7 +397,7 @@ console.log("Customer scan-review checks passed.");
   const {default:vm}=await import("node:vm");
   const node=(tag,cls,text)=>({tag,cls,text,children:[],handlers:{},append(...children){this.children.push(...children);},replaceChildren(...children){this.children=children;},setAttribute(){},addEventListener(event,handler){this.handlers[event]=handler;},querySelector(){return {focus(){}};}});
   const host=node("div"),rendered=[];
-  const context={state:{scanRooms:[]},reviewElement:()=>host,textNode:node,pendingMeasurements:()=>[],photoForRoom:()=>null,
+  const context={state:{scanRooms:[]},document:{createElement:node},scanRoomTypes:["other"],inferredRoomType:()=>"other",correctedScanRooms:()=>[],reviewElement:()=>host,textNode:node,pendingMeasurements:()=>[],photoForRoom:()=>null,
     objectControls(room,object){rendered.push(room+":"+object.inventoryKey);return node("div");}};
   const start=script.indexOf("function renderReviewRooms(review) {");
   const end=script.indexOf("/* ── Measuring from the room photo",start);
@@ -421,3 +421,5 @@ console.log("Customer scan-review checks passed.");
   context.renderReviewRooms({rooms:[{roomName:"Room 0",measurements:[],objects:[{inventoryKey:"last"}]}]});
   assert(context.state.scanReviewPage===0 && rendered[0]==="Room 0:last","Removing later findings left an unreachable page");
 }
+
+import "./scan-review-edit.mjs";
