@@ -76,3 +76,26 @@ console.log("Scan structural review: local edits, duplicate names, moves, scope,
   assert.equal(counted[0].taskRecords[0].text,"Clean the 3 × cabinet");
   assert.equal(original[0].objects[0].label,"Oven","Corrections must not mutate captured evidence");
 }
+
+// Exercise the actual rescan handler: cancellation and failed/multiple-object
+// reads preserve the previous room; an item close-up cannot replace its photo.
+{
+  const {readFileSync}=await import('node:fs'), {default:vm}=await import('node:vm');
+  const source=readFileSync(new URL('../public/landlord-journey.js',import.meta.url),'utf8');
+  const start=source.indexOf('async function rescanReviewRoom('),end=source.indexOf('// Sends each customer correction',start);
+  const old={name:'Kitchen',roomType:'kitchen',note:'Leave the keys alone',objects:[{inventoryKey:'oven',label:'Oven',quantity:1},{inventoryKey:'fridge',label:'Fridge',quantity:1}],taskRecords:[{text:'Clean the oven',origin:'vision',inventoryKeys:['oven']}]};
+  let nextResult=null, shouldFail=false, committed, options;
+  const state={rescanningRoom:false,scanPhotos:[{roomName:'Kitchen',dataUrl:'whole-room'}]};
+  const context=vm.createContext({state,applyCorrection,inferredRoomType,toast(){},taskReviewRooms:()=>[old],commitScanStructure:rooms=>{committed=rooms;},openRoomScan:async args=>{options=args;if(shouldFail)throw Error('unavailable');return nextResult;}});
+  vm.runInContext(source.slice(start,end),context);
+  await context.rescanReviewRoom('Kitchen','oven');assert.equal(committed,undefined);assert.equal(state.rescanningRoom,false);
+  nextResult={rooms:[{name:'Kitchen',objects:[{inventoryKey:'air fryer',label:'Air fryer',quantity:2},{inventoryKey:'microwave',label:'Microwave',quantity:1}]}]};
+  await context.rescanReviewRoom('Kitchen','oven');assert.equal(committed,undefined);
+  nextResult={rooms:[{name:'Kitchen',objects:[{inventoryKey:'air fryer',pricingCode:'air fryer',label:'Air fryer',quantity:2}]}],photos:[{roomName:'Kitchen',dataUrl:'close-up'}]};
+  await context.rescanReviewRoom('Kitchen','oven');
+  assert.equal(options.itemOnly,true);assert.equal(committed[0].objects.length,2);assert.equal(committed[0].objects[0].label,'Air fryer');
+  assert.equal(committed[0].objects[0].inventoryKey,'oven');assert.equal(committed[0].objects[1].label,'Fridge');
+  assert.equal(committed[0].note,old.note);assert.equal(committed[0].roomType,'kitchen');
+  assert.equal(committed[0].taskRecords[0].text,'Clean the 2 × air fryer');assert.equal(state.scanPhotos[0].dataUrl,'whole-room');
+  committed=undefined;shouldFail=true;await context.rescanReviewRoom('Kitchen','oven');assert.equal(committed,undefined);assert.equal(state.rescanningRoom,false);
+}

@@ -1761,7 +1761,7 @@ if (measureUi.host) {
 function renderReview() {
   if (!reviewHost) return;
   if (!state.scanRooms.length) setScanReviewStatus("");
-  if (!state.scanRooms.length) {
+  if (!state.scanRooms.length && !state.scanPremiumPlan) {
     reviewHost.hidden = true;
     return;
   }
@@ -1953,9 +1953,18 @@ async function rescanReviewRoom(roomName, inventoryKey = "") {
       replacement.objects = (old.objects || []).map(item => item.inventoryKey === inventoryKey ? { ...labels[0], inventoryKey } : item);
       replacement.taskRecords = old.taskRecords;
     }
-    const updated = { ...replacement, name: old.name, roomType: inferredRoomType(old), note: old.note };
-    state.scanPhotos = [...state.scanPhotos.filter(photo => photo.roomName !== roomName), ...(result.photos || []).filter(photo => photo.roomName === roomName)];
+    let updated = { ...replacement, name: old.name, roomType: inferredRoomType(old), note: old.note };
+    if (inventoryKey) {
+      const detected = replacement.objects.find(item => item.inventoryKey === inventoryKey);
+      let corrected = applyCorrection([old], {roomName, inventoryKey, field: "label", value: detected.label}).rooms;
+      corrected = applyCorrection(corrected, {roomName, inventoryKey, field: "quantity", value: detected.quantity}).rooms;
+      updated = {...corrected[0], objects: replacement.objects};
+    } else {
+      state.scanPhotos = [...state.scanPhotos.filter(photo => photo.roomName !== roomName), ...(result.photos || []).filter(photo => photo.roomName === roomName)];
+    }
     commitScanStructure(current.map(room => room === old ? updated : room));
+  } catch (error) {
+    toast("The rescan could not finish. Your original room is unchanged; try again.");
   } finally { state.rescanningRoom = false; }
 }
 

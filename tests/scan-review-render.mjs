@@ -422,4 +422,4 @@ console.log("Customer scan-review checks passed.");
   assert(context.state.scanReviewPage===0 && rendered[0]==="Room 0:last","Removing later findings left an unreachable page");
 }
 
-await import("./scan-review-edit.mjs");
+import "./scan-review-edit.mjs";
