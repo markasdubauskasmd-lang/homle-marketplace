@@ -184,7 +184,7 @@ console.log("Actual journey owner recovery passed: pre-auth isolation, same owne
   const start = journey.indexOf("function saveDraft()");
   const end = journey.indexOf("function restoreDraft()",start);
   const run = new Function("state","sessionStorage","draftKey","landlordRequestDraftLifetimeMs","currentReviewedNotes",
-    journey.slice(start,end)+";return saveDraft;");
+    "const correctedScanRooms = () => state.scanRooms;\n"+journey.slice(start,end)+";return saveDraft;");
   const save = run(state,storage,"draft",landlordRequestDraftLifetimeMs,
     ()=>reviewedScanNotes(state.scanRooms,state.scanNoteEdits,state.scanGeneralNote));
   save();

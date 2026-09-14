@@ -205,7 +205,7 @@ BEGIN
       (SELECT jsonb_build_array(jsonb_build_object('roomName','Kitchen','condition','light','note','','objects',
         (SELECT jsonb_agg(jsonb_build_object('inventoryKey','item-'||generation,'label','Item '||generation,'quantity',1,
           'condition','light','soiling','[]'::jsonb,'confidenceLabel',0.5,'confidenceCondition',0.5,
-          'conditionConfirmed',false,'evidence','','origin','vision')) FROM generate_series(1,41) AS generation)))),
+          'conditionConfirmed',false,'evidence','','origin','vision')) FROM generate_series(1,201) AS generation)))),
       'confirmation','anthropic','claude-haiku-4-5',1::smallint);
     RAISE EXCEPTION 'An oversized room was accepted';
   EXCEPTION WHEN SQLSTATE '22023' THEN
@@ -333,6 +333,24 @@ BEGIN
   END IF;
 END
 $measurements$;
+
+-- The browser and service accept 200 groups per room. Storage must retain
+-- the entire reviewed inventory and its independent room type.
+DO $editable_rooms$
+DECLARE stored jsonb;
+BEGIN
+  stored := tideway_private.record_room_scan(
+    '3b000000-0000-4000-8000-000000000009','3a000000-0000-4000-8000-000000000001','guided-web',now(),
+    jsonb_build_array(jsonb_build_object('roomName','Kitchen','roomType','kitchen','condition','light','note','',
+      'objects',(SELECT jsonb_agg(jsonb_build_object('inventoryKey','item-' || generation,'label','Item ' || generation,
+        'quantity',1,'condition','unknown','soiling','[]'::jsonb,'confidenceLabel',1,'confidenceCondition',0,
+        'conditionConfirmed',false,'evidence','','origin','manual')) FROM generate_series(1,200) AS generation))),
+    'confirmation','anthropic','claude-haiku-4-5',1::smallint);
+  IF jsonb_array_length(stored->'rooms'->0->'objects') <> 200 OR stored->'rooms'->0->>'roomType' <> 'kitchen' THEN
+    RAISE EXCEPTION 'The corrected room type or full inventory was lost';
+  END IF;
+END
+$editable_rooms$;
 
 -- A submitted request is frozen scope a Cleaner may already have accepted work
 -- against, so neither a new scan nor a correction may change it underneath them.

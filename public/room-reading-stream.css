@@ -1,2 +1,3 @@
 .found-item.is-provisional{max-width:100%}
 .found-item.is-provisional .found-name{display:flex;flex-wrap:wrap;align-items:center;gap:4px;max-width:100%;white-space:normal;overflow-wrap:anywhere;padding-right:11px;cursor:default}
+.scan-overlay .vf.picking~.deck [data-found]:not([hidden]){display:block}

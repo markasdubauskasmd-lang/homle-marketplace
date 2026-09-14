@@ -543,7 +543,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
 
 {
   const {applyCorrection} = await import("../public/scan-review-render.js");
-  const {premiumBaseTasks,premiumScope} = await import("../public/scan-premium-selection.js");
+  const {premiumBaseTasks,premiumScope,createPremiumPlan} = await import("../public/scan-premium-selection.js");
   const {scanTaskReview,withCurrentRoomInstructions,roomInstructionTasks} = await import("../public/room-scan-model.js");
   const {checklistFromTranscript} = await import("../public/checklist.js");
   const source = readFileSync(new URL("../public/landlord-journey.js", import.meta.url),"utf8");
@@ -563,10 +563,10 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     el.tasks.after = node => {host=node};
     const build = new Function("state","el","applyCorrection","scanChecklistLines","scanTaskReview",
       "premiumBaseTasks","premiumScope","document","textNode","invalidateScanRequest","premiumChoiceId",
-      "renderPremiumChoices","editableTaskLines","eligiblePremiumSelections","updateResultTotals","saveDraft","refreshScanReview","setChecklistError","withCurrentRoomInstructions","roomInstructionTasks","checklistFromTranscript",
-      source.slice(source.indexOf('el.tasks.addEventListener("input"'), source.indexOf('function editableTaskLines()')) + source.slice(start,end)+";return {correctScanObject,reconcileReviewedChecklist};");
+      "renderPremiumChoices","editableTaskLines","eligiblePremiumSelections","updateResultTotals","saveDraft","refreshScanReview","setChecklistError","withCurrentRoomInstructions","roomInstructionTasks","checklistFromTranscript","createPremiumPlan",
+      'const pricingConfig = {premiumItems:{}}; const defaultPricingConfig = pricingConfig; const renderReview = () => {};\n' + source.slice(source.indexOf('el.tasks.addEventListener("input"'), source.indexOf('function editableTaskLines()')) + source.slice(start,end)+";return {correctScanObject,reconcileReviewedChecklist};");
     const api = build(state,el,applyCorrection,scanChecklistLines,scanTaskReview,premiumBaseTasks,premiumScope,
-      document,textNode,()=>{},()=>"",()=>{},()=>el.tasks.value.split("\n").filter(Boolean),()=>[],()=>{},()=>{saves++},()=>{},()=>{},withCurrentRoomInstructions,roomInstructionTasks,checklistFromTranscript);
+      document,textNode,()=>{},()=>"",()=>{},()=>el.tasks.value.split("\n").filter(Boolean),()=>[],()=>{},()=>{saves++},()=>{},()=>{},withCurrentRoomInstructions,roomInstructionTasks,checklistFromTranscript,createPremiumPlan);
     return {state,el,api,host:()=>host,saves:()=>saves};
   }
   const untouched = fixture();
@@ -594,7 +594,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const prefixed = fixture();
   prefixed.state.scanRooms[0].taskRecords[0].text = "Kitchen: Clean the sink";
   prefixed.api.correctScanObject("Kitchen","sink","label","Counter");
-  assert.ok(prefixed.host().children.some(node=>node.text==="Kitchen: Clean the sink"),
+  assert.ok(prefixed.host().children.some(node=>node.text==="Kitchen: Clean the counter"),
     "An existing room prefix was doubled in the notice.");
   const legacy = fixture();
   delete legacy.state.draft.scanChecklistEdited;
@@ -617,7 +617,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.equal(protectedNote.el.tasks.value,"Kitchen: Clean the oven");
   const renamed = fixture();
   renamed.api.correctScanObject("Kitchen","sink","label","Counter");
-  assert.ok(renamed.el.tasks.value.includes("Kitchen: Clean the sink"));
+  assert.ok(renamed.el.tasks.value.includes("Kitchen: Clean the counter"));
   assert.equal(renamed.host().hidden,false);
 }
 
@@ -892,7 +892,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     let reads=0;
     const context=vm.createContext({...model,state,el,
       Image:class {naturalWidth=100;naturalHeight=100;set src(value){this.onload();}},
-      prepareLiveRoom(){throw Error("Unexpected fresh capture");},stopDetection(){},layoutFrozen(){},refreshSelection(){},
+      seedSavedInventory(){},prepareLiveRoom(){throw Error("Unexpected fresh capture");},stopDetection(){},layoutFrozen(){},refreshSelection(){},
       setRoomTranscript(){},roomTranscript:()=>"",scanEvents:{record(){}},elapsedSince:()=>0,renderScanProgress(){},
       transcriptKey:name=>name.toLowerCase(),inventoryFor:()=>[],localRoomTasks:()=>[],toHub(){},
       nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},
@@ -942,7 +942,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const context=vm.createContext({state,applyCorrection,document:{createElement:()=>new Node()},
     textNode:()=>new Node(),premiumChoiceId:()=>"",renderPremiumChoices(){},reconcileReviewedChecklist(){},
     premiumScope:()=>[],editableTaskLines:()=>[],eligiblePremiumSelections:()=>[],updateResultTotals(){},
-    invalidateScanRequest(){effects.invalidations++;},saveDraft(){effects.saves++;},refreshScanReview(){effects.refreshes++;}});
+    invalidateScanRequest(){effects.invalidations++;},saveDraft(){effects.saves++;},renderReview(){},refreshScanReview(){effects.refreshes++;}});
   vm.runInContext(controls+"\n"+corrected+"\n"+correction,context);
   const row=context.objectControls("Kitchen",object);
   const actions=row.children.at(-1);
@@ -1044,7 +1044,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     let reads=0;
     const context=vm.createContext({...model,state,el,
       Image:class {naturalWidth=100;naturalHeight=100;set src(value){this.onload();}},
-      prepareLiveRoom(){throw Error("Unexpected capture");},stopDetection(){},layoutFrozen(){},refreshSelection(){},
+      seedSavedInventory(){},prepareLiveRoom(){throw Error("Unexpected capture");},stopDetection(){},layoutFrozen(){},refreshSelection(){},
       setRoomTranscript(){},roomTranscript:()=>el.note.value,scanEvents:{record(){}},elapsedSince:()=>0,renderScanProgress(){},
       transcriptKey:name=>name.toLowerCase(),inventoryFor:()=>cached?[{...hidden,key:hidden.inventoryKey}]:[],localRoomTasks:()=>[],toHub(){},
       nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},window:{setTimeout:fn=>fn()},
@@ -1108,7 +1108,7 @@ for(const count of [15,40,45]){
   roomReadingPayload:()=>({withinLimit:true,body:{}}),recoverCsrf:async()=> 'test',
   fetch:async()=>({ok:true,status:200,headers:new Headers({"content-type":"application/json"}),json:async()=>payload}),window:{setTimeout,clearTimeout},localRoomTasks:()=>[],
   Image:class{naturalWidth=100;naturalHeight=100;set src(value){this.onload();}},
-  prepareLiveRoom(){throw Error('Unexpected capture');},stopDetection(){},layoutFrozen(){},refreshSelection(){},
+  seedSavedInventory(){},prepareLiveRoom(){throw Error('Unexpected capture');},stopDetection(){},layoutFrozen(){},refreshSelection(){},
   setRoomTranscript(){},roomTranscript:()=>'',scanEvents:{record(){},flush(){}},elapsedSince:()=>0,renderScanProgress(){},
   transcriptKey:name=>name.toLowerCase(),inventoryFor:()=>inventory,toHub(){},nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},renderHub(){},
   readRoomInBackground(){throw Error('Unchanged revisit must not read again');},stopVoice(){},forgetRoomNotes(){},stopCamera(){},close:value=>closed=value
@@ -1148,7 +1148,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(report.taskRecords[0].inventoryKeys))
   const draw = (items, {busy = false, spotted = 0} = {}) => {
     const el = {foundList:[],found:{},foundBusy:{},foundCount:{},foundNoun:{}};
     const context = {...model, el,
-      state:{keyframeActiveRooms:new Set(busy ? ["room"] : []),walkingPreviews:new Map(),frozen:false,screen:"live",tracks:Array(spotted).fill({})},
+      state:{currentRoom:"Kitchen",keyframeActiveRooms:new Set(busy ? ["room"] : []),walkingPreviews:new Map(),frozen:false,screen:"live",tracks:Array(spotted).fill({})},
       renderScanDebug(){},inventoryFor:()=>items,transcriptKey:()=>"room"};
     vm.runInNewContext(source.slice(start,end)+"}\nrenderInventory();",context);
     return [el.foundCount.textContent,el.foundNoun.textContent,el.found.hidden,el.foundBusy.hidden];
@@ -1165,7 +1165,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(report.taskRecords[0].inventoryKeys))
     assert.equal(model.inventoryConditionCounts([item]).uncertain,3);
   assert.deepEqual(model.inventoryConditionCounts([{...uncertain,conditionConfidence:.5},{label:"Tap",condition:"clean",conditionConfidence:.7}]),
     {total:4,needsWork:3,clean:1,uncertain:0});
-  assert.deepEqual(draw([]),["","Reading the room…",true,true]);
+  assert.deepEqual(draw([]),["","No items yet · add one or scan another view",false,true]);
   assert.deepEqual(draw([],{busy:true,spotted:2}),["2","spotted · reading…",false,false]);
   assert.deepEqual(draw([],{spotted:2}),["2","spotted · hold steady to read",false,true]);
 }
