@@ -1,6 +1,6 @@
 import { onboardingIcons, onboardingProgress, requiredOnboardingSubmissionKeys } from "./cleaner-onboarding-steps.js?v=20260807-3";
 import { element } from "./cleaner-page.js?v=20260807-1";
-import { saveCsrf, storedCsrf } from "./session-csrf.js";
+import { saveCsrf } from "./session-csrf.js";
 
 const stageDetails = Object.freeze([
   { key: "personal", title: "Personal details", href: "/cleaner/personal-details", icon: "user" },
@@ -98,8 +98,6 @@ function showReviewLayout() {
 }
 
 async function secureCsrf(requestJson) {
-  const existing = storedCsrf();
-  if (existing) return existing;
   const session = await requestJson("/api/marketplace/auth/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -123,8 +121,8 @@ function renderReviewStages({ sections, submission, profile, documents }) {
     const icon = element("span", "hc-review-stage-icon");
     icon.append(stageIcon(stage.icon));
     const copy = element("div", "hc-review-stage-copy");
-    copy.append(element("strong", "", stage.title), element("p", "", complete ? sectionSummary(stage.key, section?.data, profile, documents) : "Complete this stage before submitting."));
-    const state = element("span", `hc-review-stage-state${complete ? " is-complete" : ""}`, complete ? "Ready" : stage.optional ? "Optional" : "Needs attention");
+    copy.append(element("strong", "", stage.title), element("p", "", complete ? sectionSummary(stage.key, section?.data, profile, documents) : stage.optional ? "Not completed. This does not prevent submitting your application for review." : "Complete this stage before submitting."));
+    const state = element("span", `hc-review-stage-state${complete ? " is-complete" : ""}`, complete ? "Saved — awaiting review" : stage.optional ? "Not required to submit" : "Needs attention");
     const edit = element("a", "hc-review-stage-edit", complete ? "Review" : "Complete");
     edit.href = stage.href;
     edit.setAttribute("aria-label", `${complete ? "Review" : "Complete"} ${stage.title}`);

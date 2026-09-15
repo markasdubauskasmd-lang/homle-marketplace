@@ -1,5 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { storedCsrf } from "./session-csrf.js";
 
 const draftKey = "homle-cleaner-personal-details-draft-v1";
@@ -304,7 +304,7 @@ export async function setupPersonalDetails({ account, showFeedback, requestJson 
       await saveOnboardingForm(requestJson, "personal", form, { extra: formFields(form) });
       storage?.removeItem(draftKey);
       showFeedback("Personal details saved securely to your Homle account.");
-      location.assign("/cleaner/onboarding");
+      location.assign("/cleaner/business-details");
     } catch (error) {
       showFeedback(error.message || "Homle could not save your Personal details.", "error");
     }

@@ -1,5 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { saveCsrf, storedCsrf } from "./session-csrf.js";
 
 const serviceTypes = new Set(["cleaner", "beautician"]);
@@ -321,7 +321,7 @@ export async function setupEquipment({ account, showFeedback, requestJson }) {
       profile = results[1].profile;
       hydrateEquipment(form, profile, equipmentData);
       showFeedback(`${serviceType === "beautician" ? "Beauty" : "Cleaning"} equipment and primary travel mode saved.`, "success");
-      location.assign("/cleaner/work-areas");
+      location.assign("/cleaner/documents");
     } catch (error) {
       showFeedback(error.message || "Equipment could not be saved.", "error");
     } finally {

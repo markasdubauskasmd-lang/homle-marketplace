@@ -1,6 +1,6 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
-import { refreshOnboardingCsrf } from "./cleaner-onboarding-client.js?v=20260913-history-areas-2";
+import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
+import { refreshOnboardingCsrf } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { hydrateOnboardingDocumentInputs, selectedDocumentCopy, storedDocumentCopy, uploadOnboardingFormDocuments, validateOnboardingDocument } from "./cleaner-onboarding-documents.js?v=20260805-1";
 
 const serviceTypes = new Set(["cleaner", "beautician"]);
@@ -306,7 +306,7 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
       profile = results[1].profile;
       hydrateExperience(form, profile, results[0]?.data || { serviceType, specialisms, yearsExperience: form.elements.yearsExperience.value }, { serviceType });
       showFeedback(`${serviceType === "beautician" ? "Beautician" : "Cleaner"} Skills and Experience saved securely.`, "success");
-      location.assign("/cleaner/onboarding");
+      location.assign("/cleaner/insurance");
     } catch (error) {
       showFeedback(error.message || "Skills and Experience could not be saved.", "error");
     } finally {

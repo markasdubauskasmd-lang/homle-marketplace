@@ -1,5 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260807-2";
-import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import {
   hydrateOnboardingDocumentInputs,
   selectedDocumentCopy,
