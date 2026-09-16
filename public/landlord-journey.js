@@ -1997,11 +1997,13 @@ function changeScanStructure(edit) {
 }
 async function rescanReviewRoom(roomName, inventoryKey = "") {
   if (state.rescanningRoom) return;
-  const owner = state.draftOwner;
+  const owner = state.draftOwner, draft = state.draft, sourceRooms = state.scanRooms;
   state.rescanningRoom = true;
   try {
     const result = await openRoomScan({ initialRoom: roomName, itemOnly: Boolean(inventoryKey) });
-    if (state.draftOwner !== owner) return;
+    // A room with the same name may belong to a newer draft or scan. Its
+    // photos, instructions and inventory cannot accept this older camera read.
+    if (state.draftOwner !== owner || state.draft !== draft || state.scanRooms !== sourceRooms) return;
     if (!result?.rooms?.length) return;
     const current = taskReviewRooms();
     const old = current.find(room => room.name === roomName);

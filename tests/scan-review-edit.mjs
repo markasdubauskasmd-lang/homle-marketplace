@@ -118,6 +118,23 @@ console.log("Scan structural review: local edits, duplicate names, moves, scope,
   assert.equal(JSON.stringify(state.scanPhotos),photosBefore);
   context.openRoomScan=async()=>{state.draftOwner='different-owner';return nextResult;};
   await context.rescanReviewRoom('Kitchen'); assert.equal(committed,undefined,'Rescan data crossed an account change');
+  for (const replacement of ['draft', 'rooms']) {
+    state.scanGeneralNote='';
+    state.draft={requestId:'original'};
+    state.scanRooms=[old];
+    state.scanNoteEdits={kitchen:'Existing instructions'};
+    const photosBefore=JSON.stringify(state.scanPhotos), notesBefore=JSON.stringify(state.scanNoteEdits);
+    context.openRoomScan=async()=>{
+      if(replacement==='draft')state.draft={requestId:'replacement'};
+      else state.scanRooms=[{...old,note:'Replacement scan'}];
+      return nextResult;
+    };
+    await context.rescanReviewRoom('Kitchen');
+    assert.equal(committed,undefined,'Late rescan overwrote replacement '+replacement+' for the same account');
+    assert.equal(JSON.stringify(state.scanPhotos),photosBefore,'Stale rescan replaced another draft photo');
+    assert.equal(JSON.stringify(state.scanNoteEdits),notesBefore,'Stale rescan replaced another draft instructions');
+    assert.equal(state.rescanningRoom,false);
+  }
 }
 
 // Dismissals survive the real save/restore path and later checklist edits.

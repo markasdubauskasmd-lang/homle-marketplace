@@ -769,6 +769,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       if ((!current && key !== "__new__") || state.closed) return;
       itemEditorKey = key;
       itemEditorPreviousFocus = trigger instanceof HTMLElement ? trigger : document.activeElement;
+      el.itemEditorName.setCustomValidity("");
       el.itemEditorName.value = current?.label || "";
       el.itemEditorQuantity.value = String(itemQuantity(current));
       const options = el.itemEditorForm.elements["homle-item-condition"];
@@ -859,6 +860,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       // same name would resurrect items the Landlord had just removed.
       state.inventories.delete(key);
       state.walkEvidence.delete(key);
+      state.dismissed.delete(key);
       // The BUDGET deliberately stays. Deleting it made remove-and-re-add an
       // unlimited supply of paid reads, which is exactly the bound the consent
       // promises. The room keeps its generation bump below, so anything still in
@@ -4289,6 +4291,9 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     });
     $("[data-add-inventory]").addEventListener("click", (event) => openItemEditor("__new__", event.currentTarget));
     el.itemEditorCancel.addEventListener("click", () => closeItemEditor());
+    // Native validation runs before submit; clear a whitespace-name error as
+    // the customer corrects it so the next valid submission can reach us.
+    el.itemEditorName.addEventListener("input", () => el.itemEditorName.setCustomValidity(""));
     el.itemEditor.addEventListener("click", (event) => {
       if (event.target === el.itemEditor) closeItemEditor();
     });
