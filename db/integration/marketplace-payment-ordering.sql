@@ -186,7 +186,7 @@ BEGIN
       IF ordering=0 THEN PERFORM pg_temp.test_dispute_event(event_name||'_open','du_order_test','needs_response',t,'dispute-opened'); END IF;
       result := pg_temp.test_dispute_event(event_name||'_closed','du_order_test',outcome,t);
       IF ordering=1 THEN PERFORM pg_temp.test_dispute_event(event_name||'_open','du_order_test','needs_response',t,'dispute-opened'); END IF;
-      IF (SELECT status FROM booking_payments WHERE id=p) <> CASE WHEN outcome IN ('won','warning_closed') THEN 'captured' ELSE 'disputed' END
+      IF (SELECT status FROM booking_payments WHERE id=p) <> (CASE WHEN outcome IN ('won','warning_closed') THEN 'captured' ELSE 'disputed' END)
         THEN RAISE EXCEPTION 'Wrong dispute outcome % order %',outcome,ordering; END IF;
       IF (SELECT amount_captured_pence FROM booking_payments WHERE id=p) <> payment.amount_captured_pence OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>0
         THEN RAISE EXCEPTION 'Dispute changed money totals'; END IF;
