@@ -15,6 +15,7 @@ import { createBookingRepository } from "./booking-repository.mjs";
 import { bookingPricingPolicyFromEnvironment, createBookingWorkflowService } from "./booking-workflow.mjs";
 import { createPaymentRepository } from "./payment-repository.mjs";
 import { createPaymentService } from "./payment-service.mjs";
+import { paymentCommandWritesPaused } from "./payment-command-policy.mjs";
 import { createCleanerPayoutRepository } from "./cleaner-payout-repository.mjs";
 import { createCleanerPayoutService } from "./cleaner-payout-service.mjs";
 import { createMatchingRepository } from "./matching-repository.mjs";
@@ -223,7 +224,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const bookingRepository = createBookingRepository(database);
   const bookingPricingPolicy = options.bookingPricingPolicy || bookingPricingPolicyFromEnvironment(env);
   const paymentRepository = createPaymentRepository(database);
-  const paymentService = options.paymentProvider ? createPaymentService(paymentRepository, options.paymentProvider, { publishableKey: env.STRIPE_PUBLISHABLE_KEY }) : null;
+  const commandWritesPaused = paymentCommandWritesPaused(env);
+  const paymentService = options.paymentProvider ? createPaymentService(paymentRepository, options.paymentProvider, { publishableKey: env.STRIPE_PUBLISHABLE_KEY, commandWritesPaused }) : null;
   const cleanerPayoutRepository = createCleanerPayoutRepository(database);
   const cleanerPayoutService = options.paymentProvider ? createCleanerPayoutService(cleanerPayoutRepository, options.paymentProvider, { appOrigin: environment.appOrigin }) : null;
   const bookingWorkflowService = createBookingWorkflowService(bookingRepository, {
@@ -353,6 +355,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     cleanerPayoutRepository,
     cleanerPayoutService,
     paymentReady: paymentService !== null,
+    paymentCommandWritesPaused: commandWritesPaused,
     matchingRepository,
     matchingService,
     journeyRepository,
