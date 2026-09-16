@@ -1,4 +1,4 @@
-import { inventoryKey, inventoryDisplayLabel, scanTaskRecordsFor } from "./room-scan-model.js";
+import { inventoryKey, inventoryDisplayLabel, scanTaskRecordsFor, mergeScanTaskRecords, mergeSavedDetections } from "./room-scan-model.js";
 
 export const scanRoomTypes = ["kitchen", "bathroom", "bedroom", "living-room", "dining-room", "hallway", "other"];
 const key = value => String(value || "").trim().toLowerCase();
@@ -13,6 +13,57 @@ function changed(room, objects, removed = [], added = []) {
     removedInventoryKeys: [...new Set([...(room.removedInventoryKeys || []), ...removed])],
     changedInventoryKeys: [...new Set([...(room.changedInventoryKeys || []), ...removed, ...added])]
   };
+}
+
+// Another view may miss an existing item. Only an explicit removal changes that
+// scope; a new AI reading cannot undo a customer's earlier corrections either.
+export function mergeReviewedRoomRescan(previous, reading) {
+  const removed = new Set(previous.removedInventoryKeys || []);
+  const protectedKeys = new Set(previous.changedInventoryKeys || []);
+  const objects = (previous.objects || []).filter(item => !removed.has(item.inventoryKey)).map(item => ({...item}));
+  for (const item of objects) {
+    if (item.origin === "manual" || item.conditionConfirmed || item.quantityConfirmed) protectedKeys.add(item.inventoryKey);
+  }
+  const refreshed = new Set();
+  const remapped = new Map();
+  for (const item of reading.objects || []) {
+    const identity = item.inventoryKey || inventoryKey(item.label);
+    if (!identity || removed.has(identity)) continue;
+    // A corrected label can be detected under its new canonical key. Reuse its
+    // stable review identity rather than creating a second copy of that item.
+    let index = objects.findIndex(old => old.inventoryKey === identity);
+    if (index < 0) index = objects.findIndex(old => protectedKeys.has(old.inventoryKey) && inventoryKey(old.label) === inventoryKey(item.label));
+    const targetKey = index < 0 ? identity : objects[index].inventoryKey;
+    remapped.set(identity, targetKey);
+    if (protectedKeys.has(targetKey)) continue;
+    if (index < 0) objects.push({...item, inventoryKey:targetKey});
+    else {
+      const prior = objects[index];
+      // Review objects and camera detections use distinct field names. Carry
+      // the independent score and its evidence together through their merge.
+      const detection = value => ({...value, conditionConfidence:value.confidenceCondition ?? value.conditionConfidence ?? null,
+        note:value.evidence ?? value.note ?? ""});
+      const merged = mergeSavedDetections([detection(prior)], [detection({...item, inventoryKey:targetKey})])[0];
+      objects[index] = {...merged, confidenceCondition:merged.conditionConfidence ?? 0, evidence:merged.condition ? merged.note : ""};
+      // A narrower view does not remove another previously visible appliance.
+      // Retain its already correctly counted tasks as well as its quantity.
+      if (objects[index].quantity !== item.quantity) { protectedKeys.add(targetKey); continue; }
+    }
+    refreshed.add(targetKey);
+  }
+  const oldRecords = scanTaskRecordsFor(previous).filter(record => record.origin !== "vision"
+    || !record.inventoryKeys.length || !record.inventoryKeys.every(identity => refreshed.has(identity)));
+  const newRecords = scanTaskRecordsFor(reading).map(record => ({...record,
+    inventoryKeys:record.inventoryKeys.map(identity => remapped.get(identity) || identity)}))
+    .filter(record => record.origin !== "vision" || !record.inventoryKeys.length
+      || !record.inventoryKeys.every(identity => removed.has(identity) || protectedKeys.has(identity)));
+  const taskRecords = mergeScanTaskRecords(oldRecords, newRecords);
+  const note = [...new Set([previous.note, reading.note].flatMap(value => String(value || "").split("\n")).map(value => value.trim()).filter(Boolean))].join("\n");
+  if (objects.length > 200) throw new RangeError("This room would exceed 200 item groups. Your original room is unchanged; remove incorrect items before rescanning.");
+  if (note.length > 1000) throw new RangeError("The combined room instructions exceed 1,000 characters. Your original room is unchanged; shorten its notes before rescanning.");
+  return {...previous, ...reading, name:previous.name || previous.roomName, roomType:inferredRoomType(previous),
+    note, objects, fixtures:objects.map(inventoryDisplayLabel), taskRecords, tasks:taskRecords.map(record => record.text),
+    removedInventoryKeys:[...removed], changedInventoryKeys:[...protectedKeys]};
 }
 
 // Structural edits are local and immutable; a failing assessment cannot undo

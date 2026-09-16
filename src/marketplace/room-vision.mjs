@@ -19,6 +19,13 @@ const maximumImageBytes = 4 * 1024 * 1024;
 // Camera-selected annotation requests retain their separate twelve-item bound.
 const maximumDetections = 40;
 const maximumTasks = 8;
+// Forty objects each carry identity, geometry and condition evidence. The old
+// 2048-token ceiling was shared with the smaller selected-item response: a busy
+// room could hit it and lose the entire reading, including streamed previews.
+// This is a ceiling, not a requested response length. Small rooms still finish
+// immediately; existing cancellation/deadlines and attempt limits stay intact.
+const wholeRoomOutputTokens = 8192;
+const selectedItemOutputTokens = 2048;
 
 // Bumped whenever the reading schema or the condition scale changes meaning.
 // A stored scan records it alongside the model id, because "medium" graded
@@ -54,6 +61,7 @@ const readingSchema = Object.freeze({
     condition: { type: "string", enum: ["light", "medium", "heavy", "unknown"], description: "How dirty the room is overall, or 'unknown' when the photograph does not support a judgement." },
     detections: {
       type: "array",
+      description: "At most 40 visible objects. Include each object once and keep its evidence concise.",
       items: {
         type: "object",
         properties: {
@@ -249,7 +257,7 @@ function taskEvidence(payload, references) {
   const taskLinks = [];
   for (const link of candidates) {
     if (!Number.isInteger(link?.taskIndex) || !taskIndexes.has(link.taskIndex) || counts.get(link.taskIndex) !== 1
-      || !Array.isArray(link.itemRefs) || !link.itemRefs.length || link.itemRefs.length > 24
+      || !Array.isArray(link.itemRefs) || !link.itemRefs.length || link.itemRefs.length > maximumDetections
       || !link.itemRefs.every(ref => typeof ref === "string" && references.has(ref))) continue;
     taskLinks.push(Object.freeze({
       taskIndex: taskIndexes.get(link.taskIndex),
@@ -545,7 +553,7 @@ export function createAnthropicRoomVision(options = {}) {
 
       const request = {
         model: selectedModel,
-        max_tokens: 2048,
+        max_tokens: wholeRoomOutputTokens,
         system: cachedSystem(instructions),
         output_config: outputConfig(selectedModel, readingSchema, purpose),
         messages: [{ role: "user", content: [imagePayload(image), { type: "text", text: context }] }]
@@ -610,7 +618,7 @@ export function createAnthropicRoomVision(options = {}) {
 
       const response = await client.messages.create({
         model: confirmationModel,
-        max_tokens: 2048,
+        max_tokens: selectedItemOutputTokens,
         system: cachedSystem(selectionInstructions),
         // Always the confirmation tier: this read produces the condition and the
         // checklist, whatever the customer tapped.

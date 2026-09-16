@@ -76,3 +76,6 @@ for (const stage of ["permission", "first-frame"]) for (const action of ["backgr
 }
 
 console.log("Camera lifecycle: foreground/Reset during permission or first-frame waits, silent cancellation and late-stream ownership passed.");
+
+import "./camera-capture-ownership.mjs";
+import "./camera-fallback-recovery.mjs";

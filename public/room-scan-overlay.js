@@ -1413,6 +1413,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     }
 
     function stopCamera() {
+      state.liveCapturePending = null;
       cameraSession.stop();
       for (const track of state.stream?.getTracks?.() || []) track.stop();
       state.stream = null;
@@ -1454,11 +1455,46 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       return applyCameraZoom(reset);
     }
 
+    const pendingTrackConstraints = new WeakMap();
+    async function waitForCameraOperation(operation, milliseconds, message) {
+      let timer;
+      try {
+        return await Promise.race([operation, new Promise((resolve, reject) => {
+          timer = window.setTimeout(() => reject(Object.assign(new TypeError(message), { code: "camera-operation-timeout" })), milliseconds);
+        })]);
+      } finally {
+        window.clearTimeout(timer);
+      }
+    }
+
     async function applyTrackConstraint(constraint) {
       const track = state.cameraTrack;
-      if (!track?.applyConstraints) return false;
-      try { await track.applyConstraints({ advanced: [constraint] }); return track === state.cameraTrack && !state.closed; }
-      catch { return false; }
+      if (!track?.applyConstraints || pendingTrackConstraints.has(track)) return false;
+      let timedOut = false;
+      try {
+        // Hardware changes cannot be cancelled. Keep the track locked even if
+        // its UI deadline expires, until the original operation really settles.
+        const operation = Promise.resolve().then(() => track.applyConstraints({ advanced: [constraint] }));
+        pendingTrackConstraints.set(track, operation);
+        const release = () => {
+          if (pendingTrackConstraints.get(track) !== operation) return;
+          pendingTrackConstraints.delete(track);
+          // A deadline does not cancel the hardware. If it eventually reports
+          // a different actual setting, keep the current camera's chip truthful.
+          if (timedOut && track === state.cameraTrack && !state.closed) {
+            try {
+              const actual = track.getSettings?.()?.torch;
+              if (typeof actual === "boolean") { state.torchOn = actual; renderCameraAssist(); }
+            } catch { /* No setting means the late result cannot be verified. */ }
+          }
+        };
+        operation.then(release, release);
+        await waitForCameraOperation(operation, 3000, "The torch did not respond in time.");
+        if (track !== state.cameraTrack || state.closed) return false;
+        const actual = track.getSettings?.()?.torch;
+        return typeof actual !== "boolean" || actual === constraint.torch;
+      }
+      catch (error) { timedOut = error?.code === "camera-operation-timeout"; return false; }
     }
 
     // Chrome on Android fills `getCapabilities()` in asynchronously after
@@ -1521,7 +1557,12 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         declined: state.torchDeclined,
         darkStreak: state.darkStreak
       })) {
-        if (await applyTrackConstraint({ torch: true })) {
+        const track = state.cameraTrack;
+        const session = state.roomSession;
+        if (pendingTrackConstraints.has(track)) return;
+        const applied = await applyTrackConstraint({ torch: true });
+        if (state.closed || track !== state.cameraTrack || session !== state.roomSession) return;
+        if (applied) {
           state.torchOn = true;
           state.darkStreak = 0;
           renderCameraAssist();
@@ -1539,16 +1580,19 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     }
 
     async function toggleTorch() {
-      if (!state.cameraTrack) return;
-      if (state.torchOn) {
-        await applyTrackConstraint({ torch: false });
-        state.torchOn = false;
-        // The customer's "no" is final for this room: no automatic re-light.
-        state.torchDeclined = true;
-      } else if (await applyTrackConstraint({ torch: true })) {
-        state.torchOn = true;
-        state.torchDeclined = false;
+      const track = state.cameraTrack, session = state.roomSession;
+      if (!track || state.closed) return;
+      const target = !state.torchOn;
+      // An unsuccessful off command still records the customer's preference.
+      if (!target) state.torchDeclined = true;
+      const applied = await applyTrackConstraint({ torch: target });
+      if (state.closed || track !== state.cameraTrack || session !== state.roomSession) return;
+      if (!applied) {
+        toast("The torch could not change. Try again, or close and reopen the scanner to reset the camera.");
+        return;
       }
+      state.torchOn = target;
+      state.torchDeclined = !target;
       renderCameraAssist();
     }
 
@@ -1716,39 +1760,54 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     // shared canvas is drawn; otherwise an earlier live frame's boxes can blur
     // the wrong pixels while a person in the selected photo remains visible.
     async function refreshPrivateRegionsForSource(source, width, height) {
+      const session = state.roomSession;
+      const isCurrent = () => !state.closed && session === state.roomSession;
       state.privateRegions = [];
       state.privateRegionSource = null;
       state.lastRedaction = null;
       let detector = state.detector;
       if (!detector) {
         try {
-          detector = await loadDetectorOnce();
+          detector = await waitForCameraOperation(loadDetectorOnce(), 12000, "The private-content check took too long to load. Try this photo again.");
+          if (!isCurrent()) return;
           state.detector = detector;
           state.detectorState = "ready";
           renderDetectorState();
         } catch {
-          state.detectorState = "unavailable";
-          state.liveDetectionAvailable = false;
-          renderDetectorState();
+          if (isCurrent()) {
+            state.detectorState = "unavailable";
+            state.liveDetectionAvailable = false;
+            renderDetectorState();
+          }
           throw new TypeError("This phone could not run the private-content check. Use the live camera or a voice note instead.");
         }
       }
       const deadline = Date.now() + 6_000;
       while (detectorBusy && Date.now() < deadline) {
         await new Promise((resume) => window.setTimeout(resume, 40));
+        if (!isCurrent()) return;
       }
       if (detectorBusy) throw new TypeError("The private-content check is still busy. Try this photo again.");
       detectorBusy = true;
       try {
-        const found = await detector.detect(source, 12, detectionMinimumScore);
+        const operation = Promise.resolve().then(() => detector.detect(source, 12, detectionMinimumScore));
+        // Inference has no cancellation API on the main-thread backend. A late
+        // completion releases the singleton but may never install stale data.
+        const release = () => { detectorBusy = false; };
+        operation.then(release, release);
+        const found = await waitForCameraOperation(operation, 8000, "The private-content check took too long. Try another photo or use a room note.");
+        if (!isCurrent()) return;
         state.privateRegions = (Array.isArray(found) ? found : [])
           .filter((item) => shouldRedact(item?.class))
           .map((item) => ({ class: item.class, bbox: Array.isArray(item?.bbox) ? item.bbox : [] }));
         state.privateRegionSource = { width, height };
       } catch {
+        if (isCurrent()) {
+          state.detectorState = "unavailable";
+          state.liveDetectionAvailable = false;
+          renderDetectorState();
+        }
         throw new TypeError("This photo could not be checked for people or private screens. Use the live camera or a voice note instead.");
-      } finally {
-        detectorBusy = false;
       }
     }
 
@@ -1929,7 +1988,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     // chosen from the phone's own camera gets none of them. Reporting the two
     // as one device class would average their accuracy together and hide the
     // gap, which is the opposite of what the stored scan is for.
-    function freezeFrame(frame, { preselect = "", live = true } = {}) {
+    function freezeFrame(frame, { preselect = "", live = true, candidates = [] } = {}) {
       // A live capture or a phone photo is a fresh frame, not an edit of a stored
       // one, so its save must read. Only openRevisit marks a frame as an edit.
       state.revisiting = false;
@@ -1942,16 +2001,16 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       el.selection.hidden = false;
       el.viewfinder.classList.add("picking");
       // Whatever the detector had settled on becomes the starting selection.
-      state.candidates = live ? usableLiveBoxes(drawableTracks(state.tracks).map((track) => ({
-        id: `d${track.id}`, x: track.x, y: track.y, width: track.width, height: track.height,
-        label: track.label, kind: "detected", score: track.score
-      }))) : [];
+      // Capture owns these coordinates. The live tracker may have moved while
+      // the JPEG encoded, so its current geometry cannot describe this photo.
+      state.candidates = live ? candidates : [];
       state.selectedIds = new Set(preselect ? [preselect] : []);
       layoutFrozen();
       refreshSelection();
     }
 
     function unfreeze() {
+      state.liveCapturePending = null;
       state.frozen = false;
       // Stale guidance from before the freeze must not reappear with the live feed.
       state.qualityKind = "";
@@ -1976,6 +2035,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       el.selection.hidden = true;
       el.viewfinder.classList.remove("picking");
       clearBoxes();
+      el.shutter.disabled = state.loadingRoom || state.photoProcessing || state.videoProcessing || !el.blocked.hidden;
       // Back to full-bleed: live boxes are percentages of the viewfinder again.
       resetLayout();
       if (state.stream) startDetection();
@@ -2005,23 +2065,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       const point = tapPoint(event);
       if (!point) return;
       if (!state.frozen) {
-        // Tapping the live feed freezes it, and lands on whatever was tapped.
-        // The pixels and the hit test both belong to the moment of the tap: the
-        // draw and the track lookup are synchronous, only the JPEG is awaited.
-        const pending = currentFrame();
-        if (!pending) return toast("The camera is still warming up — try again in a moment.");
-        const live = usableLiveBoxes(drawableTracks(state.tracks).map((track) => ({
-          id: `d${track.id}`, x: track.x, y: track.y, width: track.width, height: track.height,
-          label: track.label, kind: "detected", score: track.score
-        })));
-        const hit = boxAtPoint(live, point.x, point.y);
-        flashViewfinder();
-        const frame = await pending.catch(() => "");
-        // A shutter press or a second tap may have frozen the view first.
-        if (state.closed || state.frozen || state.screen !== "live") return;
-        if (!frame) return toast("The camera is still warming up — try again in a moment.");
-        freezeFrame(frame, { preselect: hit ? hit.id : "" });
-        return;
+        return capture({ point });
       }
       const hit = boxAtPoint(state.candidates, point.x, point.y);
       if (hit) {
@@ -2356,17 +2400,26 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
 
     // The shutter freezes first and saves second, so there is always a chance to
     // choose — or correct — what the room is read for.
-    async function capture() {
-      if (state.screen !== "live" || state.capturing || state.loadingRoom) return;
+    async function capture({ point = null } = {}) {
+      if (state.screen !== "live" || state.capturing || state.loadingRoom || state.photoProcessing || state.videoProcessing
+        || state.liveCapturePending?.session === state.roomSession) return;
       if (state.frozen) return confirmSelection();
+      const owner = { session: state.roomSession, track: state.cameraTrack };
+      const candidates = usableLiveBoxes(drawableTracks(state.tracks).map((track) => ({
+        id: `d${track.id}`, x: track.x, y: track.y, width: track.width, height: track.height,
+        label: track.label, kind: "detected", score: track.score
+      })));
+      const hit = point ? boxAtPoint(candidates, point.x, point.y) : null;
       const pending = currentFrame();
       if (!pending) return toast("The camera is still warming up — try again in a moment.");
+      const redaction = state.lastRedaction;
       // A frame that is mostly erased is no longer a photograph of a room, and
       // it is also the frame most likely to have contained somebody. Asking for
       // another is better than storing one whose useful content is gone. The
       // redaction verdict is set during the synchronous draw, so it is already
       // decided here even though the JPEG is still encoding.
-      if (state.lastRedaction && state.lastRedaction.ratio > unusableRedactionRatio) {
+      if (redaction && redaction.ratio > unusableRedactionRatio) {
+        void pending.catch(() => {});
         scanEvents.record("scan.redaction.frame_rejected");
         return toast("Most of that photo was a person or a screen, so it was not kept. Point the camera at the room itself.");
       }
@@ -2374,22 +2427,29 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       // the encode finishes off the main thread, so the press never reads as
       // ignored and a double press cannot start a second encode.
       flashViewfinder();
+      state.liveCapturePending = owner;
       el.shutter.disabled = true;
       try {
         const frame = await pending;
         // The overlay may have moved on while the JPEG encoded — closed, left
         // for the hub, or frozen by a tap that landed first.
-        if (state.closed || state.frozen || state.screen !== "live") return;
+        if (state.closed || state.frozen || state.screen !== "live" || owner.session !== state.roomSession
+          || owner.track !== state.cameraTrack || state.liveCapturePending !== owner) return;
         if (!frame) return toast("The camera is still warming up — try again in a moment.");
-        freezeFrame(frame);
+        freezeFrame(frame, { candidates, preselect: hit?.id || "" });
         // Said plainly rather than logged quietly. Somebody handing a photograph
         // of their home to a stranger is entitled to know what was removed from
         // it, and to check that against what they remember being in the room.
-        if (state.lastRedaction?.summary) toast(state.lastRedaction.summary);
+        if (redaction?.summary) toast(redaction.summary);
       } catch {
-        if (!state.closed) toast("That capture could not be prepared — try again.");
+        if (!state.closed && owner.session === state.roomSession && owner.track === state.cameraTrack) toast("That capture could not be prepared — try again.");
       } finally {
-        if (!state.closed) el.shutter.disabled = !el.blocked.hidden;
+        if (state.liveCapturePending === owner) {
+          state.liveCapturePending = null;
+          if (!state.closed && owner.session === state.roomSession && owner.track === state.cameraTrack) {
+            el.shutter.disabled = state.capturing || state.loadingRoom || state.photoProcessing || state.videoProcessing || !el.blocked.hidden;
+          }
+        }
       }
     }
 
@@ -2422,7 +2482,8 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     }
 
     async function captureSelectedPhoto(file) {
-      if (state.loadingRoom || state.capturing || state.photoProcessing) return;
+      if (state.loadingRoom || state.capturing || state.photoProcessing
+        || state.liveCapturePending?.session === state.roomSession) return;
       state.photoProcessing = true;
       for (const button of el.fallbacks) {
         button.disabled = true;
@@ -2455,8 +2516,10 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         // still be marked up by hand before it is read.
         freezeFrame(frame, { live: false });
         if (state.lastRedaction?.summary) toast(state.lastRedaction.summary);
+        return true;
       } catch (error) {
-        if (session === state.roomSession) blockCamera(error?.message || "That room photo could not be opened. Try another one.");
+        if (!state.closed && session === state.roomSession) blockCamera(error?.message || "That room photo could not be opened. Try another one.");
+        return false;
       } finally {
         state.photoProcessing = false;
         if (!state.closed) {
@@ -2532,8 +2595,10 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     // follows the exact same consent and room-reading path as a photograph. One
     // provider request sees the beginning, middle and end without tripling cost.
     async function captureSelectedVideo(file) {
-      if (state.loadingRoom || state.capturing || state.videoProcessing || !file) return;
+      if (state.loadingRoom || state.capturing || state.photoProcessing || state.videoProcessing || !file
+        || state.liveCapturePending?.session === state.roomSession) return;
       state.videoProcessing = true;
+      const session = state.roomSession;
       el.shutter.disabled = true;
       for (const button of el.videoFallbacks) {
         button.disabled = true;
@@ -2543,13 +2608,13 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       el.hint.innerHTML = "<b>Preparing the room video…</b> raw video stays on this phone";
       try {
         const frames = await extractRoomVideoFrames(file, { frameCount: maximumRoomVideoFrames });
-        if (state.closed) return;
+        if (state.closed || session !== state.roomSession) return;
         const sheet = await videoContactSheet(frames);
-        if (state.closed) return;
-        await captureSelectedPhoto(sheet);
-        if (!state.closed) toast("Three room views are ready. The raw video and audio stayed on this phone.");
+        if (state.closed || session !== state.roomSession) return;
+        const installed = await captureSelectedPhoto(sheet);
+        if (installed && !state.closed && session === state.roomSession) toast("Three room views are ready. The raw video and audio stayed on this phone.");
       } catch (error) {
-        if (!state.closed) {
+        if (!state.closed && session === state.roomSession) {
           const message = error?.message || "That room video could not be opened. Record a shorter clip or use a photo.";
           if (!el.blocked.hidden) el.blockedReason.textContent = message;
           toast(message);
@@ -2557,12 +2622,12 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       } finally {
         state.videoProcessing = false;
         if (!state.closed) {
-          el.shutter.disabled = !el.blocked.hidden;
+          el.shutter.disabled = state.capturing || state.loadingRoom || state.photoProcessing || Boolean(state.liveCapturePending) || !el.blocked.hidden;
           for (const button of el.videoFallbacks) {
             button.disabled = false;
             button.removeAttribute("aria-busy");
           }
-          if (!state.frozen) el.hint.textContent = previousHint || "Just walk around the room — items save themselves";
+          if (session === state.roomSession && !state.frozen) el.hint.textContent = previousHint || "Just walk around the room — items save themselves";
         }
       }
     }

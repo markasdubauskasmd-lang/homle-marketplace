@@ -495,3 +495,53 @@ console.log("Room-vision cancellation checks passed.");
   }
 }
 console.log("Condition evidence checks passed: empty/malformed evidence cannot settle any machine grade; identity and customer review remain intact.");
+
+// A populated room must receive enough output capacity for the forty objects
+// its schema and inventory accept. This fixture exercises the complete provider
+// response and task links, not real-photo accuracy or a tokeniser estimate.
+{
+  const detections = Array.from({length: 40}, (_, index) => ({
+    label: `Appliance ${index + 1}`, condition: "medium", soiling: ["grease"],
+    labelConfidence: .92, conditionConfidence: .84,
+    evidence: "Visible greasy marks around the handle",
+    x: (index % 8) * 12, y: Math.floor(index / 8) * 20, width: 10, height: 18
+  }));
+  const payload = {condition: "medium", detections, tasks: ["Wipe the appliance handles"],
+    taskLinks: [{taskIndex: 0, itemRefs: detections.map((_, index) => String(index))}]};
+  for (const purpose of ["walking", "confirmation"]) {
+    for (const streaming of [false, true]) {
+      let request;
+      const previews = [];
+      const response = jsonReply(payload);
+      const client = {messages: {
+        async create(input) { request = input; return response; },
+        stream(input) {
+          request = input;
+          let onText;
+          return {
+            on(event, callback) { if (event === "text") onText = callback; },
+            async finalMessage() {
+              const text = JSON.stringify(payload);
+              for (let index = 0; index < text.length; index += 127) onText(text.slice(index, index + 127));
+              return response;
+            }
+          };
+        }
+      }};
+      const provider = createAnthropicRoomVision({apiKey: "synthetic", client});
+      const result = await provider.readRoom({image: pixel, purpose,
+        ...(streaming ? {onPreview: item => previews.push(item)} : {})});
+      assert(request.max_tokens === 8192, "A forty-object whole-room read still uses the small selected-item output budget.");
+      assert(result.detections.length === 40 && result.taskLinks[0].itemRefs.length === 40,
+        "A full-room reading lost items or their task references.");
+      if (streaming) assert(previews.length === 40, "A full-room stream lost provisional object identities.");
+    }
+  }
+  const capture = {};
+  const selected = createAnthropicRoomVision({apiKey: "synthetic", client: stub(jsonReply({
+    condition: "unknown", items: [{...detections[0], id: "one"}], tasks: [], taskLinks: []
+  }), capture)});
+  await selected.readSelectedItems({image: pixel, items: [{id: "one", label: "Oven"}]});
+  assert(capture.request.max_tokens === 2048, "The whole-room capacity change increased selected-item output limits.");
+}
+console.log("Whole-room capacity checks passed: forty items and task references survive streaming/non-streaming reads; selected-item budget remains bounded.");
