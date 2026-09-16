@@ -1,3 +1,4 @@
+import { propertyStartAt } from "./property-schedule.js";
 const categories = new Set(["account-access", "property", "room-scan", "booking-preparation", "booking-change", "other"]);
 const statuses = new Set(["open", "reviewing", "resolved"]);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -32,7 +33,10 @@ export function supportRequestPayload(form, clientRequestId, now = Date.now()) {
     if (!["reschedule", "cancel"].includes(bookingChangeKind)) throw new TypeError("Choose whether to reschedule or cancel the booking.");
     let proposedStartAt = null;
     if (bookingChangeKind === "reschedule") {
-      const parsed = Date.parse(String(form?.proposedStartAt || ""));
+      const supplied = String(form?.proposedStartAt || "");
+      const local = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/.exec(supplied);
+      const explicitInstant = /T.*(?:Z|[+-]\d{2}:\d{2})$/.test(supplied);
+      const parsed = local ? Date.parse(propertyStartAt(local[1], local[2])) : explicitInstant ? Date.parse(supplied) : NaN;
       if (!Number.isFinite(parsed) || parsed <= Number(now) || parsed > Number(now) + 365 * 24 * 60 * 60 * 1000) throw new TypeError("Choose a new start time within the next year.");
       proposedStartAt = new Date(parsed).toISOString();
     }

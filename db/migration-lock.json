@@ -551,12 +551,17 @@
       "file": "110_payment_authorization_response_ordering.sql",
       "sha256": "8bed65b31ff49170da5700040a56fa751c351599610b68cfe3440721ab20d1ea",
       "order": 110
+    },
+    {
+      "file": "111_payment_dispute_outcomes.sql",
+      "sha256": "f10388a80e09920fc6baaef472ad24d747f4e805526b8e81841e070826a39dfd",
+      "order": 111
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "0e084cc866045dee2c722041365fed9904f639a0b27e09749d23f7515ccb02be"
+      "sha256": "cec10d09bafbac594ee890f36a1e45ac2d8c1984ee18a19cb6fea91ddb4ed78e"
     },
     {
       "file": "worker-role-grants.sql",

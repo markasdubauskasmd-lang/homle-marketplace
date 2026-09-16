@@ -7,6 +7,7 @@ const commandKinds = new Set(["capture", "cancel", "refund", "transfer"]);
 const paymentStatuses = new Set(["creating", "requires-customer-action", "processing", "authorized", "authorization-failed", "captured", "partially-refunded", "refunded", "cancelled", "disputed"]);
 const bookingStatuses = new Set(["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "cancelled", "disputed"]);
 const commandStatuses = new Set(["created", "provider-pending", "provider-failed", "reconciled"]);
+const disputeStatuses = new Set(["warning_needs_response", "warning_under_review", "needs_response", "under_review", "won", "lost", "warning_closed", "prevented", "unknown", "conflict"]);
 const eventKinds = new Set([
   "authorization-requires-action",
   "authorization-processing",
@@ -80,6 +81,13 @@ function administratorPaymentOperation(value) {
   const refunded = exactInteger(record.amountRefundedPence, 0, captured, "Refunded amount");
   const cleanerPay = positiveInteger(record.cleanerPayPence, "Cleaner pay");
   if (cleanerPay > amountPence) throw new Error("The payment operation economics are unavailable.");
+  const disputes = (record.disputes || []).map((dispute) => {
+    if (!disputeStatuses.has(dispute.status) || dispute.providerDisputeId != null && !/^du_[A-Za-z0-9_]{3,250}$/.test(dispute.providerDisputeId)
+      || typeof dispute.requiresReview !== "boolean") throw new Error("Dispute reconciliation details are unavailable.");
+    return Object.freeze({ providerDisputeId: dispute.providerDisputeId ?? null, status: dispute.status,
+      lastEventId: reference(dispute.lastEventId, "dispute event id"), requiresReview: dispute.requiresReview });
+  });
+  const disputeReviewRequired = record.disputeReviewRequired === true || record.paymentStatus === "disputed" || disputes.some(dispute => dispute.requiresReview);
   const result = {
     paymentId: uuid(record.paymentId, "payment id"),
     bookingId: uuid(record.bookingId, "booking id"),
@@ -93,10 +101,12 @@ function administratorPaymentOperation(value) {
     amountRefundedPence: refunded,
     cleanerPayPence: cleanerPay,
     payoutReady: record.payoutReady === true,
-    canCapture: record.canCapture === true,
-    canCancel: record.canCancel === true,
-    canRefund: record.canRefund === true,
-    canTransfer: record.canTransfer === true,
+    canCapture: !disputeReviewRequired && record.canCapture === true,
+    canCancel: !disputeReviewRequired && record.canCancel === true,
+    canRefund: !disputeReviewRequired && record.canRefund === true,
+    canTransfer: !disputeReviewRequired && record.canTransfer === true,
+    disputeReviewRequired,
+    disputes: Object.freeze(disputes),
     awaitingProvider: record.awaitingProvider === true,
     captureStatus: optionalCommandStatus(record.captureStatus),
     cancelStatus: optionalCommandStatus(record.cancelStatus),
@@ -165,6 +175,14 @@ function normalizedEvent(value, payloadHash) {
     occurredAt: occurredAt.toISOString(),
     payloadHash
   };
+  if (value.kind === "dispute-opened" || value.kind === "dispute-closed") {
+    if (value.disputeId != null && !/^du_[A-Za-z0-9_]{3,250}$/.test(value.disputeId)) throw new TypeError("The payment provider returned an invalid dispute identity.");
+    result.commandId = null;
+    result.amountPence = null;
+    result.currency = null;
+    result.disputeId = value.disputeId ?? null;
+    result.disputeStatus = disputeStatuses.has(value.disputeStatus) ? value.disputeStatus : "unknown";
+  }
   return Object.freeze(result);
 }
 

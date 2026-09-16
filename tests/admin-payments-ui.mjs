@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "../public/admin-payments-model.js";
+import { runInNewContext } from "node:vm";
+import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentDisputeHeld, paymentDisputeStatusLabel, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "../public/admin-payments-model.js";
 
 const paymentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const bookingId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -37,6 +38,31 @@ assert.throws(() => paymentActionPayload("transfer", { idempotencyKey: key, conf
 assert.throws(() => paymentActionPayload("refund", { idempotencyKey: key, amountPence: 0, confirmed: true }), /Refund amount/i);
 assert.throws(() => adminPaymentQueue({ payments: [{ ...record, amountCapturedPence: 12_001 }], limit: 50, offset: 0, testMode: true }), /Captured amount/i);
 
+const normalize = (overrides) => adminPaymentQueue({ payments: [{ ...record, ...overrides }], limit: 50, offset: 0, testMode: true }).payments[0];
+const dispute = (status, extra = {}) => ({ providerDisputeId: "du_case1", status, lastEventId: "evt_case1", requiresReview: false, ...extra });
+for (const status of ["warning_needs_response", "warning_under_review", "needs_response", "under_review", "lost", "unknown", "conflict"]) {
+  const held = normalize({ disputes: [dispute(status)], disputeReviewRequired: false, awaitingProvider: true, canCapture: true, canCancel: true });
+  assert(held.disputeReviewRequired, `${status} evidence must override a contradictory aggregate flag.`);
+  assert.equal(held.disputes[0].requiresReview, true);
+  assert.equal(paymentNextAction(held).kind, "dispute-review");
+  assert.match(paymentNextAction(held).copy, /already transferred.*not automatically recovered/);
+  for (const field of ["canCapture", "canCancel", "canRefund", "canTransfer"]) assert.equal(held[field], false);
+}
+for (const status of ["won", "warning_closed", "prevented"]) {
+  const resolved = normalize({ disputes: [dispute(status)], disputeReviewRequired: false });
+  assert.equal(resolved.disputeReviewRequired, false);
+  assert.equal(paymentNextAction(resolved).kind, "transfer");
+  assert.equal(resolved.disputes[0].status, status);
+  assert(Object.isFrozen(resolved.disputes) && Object.isFrozen(resolved.disputes[0]));
+}
+assert.equal(normalize({ disputes: [dispute("won"), dispute("lost", { providerDisputeId: "du_case2" })] }).canTransfer, false);
+assert.equal(normalize({ disputes: [dispute("won", { requiresReview: true })] }).canTransfer, false);
+assert.equal(normalize({ disputes: [dispute("won", { providerDisputeId: null })] }).canTransfer, false);
+assert.equal(paymentNextAction(normalize({ paymentStatus: "disputed" })).kind, "dispute-review", "Older disputed responses must remain actionable review work.");
+assert.equal(paymentNextAction(normalize({ disputeReviewRequired: true })).kind, "dispute-review");
+assert.equal(paymentNextAction(queue.payments[0]).kind, "transfer", "Absent new fields must retain older safe responses.");
+for (const invalid of [{ disputes: null }, { disputes: [dispute("made-up")] }, { disputes: [dispute("won", { lastEventId: "<script>" })] }, { disputes: [dispute("won", { providerDisputeId: "pi_wrong" })] }, { disputeReviewRequired: "false" }]) assert.throws(() => normalize(invalid), /dispute/i);
+
 const [page, script, caseScript, styles, server, admin, packageJson, router, service, repository, migration, handoffMigration, grants] = await Promise.all([
   readFile(new URL("../public/admin-payments.html", import.meta.url), "utf8"),
   readFile(new URL("../public/admin-payments.js", import.meta.url), "utf8"),
@@ -52,6 +78,32 @@ const [page, script, caseScript, styles, server, admin, packageJson, router, ser
   readFile(new URL("../db/migrations/051_administrator_case_payment_handoff.sql", import.meta.url), "utf8"),
   readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8")
 ]);
+
+// Exercise actual rendering and action guards with a tiny DOM double; no browser or provider access.
+function node(tag, className = "", text = "") {
+  return { tag, className, text, children: [], handlers: {}, append(...items) { this.children.push(...items); }, addEventListener(name, handler) { this.handlers[name] = handler; }, get childElementCount() { return this.children.length; } };
+}
+const context = { element: node, paymentNextAction, paymentDisputeHeld, paymentDisputeStatusLabel, paymentStatusLabel, paymentActionLabel, shortPaymentReference, uncertainPayments: new Set(), date: (value) => value, money: (value) => String(value), fact: (label, value) => node("fact", label, value), commanding: false, form: { reset() { throw new Error("Held action reached the form"); } } };
+const ui = script.slice(script.indexOf("function openAction("), script.indexOf("function renderQueue("));
+runInNewContext(ui, context);
+const heldRaw = { ...record, disputes: [dispute("lost")], disputeReviewRequired: true };
+const heldCard = context.paymentCard(heldRaw);
+const flatten = (value) => [value, ...value.children.flatMap(flatten)];
+const heldNodes = flatten(heldCard);
+assert(heldNodes.some((item) => item.tag === "details"));
+assert(heldNodes.some((item) => item.text.includes("Lost — reconcile funds") && item.text.includes("evt_case1")));
+for (const button of heldNodes.filter((item) => item.tag === "button")) { assert.equal(button.disabled, true); button.handlers.click(); }
+const resolvedNodes = flatten(context.paymentCard(normalize({ disputes: [dispute("won")] })));
+assert(resolvedNodes.some((item) => item.text.includes("Won") && item.text.includes("Recorded outcome")));
+assert(resolvedNodes.some((item) => item.tag === "button" && !item.disabled));
+const selectedAction = script.slice(script.indexOf("async function runSelectedAction("), script.indexOf('form.addEventListener("submit"'));
+const submitContext = { commanding: false, selected: record, selectedKind: "transfer", queue: { payments: [heldRaw] }, paymentDisputeHeld };
+runInNewContext(selectedAction, submitContext);
+await assert.rejects(() => submitContext.runSelectedAction(), /requires dispute review/, "A modal opened before refreshed dispute evidence must not submit.");
+submitContext.queue.payments = [record];
+Object.assign(submitContext, { form: {}, FormData: class { get(key) { return key === "confirmed" ? "on" : ""; } }, retryKey: () => key, paymentActionPayload,
+  recoverCsrf: async () => { submitContext.queue.payments = [heldRaw]; return "test_csrf"; } });
+await assert.rejects(() => submitContext.runSelectedAction(), /requires dispute review/, "A dispute discovered during CSRF recovery must stop the pending action before provider submission.");
 
 assert(page.includes("Administrator · test payments only") && page.includes("Every button contacts the configured test payment provider") && page.includes("Live Stripe keys remain rejected") && page.includes("data-admin-payments-workspace hidden"), "The payment screen lost its truthful, fail-closed test-provider boundary.");
 assert(page.includes("data-admin-payment-dialog") && page.includes("data-admin-payment-refund-field") && page.includes("I reviewed the exact server totals") && page.includes("data-network-status"), "The payment screen omitted exact confirmation, bounded refund or offline controls.");

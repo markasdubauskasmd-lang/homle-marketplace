@@ -224,4 +224,6 @@ REVOKE INSERT, UPDATE, DELETE ON room_scan_model_versions FROM tideway_app;
 -- mutate individual hourly rows directly.
 REVOKE ALL ON TABLE tideway_private.scan_telemetry_hourly FROM tideway_app;
 
+GRANT EXECUTE ON FUNCTION tideway_private.reconcile_payment_dispute_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character,text,text) TO tideway_app;
+REVOKE ALL ON TABLE tideway_private.payment_disputes FROM tideway_app;
 COMMIT;

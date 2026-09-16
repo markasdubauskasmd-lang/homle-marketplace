@@ -1,3 +1,4 @@
+import { propertyStartAt } from "./property-schedule.js";
 import { cleanerTaskGuidance, cleanerTaskQuality } from "./task-quality.js?v=20260716-1";
 
 const naturalTaskRooms = Object.freeze([
@@ -90,7 +91,7 @@ export function suggestedCleaningType(propertyType) {
 }
 
 export function requestedWindow(date, startTime, durationMinutes, now = new Date()) {
-  const start = new Date(`${date}T${startTime}`);
+  const start = new Date(propertyStartAt(date, startTime));
   const duration = Number(durationMinutes);
   if (!(now instanceof Date) || Number.isNaN(now.getTime())) throw new TypeError("The current time is unavailable.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || "")) || !/^\d{2}:\d{2}$/.test(String(startTime || "")) || Number.isNaN(start.getTime())) throw new TypeError("Choose a valid cleaning date and start time.");

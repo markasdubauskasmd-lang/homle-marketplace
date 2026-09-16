@@ -14,6 +14,7 @@ const mappedErrors = Object.freeze({
   "payment-not-cancellable": [409, "payment-not-cancellable", "This payment authorization can no longer be cancelled through this action."],
   "payment-not-refundable": [409, "payment-not-refundable", "The requested refund is not available for this payment."],
   "payment-not-transferable": [409, "payment-not-transferable", "Cleaner funds are not ready for transfer."],
+  "payment-dispute-review-required": [409, "payment-dispute-review-required", "This payment has a dispute requiring reconciliation before another money action."],
   "cleaner-payout-unavailable": [409, "cleaner-payout-unavailable", "The Cleaner does not have an approved payout destination."],
   "invalid-payment-operation-status": [422, "invalid-payment-operation-status", "Choose a valid payment queue status."],
   "invalid-payment-operation-page": [422, "invalid-payment-operation-page", "The payment queue page is invalid."],
@@ -133,6 +134,13 @@ export function createPaymentRepository(database) {
     },
     reconcileEvent(input) {
       return database.withAuthenticationTransaction(async (client) => {
+        if (input.kind === "dispute-opened" || input.kind === "dispute-closed") {
+          const result = await client.query(
+            "SELECT tideway_private.reconcile_payment_dispute_event($1::text,$2::text,$3::text,$4::text,$5::uuid,$6::uuid,$7::integer,$8::character(3),$9::timestamptz,$10::character(64),$11::text,$12::text) AS result",
+            [input.provider, input.providerEventId, input.kind, input.providerObjectId, input.paymentId, null, null, null, input.occurredAt, input.payloadHash, input.disputeId ?? null, input.disputeStatus ?? "unknown"]
+          );
+          return Object.freeze(result.rows[0]?.result || { accepted: false, duplicate: false });
+        }
         const result = await client.query(
           "SELECT tideway_private.reconcile_payment_provider_event($1::text,$2::text,$3::text,$4::text,$5::uuid,$6::uuid,$7::integer,$8::character(3),$9::timestamptz,$10::character(64)) AS result",
           [input.provider, input.providerEventId, input.kind, input.providerObjectId, input.paymentId, input.commandId, input.amountPence, input.currency, input.occurredAt, input.payloadHash]
