@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import vm from "node:vm";
-import { readRoomResponse } from "../public/room-reading-stream.js";
+import {createPremiumPlan} from "../public/scan-premium-selection.js";
+import {defaultPricingConfig} from "../public/pricing-config.js";
+import "./scanner-recovery.mjs";
+import { readRoomResponse, withReadingSignal } from "../public/room-reading-stream.js";
 import {
   conditionReviewAdvice, correctInventoryItem, walkingReadingItems, inventoryDisplayLabel,
   inventoryKey, keyframeDefaults, mergeInventoryIntoSavedDetections, mergeRoomInventory, mergeSavedDetections,
@@ -23,7 +26,7 @@ import {
       signal.addEventListener("abort", () => reject(signal.reason), { once: true });
     });
     const context = {
-      state, AbortController, readRoomResponse, roomReadingPayload: () => ({ withinLimit: true, body: {} }),
+      state, AbortController, readRoomResponse, withReadingSignal, roomReadingPayload: () => ({ withinLimit: true, body: {} }),
       storedCsrf: () => token,
       sessionStorage: { setItem(key, value) { token = value; }, getItem() { return token; } },
       window: { setTimeout(callback, duration) { assert.equal(duration, 32_000); timers.set(++timerId, callback); return timerId; }, clearTimeout(id) { timers.delete(id); } },
@@ -373,24 +376,31 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     const read = new Function("state","roomReadingPayload","recoverCsrf","window","fetch","localRoomTasks","usableDetections","readingTaskRecords","mergeScanTaskRecords","readRoomResponse",
       source.slice(readStart, readEnd) + ";return readRoom;")(
       state, () => ({withinLimit:true,body:{synthetic:true}}), async()=>"synthetic-csrf",
-      {setTimeout,clearTimeout}, async()=>{requests++;return {status,ok:status===200,headers:new Headers({"content-type":"application/json"}),json:async()=>({detections:[],tasks,condition:""})};},
+      {setTimeout,clearTimeout}, async()=>{requests++;const responseStatus=requests>1?200:status;return {status:responseStatus,ok:responseStatus===200,headers:new Headers({"content-type":"application/json"}),json:async()=>({detections:[],tasks,condition:""})};},
       ()=>tasks, ()=>[], readingTaskRecords, mergeScanTaskRecords, readRoomResponse);
-    const reading = await read("synthetic-frame","Kitchen",[],"Wipe the table","walking");
-    assert.equal(reading.taskRecords[0].origin,status===503?"customer":"vision","Reading lost task origin");
+    if (status === 503) {
+      await assert.rejects(read("synthetic-frame","Kitchen",[],"Wipe the table","walking"), error => error.code === "reading-unavailable");
+      assert.equal(state.visionAvailable, true, "One outage must not disable the whole session");
+      assert.ok(state.visionRetryAfter > Date.now(), "Walking attempts need an outage cooldown");
+      assert.equal(state.roomReadControllers.size, 0);
+    }
+    const reading = await read("synthetic-frame","Kitchen",[],"Wipe the table","confirmation");
+    assert.equal(state.visionRetryAfter, 0, "A successful explicit retry clears the cooldown");
+    assert.equal(reading.taskRecords[0].origin,"vision","Reading lost task origin");
     const budget = {generation:0,capturedCount:1,completedCount:0,completedSignatures:[]};
     const receive = new Function("reading","state","keyframeBudget","generation","roomName","readStartedAt",
       "transcriptKey","walkingReadingItems","rememberWalkEvidence","findRoom","capturedSignature","keyframeDefaults",callback);
     receive(reading,state,()=>budget,0,"Kitchen",Date.now(),name=>name.toLowerCase(),()=>[],
       (_room,result)=>{remembered=result.tasks;},()=>null,Array(48).fill(.2),{maxPerRoom:4});
-    const analysed = status === 200 ? 1 : 0;
-    assert.equal(requests,1);
+    const analysed = 1;
+    assert.equal(requests,status===503?2:1);
     assert.equal(state.roomReadControllers.size,0,"Read controller leaked");
     assert.equal(budget.capturedCount,1,"Fallback refunded the spent attempt");
     assert.equal(budget.completedCount,analysed,"Fallback was counted as analysed coverage");
     assert.equal(budget.completedSignatures.length,analysed,"Fallback marked a view as already analysed");
     assert.equal(state.diagnostics.keyframesRead,analysed,"Fallback inflated successful-read diagnostics");
     assert.deepEqual(remembered,tasks,"Manual fallback lost the customer's task");
-    assert.equal(state.diagnostics.lastReadFailure,status===200?"":"reading-unavailable");
+    assert.equal(state.diagnostics.lastReadFailure,"");
   }
 }
 
@@ -785,7 +795,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       const backgroundStart = source.indexOf("function mergeSavedTasks(");
       const backgroundEnd = source.indexOf("function resumeDeferredRoomReads()",backgroundStart);
       assert.ok(backgroundStart>0 && backgroundEnd>backgroundStart);
-      context.renderHub=()=>{};
+      context.renderHub=()=>{}; state.confirmationPreviews=new Map();
       context.navigator={onLine:true};
       context.readRoom=async()=>({detections:boxes,tasks:records.map(t=>t.text),taskRecords:records,readingStatus:"ready"});
       vm.runInContext(source.slice(backgroundStart,backgroundEnd),context);
@@ -939,10 +949,11 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   const state={scanRooms:[{name:"Kitchen",objects:[object]},{name:"Bedroom",objects:[{...object,quantity:2}]}],
     scanCorrections:[],scanPremiumPlan:{options:[]},scanPremiumSelected:[],draft:{}};
   const effects={invalidations:0,saves:0,refreshes:0};
-  const context=vm.createContext({state,applyCorrection,document:{createElement:()=>new Node()},
+  const context=vm.createContext({state,applyCorrection,createPremiumPlan,pricingConfig:defaultPricingConfig,defaultPricingConfig,scanChecklistLines,document:{createElement:()=>new Node()},
     textNode:()=>new Node(),premiumChoiceId:()=>"",renderPremiumChoices(){},reconcileReviewedChecklist(){},
     premiumScope:()=>[],editableTaskLines:()=>[],eligiblePremiumSelections:()=>[],updateResultTotals(){},
     invalidateScanRequest(){effects.invalidations++;},saveDraft(){effects.saves++;},renderReview(){},refreshScanReview(){effects.refreshes++;}});
+  context.taskReviewRooms=()=>context.correctedScanRooms();
   vm.runInContext(controls+"\n"+corrected+"\n"+correction,context);
   const row=context.objectControls("Kitchen",object);
   const actions=row.children.at(-1);
@@ -992,6 +1003,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
     currentReviewedNotes:()=>({transcript:"Current instruction",notes:{kitchen:"Current instruction"}}),
     setRequestScopeValue:(key,value)=>state.draft[key]=value,
     sessionStorage:{setItem:(key,value)=>storage.set(key,value),getItem:key=>storage.get(key),removeItem:key=>storage.delete(key)}});
+  context.taskReviewRooms=()=>context.correctedScanRooms();
   vm.runInContext(source.slice(start,end)+"\n"+source.slice(correctedStart,correctedEnd),context);
   context.saveDraft();
   const saved=storage.get("fixture");
@@ -1104,7 +1116,7 @@ for(const count of [15,40,45]){
  const state={readingAllowed:true,visionAvailable:true,roomReadControllers:new Set(),rooms:[],currentRoom:'Kitchen',roomSession:1,consentAsked:true,nextReadingRevision:1,walkEvidence:new Map(),dismissed:new Map()};
  let inventory=[],closed;
  const el={note:{value:''},readRoom:{},retake:{},canvas:{getContext:()=>({drawImage(){}})},still:{},selection:{},viewfinder:{classList:{add(){}}}};
- const context=vm.createContext({...model,state,el,AbortController,Date,readRoomResponse,
+ const context=vm.createContext({...model,state,el,AbortController,Date,readRoomResponse,withReadingSignal,
   roomReadingPayload:()=>({withinLimit:true,body:{}}),recoverCsrf:async()=> 'test',
   fetch:async()=>({ok:true,status:200,headers:new Headers({"content-type":"application/json"}),json:async()=>payload}),window:{setTimeout,clearTimeout},localRoomTasks:()=>[],
   Image:class{naturalWidth=100;naturalHeight=100;set src(value){this.onload();}},

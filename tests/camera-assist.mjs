@@ -73,3 +73,5 @@ assert.ok(torchLumaThreshold > 42 && torchLumaThreshold <= 90,
 console.log("Camera-assist checks passed: defensive capability reading, torch only after persistent darkness and never automatically off, declines final, zoom nudges quantised and ceilinged, and honest labels.");
 
 import "./manual-camera-zoom.mjs";
+import "./camera-session.mjs";
+import "./camera-lifecycle.mjs";

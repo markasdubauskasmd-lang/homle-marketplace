@@ -1095,7 +1095,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             // hand-crafted — has to land on the cheaper tier. It can never
             // escalate, only stay cheap.
             const purpose = body?.purpose === "confirmation" ? "confirmation" : "walking";
-            const onPreview = !selectedItems.length && purpose === "walking" && request.headers.accept === "application/x-ndjson"
+            const onPreview = !selectedItems.length && request.headers.accept === "application/x-ndjson"
               ? item => {
                 if (firstPreviewMs === null) firstPreviewMs = Math.max(0, Math.round((Date.now() - readingStartedAt) / 100) * 100);
                 streamEvent({ type: "preview", item });

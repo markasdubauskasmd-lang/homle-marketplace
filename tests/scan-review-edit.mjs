@@ -99,3 +99,99 @@ console.log("Scan structural review: local edits, duplicate names, moves, scope,
   assert.equal(committed[0].taskRecords[0].text,'Clean the 2 × air fryer');assert.equal(state.scanPhotos[0].dataUrl,'whole-room');
   committed=undefined;shouldFail=true;await context.rescanReviewRoom('Kitchen','oven');assert.equal(committed,undefined);assert.equal(state.rescanningRoom,false);
 }
+
+// Dismissals survive the real save/restore path and later checklist edits.
+{
+  const {readFileSync}=await import('node:fs'), {default:vm}=await import('node:vm');
+  const source=readFileSync(new URL('../public/landlord-journey.js',import.meta.url),'utf8');
+  const section=(a,b)=>source.slice(source.indexOf(a),source.indexOf(b,source.indexOf(a)));
+  const room={name:'Kitchen',objects:[{inventoryKey:'microwave',label:'Microwave',quantity:1},{inventoryKey:'tap',label:'Tap',quantity:1}],
+    taskRecords:[{text:'Clean the microwave',origin:'vision',inventoryKeys:['microwave']},{text:'Descale the tap',origin:'vision',inventoryKeys:['tap']},
+      {text:'Leave the locked cupboard alone',origin:'customer',inventoryKeys:[]}]};
+  const storage=new Map();
+  const state={draftOwner:'10000000-0000-4000-8000-000000000001',step:'results',scanRooms:[room],scanCorrections:[{roomName:'Kitchen',inventoryKey:'microwave',field:'removed',value:''}],
+    scanNoteEdits:{},scanPremiumSelected:[],scanPremiumPlan:{options:[],groups:[]},draft:{tasks:['Kitchen: Descale the tap'],scanChecklistEdited:false,durationMinutes:120}};
+  const context=vm.createContext({state,applyCorrection,scanChecklistLines,Date,landlordRequestDraftLifetimeMs:1800000,draftKey:'test',
+    sessionStorage:{setItem:(k,v)=>storage.set(k,v),getItem:k=>storage.get(k),removeItem:k=>storage.delete(k)},
+    currentReviewedNotes:()=>({transcript:'',notes:{}}),durationChoices:[120],stepIndex:()=>2,setRequestScopeValue:(k,v)=>state.draft[k]=v,
+    premiumBaseTasks:(_plan,tasks)=>tasks,el:{tasks:{}},renderTaskReview(){}});
+  vm.runInContext(section('function saveDraft()', '// A finished room scan')+section('function correctedScanRooms()', 'function renderTaskReview()')+section('function reconcileReviewedChecklist()', 'function correctScanObject('),context);
+  context.saveDraft();
+  assert.deepEqual(JSON.parse(storage.get('test')).draft.rooms[0].removedInventoryKeys,['microwave']);
+  context.restoreDraft();
+  state.scanCorrections.push({roomName:'Kitchen',inventoryKey:'tap',field:'quantity',value:3});
+  context.reconcileReviewedChecklist();
+  assert.doesNotMatch(context.el.tasks.value,/microwave/i,'A later edit resurrected the removed appliance after reload');
+  assert.match(context.el.tasks.value,/Descale the 3 × tap/);
+  assert.match(context.el.tasks.value,/Leave the locked cupboard alone/);
+  context.saveDraft(); context.restoreDraft(); context.reconcileReviewedChecklist();
+  assert.doesNotMatch(context.el.tasks.value,/microwave/i,'The dismissal survived only one reload');
+}
+
+// Collision-safe identity is distinct from appliance pricing classification.
+{
+  const {createPremiumPlan,selectedScanRooms}=await import('../public/scan-premium-selection.js');
+  const {defaultPricingConfig}=await import('../public/pricing-config.js');
+  const {quoteInputFromScan,quoteRooms}=await import('../public/pricing-engine.js');
+  let rooms=[{name:'Kitchen',roomType:'kitchen',objects:[],tasks:[],taskRecords:[]}];
+  for(let i=0;i<2;i++) rooms=editScanRooms(rooms,{action:'add-item',roomName:'Kitchen',label:'Oven'});
+  for(const object of rooms[0].objects) rooms=applyCorrection(rooms,{roomName:'Kitchen',inventoryKey:object.inventoryKey,field:'condition',value:'light'}).rooms;
+  assert.deepEqual(rooms[0].objects.map(o=>o.inventoryKey),['oven','oven-2']);
+  assert.deepEqual(rooms[0].objects.map(o=>o.pricingCode),['oven','oven']);
+  const plan=createPremiumPlan(rooms,scanChecklistLines(rooms),defaultPricingConfig);
+  assert.equal(plan.options.length,2,'The second appliance lost its optional specialist choice');
+  const selected=selectedScanRooms(rooms,plan,plan.options.map(o=>o.id));
+  const input=quoteInputFromScan({rooms:selected.map(room=>({...room,roomName:room.name,objects:room.objects.map(o=>({...o,inventoryKey:o.pricingCode}))}))},{config:defaultPricingConfig});
+  assert.equal(quoteRooms(input,defaultPricingConfig).premiumPence,11000,'Two explicitly selected ovens must use two existing £55 components');
+  const unselected=selectedScanRooms(rooms,plan,[]);
+  const noExtras=quoteInputFromScan({rooms:unselected.map(room=>({...room,roomName:room.name,objects:room.objects.map(o=>({...o,inventoryKey:o.pricingCode}))}))},{config:defaultPricingConfig});
+  assert.equal(quoteRooms(noExtras,defaultPricingConfig).premiumPence,0,'Detection/addition must not select specialist work');
+}
+
+// Moves retain item-specific actions and quantities, with remapped collision keys.
+{
+  const original=[{name:'Kitchen',objects:[{inventoryKey:'oven',label:'Oven',quantity:3},{inventoryKey:'tap',label:'Tap',quantity:1}],taskRecords:[
+    {text:'Kitchen: Degrease the 3 × oven',origin:'vision',inventoryKeys:['oven']},
+    {text:'Polish the 3 × oven handles',origin:'vision',inventoryKeys:['oven']},
+    {text:'Wipe the oven and tap',origin:'vision',inventoryKeys:['oven','tap']},
+    {text:'Leave keys in Kitchen',origin:'customer',inventoryKeys:[]}]},
+    {name:'Utility',objects:[{inventoryKey:'oven',label:'Oven',pricingCode:'oven',quantity:1}],taskRecords:[]}];
+  const moved=editScanRooms(original,{action:'move-item',roomName:'Kitchen',inventoryKey:'oven',destination:'Utility'});
+  const lines=scanChecklistLines(moved);
+  assert(lines.includes('Utility: Degrease the 3 × oven'));
+  assert(lines.includes('Utility: Polish the 3 × oven handles'));
+  assert(!lines.includes('Kitchen: Degrease the 3 × oven'));
+  assert(lines.includes('Kitchen: Leave keys in Kitchen'));
+  assert(lines.includes('Kitchen: Wipe the oven and tap'),'Grouped instructions must be retained for explicit review');
+  assert.equal(moved[1].objects[1].inventoryKey,'oven-2');
+  assert.equal(moved[1].objects[1].pricingCode,'oven');
+  assert.equal(moved[1].objects[1].quantity,3);
+  assert(moved[1].taskRecords.every(record=>record.inventoryKeys[0]==='oven-2'));
+  const fallback=editScanRooms([{name:'A',objects:[{inventoryKey:'chair',label:'Chair',quantity:4}],tasks:[]},{name:'B',objects:[],tasks:[]}],
+    {action:'move-item',roomName:'A',inventoryKey:'chair',destination:'B'});
+  assert(scanChecklistLines(fallback).includes('B: Clean the 4 × chair'));
+}
+console.log('Scan persistence and structural regressions passed: repeated reload dismissals, distinct appliance prices/consent and item-specific task moves.');
+
+// A selected specialist quantity edit must replace its generated task, not add
+// a second task from a stale premium plan alongside the corrected quantity.
+{
+  const {readFileSync}=await import('node:fs'), {default:vm}=await import('node:vm');
+  const {createPremiumPlan,premiumBaseTasks,premiumScope,premiumChoiceId}=await import('../public/scan-premium-selection.js');
+  const {defaultPricingConfig}=await import('../public/pricing-config.js');
+  const source=readFileSync(new URL('../public/landlord-journey.js',import.meta.url),'utf8');
+  const section=(a,b)=>source.slice(source.indexOf(a),source.indexOf(b,source.indexOf(a)));
+  const rooms=[{name:'Kitchen',objects:[{inventoryKey:'oven',pricingCode:'oven',label:'Oven',quantity:1,condition:'light',conditionConfirmed:true}],
+    taskRecords:[{text:'Clean the oven',origin:'vision',inventoryKeys:['oven']}]}];
+  const plan=createPremiumPlan(rooms,scanChecklistLines(rooms),defaultPricingConfig);
+  const state={scanRooms:rooms,scanCorrections:[],scanNoteEdits:{},scanPremiumPlan:plan,scanPremiumSelected:plan.options.map(o=>o.id),draft:{scanChecklistEdited:false}};
+  const el={tasks:{value:''}};
+  const context=vm.createContext({state,el,applyCorrection,scanChecklistLines,createPremiumPlan,premiumBaseTasks,premiumScope,premiumChoiceId,
+    pricingConfig:defaultPricingConfig,defaultPricingConfig,eligiblePremiumSelections:()=>state.scanPremiumSelected,
+    editableTaskLines:()=>el.tasks.value.split('\n').filter(Boolean),renderReview(){},renderPremiumChoices(){},renderTaskReview(){},
+    invalidateScanRequest(){},updateResultTotals(){},saveDraft(){},refreshScanReview(){}});
+  vm.runInContext(section('function correctedScanRooms()', 'function renderTaskReview()')+section('function reconcileReviewedChecklist()', 'function commitScanStructure('),context);
+  context.correctScanObject('Kitchen','oven','quantity',3);
+  assert.deepEqual(Array.from(state.draft.tasks),['Kitchen: Clean the 3 × oven'],'A stale optional task survived the corrected appliance quantity');
+  assert.equal(state.scanPremiumSelected.length,1,'Changing quantity should not deselect previously approved specialist work');
+}

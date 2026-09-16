@@ -362,7 +362,7 @@ assert(overlay.includes("el.still.src = frame"), "Detections are drawn over the 
 assert(overlay.includes("session !== state.roomSession"), "A stale room reading can attach itself to a closed scan or a room the Landlord has left.");
 
 // Assisted reading is optional; the scan must survive it being absent.
-assert(overlay.includes("state.visionAvailable = false") && overlay.includes("status === 503"), "The scan does not fall back when assisted reading is unavailable.");
+assert(overlay.includes("state.visionRetryAfter = Date.now() + 30_000") && overlay.includes('code: "reading-unavailable"'), "Temporary reader outages must pause walking attempts and leave confirmations retryable.");
 assert(overlay.includes("const controller = new AbortController()") && overlay.includes("signal: controller.signal") && overlay.includes("reading-timeout"), "A slow room-reading request can leave the scanner spinning indefinitely.");
 assert(overlay.includes("function localRoomTasks") && overlay.includes("checklistFromTranscript") && overlay.includes('readingStatus: "needs-retry"'), "A failed automatic room read loses the spoken instructions or gives no clear retry state.");
 
@@ -493,7 +493,7 @@ assert(!/function cropFor[\s\S]{0,220}box\.kind !== "manual"/.test(overlay), "De
 // boxes that have not moved, and the crop sent for naming is of a different
 // object than the one that was tapped.
 assert(overlay.includes("function layoutFrozen") && /window\.addEventListener\("orientationchange"/.test(overlay), "Rotating the phone while choosing can leave the boxes over different pixels than the crop.");
-assert(/tapPoint[\s\S]{0,320}state\.frozen \? el\.detections : el\.viewfinder/.test(overlay), "Taps are measured against a different rectangle than the boxes are drawn in.");
+assert(/tapPoint[\s\S]{0,420}el\.detections\.getBoundingClientRect\(\)/.test(overlay), "Taps must use the fitted image/box rectangle in both live and frozen views.");
 
 // The cap must count what was chosen, not what the detector found, or twelve
 // stray detections lock out the hand-picked box the feature exists for. It must
@@ -529,9 +529,11 @@ assert(overlay.includes('import { extractRoomVideoFrames, maximumRoomVideoFrames
 assert(overlay.includes("function videoContactSheet(frames)") && /function captureSelectedVideo\(file\)[\s\S]{0,1400}extractRoomVideoFrames\(file, \{ frameCount: maximumRoomVideoFrames \}\)[\s\S]{0,300}videoContactSheet\(frames\)/.test(overlay) && overlay.includes("The raw video and audio stayed on this phone"), "A guided room video is uploaded raw, exposes its audio, or does not combine its beginning, middle and end into one locally extracted review frame.");
 assert(overlay.includes("roomVideoContactSheetLayout({") && overlay.includes("sourceWidth: first.naturalWidth") && overlay.includes("canvasWidth: canvas.width"), "The video contact sheet ignores the tested portrait/landscape layout and can turn every frame into an unreadable thumbnail.");
 assert(overlay.includes("state.videoProcessing") && /for \(const button of el\.videoFallbacks\)[\s\S]{0,220}aria-busy/.test(overlay) && /if \(state\.videoProcessing \|\| state\.capturing \|\| state\.loadingRoom\) return/.test(overlay), "Video preparation can race a live capture, revisit load or second video selection, or gives no busy state.");
-assert(overlay.includes("function waitForCameraFrame") && overlay.includes('error.name = "CameraNotReadyError"') && overlay.includes("await waitForCameraFrame(el.camera)"), "A mobile camera stream that never produces a frame can leave the scanner warming up forever.");
+assert(overlay.includes("function waitForCameraFrame") && overlay.includes('error.name = "CameraNotReadyError"') && overlay.includes("await cameraSession.waitFor(stream, signal => waitForCameraFrame(el.camera, 6000, signal))"), "A mobile camera stream that never produces a frame can leave the scanner warming up forever.");
 assert(overlay.includes("Number(video.readyState) >= 2") && overlay.includes("Number(video.readyState) < 2"), "The scanner treats camera dimensions as a usable picture before the browser has delivered a current video frame.");
-assert(/catch \(error\) \{[\s\S]{0,80}stopCamera\(\);[\s\S]{0,420}blockCamera\(/.test(overlay) && /function stopCamera\(\)[\s\S]{0,180}el\.camera\.srcObject = null/.test(overlay), "A failed or stalled camera stream is not released, so Try live camera again cannot recover.");
+const openCameraBody = overlay.slice(overlay.indexOf("async function openCamera()"), overlay.indexOf("function blockCamera("));
+assert(/catch \(error\) \{\s*stopCamera\(\);[\s\S]*blockCamera\(/.test(openCameraBody) && /function stopCamera\(\)[\s\S]*?el\.camera\.srcObject = null/.test(overlay), "A failed or stalled camera stream is not released, so Try live camera again cannot recover.");
+assert(openCameraBody.includes('error?.code === "camera-session-cancelled"') && !openCameraBody.includes('if (error?.name === "AbortError") return'), "A browser camera AbortError must show retry controls rather than silently abandoning the scanner.");
 const unfreezeBody = overlay.slice(overlay.indexOf("function unfreeze()"), overlay.indexOf("const manualBoxSize", overlay.indexOf("function unfreeze()")));
 assert(/if \(state\.stream\) startDetection\(\);\s*\n\s*else startCamera\(\)/.test(unfreezeBody), "Retaking after a backgrounded native capture cannot reacquire the live camera.");
 // The failure message moved into the background reader when saving stopped
@@ -604,7 +606,7 @@ assert((overlay.match(/session !== state\.roomSession/g) || []).length >= 3, "A 
 // Crops decode from the immutable captured frame rather than the shared canvas,
 // so scanning a later room cannot corrupt a background confirmation.
 assert(/function snapshotCropSource\(frame\)[\s\S]{0,700}image\.src = frame/.test(overlay), "Selected-item crops are not tied to the immutable captured room frame.");
-assert(/const cropSource = items\.length \? await snapshotCropSource\(image\) : null[\s\S]{0,500}await cropFor\(item, cropSource\)[\s\S]{0,900}const payload = roomReadingPayload/.test(overlay), "Selected-item crops do not consistently use the decoded captured-frame snapshot before building the payload.");
+assert(/const cropSource = items\.length \? await withReadingSignal\(\(\) => snapshotCropSource\(image\), controller.signal\) : null[\s\S]{0,500}withReadingSignal\(\(\) => cropFor\(item, cropSource\), controller.signal\)[\s\S]{0,900}const payload = roomReadingPayload/.test(overlay), "Selected-item crops must use the captured snapshot within the cancellable reading deadline.");
 // The confirmed room and toast paint before background crop preparation begins.
 assert(/toHub\(\)[\s\S]{0,1800}toast\([\s\S]{0,900}window\.setTimeout\(\(\) => \{[\s\S]{0,240}readRoomInBackground/.test(overlay), "Condition crop preparation can still delay the red-button save confirmation.");
 // Rescanning a revisited room takes a fresh photo, which must read on save.

@@ -49,7 +49,7 @@ export function editScanRooms(rooms, edit) {
     const base = inventoryKey(label);
     let identity = base, suffix = 2;
     while (objects.some(item => item.inventoryKey === identity)) identity = `${base}-${suffix++}`;
-    const object = { inventoryKey: identity, label, quantity: 1, condition: "", soiling: [], confidenceLabel: 1,
+    const object = { inventoryKey: identity, pricingCode: base, label, quantity: 1, condition: "", soiling: [], confidenceLabel: 1,
       confidenceCondition: 0, conditionConfirmed: false, origin: "manual", evidence: "" };
     const task = `Clean the ${label.toLowerCase()}`;
     next[index] = { ...changed(room, [...objects, object], [], [identity]),
@@ -65,10 +65,20 @@ export function editScanRooms(rooms, edit) {
     let identity = object.inventoryKey, suffix = 2;
     while (targetObjects.some(entry => entry.inventoryKey === identity)) identity = `${object.inventoryKey}-${suffix++}`;
     next[index] = changed(room, objects.filter(entry => entry !== object), [object.inventoryKey]);
-    const task = `Clean the ${object.label.toLowerCase()}`;
-    next[destination] = { ...changed(target, [...targetObjects, { ...object, inventoryKey: identity }], [], [identity]),
-      tasks: [...(target.tasks || []), task],
-      taskRecords: [...scanTaskRecordsFor(target), { text: task, origin: "vision", inventoryKeys: [identity] }] };
+    const sourceName = room.name || room.roomName, targetName = target.name || target.roomName;
+    // Move only tasks linked solely to this item. A grouped instruction stays
+    // in the original room with its existing review warning; customer notes
+    // never change rooms merely because one detected object moves.
+    const movedTasks = scanTaskRecordsFor(room)
+      .filter(record => record.origin === "vision" && record.inventoryKeys.length === 1 && record.inventoryKeys[0] === object.inventoryKey)
+      .map(record => ({ ...record,
+        text: record.text.toLowerCase().startsWith(String(sourceName).toLowerCase() + ":")
+          ? targetName + record.text.slice(sourceName.length) : record.text,
+        inventoryKeys: [identity] }));
+    if (!movedTasks.length) movedTasks.push({text: `Clean the ${inventoryDisplayLabel(object).toLowerCase()}`, origin: "vision", inventoryKeys: [identity]});
+    next[destination] = { ...changed(target, [...targetObjects, { ...object, inventoryKey: identity, pricingCode: object.pricingCode || inventoryKey(object.label) }], [], [identity]),
+      tasks: [...(target.tasks || []), ...movedTasks.map(record => record.text)],
+      taskRecords: [...scanTaskRecordsFor(target), ...movedTasks] };
   } else throw new Error("That scan edit is unavailable.");
   return next;
 }

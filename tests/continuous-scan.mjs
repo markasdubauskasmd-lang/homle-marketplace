@@ -1066,6 +1066,7 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   assert.ok(start >= 0 && end > start && budgetEnd > budgetStart && discardEnd > discardStart);
   let time = 100000;
   const pending = [];
+  let redactedFrames = 0;
   const noop = () => {};
   const state = {readingAllowed:true,visionAvailable:true,currentRoom:"Kitchen",frozen:false,closed:false,
     keyframeActiveRooms:new Set(),keyframeBudgets:new Map(),walkingPreviews:new Map(),networkOffline:false,qualityKind:"",
@@ -1075,7 +1076,8 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
     transcriptKey:(name)=>name.toLowerCase(),renderInventory:noop,renderScanProgress:noop,
     document:{createElement:()=>({getContext:()=>({drawImage:noop})})},
     viewfinderSourceRect:()=>({sx:0,sy:0,sWidth:640,sHeight:480}),
-    encodeCanvasJpeg:async()=>"synthetic-image",roomTranscript:()=>"",
+    redactPrivateContent:()=>{ redactedFrames++; },
+    encodeCanvasJpeg:async()=>{ assert.ok(redactedFrames > pending.length, "Walking upload must be redacted before encoding"); return "synthetic-image"; },roomTranscript:()=>"",
     readRoom:(_image,_room,_items,_note,_purpose,onPreview)=>new Promise((resolve,reject)=>pending.push({resolve,reject,onPreview})),
     walkingReadingItems:()=>[],rememberWalkEvidence:noop,findRoom:()=>null};
   vm.createContext(context);
