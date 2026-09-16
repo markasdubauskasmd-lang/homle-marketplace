@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import vm from "node:vm";
+import { webcrypto } from "node:crypto";
 import { pricingRequestFromManualTasks, requestedWindow, requestTasksFromLines } from "../public/landlord-dashboard-model.js";
 import { premiumBaseTasks, premiumScope } from "../public/scan-premium-selection.js";
 
@@ -8,6 +9,51 @@ import { premiumBaseTasks, premiumScope } from "../public/scan-premium-selection
 // No browser, account, network requests or booking mutations are involved.
 const script = await readFile(new URL("../public/landlord-journey.js", import.meta.url), "utf8");
 const section = (from, until) => script.slice(script.indexOf(from), script.indexOf(until, script.indexOf(from)));
+
+// A response can be lost after a property was saved. Changing the address before
+// retrying must never recover the earlier address and attach the clean to it.
+{
+  const records = new Map(), posted = [];
+  let sequence = 0, loseResponse = true, loseRead = true;
+  const state = { properties: [], draft: { propertyId: "", propertyDraftId: "", postcode: "SM4 4LE" } };
+  const el = Object.fromEntries(Object.entries({ propertyType: "house", addressLine1: "1 Example Road", locality: "Morden", fullPostcode: "SM4 4LE" }).map(([key, value]) => [key, { value }]));
+  const context = vm.createContext({
+    state, el, crypto: webcrypto, TextEncoder,
+    isUkPostcode: () => true,
+    normalisedPostcode: value => ({ outward: "SM4", full: String(value).trim().toUpperCase() }),
+    randomId: () => "30000000-0000-4000-8000-" + String(++sequence).padStart(12, "0"),
+    saveDraft() {}, setRequestScopeValue: (field, value) => { state.draft[field] = value; },
+    requestJson: async (_url, options) => {
+      if (!options) {
+        if (loseRead) { loseRead = false; throw Object.assign(new Error("Read lost"), { code: "request-timeout" }); }
+        return { properties: [...records.values()] };
+      }
+      const payload = JSON.parse(options.body); posted.push(payload);
+      if (records.has(payload.id)) throw Object.assign(new Error("Already saved"), { statusCode: 409 });
+      const property = { propertyId: payload.id, propertyType: payload.propertyType,
+        exactAddress: { addressLine1: payload.addressLine1, locality: payload.locality, postcode: payload.postcode } };
+      records.set(payload.id, property);
+      if (loseResponse) { loseResponse = false; throw Object.assign(new Error("Write response lost"), { code: "request-timeout" }); }
+      return { property };
+    }
+  });
+  vm.runInContext(section("async function createOrRecoverProperty(", "async function createOrRecoverRequest("), context);
+  await assert.rejects(context.createOrRecoverProperty("csrf"), /Read lost/);
+  const uncertainId = state.draft.propertyDraftId;
+  el.addressLine1.value = "2 Example Road";
+  const correctedId = await context.createOrRecoverProperty("csrf");
+  assert.notEqual(correctedId, uncertainId, "An address edit reused the uncertain property's old ID");
+  assert.equal(records.get(correctedId).exactAddress.addressLine1, "2 Example Road");
+  // Unchanged retry, including after reload, retains the same idempotency key.
+  state.draft.propertyId = "";
+  state.draft = JSON.parse(JSON.stringify(state.draft));
+  const retryId = await context.createOrRecoverProperty("csrf");
+  assert.equal(retryId, correctedId);
+  assert.equal(posted.at(-1).id, correctedId);
+  assert.equal(records.size, 2);
+  assert(!state.draft.propertyDraftFingerprint.includes("Example"), "Retry metadata copied an address into its fingerprint");
+  console.log("Property retry recovery passed: lost response, edited address, same-address conflict and restored identity.");
+}
 function element() {
   return {
     textContent: "", innerHTML: "", hidden: false, disabled: false, dataset: {}, children: [],
@@ -468,4 +514,3 @@ for (const fail of [false, true]) {
   }
 }
 console.log("Pending confirmation passed: scope controls and Back/history lock before await, and failure restores editing without enabling unavailable choices.");
-

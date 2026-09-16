@@ -152,6 +152,7 @@ const state = {
     durationMinutes: 120,
     propertyId: "",
     propertyDraftId: "",
+    propertyDraftFingerprint: "",
     requestId: "",
     cleanerId: "marketplace",
     cleanerName: "Best available Cleaner"
@@ -1109,21 +1110,29 @@ async function createOrRecoverProperty(csrf) {
   const entered = normalisedPostcode(postcode);
   const searched = normalisedPostcode(state.draft.postcode);
   if (!entered?.full || entered.outward !== searched?.outward) throw new TypeError("The cleaning address must be inside the postcode area you searched.");
-  if (!state.draft.propertyDraftId) state.draft.propertyDraftId = randomId();
+  // Retry identities belong to the exact address. A lost response followed by
+  // an address edit must not recover the previously saved, different property.
+  // Persist only a digest beside the identity; the draft's existing owner and
+  // expiry checks apply to both on reload.
+  const propertyScope = { propertyType, addressLine1, locality, postcode: entered.full };
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(propertyScope)));
+  const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  if (!state.draft.propertyDraftId || state.draft.propertyDraftFingerprint !== fingerprint) {
+    state.draft.propertyDraftId = randomId();
+    state.draft.propertyDraftFingerprint = fingerprint;
+  }
+  const propertyDraftId = state.draft.propertyDraftId;
   saveDraft();
   try {
     const result = await requestJson("/api/marketplace/properties", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
       body: JSON.stringify({
-        id: state.draft.propertyDraftId,
-        propertyType,
-        addressLine1,
-        locality,
-        postcode
+        id: propertyDraftId,
+        ...propertyScope
       })
     });
-    if (!result.property?.propertyId) throw new Error("The saved property could not be verified.");
+    if (result.property?.propertyId !== propertyDraftId) throw new Error("The saved property could not be verified.");
     state.properties.push(result.property);
     setRequestScopeValue("propertyId", result.property.propertyId);
     saveDraft();
@@ -1131,7 +1140,7 @@ async function createOrRecoverProperty(csrf) {
   } catch (error) {
     if (!["request-timeout", "browser-offline"].includes(error?.code) && error?.statusCode !== 409) throw error;
     const result = await requestJson("/api/marketplace/properties");
-    const recovered = (result.properties || []).find((property) => property.propertyId === state.draft.propertyDraftId);
+    const recovered = (result.properties || []).find((property) => property.propertyId === propertyDraftId);
     if (!recovered) throw error;
     state.properties = result.properties;
     setRequestScopeValue("propertyId", recovered.propertyId);
@@ -2335,6 +2344,7 @@ async function confirmJourney() {
     discardDraft();
     state.draft.requestId = "";
     state.draft.propertyDraftId = "";
+    state.draft.propertyDraftFingerprint = "";
     state.scanPhotos = [];
     state.scanRooms = [];
     state.scanCorrections = [];
