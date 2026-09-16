@@ -551,7 +551,7 @@ export function createAnthropicRoomVision(options = {}) {
         messages: [{ role: "user", content: [imagePayload(image), { type: "text", text: context }] }]
       };
       let response;
-      if (purpose === "walking" && typeof onPreview === "function") {
+      if (typeof onPreview === "function") {
         const preview = createReadingPreview(onPreview);
         const stream = client.messages.stream(request, { signal });
         stream.on("text", text => preview.push(text));

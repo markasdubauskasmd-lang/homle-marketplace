@@ -1,3 +1,15 @@
+// Image decoding/encoding APIs do not accept AbortSignal. The caller's reading
+// deadline still bounds them; a late result has no authority to send a photo.
+export function withReadingSignal(work, signal) {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    if (signal.aborted) { reject(signal.reason); return; }
+    signal.addEventListener("abort", abort, { once: true });
+    Promise.resolve().then(() => { signal.throwIfAborted(); return work(); })
+      .then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+}
+
 // Transport previews are disposable. Only a complete event can return a result
 // to the existing inventory/condition pipeline.
 export async function readRoomResponse(response, onPreview) {

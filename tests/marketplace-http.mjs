@@ -1076,7 +1076,7 @@ console.log("Room-reading connection cancellation checks passed.");
 {
   const { createServer } = await import("node:http");
   const { once } = await import("node:events");
-  for (const outcome of ["success", "failure", "disconnect"]) {
+  for (const purpose of ["walking", "confirmation"]) for (const outcome of ["success", "failure", "disconnect"]) {
     let release, providerSignal;
     const gate = new Promise(resolve => { release = resolve; });
     const tested = createMarketplaceHttpRouter({ ...dependencies, roomVision: {
@@ -1096,7 +1096,7 @@ console.log("Room-reading connection cancellation checks passed.");
     try {
       const response = await fetch(`http://127.0.0.1:${server.address().port}/api/marketplace/landlord/room-reading`, {
         method: "POST", headers: { ...authHeaders, accept: "application/x-ndjson" },
-        body: JSON.stringify({ image: "synthetic", purpose: "walking" }), signal: controller.signal
+        body: JSON.stringify({ image: "synthetic", purpose }), signal: controller.signal
       });
       assert(response.headers.get("content-type").includes("application/x-ndjson"), "Preview response was buffered as JSON.");
       const reader = response.body.getReader();

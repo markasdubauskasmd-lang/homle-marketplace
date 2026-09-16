@@ -1,6 +1,7 @@
 import { containScannerFocus } from "./scanner-modal-focus.js";
 import { createManualCameraZoom } from "./manual-camera-zoom.js";
-import { readRoomResponse } from "./room-reading-stream.js";
+import { createCameraSession } from "./camera-session.js";
+import { readRoomResponse, withReadingSignal } from "./room-reading-stream.js";
 import {
   canFinishScan,
   usableDetections,
@@ -462,10 +463,11 @@ export function warmRoomScanDetector() {
 // received a usable frame. Treating the stream object alone as success leaves a
 // blank viewfinder whose shutter can only say "warming up" forever. Exporting
 // the readiness boundary keeps that browser-specific failure directly tested.
-export function waitForCameraFrame(video, timeoutMs = 6000) {
+export function waitForCameraFrame(video, timeoutMs = 6000, signal) {
   const hasFrame = () => video.videoWidth > 0
     && video.videoHeight > 0
     && Number(video.readyState) >= 2;
+  if (signal?.aborted) return Promise.reject(Object.assign(new Error("Camera session cancelled"), { name: "AbortError" }));
   if (hasFrame()) return Promise.resolve();
   return new Promise((resolveFrame, rejectFrame) => {
     let settled = false;
@@ -477,12 +479,15 @@ export function waitForCameraFrame(video, timeoutMs = 6000) {
       video.removeEventListener("loadedmetadata", check);
       video.removeEventListener("canplay", check);
       video.removeEventListener("playing", check);
+      signal?.removeEventListener("abort", abort);
       if (error) rejectFrame(error);
       else resolveFrame();
     };
     const check = () => {
       if (hasFrame()) finish();
     };
+    const abort = () => finish(Object.assign(new Error("Camera session cancelled"), { name: "AbortError" }));
+    signal?.addEventListener("abort", abort, { once: true });
     video.addEventListener("loadedmetadata", check);
     video.addEventListener("canplay", check);
     video.addEventListener("playing", check);
@@ -633,13 +638,14 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       // record the customer's "no", which is final for the room.
       cameraTrack: null, cameraCapabilities: null,
       torchOn: false, torchDeclined: false, darkStreak: 0,
-      zoom: 0, zoomDeclined: false, distanceStreak: 0, emptyStreak: 0, zoomAnnounced: false,
+      zoom: 0, zoomDeclined: false, distanceStreak: 0, emptyStreak: 0, zoomAnnounced: false, zoomNeedsRestart: false,
       framingKind: "",
       // Counters, not a log. Inference runs several times a second, so a line per
       // event would drown the console; a running total answers the question that
       // actually gets asked when a scan looks wrong — is the room filter working,
       // or is it eating everything?
       pendingReads: 0, roomReadControllers: new Set(), finishWarningKey: "",
+      confirmationPreviews: new Map(), visionRetryAfter: 0,
       // Monotonic identity for a saved room revision. A response from an older
       // photo must never update a same-named room that has since been removed,
       // rescanned or edited.
@@ -1111,7 +1117,10 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         // the review was missing, so a room can be checked without reopening it.
         const shown = room.itemLabels.slice(0, 4).join(", ");
         const extra = room.itemLabels.length > 4 ? ` +${room.itemLabels.length - 4} more` : "";
-        const detail = [shown ? shown + extra : "", room.hasNote ? "Room note added" : ""].filter(Boolean).join(" · ");
+        const preview = state.confirmationPreviews.get(transcriptKey(room.name));
+        const provisional = room.readingStatus === "reading" && preview
+          ? [...new Set(preview.items.filter(Boolean).map(item => item.label))].slice(0, 6).join(", ") : "";
+        const detail = [shown ? shown + extra : "", provisional ? `Still checking: ${provisional}` : "", room.hasNote ? "Room note added" : ""].filter(Boolean).join(" · ");
         button.append(
           Object.assign(document.createElement("span"), { className: "hub-room-name", textContent: room.name }),
           Object.assign(document.createElement("span"), { className: "hub-room-meta", textContent: meta })
@@ -1288,10 +1297,28 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     }
 
     /* ── Camera ── */
+    const cameraSession = createCameraSession({
+      getUserMedia: constraints => navigator.mediaDevices.getUserMedia(constraints),
+      isCancelled: () => state.closed || document.hidden
+    });
+    let cameraStartPromise = null;
     async function startCamera() {
-      if (state.cameraStarting || state.stream || state.closed) return;
+      if (state.closed || document.hidden) return;
+      // Reset or foreground recovery may arrive while the cancelled acquisition,
+      // playback or first-frame wait is unwinding. Keep that restart request.
+      if (cameraStartPromise) {
+        await cameraStartPromise;
+        if (!state.closed && !document.hidden && !state.stream) return startCamera();
+        return;
+      }
+      if (state.stream) return;
       state.cameraStarting = true;
-      try { await openCamera(); } finally { state.cameraStarting = false; }
+      const pending = openCamera();
+      cameraStartPromise = pending;
+      try { await pending; } finally {
+        if (cameraStartPromise === pending) cameraStartPromise = null;
+        state.cameraStarting = false;
+      }
     }
 
     async function openCamera() {
@@ -1302,7 +1329,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         return blockCamera("A camera needs a secure connection. Open Homle on its https address and try again.");
       }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        const stream = await cameraSession.acquire({
           // 720p contains more detail than the 1280px stored room frame can use,
           // while starting faster and moving fewer pixels through the preview
           // than an unnecessary full-HD request.
@@ -1311,7 +1338,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
             width: { ideal: 1280, max: 1920 },
             height: { ideal: 720, max: 1080 },
             frameRate: { ideal: 24, max: 30 },
-            resizeMode: { ideal: "crop-and-scale" }
+            resizeMode: { ideal: "none" }
           },
           audio: false
         });
@@ -1326,6 +1353,12 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         // calls are optional in the spec, so everything is guarded and an
         // absent capability simply leaves the assist dormant.
         state.cameraTrack = stream.getVideoTracks()[0] || null;
+        state.cameraTrack?.addEventListener?.("ended", () => {
+          if (state.stream !== stream || state.closed) return;
+          stopDetection();
+          stopCamera();
+          blockCamera("The camera disconnected. Try the live camera again, or use a room photo.");
+        }, { once: true });
         state.torchOn = false;
         state.zoom = 0;
         state.darkStreak = 0;
@@ -1339,9 +1372,10 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         el.deck.inert = false;
         el.deck.removeAttribute("aria-hidden");
         el.shutter.disabled = false;
-        await el.camera.play();
-        await waitForCameraFrame(el.camera);
-        if (state.closed) { stopCamera(); return; }
+        await cameraSession.play(el.camera, stream);
+        await cameraSession.waitFor(stream, signal => waitForCameraFrame(el.camera, 6000, signal));
+        if (!cameraSession.isActive(stream)) return;
+        layoutLive();
         // Nothing has left the device at this point and nothing will: the
         // detector is local, and starting it now is what gives the Landlord
         // boxes to tap the moment they freeze a frame.
@@ -1349,6 +1383,9 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       } catch (error) {
         stopCamera();
         if (state.closed) return;
+        // Intentional background/Reset cancellation is recovery, not a broken
+        // camera. Its replacement starts only after this attempt has unwound.
+        if (error?.code === "camera-session-cancelled") return;
         const denied = error?.name === "NotAllowedError" || error?.name === "SecurityError";
         const stalled = error?.name === "CameraNotReadyError" || error?.name === "AbortError";
         blockCamera(denied
@@ -1376,6 +1413,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     }
 
     function stopCamera() {
+      cameraSession.stop();
       for (const track of state.stream?.getTracks?.() || []) track.stop();
       state.stream = null;
       try { el.camera.pause(); } catch {}
@@ -1395,11 +1433,26 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
 
     // Darkness may enable the torch; zoom is always chosen by the customer.
     const initializedZoomTracks = new WeakSet();
-    const changeCameraZoom = createManualCameraZoom({
+    const applyCameraZoom = createManualCameraZoom({
       getTrack: () => state.closed ? null : state.cameraTrack,
-      onChange: (zoom) => { state.zoom = zoom; renderCameraAssist(); },
-      onError: () => toast("The camera could not change zoom. Try Reset or reopen the camera.")
+      onChange: (zoom) => { state.zoom = zoom; state.zoomNeedsRestart = false; renderCameraAssist(); },
+      onError: (error) => {
+        state.zoomNeedsRestart = error?.recoverCamera === true;
+        toast(state.zoomNeedsRestart
+          ? "Zoom stopped responding. Tap Reset to reopen the camera at its widest view."
+          : "The camera could not change zoom. Try Reset or reopen the camera.");
+      }
     });
+    async function changeCameraZoom(reset = false) {
+      if (reset && state.zoomNeedsRestart && !state.closed) {
+        state.zoomNeedsRestart = false;
+        stopDetection();
+        stopCamera();
+        await startCamera();
+        return;
+      }
+      return applyCameraZoom(reset);
+    }
 
     async function applyTrackConstraint(constraint) {
       const track = state.cameraTrack;
@@ -1522,23 +1575,10 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
 
     /* ── Capture ── */
 
-    // The viewfinder shows the camera through `object-fit: cover`, so the
-    // Landlord only ever sees a centred crop of the full sensor frame. Capturing
-    // the whole frame would mean boxes drawn in viewfinder coordinates no longer
-    // line up with the pixels underneath them, and a crop cut from one space
-    // using coordinates from the other lands on the wrong object.
-    //
-    // Capturing exactly the region `cover` displays collapses that to a single
-    // coordinate space: a percentage of the viewfinder is a percentage of this
-    // canvas. It also means what gets read is precisely what was on screen.
+    // Live and frozen pictures use their actual aspect ratio. Keep the entire
+    // sensor/photo frame: changing the viewport must never behave like zoom.
     function viewfinderSourceRect(sourceWidth, sourceHeight) {
-      const rect = viewfinderRect();
-      // Before first layout (or in a synthetic test host) the source aspect is
-      // the only honest fallback. That keeps every pixel rather than inventing a
-      // crop from a zero-sized viewfinder.
-      const frameWidth = rect.width || sourceWidth;
-      const frameHeight = rect.height || sourceHeight;
-      return coverSourceRect({ sourceWidth, sourceHeight, frameWidth, frameHeight });
+      return coverSourceRect({ sourceWidth, sourceHeight, frameWidth: sourceWidth, frameHeight: sourceHeight });
     }
 
     // Maps the detector's source-space boxes onto the cropped, scaled canvas and
@@ -1548,7 +1588,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     // asks the Landlord not to photograph people or paperwork, but asking is not
     // a control, and until this existed a face or a payslip in frame was stored
     // intact and served to the assigned Cleaner under a signed URL.
-    function redactPrivateContent(canvas, sourceRect, scale) {
+    function redactPrivateContent(canvas, sourceRect, scale, sourceSize) {
       const regions = state.privateRegions;
       if (!Array.isArray(regions) || !regions.length) {
         state.lastRedaction = null;
@@ -1556,14 +1596,16 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       }
       const context = canvas.getContext("2d");
       if (!context) return;
-      // Source pixels to canvas pixels: subtract the crop origin, then apply the
-      // same scale the frame was drawn at.
+      // Live inference uses a smaller frame. Convert its coordinates back to
+      // the captured source BEFORE applying the crop and encode scale.
+      const factorX = sourceSize.width / (state.privateRegionSource?.width || sourceSize.width);
+      const factorY = sourceSize.height / (state.privateRegionSource?.height || sourceSize.height);
       const onCanvas = regions.map((region) => {
         const [x, y, width, height] = region.bbox.map(Number);
         if (![x, y, width, height].every(Number.isFinite)) return null;
         return {
           class: region.class,
-          bbox: [(x - sourceRect.sx) * scale, (y - sourceRect.sy) * scale, width * scale, height * scale]
+          bbox: [(x * factorX - sourceRect.sx) * scale, (y * factorY - sourceRect.sy) * scale, width * factorX * scale, height * factorY * scale]
         };
       }).filter(Boolean);
       const mappedRegions = redactionRegions(onCanvas, { width: canvas.width, height: canvas.height });
@@ -1607,7 +1649,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       // frame sent for reading is produced, which is exactly why the erasure
       // belongs here rather than at each call site: a new caller added later
       // inherits it instead of having to remember it.
-      redactPrivateContent(el.canvas, sourceRect, scale);
+      redactPrivateContent(el.canvas, sourceRect, scale, { width: sourceWidth, height: sourceHeight });
       // 0.90, and deliberately generous. At 0.82 the compressor was smoothing
       // away exactly the speckle and film that distinguish a limescaled tap from
       // a white one. `roomReadingPayload` measures the real serialized size and
@@ -1831,14 +1873,34 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       el.still.style.objectFit = "fill";
     }
 
+    function layoutLive() {
+      if (state.frozen || !el.camera.videoWidth || !el.camera.videoHeight) return;
+      const rect = el.viewfinder.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const scale = Math.min(rect.width / el.camera.videoWidth, rect.height / el.camera.videoHeight);
+      const width = el.camera.videoWidth * scale, height = el.camera.videoHeight * scale;
+      for (const node of [el.camera, el.detections]) {
+        node.style.left = `${(rect.width - width) / 2}px`;
+        node.style.top = `${(rect.height - height) / 2}px`;
+        node.style.width = `${width}px`;
+        node.style.height = `${height}px`;
+        node.style.right = "auto";
+        node.style.bottom = "auto";
+      }
+      el.camera.style.objectFit = "contain";
+      state.viewRect = null;
+    }
+
     function resetLayout() {
       for (const node of [el.still, el.detections]) node.removeAttribute("style");
+      layoutLive();
     }
 
     function onViewportResize() {
       // The cached viewfinder box is only valid for the current layout.
       state.viewRect = null;
       if (state.frozen) layoutFrozen();
+      else layoutLive();
     }
 
     function refreshSelection() {
@@ -1929,7 +1991,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       // Frozen, the boxes live in the letterboxed rectangle rather than the
       // whole viewfinder, so a tap has to be measured against the same thing the
       // boxes were drawn in or every hit test is offset.
-      const rect = (state.frozen ? el.detections : el.viewfinder).getBoundingClientRect();
+      const rect = el.detections.getBoundingClientRect();
       if (!rect.width || !rect.height) return null;
       const x = ((event.clientX - rect.left) / rect.width) * 100;
       const y = ((event.clientY - rect.top) / rect.height) * 100;
@@ -2178,6 +2240,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
           condition: existing?.condition || "",
           transcript: spokenNote,
           readingStatus: "reading",
+          readingSelection: chosen.map(item => ({ ...item })),
           readingRevision
         };
       } else {
@@ -2259,7 +2322,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       }
 
       room = { ...room, removedInventoryKeys: [...dismissed] };
-      const replacing = Boolean(existing);
+      const replacing = Boolean(existing.name);
       state.rooms = upsertRoom(state.rooms, room);
       state.tracks = [];
       state.capturing = false;
@@ -2538,7 +2601,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     // which is most of what a cleaning quote actually turns on.
     async function maybeReadKeyframe(video) {
       if (state.itemOnly) return;
-      if (!state.readingAllowed || !state.visionAvailable || state.frozen || state.closed) return;
+      if (!state.readingAllowed || !state.visionAvailable || state.frozen || state.closed || Date.now() < state.visionRetryAfter) return;
       const roomName = state.currentRoom;
       const roomKey = transcriptKey(roomName);
       const budget = keyframeBudget(roomName);
@@ -2589,10 +2652,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         const width = video.videoWidth || 0;
         const height = video.videoHeight || 0;
         if (!width || !height) throw new TypeError("The camera frame is not ready.");
-        // Read exactly the same centred object-fit:cover crop that is visible in
-        // the viewfinder. Analysing the full sensor frame can spend most of a
-        // portrait phone's read on off-screen pixels and save objects the
-        // Landlord never saw.
+        // Read the same full frame shown in the fitted live picture.
         const sourceRect = viewfinderSourceRect(width, height);
         if (!sourceRect) throw new TypeError("The visible camera frame is not ready.");
         // 1280 / 0.80, up from 1024 / 0.72. The walking read is not just naming
@@ -2612,6 +2672,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
           sourceRect.sx, sourceRect.sy, sourceRect.sWidth, sourceRect.sHeight,
           0, 0, canvas.width, canvas.height
         );
+        redactPrivateContent(canvas, sourceRect, scale, { width, height });
         // `toDataURL` compressed the JPEG synchronously here, pausing the live
         // camera up to four times per room. The Blob path yields immediately.
         image = await encodeCanvasJpeg(canvas, 0.80);
@@ -3014,7 +3075,15 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       }
       state.pendingReads += 1;
       renderHub();
-      readRoom(frame, roomName, chosen, spokenNote)
+      const roomKey = transcriptKey(roomName);
+      const preview = { revision: readingRevision, items: [] };
+      state.confirmationPreviews.set(roomKey, preview);
+      readRoom(frame, roomName, chosen, spokenNote, "confirmation", item => {
+        const current = findRoom(state.rooms, roomName);
+        if (state.closed || current?.readingStatus !== "reading" || current.readingRevision !== readingRevision) return;
+        preview.items[item.index] = item;
+        renderHub();
+      })
         .then((reading) => {
           // The scan may have been discarded, or this room removed and re-added,
           // while the model was thinking. Updating a room that is no longer the
@@ -3038,6 +3107,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
             taskRecords: mergeScanTaskRecords(scanTaskRecordsFor(current), scanTaskRecordsFor(reading)),
             condition: resolveRoomCondition(reading.condition, current.condition),
             readingStatus: reading.readingStatus || "ready",
+            readingSelection: undefined,
             readingRevision: 0
           });
           seedSavedInventory(findRoom(state.rooms, roomName));
@@ -3064,6 +3134,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
           renderHub();
         })
         .finally(() => {
+          if (state.confirmationPreviews.get(roomKey) === preview) state.confirmationPreviews.delete(roomKey);
           state.pendingReads = Math.max(0, state.pendingReads - 1);
           if (!state.closed) renderHub();
         });
@@ -3081,7 +3152,9 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         readRoomInBackground({
           frame: room.image,
           roomName: room.name,
-          chosen: room.detections || [],
+          // Repeat the original request, not the accumulated inventory. Walking
+          // items can have no geometry and whole-room results can exceed twelve.
+          chosen: room.readingSelection || [],
           spokenNote: room.transcript || "",
           readingRevision
         });
@@ -3100,10 +3173,15 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), taskRecords: readingTaskRecords({tasks:localRoomTasks(roomName, transcript)}, {customer:true}), condition: "", readingStatus: "manual" };
       }
 
+      const controller = new AbortController();
+      state.roomReadControllers.add(controller);
+      if (state.closed) controller.abort();
+      const timer = window.setTimeout(() => controller.abort(), 32_000);
+      try {
       // Decode the immutable frame rather than reading the shared capture canvas.
       // The customer can already be scanning the next room while crops encode;
       // this source can never become that later room.
-      const cropSource = items.length ? await snapshotCropSource(image) : null;
+      const cropSource = items.length ? await withReadingSignal(() => snapshotCropSource(image), controller.signal) : null;
       const selected = [];
       for (const item of items) {
         selected.push({
@@ -3111,7 +3189,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
           box: { x: item.x, y: item.y, width: item.width, height: item.height },
           score: item.score,
           conditionConfidence: item.conditionConfidence,
-          crop: await cropFor(item, cropSource)
+          crop: await withReadingSignal(() => cropFor(item, cropSource), controller.signal)
         });
       }
       // The route rejects anything over its body limit with a 413 the Landlord
@@ -3131,12 +3209,6 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       // kitchen would have been left saying "reading it now" forever.
       //
       // They are tracked as a set so `close()` can still abort every one.
-      const controller = new AbortController();
-      state.roomReadControllers.add(controller);
-      // Closing the overlay while a read was in flight must still stop it.
-      if (state.closed) controller.abort();
-      const timer = window.setTimeout(() => controller.abort(), 32_000);
-      try {
       // Session restoration is part of the same bounded, cancellable request.
       // A missing token must not leave the scanner waiting before its timer starts.
       const csrf = await recoverCsrf(controller.signal);
@@ -3144,16 +3216,19 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       if (!csrf) throw Object.assign(new Error("A signed-in Landlord session is required."), { code: "sign-in-required" });
       const response = await fetch("/api/marketplace/landlord/room-reading", {
         method: "POST", credentials: "same-origin", cache: "no-store",
-        headers: { "Content-Type": "application/json", Accept: purpose === "walking" ? "application/x-ndjson" : "application/json", "X-CSRF-Token": csrf },
+        headers: { "Content-Type": "application/json", Accept: selected.length ? "application/json" : "application/x-ndjson", "X-CSRF-Token": csrf },
         body: JSON.stringify(payload.body),
         signal: controller.signal
       });
       if (response.status === 503) {
-        state.visionAvailable = false;
-        return { detections: localDetections, tasks: localRoomTasks(roomName, transcript), taskRecords: readingTaskRecords({tasks:localRoomTasks(roomName, transcript)}, {customer:true}), condition: "", readingStatus: "manual" };
+        // A temporary outage must leave saved rooms retryable. Pause automatic
+        // walking attempts, but let an explicit confirmation retry immediately.
+        state.visionRetryAfter = Date.now() + 30_000;
+        throw Object.assign(new Error("Room reading is temporarily unavailable."), { code: "reading-unavailable" });
       }
       if (!response.ok) throw new Error("reading-failed");
       const result = await readRoomResponse(response, onPreview);
+      state.visionRetryAfter = 0;
       return {
         // With a selection the device already owns the geometry and only the
         // names come back; without one the whole frame was read the old way and
@@ -3532,7 +3607,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     // Measuring the viewfinder forces layout. It only changes when the window or
     // orientation does, so it is measured once and reused until invalidated.
     function viewfinderRect() {
-      if (!state.viewRect) state.viewRect = el.viewfinder.getBoundingClientRect();
+      if (!state.viewRect) state.viewRect = el.detections.getBoundingClientRect();
       return state.viewRect;
     }
 
@@ -3645,7 +3720,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     }
 
     function pauseForBackground() {
-      state.resumeCameraOnVisible ||= Boolean(state.stream) && !state.frozen;
+      state.resumeCameraOnVisible ||= (Boolean(state.stream) || state.cameraStarting) && !state.frozen;
       stopDetection();
       stopCamera();
       stopSpeaking();
@@ -4065,6 +4140,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       // — the video element and the model with it — for the lifetime of the page.
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("resize", onViewportResize);
+      el.camera.removeEventListener("resize", onViewportResize);
       window.removeEventListener("orientationchange", onViewportResize);
       window.visualViewport?.removeEventListener("resize", onViewportResize);
       window.removeEventListener("pagehide", onPageHide);
@@ -4243,6 +4319,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("resize", onViewportResize);
+    el.camera.addEventListener("resize", onViewportResize);
     window.addEventListener("orientationchange", onViewportResize);
     // A mobile keyboard can resize the visual viewport without firing a window
     // resize, which would leave the boxes mapped against the pre-keyboard layout.

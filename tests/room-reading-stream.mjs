@@ -41,7 +41,7 @@ for (const invalid of [
 }
 console.log("PASS: preview precedes final response; arbitrary chunk boundaries, escaping, field isolation, malformed/nested input, bounds and callback failures.");
 
-{
+for (const purpose of ["walking", "confirmation"]) {
   let emit, finish, emitted = false;
   const previews = [];
   const final = new Promise(resolve => { finish = resolve; });
@@ -49,11 +49,11 @@ console.log("PASS: preview precedes final response; arbitrary chunk boundaries, 
   const provider = createAnthropicRoomVision({ apiKey: "test", client: { messages: {
     stream(request, options) {
       assert.equal(options.signal, controller.signal);
-      assert.equal(request.model, "claude-haiku-4-5");
+      assert.equal(request.model, purpose === "walking" ? "claude-haiku-4-5" : "claude-opus-4-8");
       return { on(event, callback) { assert.equal(event, "text"); emit = callback; }, finalMessage() { return final; } };
     }, create() { assert.fail("Streaming must not start a second request"); }
   } } });
-  const read = provider.readRoom({ image: "data:image/jpeg;base64," + "A".repeat(64), purpose: "walking", signal: controller.signal, onPreview: item => previews.push(item) });
+  const read = provider.readRoom({ image: "data:image/jpeg;base64," + "A".repeat(64), purpose, signal: controller.signal, onPreview: item => previews.push(item) });
   read.then(() => { emitted = true; }, () => {});
   emit('{"condition":"unknown","detections":[' + JSON.stringify(objects[0]));
   assert.equal(previews.length, 1); assert.equal(emitted, false);

@@ -279,7 +279,9 @@ function saveDraft() {
       draft.transcript = reviewed.transcript;
       // The resumable booking scope reflects customer edits; the original
       // in-memory scan remains intact for correction replay on submission.
-      const reviewedRooms = correctedScanRooms();
+      // Persist dismissal/task metadata too. Corrections are materialised on
+      // reload, so their removed keys cannot live only in scanCorrections.
+      const reviewedRooms = taskReviewRooms();
       draft.rooms = (Array.isArray(reviewedRooms) ? reviewedRooms : []).map(room => ({
         ...room, note: reviewed.notes[String(room.name || room.roomName || "").trim().toLowerCase()] ?? room.note
       }));
@@ -1899,7 +1901,7 @@ function correctScanObject(roomName, inventoryKey, field, value) {
   const { corrections } = applyCorrection(correctedScanRooms(), { roomName, inventoryKey, field, value });
   if (!corrections.length) return;
   state.scanCorrections.push({ roomName, inventoryKey, field, value, originalValue: corrections[0].originalValue });
-  if (field === "label") {
+  if (field === "label" || field === "quantity") {
     const previous = state.scanPremiumPlan;
     state.scanPremiumPlan = createPremiumPlan(correctedScanRooms(), scanChecklistLines(taskReviewRooms()), pricingConfig || defaultPricingConfig);
     state.scanPremiumSelected = state.scanPremiumSelected.filter(id => state.scanPremiumPlan.options.some(option => option.id === id && previous.options.some(old => old.id === id && old.code === option.code)));
