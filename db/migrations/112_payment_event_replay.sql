@@ -154,7 +154,7 @@ $$;
 -- API snapshots cannot release a reservation; only signed events settle it.
 CREATE OR REPLACE FUNCTION tideway_private.record_booking_payment_command(target_command_id uuid, supplied_provider_command_id text, provider_result text)
 RETURNS TABLE(command_id uuid,payment_id uuid,kind text,status text)
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
   actor_id uuid := tideway_private.current_user_id();
   command_record payment_commands%ROWTYPE;
@@ -170,6 +170,6 @@ BEGIN
   END IF;
   RETURN QUERY SELECT command_record.id,command_record.payment_id,command_record.command_kind,command_record.status;
 END;
-$;
+$$;
 
 COMMIT;
