@@ -2886,6 +2886,10 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       const items = inventoryFor();
       const list = el.foundList;
       if (!list) return;
+      const active = document.activeElement;
+      const focus = active && list.contains(active)
+        ? ["inventoryRename", "inventoryRemove", "inventoryPage"].find(key => active.dataset[key] !== undefined) : null;
+      const focusValue = focus ? active.dataset[focus] : null;
       const currentRoomBusy = state.keyframeActiveRooms.has(transcriptKey());
       // The glow and the list are two different systems: the on-device
       // detector highlights instantly and free, the room reader names and
@@ -2924,21 +2928,24 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
 
       // A streamed name is useful before the whole reading finishes, but it is
       // not yet a validated inventory item or a cleaning/price assessment.
-      const previews = state.screen === "live" && !state.frozen && items.length === 0
-        ? (state.walkingPreviews.get(transcriptKey() || "unnamed") || []).filter(Boolean) : [];
+      // Later angles should reveal new names just as early as the first angle.
+      // Keep saved items editable and never revive a dismissed item or count a
+      // provisional alias twice. These rows never enter the saved inventory.
+      const known = new Set(items.flatMap(item => [item.key, inventoryKey(item.label)]));
+      const dismissed = state.dismissed.get(transcriptKey()) || new Set();
+      const previews = state.screen === "live" && !state.frozen && currentRoomBusy
+        ? (state.walkingPreviews.get(transcriptKey() || "unnamed") || []).filter(item => {
+          if (!item) return false;
+          const identity = inventoryKey(item.label);
+          if (!identity || known.has(identity) || dismissed.has(identity)) return false;
+          known.add(identity); return true;
+        }) : [];
       if (previews.length) {
         el.found.hidden = false;
-        el.foundCount.textContent = String(previews.length);
-        el.foundNoun.textContent = "provisional · still assessing";
-        list.replaceChildren(...previews.map(item => {
-          const row = document.createElement("li"); row.className = "found-item is-provisional";
-          const label = document.createElement("span"); label.className = "found-name";
-          label.textContent = item.label;
-          const grade = document.createElement("em"); grade.className = "found-grade";
-          grade.dataset.grade = "uncertain"; grade.textContent = "cleanliness not assessed";
-          label.append(" ", grade); row.append(label); return row;
-        }));
-        return;
+        if (!items.length) {
+          el.foundCount.textContent = String(previews.length);
+          el.foundNoun.textContent = "provisional · still assessing";
+        } else el.foundNoun.textContent += ` · ${previews.length} provisional`;
       }
       const page = inventoryPage(items, state.inventoryPages.get(transcriptKey()) || 0);
       state.inventoryPages.set(transcriptKey(), page.page);
@@ -2996,6 +3003,14 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         row.append(name, remove);
         return row;
       });
+      rows.push(...previews.map(item => {
+        const row = document.createElement("li"); row.className = "found-item is-provisional";
+        const label = document.createElement("span"); label.className = "found-name";
+        label.textContent = item.label;
+        const grade = document.createElement("em"); grade.className = "found-grade";
+        grade.dataset.grade = "uncertain"; grade.textContent = "still assessing · cleanliness not assessed";
+        label.append(" ", grade); row.append(label); return row;
+      }));
       if (page.pages > 1) {
         const navigation = document.createElement("li");
         navigation.className = "found-item";
@@ -3016,6 +3031,8 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         rows.push(navigation);
       }
       list.replaceChildren(...rows);
+      // Streaming must not drop keyboard focus from a saved item's controls.
+      if (focus) [...list.querySelectorAll("button")].find(button => button.dataset[focus] === focusValue)?.focus({preventScroll:true});
     }
 
     // Everything a walking read returned beyond the object names. Accumulated so a
