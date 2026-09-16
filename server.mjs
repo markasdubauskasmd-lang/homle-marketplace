@@ -28,6 +28,7 @@ import { assessPrivateDataDirectory } from "./data-directory-safety.mjs";
 import { validateProductionDeployment } from "./deployment-readiness.mjs";
 import { marketplaceActivationReadiness } from "./marketplace-activation-readiness.mjs";
 import { loadReleaseIdentity } from "./release-identity.mjs";
+import { recordProcessLifecycle } from "./src/marketplace/process-lifecycle.mjs";
 import { cleanerOffersRequestedService, cleanerServiceFields, requestServices, requiredCleanerService } from "./pilot-service.mjs";
 import "./public/scope-time-breakdown.js";
 import "./public/proposal-economics.js";
@@ -5984,9 +5985,11 @@ if (lanServer) {
 }
 
 let shutdownStarted = false;
+const processLifecycle = recordProcessLifecycle({ release: releaseIdentity, commandWritesPaused: marketplaceAttachment.paymentCommandWritesPaused });
 async function shutdown() {
   if (shutdownStarted) return;
   shutdownStarted = true;
+  processLifecycle.requestShutdown();
   if (trackingTestExpiryTimer) clearInterval(trackingTestExpiryTimer);
   trackingTestStore?.close();
   // Workers drain in-flight jobs, and a slow database query has no execution

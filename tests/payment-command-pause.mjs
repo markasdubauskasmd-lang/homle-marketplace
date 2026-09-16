@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './process-lifecycle.mjs';
 import {readFileSync} from 'node:fs';
 import {createPaymentService} from '../src/marketplace/payment-service.mjs';
 import {paymentCommandWritesPaused} from '../src/marketplace/payment-command-policy.mjs';
