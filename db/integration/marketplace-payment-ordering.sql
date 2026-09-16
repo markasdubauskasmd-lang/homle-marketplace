@@ -38,7 +38,9 @@ BEGIN
   END;
   IF NOT blocked THEN RAISE EXCEPTION 'Cleaner transfer began while a refund was live'; END IF;
 
-  UPDATE payment_commands SET status='provider-failed' WHERE id='51000000-0000-4000-8000-000000000001';
+  -- Only a signed terminal refund failure releases its monetary reservation.
+  PERFORM tideway_private.reconcile_payment_provider_event('stripe','evt_ordering_refund_failed','refund-failed','re_ordering_failed',
+    '50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000001',1000,'gbp',occurred-interval '1 second',repeat('7',64));
   PERFORM * FROM tideway_private.begin_booking_payment_command('51000000-0000-4000-8000-000000000004','50000000-0000-4000-8000-000000000010','transfer',NULL,decode(repeat('d5',32),'hex'));
   blocked := false;
   BEGIN
@@ -336,5 +338,7 @@ BEGIN
   IF NOT blocked THEN RAISE EXCEPTION 'Administrator-only context bypassed customer receipt ownership'; END IF;
 END
 $receipt_owner$;
+
+\ir marketplace-payment-recovery.sql
 
 ROLLBACK;

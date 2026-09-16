@@ -214,6 +214,7 @@ const privacyRequestService = {
 };
 let paymentStarted = false;
 const paymentService = {
+  async recoverCommand(actor, commandId) { calls.push({ kind: "payment-recovery", actor, commandId }); return { commandId, paymentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", kind: "refund", status: "provider-pending", recoveryRequired: true, recoveryReason: "awaiting-signed-evidence", signedEventsReplayed: 0 }; },
   getClientConfiguration(actor) { calls.push({ kind: "payment-config", actor }); return { publishableKey: `pk_test_${"p".repeat(32)}`, testMode: true }; },
   async beginSandboxCheckout(actor, input) {
     calls.push({ kind: "payment-sandbox-checkout", actor, input });
@@ -484,6 +485,19 @@ const absentSandboxCheckoutResponse = response();
 assert(await noPaymentRouter.handle(request("POST", sandboxCheckoutUrl), absentSandboxCheckoutResponse, new URL(`http://127.0.0.1:4173${sandboxCheckoutUrl}`)) === false && absentSandboxCheckoutResponse.statusCode === null, "Disabled payments exposed the standalone Stripe checkout route.");
 
 const adminPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments?status=actionable&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
+const recoveryPath = "/api/marketplace/admin/payment-commands/dddddddd-dddd-4ddd-8ddd-dddddddddddd/recover";
+const recoveryCallsBefore = calls.filter(call => call.kind === "payment-recovery").length;
+for (const [headers, statusCode] of [[{},401], [authHeaders,403], [{ cookie: administratorAuthHeaders.cookie, origin: administratorAuthHeaders.origin, "content-type": "application/json" },403]]) {
+  const denied = await dispatch(router, "POST", recoveryPath, { headers, body: {} });
+  assert(denied.response.statusCode === statusCode, "Payment recovery lost session/role/CSRF protection.");
+}
+const injectedRecovery = await dispatch(router, "POST", recoveryPath, { headers: administratorAuthHeaders, body: { amountPence: 1, providerCommandId: "re_browser_attack" } });
+assert(injectedRecovery.response.statusCode === 422 && calls.filter(call => call.kind === "payment-recovery").length === recoveryCallsBefore, "Payment recovery accepted browser money/provider instructions.");
+const wrongRecoveryMethod = await dispatch(router, "GET", recoveryPath, { headers: administratorAuthHeaders });
+assert(wrongRecoveryMethod.response.statusCode === 405, "Payment recovery audit requires a protected mutation route.");
+const recoveredPayment = await dispatch(router, "POST", recoveryPath, { headers: administratorAuthHeaders, body: {} });
+assert(recoveredPayment.response.statusCode === 200 && recoveredPayment.body.recovery.recoveryRequired === true
+  && calls.findLast(call => call.kind === "payment-recovery").commandId === "dddddddd-dddd-4ddd-8ddd-dddddddddddd", "Payment recovery lost its bounded response or exact server command.");
 const adminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings?view=attention&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
 const landlordAdminBookingQueue = await dispatch(router, "GET", "/api/marketplace/admin/bookings", { headers: { cookie: authHeaders.cookie } });
 const adminCoverage = await dispatch(router, "GET", "/api/marketplace/admin/coverage?windowDays=90", { headers: { cookie: administratorAuthHeaders.cookie } });

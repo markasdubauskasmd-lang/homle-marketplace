@@ -1,5 +1,7 @@
 \set ON_ERROR_STOP on
 
+\ir payment-claim-concurrency-cleanup.sql
+
 BEGIN;
 WITH callback_privacy AS (
   DELETE FROM tideway_private.facebook_data_deletion_requests

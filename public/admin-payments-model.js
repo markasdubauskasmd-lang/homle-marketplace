@@ -2,12 +2,50 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 const paymentStatuses = new Set(["creating", "requires-customer-action", "processing", "authorized", "authorization-failed", "captured", "partially-refunded", "refunded", "cancelled", "disputed"]);
 const bookingStatuses = new Set(["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "cancelled", "disputed"]);
 const commandKinds = new Set(["capture", "cancel", "refund", "transfer"]);
+const commandStatuses = new Set(["created", "provider-pending", "provider-failed", "reconciled"]);
 const disputeStatuses = new Set(["warning_needs_response", "warning_under_review", "needs_response", "under_review", "won", "lost", "warning_closed", "prevented", "unknown", "conflict"]);
 const resolvedDisputeStatuses = new Set(["won", "warning_closed", "prevented"]);
 
 export function paymentDisputeHeld(record) {
   return record?.paymentStatus === "disputed" || record?.disputeReviewRequired === true
     || (Array.isArray(record?.disputes) && record.disputes.some((item) => item.requiresReview === true || !resolvedDisputeStatuses.has(item.status) || item.providerDisputeId == null));
+}
+
+export function paymentRecoveryHeld(record) {
+  return record?.reconciliationReviewRequired === true
+    || (Array.isArray(record?.recoveryCommands) && record.recoveryCommands.some(command => command.recoveryRequired === true));
+}
+
+function recoveryCommands(value) {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value) || value.length > 100) throw new Error("Payment recovery evidence is unavailable.");
+  const identities = new Set();
+  return Object.freeze(value.map(command => {
+    if (!command || !uuidPattern.test(command.commandId || "") || identities.has(command.commandId.toLowerCase())
+      || !commandKinds.has(command.kind) || !commandStatuses.has(command.status)
+      || typeof command.recoveryRequired !== "boolean"
+      || (command.recoveryReason != null && !/^[a-z0-9-]{1,120}$/.test(command.recoveryReason))) {
+      throw new Error("Payment recovery evidence is unavailable.");
+    }
+    identities.add(command.commandId.toLowerCase());
+    return Object.freeze({ commandId: command.commandId.toLowerCase(), kind: command.kind, status: command.status,
+      recoveryRequired: command.recoveryRequired, recoveryReason: command.recoveryReason || null,
+      checkedAt: command.checkedAt == null ? null : timestamp(command.checkedAt, "Recovery check time") });
+  }));
+}
+
+export function paymentRecoveryReasonLabel(reason) {
+  if (["awaiting-signed-evidence", "awaiting-signed-terminal-evidence", "found-awaiting-signed-evidence"].includes(reason))
+    return "Provider record found. Waiting for verified payment events before the ledger can be settled.";
+  if (["provider-unavailable", "provider-search-failed", "provider-request-failed", "provider-search-time-bound", "provider-pagination-bound"].includes(reason))
+    return "The provider check could not finish. Check again; no money action is repeated.";
+  if (reason === "no-object-found-is-not-proof-of-no-effect")
+    return "No matching provider record was found. This does not prove the earlier action failed. Review the original request with Stripe.";
+  if (["original-destination-unavailable", "original-source-unavailable", "legacy-attempt-unknown"].includes(reason))
+    return "The original payment instructions are incomplete. Review the original request with Stripe before proceeding.";
+  if (reason === "partial-transfer-reversal-requires-accounting")
+    return "A partial payout reversal needs reconciliation before another money action.";
+  return "This earlier action needs reconciliation. Check the provider outcome and review the recorded evidence before continuing.";
 }
 
 export function paymentDisputeStatusLabel(value) {
@@ -58,12 +96,16 @@ export function adminPaymentQueue(value) {
     const disputes = paymentDisputes(record.disputes);
     if (record.disputeReviewRequired !== undefined && typeof record.disputeReviewRequired !== "boolean") throw new Error("Payment dispute review status is unavailable.");
     const disputeReviewRequired = paymentDisputeHeld({ ...record, disputes });
+    const commands = recoveryCommands(record.recoveryCommands);
+    if (record.reconciliationReviewRequired !== undefined && typeof record.reconciliationReviewRequired !== "boolean") throw new Error("Payment recovery status is unavailable.");
+    const reconciliationReviewRequired = paymentRecoveryHeld({ ...record, recoveryCommands: commands });
+    const held = disputeReviewRequired || reconciliationReviewRequired;
     return Object.freeze({
       paymentId: record.paymentId.toLowerCase(), bookingId: record.bookingId.toLowerCase(), paymentStatus: record.paymentStatus, bookingStatus: record.bookingStatus,
       scheduledStartAt: timestamp(record.scheduledStartAt, "Booking start time"), scheduledEndAt: timestamp(record.scheduledEndAt, "Booking end time"), updatedAt: timestamp(record.updatedAt, "Payment update time"),
       amountPence, amountCapturedPence, amountRefundedPence, cleanerPayPence: integer(record.cleanerPayPence, 1, amountPence, "Cleaner pay"), currency: "gbp",
-      payoutReady: record.payoutReady === true, canCapture: !disputeReviewRequired && record.canCapture === true, canCancel: !disputeReviewRequired && record.canCancel === true, canRefund: !disputeReviewRequired && record.canRefund === true, canTransfer: !disputeReviewRequired && record.canTransfer === true, awaitingProvider: record.awaitingProvider === true,
-      disputeReviewRequired, disputes
+      payoutReady: record.payoutReady === true, canCapture: !held && record.canCapture === true, canCancel: !held && record.canCancel === true, canRefund: !held && record.canRefund === true, canTransfer: !held && record.canTransfer === true, awaitingProvider: record.awaitingProvider === true,
+      disputeReviewRequired, disputes, reconciliationReviewRequired, recoveryCommands: commands
     });
   });
   return Object.freeze({ payments: Object.freeze(payments), limit, offset, testMode: value.testMode === true });
@@ -92,6 +134,9 @@ export function paymentNextAction(record) {
   }
   if (paymentDisputeHeld(record)) {
     return Object.freeze({ kind: "dispute-review", title: "Review the payment dispute", copy: "Payment actions are on hold. Check the dispute outcome and reconcile the provider balance before continuing. Money already transferred to a Cleaner is not automatically recovered." });
+  }
+  if (paymentRecoveryHeld(record)) {
+    return Object.freeze({ kind: "reconciliation-review", title: "Check the earlier payment action", copy: "Money actions are on hold until the earlier outcome is verified. Checking the provider outcome does not send another charge, refund or payout." });
   }
   if (record.awaitingProvider === true) {
     return Object.freeze({ kind: "refresh", title: "Refresh signed provider status", copy: "A previous command is still being reconciled. Do not repeat it or start another payment action." });

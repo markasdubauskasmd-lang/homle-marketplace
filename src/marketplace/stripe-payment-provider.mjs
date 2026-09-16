@@ -1,3 +1,4 @@
+import { assertCommandPostWindow, discoverCommandObject } from "./payment-command-recovery.mjs";
 import { uuidPattern } from "./validation.mjs";
 const stripeApiVersion = "2026-06-24.dahlia";
 const testKeyPattern = /^sk_test_[A-Za-z0-9_]{16,200}$/;
@@ -5,6 +6,9 @@ const webhookSecretPattern = /^whsec_[A-Za-z0-9_]{16,200}$/;
 const providerReferencePattern = /^(?:pi|re|tr|ch|acct|evt)_[A-Za-z0-9_]{3,250}$/;
 const payoutIdempotencyPattern = /^tideway_cleaner_payout_[0-9a-f-]{36}$/;
 const sandboxIdempotencyPattern = /^homle_sandbox_[0-9a-f]{64}$/;
+// SDK Retry-After waits can outlive the dispatch margin. Monetary calls retry
+// only through the persisted attempt protocol, with a fresh deadline check.
+const commandRequestOptions = Object.freeze({ timeout: 10_000, maxNetworkRetries: 0 });
 
 function reference(value, label) {
   if (!providerReferencePattern.test(value || "")) throw new TypeError(`Stripe returned an invalid ${label}.`);
@@ -299,28 +303,43 @@ export async function createStripePaymentProvider(configuration = {}, options = 
       const intent = await stripe.paymentIntents.retrieve(reference(input?.providerPaymentId, "PaymentIntent id"));
       return authorizationResult(intent);
     },
+    async prepareCommandAttempt(input) {
+      const selected = commandInput(input);
+      if (!/^acct_[A-Za-z0-9_]{3,250}$/.test(selected.destinationAccountId || "")) throw new TypeError("The transfer destination could not be verified.");
+      const intent = await stripe.paymentIntents.retrieve(selected.providerPaymentId, { expand: ["latest_charge"] }, commandRequestOptions);
+      if (intent?.id !== selected.providerPaymentId || intent.livemode !== false || intent.status !== "succeeded"
+        || intent.currency !== selected.currency || !Number.isInteger(intent.amount_received) || intent.amount_received < selected.amountPence
+        || intent.metadata?.tideway_payment_id !== selected.paymentId || intent.metadata?.tideway_booking_id !== selected.bookingId
+        || !/^ch_[A-Za-z0-9_]{3,250}$/.test(objectReference(intent.latest_charge) || "")) throw new TypeError("The transfer source could not be verified.");
+      return { ...selected, sourceChargeId: objectReference(intent.latest_charge) };
+    },
+    discoverCommandObject(input) { return discoverCommandObject(stripe,input); },
     async capture(input) {
       const selected = commandInput(input);
-      const intent = await stripe.paymentIntents.capture(reference(selected.providerPaymentId, "PaymentIntent id"), { amount_to_capture: selected.amountPence, metadata: metadata(selected) }, { idempotencyKey: selected.idempotencyKey });
+      assertCommandPostWindow(selected);
+      const intent = await stripe.paymentIntents.capture(reference(selected.providerPaymentId, "PaymentIntent id"), { amount_to_capture: selected.amountPence, metadata: metadata(selected) }, { ...commandRequestOptions, idempotencyKey: selected.idempotencyKey });
       return commandResult(intent, "succeeded", ["processing"]);
     },
     async cancel(input) {
       const selected = commandInput(input);
       const paymentIntentId = reference(selected.providerPaymentId, "PaymentIntent id");
-      await stripe.paymentIntents.update(paymentIntentId, { metadata: metadata(selected) }, { idempotencyKey: `${selected.idempotencyKey}_metadata` });
-      const intent = await stripe.paymentIntents.cancel(paymentIntentId, { cancellation_reason: "requested_by_customer" }, { idempotencyKey: selected.idempotencyKey });
+      assertCommandPostWindow(selected);
+      await stripe.paymentIntents.update(paymentIntentId, { metadata: metadata(selected) }, { ...commandRequestOptions, idempotencyKey: `${selected.idempotencyKey}_metadata` });
+      assertCommandPostWindow(selected);
+      const intent = await stripe.paymentIntents.cancel(paymentIntentId, { cancellation_reason: "requested_by_customer" }, { ...commandRequestOptions, idempotencyKey: selected.idempotencyKey });
       return commandResult(intent, "canceled");
     },
     async refund(input) {
       const selected = commandInput(input);
-      const refund = await stripe.refunds.create({ payment_intent: reference(selected.providerPaymentId, "PaymentIntent id"), amount: selected.amountPence, metadata: metadata(selected) }, { idempotencyKey: selected.idempotencyKey });
+      assertCommandPostWindow(selected);
+      const refund = await stripe.refunds.create({ payment_intent: reference(selected.providerPaymentId, "PaymentIntent id"), amount: selected.amountPence, metadata: metadata(selected) }, { ...commandRequestOptions, idempotencyKey: selected.idempotencyKey });
       return commandResult(refund, "succeeded", ["pending", "requires_action"]);
     },
     async transfer(input) {
       const selected = commandInput(input);
-      const intent = await stripe.paymentIntents.retrieve(reference(selected.providerPaymentId, "PaymentIntent id"), { expand: ["latest_charge"] });
-      const chargeId = objectReference(intent?.latest_charge);
-      if (intent?.status !== "succeeded" || intent?.currency !== selected.currency || !Number.isInteger(intent?.amount_received) || intent.amount_received < selected.amountPence || !chargeId) throw new TypeError("The captured Stripe charge is not ready for Cleaner transfer.");
+      const chargeId = selected.sourceChargeId;
+      if (!/^ch_[A-Za-z0-9_]{3,250}$/.test(chargeId || "")) throw new TypeError("A pinned transfer source is required.");
+      assertCommandPostWindow(selected);
       const transfer = await stripe.transfers.create({
         amount: selected.amountPence,
         currency: selected.currency,
@@ -328,7 +347,7 @@ export async function createStripePaymentProvider(configuration = {}, options = 
         source_transaction: reference(chargeId, "source charge id"),
         transfer_group: `tideway_booking_${selected.bookingId}`,
         metadata: metadata(selected)
-      }, { idempotencyKey: selected.idempotencyKey });
+      }, { ...commandRequestOptions, idempotencyKey: selected.idempotencyKey });
       return Object.freeze({ id: reference(transfer?.id, "transfer id"), status: "pending" });
     },
     async verifyWebhook(rawBody, signature) {

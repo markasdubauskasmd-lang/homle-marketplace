@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
-import { postgresIntegrationConfirmation, requiredLifecycleRealtimeKinds, runConcurrentPsql, runPostgresMarketplaceIntegration, runPostgresNotificationProbe } from "../tools/postgres-integration-runner.mjs";
+import { postgresIntegrationConfirmation, requiredLifecycleRealtimeKinds, verifyPaymentClaimResults, runConcurrentPsql, runPostgresMarketplaceIntegration, runPostgresNotificationProbe } from "../tools/postgres-integration-runner.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const integrationDirectory = path.join(projectRoot, "db", "integration");
@@ -14,6 +14,7 @@ const requiredFiles = [
   "accept-booking-a.sql", "accept-booking-b.sql", "marketplace-post-concurrency.sql",
   "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql",
   "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "landlord-support-owner-setup.sql", "landlord-support-behaviour.sql", "landlord-support-owner-cleanup.sql",
+  "payment-claim-concurrency-setup.sql", "payment-claim-concurrency-core.sql", "payment-claim-concurrency-a.sql", "payment-claim-concurrency-b.sql", "payment-claim-concurrency-expire.sql", "payment-claim-concurrency-verify.sql", "payment-claim-concurrency-cleanup.sql",
   "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
 ];
 const sources = new Map();
@@ -175,6 +176,18 @@ function successfulSpawn(command, args, options) {
   calls.push({ command, args, options, file: path.basename(args.at(-1)) });
   return { status: 0, stdout: "ok\n", stderr: "" };
 }
+function claimProof(action) {
+  return ["A", "B"].map((letter) => ({ status: 0, stderr: "", stdout: "PAYMENT_CLAIM_" + letter + "|" + JSON.stringify({ action, firstAttemptAt: action === "post" ? "2026-01-01T00:00:00Z" : "2020-01-01T00:00:00Z", requestIdentity: { commandId: "fixture" }, remainingMs: 82_799_000 }) }));
+}
+assert.equal(verifyPaymentClaimResults(claimProof("post"), "post").length, 2);
+assert.equal(verifyPaymentClaimResults(claimProof("recover"), "recover").length, 2);
+assert.throws(() => verifyPaymentClaimResults(claimProof("post"), "recover"), /unsafe action/);
+const driftedClaims = claimProof("post");
+driftedClaims[1].stdout = driftedClaims[1].stdout.replace("2026-01-01", "2026-01-02");
+assert.throws(() => verifyPaymentClaimResults(driftedClaims, "post"), /same original attempt/);
+assert.throws(() => verifyPaymentClaimResults([{ status: 3 }, claimProof("post")[1]], "post"), /Concurrent payment claim failed/);
+assert.match(sources.get("payment-claim-concurrency-a.sql"), /NOT waiting.granted/);
+assert.match(sources.get("payment-claim-concurrency-b.sql"), /pg_temp.claim_fixture/);
 const concurrentBatches = [];
 const realtimeProbes = [];
 let concurrentCall = 0;
@@ -192,6 +205,7 @@ const result = await runPostgresMarketplaceIntegration({
       { status: 0, stdout: "AUTOMATIC_DISPATCH_CLAIM_A|1", stderr: "" },
       { status: 0, stdout: "AUTOMATIC_DISPATCH_CLAIM_B|0", stderr: "" }
     ];
+    if (concurrentCall >= 3) return claimProof(concurrentCall === 3 ? "post" : "recover");
     return [
       { status: 0, stdout: "confirmed", stderr: "" },
       { status: 3, stdout: "", stderr: "ERROR: cleaner-schedule-conflict" }
@@ -208,10 +222,10 @@ const result = await runPostgresMarketplaceIntegration({
   }
 });
 
-assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, administratorCoverage: true, administratorFunnel: true, propertyArchive: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, landlordSupport: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, administratorCoverage: true, administratorFunnel: true, propertyArchive: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, landlordSupport: true, paymentJourneyGate: true, paymentOrdering: true, paymentClaimConcurrency: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "public-cleaner-profile-behaviour.sql", "cleaner-verification-queue-pagination.sql",
-  "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "administrator-coverage-behaviour.sql", "administrator-funnel-owner-setup.sql", "administrator-funnel-behaviour.sql", "administrator-funnel-owner-cleanup.sql", "customer-capacity-setup.sql", "customer-capacity-behaviour.sql", "customer-capacity-cleanup.sql", "property-archive-behaviour.sql", "landlord-repeat-setup.sql", "landlord-repeat-behaviour.sql", "landlord-repeat-cleanup.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "structured-room-scan-behaviour.sql", "scan-pricing-ruleset-behaviour.sql", "scan-estimate-shadow-behaviour.sql", "scan-retention-voice-addon-behaviour.sql", "scan-ground-truth-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "landlord-support-owner-setup.sql", "landlord-support-behaviour.sql", "landlord-support-owner-cleanup.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql",
+  "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "administrator-coverage-behaviour.sql", "administrator-funnel-owner-setup.sql", "administrator-funnel-behaviour.sql", "administrator-funnel-owner-cleanup.sql", "customer-capacity-setup.sql", "customer-capacity-behaviour.sql", "customer-capacity-cleanup.sql", "property-archive-behaviour.sql", "landlord-repeat-setup.sql", "landlord-repeat-behaviour.sql", "landlord-repeat-cleanup.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "structured-room-scan-behaviour.sql", "scan-pricing-ruleset-behaviour.sql", "scan-estimate-shadow-behaviour.sql", "scan-retention-voice-addon-behaviour.sql", "scan-ground-truth-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "landlord-support-owner-setup.sql", "landlord-support-behaviour.sql", "landlord-support-owner-cleanup.sql", "marketplace-payment-ordering.sql", "payment-claim-concurrency-setup.sql", "payment-claim-concurrency-verify.sql", "payment-claim-concurrency-expire.sql", "payment-claim-concurrency-verify.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);
 for (const call of calls) {
@@ -227,12 +241,12 @@ assert.equal(calls.find((call) => call.file === "landlord-support-owner-setup.sq
 assert.equal(calls.find((call) => call.file === "landlord-support-owner-cleanup.sql").options.env.PGPASSWORD, ownerPassword);
 assert.equal(calls.find((call) => call.file === "automatic-dispatch-requeue.sql").options.env.PGPASSWORD, workerPassword);
 assert.ok(calls.every((call) => !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_OWNER_URL") && !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_APP_URL") && !Object.hasOwn(call.options.env, "DATABASE_INTEGRATION_WORKER_URL") && !Object.hasOwn(call.options.env, "SMTP_URL")));
-assert.equal(concurrentBatches.length, 2);
+assert.equal(concurrentBatches.length, 4);
 assert.equal(realtimeProbes.length, 1);
 assert.deepEqual(realtimeProbes[0].signals.map(({ kind }) => kind), requiredLifecycleRealtimeKinds);
 assert.equal(realtimeProbes[0].accountSignals.length, 1);
 assert.ok(concurrentBatches[0].every((job) => job.environment.PGUSER === "tideway_worker" && job.environment.PGPASSWORD === workerPassword));
-assert.ok(concurrentBatches[1].every((job) => job.environment.PGUSER === "tideway_app" && job.environment.PGPASSWORD === appPassword));
+assert.ok(concurrentBatches.slice(1).flat().every((job) => job.environment.PGUSER === "tideway_app" && job.environment.PGPASSWORD === appPassword));
 
 await assert.rejects(
   runPostgresMarketplaceIntegration({ ownerUrl, appUrl, workerUrl, confirmation: "yes", spawnSync: successfulSpawn }),

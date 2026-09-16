@@ -1,3 +1,4 @@
+import { dispatchPersistedPaymentCommand, recoverPersistedPaymentCommand } from "./payment-command-dispatch.mjs";
 import { createHash, randomUUID } from "node:crypto";
 import { uuid, uuidPattern } from "./validation.mjs";
 
@@ -73,6 +74,20 @@ function optionalCommandStatus(value) {
   return value;
 }
 
+function recoveryReason(value) {
+  if (value == null) return null;
+  if (typeof value !== "string" || !/^[a-z][a-z0-9-]{0,119}$/.test(value)) throw new Error("Payment recovery details are unavailable.");
+  return value;
+}
+
+function publicCommandRecovery(record) {
+  if (!record || !commandKinds.has(record.kind) || !commandStatuses.has(record.status)
+    || typeof record.recoveryRequired !== "boolean") throw new Error("Payment recovery details are unavailable.");
+  return Object.freeze({ commandId: uuid(record.commandId, "payment command id"), paymentId: uuid(record.paymentId, "payment id"),
+    kind: record.kind, status: record.status, recoveryRequired: record.recoveryRequired, recoveryReason: recoveryReason(record.recoveryReason),
+    signedEventsReplayed: exactInteger(record.signedEventsReplayed, 0, 100, "Replayed payment events") });
+}
+
 function administratorPaymentOperation(value) {
   const record = object(value);
   if (!record || typeof record !== "object" || !paymentStatuses.has(record.paymentStatus) || !bookingStatuses.has(record.bookingStatus)) throw new Error("The payment operation is unavailable.");
@@ -88,6 +103,14 @@ function administratorPaymentOperation(value) {
       lastEventId: reference(dispute.lastEventId, "dispute event id"), requiresReview: dispute.requiresReview });
   });
   const disputeReviewRequired = record.disputeReviewRequired === true || record.paymentStatus === "disputed" || disputes.some(dispute => dispute.requiresReview);
+  if (!Array.isArray(record.recoveryCommands || []) || (record.recoveryCommands || []).length > 100) throw new Error("Payment recovery details are unavailable.");
+  const recoveryCommands = (record.recoveryCommands || []).map(command => {
+    if (!commandKinds.has(command.kind) || !commandStatuses.has(command.status) || typeof command.recoveryRequired !== "boolean") throw new Error("Payment recovery details are unavailable.");
+    return Object.freeze({ commandId: uuid(command.commandId, "payment command id"), kind: command.kind, status: command.status,
+      recoveryRequired: command.recoveryRequired, recoveryReason: recoveryReason(command.recoveryReason),
+      checkedAt: command.checkedAt == null ? null : timestamp(command.checkedAt, "Payment recovery check") });
+  });
+  const reconciliationReviewRequired = record.reconciliationReviewRequired === true || recoveryCommands.some(command => command.recoveryRequired);
   const result = {
     paymentId: uuid(record.paymentId, "payment id"),
     bookingId: uuid(record.bookingId, "booking id"),
@@ -101,10 +124,12 @@ function administratorPaymentOperation(value) {
     amountRefundedPence: refunded,
     cleanerPayPence: cleanerPay,
     payoutReady: record.payoutReady === true,
-    canCapture: !disputeReviewRequired && record.canCapture === true,
-    canCancel: !disputeReviewRequired && record.canCancel === true,
-    canRefund: !disputeReviewRequired && record.canRefund === true,
-    canTransfer: !disputeReviewRequired && record.canTransfer === true,
+    canCapture: !disputeReviewRequired && !reconciliationReviewRequired && record.canCapture === true,
+    canCancel: !disputeReviewRequired && !reconciliationReviewRequired && record.canCancel === true,
+    canRefund: !disputeReviewRequired && !reconciliationReviewRequired && record.canRefund === true,
+    canTransfer: !disputeReviewRequired && !reconciliationReviewRequired && record.canTransfer === true,
+    reconciliationReviewRequired,
+    recoveryCommands: Object.freeze(recoveryCommands),
     disputeReviewRequired,
     disputes: Object.freeze(disputes),
     awaitingProvider: record.awaitingProvider === true,
@@ -187,8 +212,8 @@ function normalizedEvent(value, payloadHash) {
 }
 
 export function createPaymentService(repository, provider, options = {}) {
-  const requiredRepository = ["getByBooking", "listForAdministrator", "getForAdministratorBooking", "beginAuthorization", "recordAuthorization", "beginCommand", "recordCommand", "reconcileEvent"];
-  const requiredProvider = ["createAuthorization", "createSandboxCheckout", "retrieveAuthorization", "capture", "cancel", "refund", "transfer", "verifyWebhook"];
+  const requiredRepository = ["getByBooking", "listForAdministrator", "getForAdministratorBooking", "beginAuthorization", "recordAuthorization", "beginCommand", "recordCommand", "reconcileEvent", "claimCommandAttempt", "recordCommandRecovery", "getCommandAttempt", "getAdministratorCommandRecovery"];
+  const requiredProvider = ["createAuthorization", "createSandboxCheckout", "retrieveAuthorization", "capture", "cancel", "refund", "transfer", "verifyWebhook", "prepareCommandAttempt", "discoverCommandObject"];
   if (!repository || requiredRepository.some((method) => typeof repository[method] !== "function")) throw new TypeError("A complete payment repository is required.");
   if (!provider || provider.name !== "stripe" || requiredProvider.some((method) => typeof provider[method] !== "function")) throw new TypeError("A complete Stripe payment adapter is required.");
   const publishableKey = String(options.publishableKey || "").trim();
@@ -255,7 +280,6 @@ export function createPaymentService(repository, provider, options = {}) {
       amountPence,
       idempotencyKeyHash
     });
-    if (prepared.providerCommandId) return Object.freeze({ commandId: prepared.commandId, paymentId: prepared.paymentId, kind, status: prepared.status });
     const request = {
       idempotencyKey: `tideway_payment_command_${prepared.commandId}`,
       commandId: prepared.commandId,
@@ -265,13 +289,18 @@ export function createPaymentService(repository, provider, options = {}) {
       amountPence: positiveInteger(prepared.amountPence, "Payment command amount"),
       currency: currency(prepared.currency)
     };
-    if (kind === "transfer") request.destinationAccountId = reference(prepared.destinationAccountId, "Cleaner destination account id");
-    const result = providerCommand(await provider[kind](request));
-    const recorded = await repository.recordCommand(actor, prepared.commandId, result);
-    return Object.freeze({ commandId: recorded.commandId, paymentId: recorded.paymentId, kind: recorded.kind, status: recorded.status });
+    const result = await dispatchPersistedPaymentCommand({ actor, prepared, kind, request, repository, provider, normalizeProviderCommand: providerCommand });
+    return Object.hasOwn(result, "recoveryRequired") ? publicCommandRecovery(result) : result;
   }
 
   return Object.freeze({
+    async recoverCommand(actor, commandId) {
+      requireRole(actor, "administrator");
+      const selectedId = uuid(commandId, "payment command id");
+      const command = object(await repository.getAdministratorCommandRecovery(actor, selectedId));
+      if (!command || command.commandId !== selectedId) throw Object.assign(new Error("The payment action was not found."), { code: "payment-command-not-found", statusCode: 404 });
+      return publicCommandRecovery(await recoverPersistedPaymentCommand({ actor, command, repository, provider }));
+    },
     getClientConfiguration(actor) {
       requireRole(actor, "landlord");
       return Object.freeze({ publishableKey, testMode: true });

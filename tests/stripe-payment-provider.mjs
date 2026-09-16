@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { performance } from "node:perf_hooks";
 import { createStripePaymentProvider, stripePaymentApiVersion } from "../src/marketplace/stripe-payment-provider.mjs";
 
 const paymentId = "55555555-5555-4555-8555-555555555555";
@@ -78,7 +79,7 @@ await assert.rejects(provider.createSandboxCheckout({ amountPence: 1, currency: 
 
 const resumed = await provider.retrieveAuthorization({ providerPaymentId: "pi_test_authorization" });
 assert.equal(resumed.status, "requires-customer-action");
-const command = { ...shared, commandId, providerPaymentId: "pi_test_authorization", idempotencyKey: `tideway_payment_command_${commandId}` };
+const command = { ...shared, commandId, providerPaymentId: "pi_test_authorization", idempotencyKey: `tideway_payment_command_${commandId}`, postDeadline: performance.now() + 120_000, sourceChargeId: "ch_test_captured" };
 assert.equal((await provider.capture(command)).status, "pending");
 assert.equal((await provider.cancel(command)).status, "succeeded");
 assert.equal((await provider.refund({ ...command, amountPence: 2_000 })).status, "pending");
@@ -92,6 +93,11 @@ assert(cancelUpdateIndex >= 0 && cancelUpdateIndex < cancelIndex, "Cancellation 
 const refund = calls.find((call) => call.kind === "refund");
 assert.equal(refund.input.amount, 2_000);
 const transfer = calls.find((call) => call.kind === "transfer");
+for (const kind of ["intent-capture", "intent-update", "intent-cancel", "refund", "transfer"]) {
+  const options = calls.find(call => call.kind === kind).options;
+  assert.equal(options.timeout, 10000, "Monetary commands must have a bounded per-request timeout.");
+  assert.equal(options.maxNetworkRetries, 0, "Implicit SDK retries can outlive the reserved dispatch deadline.");
+}
 assert.equal(transfer.input.amount, 7_200);
 assert.equal(transfer.input.destination, "acct_test_cleaner");
 assert.equal(transfer.input.source_transaction, "ch_test_captured");

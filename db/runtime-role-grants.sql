@@ -226,4 +226,9 @@ REVOKE ALL ON TABLE tideway_private.scan_telemetry_hourly FROM tideway_app;
 
 GRANT EXECUTE ON FUNCTION tideway_private.reconcile_payment_dispute_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character,text,text) TO tideway_app;
 REVOKE ALL ON TABLE tideway_private.payment_disputes FROM tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.claim_payment_command_attempt(uuid,bytea,jsonb) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.record_payment_command_recovery(uuid,text,text,text,jsonb) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_payment_command_attempt(uuid) TO tideway_app;
+GRANT EXECUTE ON FUNCTION tideway_private.get_administrator_payment_command_recovery(uuid) TO tideway_app;
+REVOKE ALL ON TABLE tideway_private.payment_command_attempt_windows,tideway_private.payment_command_recovery_attempts FROM tideway_app;
 COMMIT;
