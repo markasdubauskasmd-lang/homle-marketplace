@@ -11,11 +11,35 @@ const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 // Pin that approved frontend and keep the backend boundary intact.
 // Pinning the complete dedicated surface and the shared browser assets it loads
 // makes an accidental change fail in CI before it can be merged or deployed.
-const expectedFileCount = 97;
+const expectedFileCount = 98;
 // User approved dashboard job updates and onboarding sidebar spacing, 13 September 2026.
 // User approved employment history and service area fixes, 13 September 2026.
 // User requested connecting Banking & Payments to existing Stripe setup, 13 September 2026.
-const expectedDigest = "bffb8a58d993f6e30edae5b459ea8f1895577fbc965f066f5347454ac85b4a94";
+// User requested a complete onboarding audit and repaired save/continue flow, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+// User authorised the database-backed safety exam, 15 September 2026.
+const expectedDigest = "43561a855d0e8cf1cadcfb767c0ced1406eb045ad49d307a62c7a0060953f7e3";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",

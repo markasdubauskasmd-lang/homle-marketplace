@@ -4,7 +4,7 @@ import { activeJobMessagingOpen } from "./active-job-model.js?v=20260728-1";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260729-6";
-import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260805-2";
+import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { activityRecords, activityDateKey, renderActivityFeature, renderActivityWeek, connectActivityNavigation } from "./homlle-activity.js?v=20260908-1";
 
 const gate = document.querySelector("[data-schedule-gate]");

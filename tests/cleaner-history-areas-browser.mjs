@@ -7,7 +7,7 @@ let profile={yearsExperience:1,serviceAreas:[{outwardPostcode:'SW1A',latitude:51
 const sections={experience:{data:{serviceType:'cleaner',yearsExperience:'1',specialisms:['regular-domestic'],employmentHistory:[]}},business:{data:{serviceType:'cleaner'}},areas:{data:{workZones:[]}}};
 let saves=0;
 const page=await readFile('public/cleaner-registration.html','utf8');
-const extraFiles=Object.fromEntries(['/cleaner/experience','/cleaner/work-areas','/cleaner/onboarding'].map(path=>[path,page]));
+const extraFiles=Object.fromEntries(['/cleaner/experience','/cleaner/work-areas','/cleaner/onboarding','/cleaner/insurance'].map(path=>[path,page]));
 Object.assign(extraFiles,{
  '/api/marketplace/account':()=>({body:{account}}),
  '/api/marketplace/cleaner/profile':({method,body})=>{if(method==='PUT')profile={...profile,...JSON.parse(body)};return {body:{ok:true,profile}};},
@@ -27,11 +27,11 @@ try{
  await run(`{const row=document.querySelector('[data-employment-row]');for(const [key,value] of Object.entries({company:'Demo Previous',startDate:'2020-01',endDate:'2019-01',reasonForLeaving:'Demo move'}))row.querySelector('[data-employment-field="'+key+'"]').value=value;document.querySelector('[data-experience-form]').requestSubmit();}`);
  assert.equal(saves,0,'Invalid chronology must not save');
  await run(`document.querySelector('[data-employment-field="endDate"]').value='2022-01';document.querySelector('[data-employment-add]').click();{const row=document.querySelectorAll('[data-employment-row]')[1];row.querySelector('[data-employment-field="company"]').value='Demo Current';row.querySelector('[data-employment-field="startDate"]').value='2022-02';row.querySelector('[data-employment-field="current"]').click();}document.querySelector('[data-experience-form]').requestSubmit();`);
- await waitFor("location.pathname==='/cleaner/onboarding'");assert.equal(await browser.evaluate("sessionStorage.getItem('tideway_csrf')"),'test-csrf');assert.equal(sections.experience.data.employmentHistory.length,2);assert.equal(sections.experience.data.employmentHistory[1].current,true);
+ await waitFor("location.pathname==='/cleaner/insurance'");assert.equal(await browser.evaluate("sessionStorage.getItem('tideway_csrf')"),'test-csrf');assert.equal(sections.experience.data.employmentHistory.length,2);assert.equal(sections.experience.data.employmentHistory[1].current,true);
  await open('/cleaner/experience',"document.querySelectorAll('[data-employment-row]').length===2");
  assert.equal(await browser.evaluate("document.querySelector('[data-employment-field=company]').value"),'Demo Previous');
  await run("document.querySelector('[data-employment-row] button').click();document.querySelector('[data-experience-form]').requestSubmit()");
- await waitFor("location.pathname==='/cleaner/onboarding'");assert.equal(sections.experience.data.employmentHistory.length,1);
+ await waitFor("location.pathname==='/cleaner/insurance'");assert.equal(sections.experience.data.employmentHistory.length,1);
  await open('/cleaner/work-areas',"document.querySelector('[aria-label=\"Treatment for SW3\"]')");
  assert.equal(await browser.evaluate("document.querySelector('[aria-label=\"Treatment for SW2\"]').value"),'secondary');
  assert.equal(await browser.evaluate("document.querySelector('[aria-label=\"Treatment for SW3\"]').value"),'excluded');

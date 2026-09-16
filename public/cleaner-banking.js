@@ -1,5 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { hydrateOnboardingDocumentInputs, storedDocumentCopy, uploadOnboardingFormDocuments } from "./cleaner-onboarding-documents.js?v=20260805-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
@@ -129,8 +129,8 @@ export async function setupBanking({ account, showFeedback, requestJson }) {
       const uploaded = await uploadOnboardingFormDocuments(form, "banking", "[data-banking-file]", () => showFeedback("Uploading the invoice template securely…"));
       for (const document of uploaded) renderStoredDocument(fileInput, document);
       await saveOnboardingForm(requestJson, "banking", form);
-      showFeedback("Invoice template and payment preference stored. Opening secure Stripe payout setup; Homle will not receive your full bank details.");
-      location.assign(payout?.ready ? "/cleaner/payouts" : "/cleaner/payouts?resume=1");
+      showFeedback("Invoice template and payment preference stored. Complete the separate Stripe payout setup before receiving payments.");
+      location.assign("/cleaner/identity-verification");
     } catch (error) {
       showFeedback(error.message || "Homle could not store your invoice template.", "error");
     }

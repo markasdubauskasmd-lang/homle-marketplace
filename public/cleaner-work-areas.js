@@ -1,5 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-import { refreshOnboardingCsrf } from "./cleaner-onboarding-client.js?v=20260913-history-areas-2";
+import { refreshOnboardingCsrf } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { normalizedWorkZones } from "./cleaner-work-zones.js?v=20260805-1";
 import { postcodeZoneCentres } from "./postcode-zone-centres.js?v=20260805-1";
 import {

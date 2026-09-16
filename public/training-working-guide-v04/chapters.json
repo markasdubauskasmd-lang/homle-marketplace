@@ -1,0 +1,57 @@
+[
+  {
+    "title": "Open the jobs map",
+    "start": 0,
+    "text": "Log in to Homlle. Click the map pin on the left to open Jobs Map. Here you can look for work near you."
+  },
+  {
+    "title": "Check the job",
+    "start": 7.682666666666667,
+    "text": "Select a job and read its details. Check the location, time, pay and tasks. Only accept work you can safely complete."
+  },
+  {
+    "title": "Accept the job",
+    "start": 17.332666666666668,
+    "text": "On your dashboard, click Accept job. Your accepted job appears in your schedule. Open the booking when you are ready to go."
+  },
+  {
+    "title": "Read the customer instructions",
+    "start": 26.239958333333334,
+    "text": "Read the access details and customer notes. Check what needs doing before you start. If anything is unclear, contact the customer."
+  },
+  {
+    "title": "Arrive and start",
+    "start": 35.743291666666664,
+    "text": "Use Start journey when you leave, then record your arrival at the property. When ready to begin, click Start cleaning."
+  },
+  {
+    "title": "Complete the checklist",
+    "start": 43.828624999999995,
+    "text": "Do each task first. Then click Mark task complete beside it. Repeat for the remaining tasks. Record any problem honestly."
+  },
+  {
+    "title": "Add your completion photos",
+    "start": 53.255291666666665,
+    "text": "Photograph the finished work. On your phone, use Take a job photo. This example uses Choose existing photo to select a picture."
+  },
+  {
+    "title": "Upload the photo",
+    "start": 63.22395833333333,
+    "text": "Choose After cleaning. Link the task and add a useful note. Click Upload securely. Wait for confirmation that your photo has saved."
+  },
+  {
+    "title": "Finish the clean",
+    "start": 73.06129166666666,
+    "text": "Check your work and all tasks. Save the completion photos and record any issues. Click Finish cleaning, then confirm when asked."
+  },
+  {
+    "title": "The customer checks your work",
+    "start": 82.332625,
+    "text": "The customer opens your private photos and checks the task record. Clear photos help them see what you have completed. Keep personal information out."
+  },
+  {
+    "title": "Customer confirmation",
+    "start": 92.80995833333333,
+    "text": "When satisfied, the customer clicks Confirm job complete. That completes the booking. You can check your records in Activity and Earnings."
+  }
+]

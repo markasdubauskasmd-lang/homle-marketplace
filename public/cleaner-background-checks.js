@@ -1,5 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { hydrateOnboardingDocumentInputs, storedDocumentCopy, uploadOnboardingFormDocuments } from "./cleaner-onboarding-documents.js?v=20260805-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
@@ -136,6 +136,7 @@ export async function setupBackgroundChecks({ account, showFeedback, requestJson
       for (const document of uploaded) renderStoredDocument(fileInput, document);
       await saveOnboardingForm(requestJson, "dbs", form);
       showFeedback("Background-check details, consent and selected certificate were stored securely. Verification status changes only after Homle records the approved result.");
+      location.assign("/cleaner/work-areas");
     } catch (error) {
       showFeedback(error.message || "Homle could not save your background-check details.", "error");
     }

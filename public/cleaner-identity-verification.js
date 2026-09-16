@@ -1,5 +1,5 @@
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { hydrateOnboardingDocumentInputs, storedDocumentCopy, uploadOnboardingFormDocuments } from "./cleaner-onboarding-documents.js?v=20260805-1";
 
 const maximumDocumentBytes = 20 * 1024 * 1024;
@@ -126,6 +126,7 @@ export async function setupIdentityVerification({ account, showFeedback, request
       }
       await saveOnboardingForm(requestJson, "identity", form);
       showFeedback("Identity details and selected documents were stored securely. Homle will mark verification complete only after an approved check records the result.");
+      location.assign("/cleaner/right-to-work");
     } catch (error) {
       showFeedback(error.message || "Homle could not save your identity details.", "error");
     }

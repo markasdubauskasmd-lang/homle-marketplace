@@ -1,19 +1,19 @@
-import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { applicationStatusLabel, onboardingIcons, onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260807-2";
 import { createCleanerPage, element, requestJson, setText } from "./cleaner-page.js?v=20260816-restore-1";
 import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260816-restore-1";
-import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260913-save-1";
-import { setupBusinessDetails } from "./cleaner-business-details.js?v=20260910-business-photo-1";
-import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=20260728-1";
+import { setupPersonalDetails } from "./cleaner-personal-details.js?v=20260915-onboarding-flow-1";
+import { setupBusinessDetails } from "./cleaner-business-details.js?v=20260915-onboarding-flow-1";
+import { setupIdentityVerification } from "./cleaner-identity-verification.js?v=20260915-onboarding-flow-1";
 import { setupRightToWork } from "./cleaner-right-to-work.js?v=20260808-1";
-import { setupBackgroundChecks } from "./cleaner-background-checks.js?v=20260728-1";
+import { setupBackgroundChecks } from "./cleaner-background-checks.js?v=20260915-onboarding-flow-1";
 import { setupWorkAreas } from "./cleaner-work-areas.js?v=20260913-history-areas-2";
-import { setupExperience } from "./cleaner-experience.js?v=20260913-history-areas-2";
-import { setupInsurance } from "./cleaner-insurance.js?v=20260810-3";
-import { setupBanking } from "./cleaner-banking.js?v=20260729-1";
-import { setupEquipment } from "./cleaner-equipment.js?v=20260807-1";
+import { setupExperience } from "./cleaner-experience.js?v=20260915-onboarding-flow-1";
+import { setupInsurance } from "./cleaner-insurance.js?v=20260915-onboarding-flow-1";
+import { setupBanking } from "./cleaner-banking.js?v=20260915-onboarding-flow-1";
+import { setupEquipment } from "./cleaner-equipment.js?v=20260915-onboarding-flow-1";
 import { setupAvailability } from "./cleaner-availability.js?v=20260805-1";
-import { setupCongratulations, setupReviewSubmit } from "./cleaner-review-submit.js?v=20260913-history-areas-2";
+import { setupCongratulations, setupReviewSubmit } from "./cleaner-review-submit.js?v=20260915-onboarding-flow-1";
 
 function stepIcon(name) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");

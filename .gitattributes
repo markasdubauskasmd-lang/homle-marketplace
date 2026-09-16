@@ -25,3 +25,7 @@ db/migration-lock.json text eol=lf
 
 # Preserve the exact upstream bytes used by preview subresource integrity.
 public/design-preview/vendor/* -text
+
+# Training media and signed-document fingerprints require exact binary bytes.
+*.pdf binary
+*.mp4 binary

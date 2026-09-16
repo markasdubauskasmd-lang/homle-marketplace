@@ -15,11 +15,12 @@
   <link rel="stylesheet" href="/homle-cleaner.css?v=20260807-1">
   <link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260816-restore-1">
   <link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260817-introduction-1">
-  <script src="/cleaner-training.js?v=20260816-restore-1" type="module"></script>
+  <script src="/cleaner-training.js?v=20260916-video-lazy-3" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 <link rel="stylesheet" href="/cleaner-onboarding-flow.css?v=20260910-stripes-45-1">
 <script src="/cleaner-onboarding-flow.js?v=20260910-home-link-2" type="module"></script>
+<link rel="stylesheet" href="/training-journey.css?v=20260916-1">
 </head>
 <body class="cleaner-workspace-page cleaner-training-page cleaner-onboarding-page homlle-onboarding-flow" data-cleaner-shell="onboarding">
   <a class="hc-skip" href="#cleaner-training-main">Skip to Homle Academy</a>
@@ -129,47 +130,12 @@
           </div>
 
           <section class="hc-academy" aria-labelledby="academy-title">
-            <header class="hc-academy-heading">
-              <h1 id="academy-title">Homle Academy</h1>
-              <p>Free training catalogue for Cleaner development. Course delivery, progress tracking and certificates are being connected; nothing is started or recorded on this preview.</p>
-            </header>
-
-            <section class="hc-academy-feature" aria-labelledby="academy-feature-title">
-              <div class="hc-academy-feature-copy">
-                <span class="hc-academy-eyebrow">FEATURED COURSE</span>
-                <h2 id="academy-feature-title">COSHH — safe use of chemicals</h2>
-                <p>Labels, dilution, storage and what to do after a spill. Course access is not connected yet.</p>
-                <button class="hc-academy-feature-button" type="button" data-training-start="COSHH — safe use of chemicals">View course status <span aria-hidden="true">↗</span></button>
-              </div>
-              <dl class="hc-academy-stats" aria-label="Academy status">
-                <div><dt>CATALOGUE</dt><dd>34</dd></div>
-                <div><dt>ACTIVE</dt><dd>3</dd></div>
-                <div><dt>CERTIFICATES</dt><dd>0</dd></div>
-              </dl>
-            </section>
-
-            <div class="hc-academy-filters" role="group" aria-label="Filter training modules">
-              <button type="button" data-training-filter="all" aria-pressed="false" aria-disabled="true" disabled title="Inactive for now">All</button>
-              <button class="is-current" type="button" data-training-filter="required" aria-pressed="true">Required</button>
-              <button type="button" data-training-filter="safety" aria-pressed="false" aria-disabled="true" disabled title="Inactive for now">Safety</button>
-              <button type="button" data-training-filter="specialism" aria-pressed="false" aria-disabled="true" disabled title="Inactive for now">Specialism</button>
-              <button type="button" data-training-filter="business" aria-pressed="false" aria-disabled="true" disabled title="Inactive for now">Business</button>
-            </div>
-            <p class="hc-academy-availability-note">Only required training is active for now. The other Academy modules are retained and temporarily inactive.</p>
-
-            <div class="hc-feedback" data-training-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
-            <p class="hc-sr-only" data-training-result-status aria-live="polite"></p>
-
-            <section class="hc-academy-grid" data-training-modules aria-label="3 active required learning modules"></section>
-
-            <section class="hc-academy-documents" aria-labelledby="academy-documents-title">
-              <div>
-                <h2 id="academy-documents-title">Certificates will file themselves</h2>
-                <p>When Academy delivery is connected, completed-course certificates can be added to the Document centre. No result or document is recorded on this preview.</p>
-              </div>
-              <a href="/cleaner/documents">Open Documents <span aria-hidden="true">↗</span></a>
-            </section>
-          </section>
+<header class="hc-academy-heading"><h1 id="academy-title">Training and safety exam</h1></header>
+<div class="training-journey" aria-label="Training journey"><span data-journey="lessons" aria-current="step">1 · Watch the lessons</span><span data-journey="exam">2 · Take the exam</span><span data-journey="result">3 · Your result</span></div>
+<div data-training-lessons><h2>Start with your safety lessons</h2><p>Watch the safety videos and the Working with Homlle guide below, or use their written transcripts. When you’re ready, continue to the 25-question exam.</p><article class="training-lesson"><h3>01 · COSHH and PPE</h3><video controls preload="none" poster="/training-safety-v04/13-chemical-safety-poster.jpg"><source src="/training-safety-v04/13-chemical-safety.mp4" type="video/mp4"><track default kind="captions" src="/training-safety-v04/13-chemical-safety.vtt" srclang="en" label="English"></video><a href="/training-safety-v04/13-chemical-safety-transcript.txt">Read the transcript</a></article><article class="training-lesson"><h3>02 · Manual handling</h3><video controls preload="none" poster="/training-safety-v04/14-manual-handling-poster.jpg"><source src="/training-safety-v04/14-manual-handling.mp4" type="video/mp4"><track default kind="captions" src="/training-safety-v04/14-manual-handling.vtt" srclang="en" label="English"></video><a href="/training-safety-v04/14-manual-handling-transcript.txt">Read the transcript</a></article><article class="training-lesson"><h3>03 · Safe visits</h3><video controls preload="none" poster="/training-safety-v04/15-safeguarding-poster.jpg"><source src="/training-safety-v04/15-safeguarding.mp4" type="video/mp4"><track default kind="captions" src="/training-safety-v04/15-safeguarding.vtt" srclang="en" label="English"></video><a href="/training-safety-v04/15-safeguarding-transcript.txt">Read the transcript</a></article><article class="training-lesson" id="working-with-homlle"><h3>04 · Working with Homlle — quick start</h3><p>A simple 2-minute walkthrough: find a job, accept it, follow the checklist, add photos and finish for customer review. Follow the pointer and highlighted clicks. Real dashboard screens use demo data and an example photo.</p><video controls preload="none" poster="/training-working-guide-v04/04-working-with-homlle-poster.jpg"><source src="/training-working-guide-v04/04-working-with-homlle-compatible.mp4?v=5" type="video/mp4"><track default kind="captions" src="/training-working-guide-v04/04-working-with-homlle.vtt" srclang="en" label="English"></video><p><a href="/training-working-guide-v04/working-with-homlle-written-guide.txt" download="Homlle-working-guide.txt">Download the written guide</a></p></article><p><a href="/training-safety-v04/workbook.pdf" target="_blank" rel="noopener">Training workbook and practical assessment guide</a></p><div class="training-ready"><h2>Ready to check your knowledge?</h2><p>About 10 minutes. Pass with at least 80% and every safety-critical answer correct.</p><button type="button" class="training-button" data-start-exam>Continue to the exam →</button></div><p class="training-note">Guidance-aligned draft lessons. Passing the knowledge exam does not replace practical assessment or award an accredited qualification.</p></div>
+<div data-exam-panel hidden><button type="button" class="training-back" data-review-lessons>← Back to the lessons</button><div data-exam-host></div></div>
+<div class="hc-feedback" data-training-feedback role="status" aria-live="polite" tabindex="-1" hidden></div>
+</section>
         </div>
       </div>
 

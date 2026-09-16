@@ -1,6 +1,6 @@
-import { setupProfilePhoto } from "./cleaner-personal-details.js?v=20260910-business-photo-1";
+import { setupProfilePhoto } from "./cleaner-personal-details.js?v=20260915-onboarding-flow-1";
 import { onboardingProgress } from "./cleaner-onboarding-steps.js?v=20260729-6";
-import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260801-1";
+import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 
 const draftKey = "homle-cleaner-business-details-draft-v1";
 const draftLifetimeMs = 8 * 60 * 60 * 1000;
@@ -156,7 +156,7 @@ export async function setupBusinessDetails({ account, showFeedback, requestJson 
       await saveOnboardingForm(requestJson, "business", form, { extra: draft });
       storage?.removeItem(draftKey);
       showFeedback("Business details saved securely to your Homle account.");
-      location.assign("/cleaner/onboarding");
+      location.assign("/cleaner/banking");
     } catch (error) {
       showFeedback(error.message || "Homle could not save your Business details.", "error");
     }
