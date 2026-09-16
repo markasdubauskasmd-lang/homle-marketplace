@@ -2,6 +2,7 @@ import vm from "node:vm";
 import { readFile } from "node:fs/promises";
 import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, liveBookingForRequest, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, propertyCleaningBlocker, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "../public/landlord-dashboard-model.js";
 import "./landlord-request-draft.mjs";
+import "./property-save-recovery.mjs";
 import "./room-photo-selection.mjs";
 
 const requestRecovery = await readFile(new URL("../public/manual-request-recovery.js", import.meta.url), "utf8");

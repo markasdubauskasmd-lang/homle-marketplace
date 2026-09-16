@@ -5,7 +5,7 @@ import { checklistFromTranscript } from "./checklist.js";
 import { checklistChangeReview } from "./checklist-change-review.js";
 import { clearSelectedCleaner, clearSelectedProperty, readSelectedCleaner, readSelectedProperty, saveSelectedCleaner, saveSelectedProperty } from "./account-intent.js?v=20260718-2";
 import { isUkPostcode } from "./contact-validation.js";
-import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft } from "./landlord-request-draft.js";
+import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft, landlordRequestDraftLifetimeMs } from "./landlord-request-draft.js";
 import { consumeRoomPhotoInputFiles, maximumRoomPhotos, validatedRoomPhotoSelection } from "./room-photo-selection.js";
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
@@ -215,6 +215,11 @@ let listening = false;
 let speechFailed = false;
 let speechChangedDuringListen = false;
 let propertyDirty = false;
+let propertySavePending = false;
+let propertyEditorRevision = 0;
+let propertyEditorInstance = 0;
+let propertyViewRevision = 0;
+let propertyCreateRetry = null;
 let requestDirty = false;
 let landlordProfileDirty = false;
 let editingPropertyId = "";
@@ -1288,6 +1293,7 @@ function markCurrentNavigation(selected) {
 let currentWorkspaceTab = "";
 
 function selectWorkspaceTab(name, { historyMode = "" } = {}) {
+  propertyViewRevision += 1;
   const selected = ["home", "properties", "bookings", "places", "messages", "requests", "account", "payments"].includes(name) ? name : "home";
   currentWorkspaceTab = selected;
   // Properties merged into Bookings: one connected flow rather than a separate
@@ -1424,9 +1430,9 @@ async function requestJson(path, options = {}) {
   }
 }
 
-async function recoverCsrf(target, action) {
+async function recoverCsrf(target, action, { refresh = false } = {}) {
   const current = storedCsrf();
-  if (current) return current;
+  if (current && !refresh) return current;
   try {
     const result = await requestJson("/api/marketplace/auth/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     if (!result.csrfToken || !saveCsrf(result.csrfToken)) throw new Error("This browser could not keep the renewed secure editing token.");
@@ -1464,6 +1470,8 @@ function populatePropertyForm(property) {
 
 function openPropertyEditor(property = null) {
   if (!propertyForm.hidden && propertyDirty && !window.confirm("Discard the unsaved property changes and open these details instead?")) return;
+  propertyEditorRevision += 1;
+  propertyEditorInstance += 1;
   editingPropertyId = property?.propertyId || "";
   populatePropertyForm(property);
   propertyFormTitle.textContent = property ? "Edit access and property details" : "Add the cleaning location";
@@ -1480,6 +1488,8 @@ function openPropertyEditor(property = null) {
 
 function closePropertyEditor() {
   if (propertyDirty && !window.confirm("Close and discard these unsaved property changes?")) return false;
+  propertyEditorRevision += 1;
+  propertyEditorInstance += 1;
   propertyForm.hidden = true;
   propertyForm.reset();
   editingPropertyId = "";
@@ -4257,8 +4267,29 @@ async function saveLandlordProfile(event) {
   }
 }
 
+// Keep only an owner-bound payload digest and retry identity in the tab. The
+// address, access instructions and CSRF token never enter this retry record.
+async function propertyCreateIdentity(body, ownerId) {
+  const storageKey = "homlePropertyCreateRetryV1";
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(body)));
+  const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  const now = Date.now();
+  if (!propertyCreateRetry) {
+    try { propertyCreateRetry = JSON.parse(window.sessionStorage.getItem(storageKey) || "null"); } catch {}
+  }
+  const retry = propertyCreateRetry;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(retry?.id || "")
+      || retry.ownerId !== ownerId || retry.fingerprint !== fingerprint
+      || !Number.isFinite(retry.createdAt) || now < retry.createdAt - 300_000 || now >= retry.createdAt + landlordRequestDraftLifetimeMs) {
+    propertyCreateRetry = { id: crypto.randomUUID(), ownerId, fingerprint, createdAt: now };
+  }
+  try { window.sessionStorage.setItem(storageKey, JSON.stringify(propertyCreateRetry)); } catch {}
+  return propertyCreateRetry.id;
+}
+
 async function saveProperty(event) {
   event.preventDefault();
+  if (propertySavePending) return;
   propertyFeedback.hidden = true;
   if (!propertyForm.reportValidity()) return;
   const data = new FormData(propertyForm);
@@ -4266,8 +4297,6 @@ async function saveProperty(event) {
   if (!isUkPostcode(postcode)) return showFeedback(propertyFeedback, "Enter a valid UK postcode.");
   let savedChecklist = [];
   try { if (String(data.get("savedChecklist") || "").trim()) savedChecklist = requestTasksFromLines(data.get("savedChecklist")); } catch (error) { return showFeedback(propertyFeedback, error.message); }
-  const csrf = await recoverCsrf(propertyFeedback, "saving this property");
-  if (!csrf) return;
   const body = {
     name: String(data.get("name") || ""), propertyType: String(data.get("propertyType") || ""), addressLine1: String(data.get("addressLine1") || ""), addressLine2: String(data.get("addressLine2") || ""), locality: String(data.get("locality") || ""), postcode,
     bedrooms: optionalNumber(data.get("bedrooms")), bathrooms: optionalNumber(data.get("bathrooms")), approximateSizeSqM: optionalNumber(data.get("approximateSizeSqM")),
@@ -4275,14 +4304,55 @@ async function saveProperty(event) {
   };
   const selectedPropertyId = editingPropertyId;
   const updating = Boolean(selectedPropertyId);
+  const ownerId = requestDraftOwner;
+  const editorRevision = propertyEditorRevision, viewRevision = propertyViewRevision;
+  const editorInstance = propertyEditorInstance;
+  const sameInstance = () => requestDraftOwner === ownerId && editingPropertyId === selectedPropertyId && propertyEditorInstance === editorInstance;
+  const sameEditor = () => sameInstance() && propertyEditorRevision === editorRevision;
+  if (!ownerId) return showFeedback(propertyFeedback, "Your secure account identity is unavailable. Sign in again before saving this property.");
+  propertySavePending = true;
   setPending(propertySave, true, updating ? "Updating…" : "Saving…");
   try {
+    const csrf = await recoverCsrf(propertyFeedback, "saving this property", { refresh: true });
+    if (!csrf || !sameEditor()) return;
+    const expectedId = selectedPropertyId || await propertyCreateIdentity(body, ownerId);
+    if (!sameEditor()) return;
     const path = updating ? `/api/marketplace/properties/${encodeURIComponent(selectedPropertyId)}` : "/api/marketplace/properties";
-    const result = await requestJson(path, { method: updating ? "PUT" : "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(body) });
+    let result;
+    try {
+      result = await requestJson(path, { method: updating ? "PUT" : "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(updating ? body : { ...body, id: expectedId }) });
+    } catch (error) {
+      if (updating || (!["request-timeout", "browser-offline"].includes(error?.code) && error?.statusCode !== 409)) throw error;
+      if (requestDraftOwner !== ownerId) return;
+      const own = await requestJson("/api/marketplace/properties");
+      const recovered = (own.properties || []).find(property => property.propertyId === expectedId);
+      if (!recovered) throw error;
+      result = { property: recovered };
+    }
+    if (requestDraftOwner !== ownerId) return;
+    if (result.property?.propertyId !== expectedId) throw new Error("The saved property could not be verified.");
+    if (!updating && propertyCreateRetry?.id === expectedId) {
+      propertyCreateRetry = null;
+      try { window.sessionStorage.removeItem("homlePropertyCreateRetryV1"); } catch {}
+    }
     if (updating) properties = properties.map((property) => property.propertyId === selectedPropertyId ? result.property : property);
-    else properties.push(result.property);
+    else properties = [...properties.filter(property => property.propertyId !== expectedId), result.property];
     properties.sort((a, b) => String(a.name).localeCompare(String(b.name)));
     renderProperties();
+    if (!sameEditor()) {
+      // Typing in this same new-property form while the create was in flight
+      // does not start another property. Keep the edits and dirty state, but
+      // direct the next save to the record that was just verified.
+      if (!updating && sameInstance()) editingPropertyId = expectedId;
+      return;
+    }
+    if (propertyViewRevision !== viewRevision) {
+      // The record is verified but the customer moved elsewhere. Keep their
+      // view, and turn this same form into an edit so returning cannot duplicate it.
+      editingPropertyId = expectedId;
+      propertyDirty = false;
+      return;
+    }
     propertyForm.reset();
     propertyForm.hidden = true;
     editingPropertyId = "";
@@ -4297,8 +4367,8 @@ async function saveProperty(event) {
       requestForm.scrollIntoView({ behavior: customerScrollBehavior(), block: "start" });
       requestForm.elements.requestedDate.focus({ preventScroll: true });
     }
-  } catch (error) { showFeedback(propertyFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this property. Sign in again." : error.message); }
-  finally { setPending(propertySave, false, editingPropertyId ? "Update protected details" : "Save property privately"); }
+  } catch (error) { if (sameEditor()) showFeedback(propertyFeedback, error.statusCode === 401 || error.statusCode === 403 ? "Your secure session expired or cannot save this property. Sign in again." : error.message); }
+  finally { propertySavePending = false; setPending(propertySave, false, editingPropertyId ? "Update protected details" : "Save property privately"); }
 }
 
 function openNewRequestPhotoDialog() {
@@ -4867,7 +4937,7 @@ cleaningTypeSelect.addEventListener("change", () => {
 speechButton.addEventListener("click", () => { if (!recognition) return; if (listening) recognition.stop(); else { try { recognition.start(); } catch { speechStatus.textContent = "Speech is already starting. Try again in a moment."; } } });
 requestForm.elements.transcript.addEventListener("input", () => { invalidateScopeReview("The walkthrough changed. Summarise again or manually reconcile every room task before confirming."); scheduleLiveSummarise(); });
 requestForm.elements.tasks.addEventListener("input", () => { tasksManuallyEdited = true; clearTimeout(liveSummariseTimer); renderTaskPreview(); invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });
-propertyForm.addEventListener("input", () => { propertyDirty = true; });
+propertyForm.addEventListener("input", () => { propertyEditorRevision += 1; propertyDirty = true; });
 landlordProfileForm.addEventListener("input", () => { landlordProfileDirty = true; });
 requestForm.addEventListener("input", () => { currentRequestDraft = null; requestDirty = true; scheduleWorkingRequestRecovery(); scheduleManualQuote(); });
 requestForm.addEventListener("change", () => { currentRequestDraft = null; requestDirty = true; scheduleWorkingRequestRecovery(); scheduleManualQuote(); });
