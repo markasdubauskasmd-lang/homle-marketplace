@@ -543,6 +543,20 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           }
           return true;
         }
+        if(pathname==='/api/marketplace/cleaner/agreements'){
+          if(!['GET','POST'].includes(request.method))return methodNotAllowed(response,['GET','POST']),true;
+          const context=await security.protect(request,{mutation:request.method==='POST',roles:['cleaner']});
+          if(request.method==='POST')sendJson(response,200,{ok:true,acceptance:await cleanerOnboarding.acceptWorkerAgreement(context.actor,await readJsonObject(request))});
+          else sendJson(response,200,{ok:true,...await cleanerOnboarding.getWorkerAgreements(context.actor)});
+          return true;
+        }
+        if (pathname === '/api/marketplace/cleaner/training/exam') {
+          if (!['GET','POST'].includes(request.method)) return methodNotAllowed(response,['GET','POST']),true;
+          const context = await security.protect(request,{mutation:request.method==='POST',roles:['cleaner']});
+          if(request.method==='POST') sendJson(response,200,{ok:true,result:await cleanerOnboarding.submitSafetyExam(context.actor,await readJsonObject(request))});
+          else sendJson(response,200,{ok:true,exam:await cleanerOnboarding.getSafetyExam(context.actor)});
+          return true;
+        }
         if (pathname === "/api/marketplace/cleaner/onboarding") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { roles: ["cleaner"] });

@@ -1,0 +1,35 @@
+Working with Homlle — quick start
+Real interface screenshots with demo data and animated click guidance. Example photo only.
+
+1. Open the jobs map
+Log in to Homlle. Click the map pin on the left to open Jobs Map. Here you can look for work near you.
+
+2. Check the job
+Select a job and read its details. Check the location, time, pay and tasks. Only accept work you can safely complete.
+
+3. Accept the job
+On your dashboard, click Accept job. Your accepted job appears in your schedule. Open the booking when you are ready to go.
+
+4. Read the customer instructions
+Read the access details and customer notes. Check what needs doing before you start. If anything is unclear, contact the customer.
+
+5. Arrive and start
+Use Start journey when you leave, then record your arrival at the property. When ready to begin, click Start cleaning.
+
+6. Complete the checklist
+Do each task first. Then click Mark task complete beside it. Repeat for the remaining tasks. Record any problem honestly.
+
+7. Add your completion photos
+Photograph the finished work. On your phone, use Take a job photo. This example uses Choose existing photo to select a picture.
+
+8. Upload the photo
+Choose After cleaning. Link the task and add a useful note. Click Upload securely. Wait for confirmation that your photo has saved.
+
+9. Finish the clean
+Check your work and all tasks. Save the completion photos and record any issues. Click Finish cleaning, then confirm when asked.
+
+10. The customer checks your work
+The customer opens your private photos and checks the task record. Clear photos help them see what you have completed. Keep personal information out.
+
+11. Customer confirmation
+When satisfied, the customer clicks Confirm job complete. That completes the booking. You can check your records in Activity and Earnings.

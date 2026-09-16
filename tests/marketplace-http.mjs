@@ -249,6 +249,8 @@ const cleanerPayoutService = {
   async beginOnboarding(actor) { calls.push({ kind: "payout-onboarding", actor }); return { status: "action-required", ready: false, detailsSubmitted: false, payoutsEnabled: false, remainingRequirements: 3, updatedAt: null, onboardingUrl: "https://connect.stripe.com/setup/c/test", expiresAt: "2026-07-16T17:05:00.000Z" }; }
 };
 const cleanerOnboardingService = {
+  async getSafetyExam(actor) { calls.push({kind:'exam-get',actor});return {questions:[]}; },
+  async submitSafetyExam(actor,input) { calls.push({kind:'exam-submit',actor,input});return {passed:false,scorePercent:0}; },
   async listOwnSections(actor) { calls.push({ kind: "onboarding-list", actor }); return []; },
   async getOwnSection(actor, section) { calls.push({ kind: "onboarding-get", actor, section }); return null; },
   async saveOwnSection(actor, section, input) { calls.push({ kind: "onboarding-save", actor, section, input }); return { section, status: input.status || "draft", data: input.data || {}, schemaVersion: 1, completedAt: null, updatedAt: "2026-08-01T10:00:00.000Z" }; },
@@ -360,6 +362,13 @@ const cleanerAuthHeaders = {
   "x-csrf-token": cleanerMaterial.csrfToken,
   "content-type": "application/json; charset=utf-8"
 };
+
+assert((await dispatch(router,'GET','/api/marketplace/cleaner/training/exam')).response.statusCode===401,'Exam requires authentication');
+assert((await dispatch(router,'GET','/api/marketplace/cleaner/training/exam',{headers:authHeaders})).response.statusCode===403,'Landlords cannot access worker exams');
+assert((await dispatch(router,'GET','/api/marketplace/cleaner/training/exam',{headers:cleanerAuthHeaders})).response.statusCode===200,'Worker can load exam');
+assert((await dispatch(router,'POST','/api/marketplace/cleaner/training/exam',{headers:{...cleanerAuthHeaders,'x-csrf-token':''},body:{}})).response.statusCode===403,'Exam submissions need CSRF protection');
+assert((await dispatch(router,'POST','/api/marketplace/cleaner/training/exam',{headers:{...cleanerAuthHeaders,origin:'https://wrong.example'},body:{}})).response.statusCode===403,'Exam submissions reject another origin');
+assert((await dispatch(router,'POST','/api/marketplace/cleaner/training/exam',{headers:cleanerAuthHeaders,body:{}})).response.statusCode===200,'Worker can submit exam');
 const administratorAuthHeaders = {
   cookie: `${developmentSessionCookieName}=${administratorMaterial.token}`,
   origin: "http://127.0.0.1:4173",

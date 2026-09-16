@@ -123,6 +123,13 @@ function renderReviewStages({ sections, submission, profile, documents }) {
     const copy = element("div", "hc-review-stage-copy");
     copy.append(element("strong", "", stage.title), element("p", "", complete ? sectionSummary(stage.key, section?.data, profile, documents) : stage.optional ? "Not completed. This does not prevent submitting your application for review." : "Complete this stage before submitting."));
     const state = element("span", `hc-review-stage-state${complete ? " is-complete" : ""}`, complete ? "Saved — awaiting review" : stage.optional ? "Not required to submit" : "Needs attention");
+    if(stage.key==='training'){
+      const attempts=section?.data?.examRecordVersion===1?section.data.attempts:[];
+      const passed=attempts.some(a=>a.version==='homlle-safety-0.4-exam-2'&&a.passed);
+      copy.querySelector('p').textContent=passed?'Safety knowledge exam passed and stored. Practical competence still requires assessment.':'Watch the safety videos and complete the exam. Practical assessment is separate.';
+      state.textContent=passed?'Knowledge passed · practical pending':'Training pending';
+    }
+    if(stage.key==='compliance'&&!complete){copy.querySelector('p').textContent='Read the worker documents. Draft versions cannot be signed; approved versions are accepted individually.';state.textContent='Documents awaiting approval';}
     const edit = element("a", "hc-review-stage-edit", complete ? "Review" : "Complete");
     edit.href = stage.href;
     edit.setAttribute("aria-label", `${complete ? "Review" : "Complete"} ${stage.title}`);

@@ -1,4 +1,6 @@
 import { decryptCleanerOnboardingPayload, encryptCleanerOnboardingPayload, assertCleanerOnboardingEncryptionSecret } from "./cleaner-onboarding-crypto.mjs";
+import { gradeSafetyExam, publicSafetyExam } from './safety-exam.mjs';
+import {workerAgreements,validateAcceptance} from './worker-agreements.mjs';
 
 export const cleanerOnboardingSections = Object.freeze([
   "personal", "business", "identity", "rtw", "dbs", "tax", "experience", "references", "insurance",
@@ -113,6 +115,54 @@ export function createCleanerOnboardingService(repository, options = {}) {
     if (!actor?.userId || !actor.roles?.includes("cleaner")) throw new TypeError(`A Cleaner account is required to ${action}.`);
   }
   return Object.freeze({
+    async getSafetyExam(actor) {
+      requireCleaner(actor, 'take the safety exam');
+      const records = await repository.listOwnSections(actor);
+      const record = records.find(row => (row.section_code || row.section) === 'training');
+      const data = record ? projection(record, secret).data : {};
+      return { ...publicSafetyExam(), attempts: data.examRecordVersion === 1 ? data.attempts : [] };
+    },
+    async getWorkerAgreements(actor) {
+      requireCleaner(actor,'review worker agreements');
+      const records=await repository.listOwnSections(actor);
+      const record=records.find(r=>r.section_code==='compliance');
+      const data=record?projection(record,secret).data:{};
+      return {documents:workerAgreements,acceptances:data.acceptanceRecordVersion===1?data.acceptances:[]};
+    },
+    async acceptWorkerAgreement(actor,input) {
+      requireCleaner(actor,'sign a worker agreement');
+      const accepted=validateAcceptance(input);
+      const record=await repository.updateOwnCompliance(actor,existing=>{
+        const data=existing?projection(existing,secret).data:{};
+        const acceptances=data.acceptanceRecordVersion===1?data.acceptances:[];
+        const previous=acceptances.find(a=>a.documentId===accepted.documentId&&a.version===accepted.version&&a.sha256===accepted.sha256);
+        if(previous&&previous.fullName!==accepted.fullName)throw Object.assign(new Error('This version is already signed with a different name.'),{statusCode:409});
+        if(!previous)acceptances.push({...accepted,workerId:actor.userId});
+        const complete=workerAgreements.every(d=>d.approved&&acceptances.some(a=>a.documentId===d.id&&a.version===d.version&&a.sha256===d.sha256));
+        const payload={acceptanceRecordVersion:1,acceptances};
+        if(Buffer.byteLength(JSON.stringify(payload))>120000)throw Object.assign(new Error('Contact Homlle to review your agreement history.'),{statusCode:422});
+        return {status:complete?'submitted':'draft',payloadCiphertext:encryptCleanerOnboardingPayload(payload,actor.userId,'compliance',secret)};
+      });
+      return projection(record,secret).data.acceptances.find(a=>a.documentId===accepted.documentId&&a.version===accepted.version&&a.sha256===accepted.sha256);
+    },
+    async submitSafetyExam(actor, input) {
+      requireCleaner(actor, 'save an exam result');
+      const result = gradeSafetyExam(input);
+      const record = await repository.updateOwnTraining(actor, existing => {
+        const data = existing ? projection(existing, secret).data : {};
+        const attempts = data.examRecordVersion === 1 ? data.attempts : [];
+        const previous = attempts.find(a => a.attemptId === result.attemptId);
+        if (previous && (previous.version !== result.version || JSON.stringify(previous.answers) !== JSON.stringify(result.answers))) throw Object.assign(new Error('This attempt was already submitted with different answers.'), {statusCode:409});
+        if (!previous) {
+          if (attempts.length >= 50) throw Object.assign(new Error('Contact Homlle for a training review before another attempt. Your previous results remain stored.'), {statusCode:422});
+          attempts.push(result);
+        }
+        const payload = {examRecordVersion:1,attempts};
+        if (Buffer.byteLength(JSON.stringify(payload)) > 120000) throw Object.assign(new Error('Contact Homlle for a training review. Existing attempts remain stored.'),{statusCode:422});
+        return {payloadCiphertext:encryptCleanerOnboardingPayload(payload,actor.userId,'training',secret)};
+      });
+      return projection(record,secret).data.attempts.find(a=>a.attemptId===result.attemptId);
+    },
     async listOwnSections(actor) {
       requireCleaner(actor, "view onboarding information");
       const records = await repository.listOwnSections(actor);
@@ -128,6 +178,7 @@ export function createCleanerOnboardingService(repository, options = {}) {
     async saveOwnSection(actor, sectionValue, input) {
       requireCleaner(actor, "save onboarding information");
       const normalized = normalizedCleanerOnboardingInput(sectionValue, input);
+      if (['training','compliance'].includes(normalized.section)) throw Object.assign(new Error('Training and signatures can only be recorded through their dedicated assessment or signing form.'), {statusCode:403});
       const payloadCiphertext = encryptCleanerOnboardingPayload(normalized.data, actor.userId, normalized.section, secret);
       return projection(await repository.saveOwnSection(actor, { ...normalized, payloadCiphertext }), secret);
     },

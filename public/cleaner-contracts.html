@@ -15,11 +15,12 @@
   <link rel="stylesheet" href="/homle-cleaner.css?v=20260729-10">
   <link rel="stylesheet" href="/cleaner-design-preview-motion.css?v=20260816-restore-1">
   <link rel="stylesheet" href="/cleaner-onboarding-redesign.css?v=20260817-introduction-1">
-  <script src="/cleaner-contracts.js?v=20260816-restore-1" type="module"></script>
+  <script src="/cleaner-contracts.js?v=20260916-signing-3" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 <link rel="stylesheet" href="/cleaner-onboarding-flow.css?v=20260910-stripes-45-1">
 <script src="/cleaner-onboarding-flow.js?v=20260910-home-link-2" type="module"></script>
+<link rel="stylesheet" href="/cleaner-agreements.css?v=20260916-1">
 </head>
 <body class="cleaner-workspace-page cleaner-contracts-page cleaner-onboarding-page homlle-onboarding-flow" data-cleaner-shell="onboarding">
   <a class="hc-skip" href="#cleaner-contracts-main">Skip to Contracts &amp; agreements</a>
@@ -131,26 +132,16 @@
           <section class="hc-contracts" aria-labelledby="contracts-title">
             <header class="hc-contracts-heading">
               <h1 id="contracts-title">Contracts &amp; agreements</h1>
-              <p>Review the policies and declarations in one place. E-signing, time-stamps, email copies and IP logging are being connected.</p>
+              <p>Read the worker documents below. Sign all approved documents together, or accept them individually. Each acceptance is saved to your profile. Drafts cannot be signed.</p>
             </header>
 
             <div class="hc-contracts-layout">
               <section class="hc-contract-list-card" aria-label="Contracts and agreements">
                 <ul data-contract-list></ul>
-                <p>Statuses show only whether a real review page or onboarding step exists. They do not mean an agreement has been signed.</p>
+                <p>Each acceptance records your name, account, document version, document fingerprint and the server time. Draft status never counts as a signature.</p>
               </section>
 
-              <section class="hc-contract-sign-card" aria-labelledby="contract-sign-title">
-                <h2 id="contract-sign-title">Sign outstanding</h2>
-                <p>Type your full legal name to preview a signature. This does not create legal consent.</p>
-                <label>
-                  <span class="hc-sr-only">Full legal name</span>
-                  <input type="text" maxlength="120" autocomplete="name" placeholder="Your full legal name" data-contract-name>
-                </label>
-                <output data-contract-signature>Your signature</output>
-                <button type="button" data-contract-sign>Sign all agreements</button>
-                <small>Signing is not connected. Nothing entered here is stored, emailed, time-stamped or logged.</small>
-              </section>
+              <section class="hc-contract-sign-card"><h2>Before signing</h2><p>The current PDFs are drafts awaiting company details and approval. Read them now; signing will become available for approved versions.</p><p>A privacy acknowledgement records that you received the notice. It is not blanket consent to process your data.</p><a href="/cleaner/review-submit">Continue to review your application</a></section>
             </div>
           </section>
 
