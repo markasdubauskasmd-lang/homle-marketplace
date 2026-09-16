@@ -12,6 +12,11 @@ import {
 /* ── Capability reading is defensive ───────────────────────────────────── */
 
 assert.equal(torchSupported({ torch: true }), true);
+assert.equal(torchSupported({ torch: [false, true] }), true, "Standard controllable torch capabilities were hidden.");
+assert.equal(torchSupported({ torch: [true] }), true);
+assert.equal(torchSupported({ torch: [false] }), false);
+assert.equal(torchSupported({ torch: [] }), false);
+assert.equal(torchSupported({ torch: ["true", false] }), false);
 assert.equal(torchSupported({ torch: "true" }), false, "A non-boolean capability was trusted.");
 assert.equal(torchSupported(undefined), false, "A missing getCapabilities did not read as unsupported.");
 assert.equal(zoomRange({ zoom: { min: 1, max: 8, step: 0.1 } })?.max, 8);
@@ -75,3 +80,4 @@ console.log("Camera-assist checks passed: defensive capability reading, torch on
 import "./manual-camera-zoom.mjs";
 import "./camera-session.mjs";
 import "./camera-lifecycle.mjs";
+import "./camera-constraint-coordination.mjs";

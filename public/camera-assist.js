@@ -1,7 +1,8 @@
 // Capability readers, defensive because `getCapabilities` is optional and its
 // shape is whatever the browser felt like reporting.
 export function torchSupported(capabilities) {
-  return capabilities?.torch === true;
+  const torch = capabilities?.torch;
+  return torch === true || (Array.isArray(torch) && torch.includes(true));
 }
 
 export function zoomRange(capabilities) {

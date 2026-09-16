@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {editScanRooms, inferredRoomType, mergeReviewedRoomRescan} from "../public/scan-review-edit.js";
+import "./scanner-handoff.mjs";
 import {localScanReview, applyCorrection} from "../public/scan-review-render.js";
 import {scanChecklistLines, inventoryKey, correctInventoryItem, mergeRoomInventory, mergeInventoryIntoSavedDetections} from "../public/room-scan-model.js";
 import {normalizedRoomScan, scanProjection} from "../src/marketplace/scan-service.mjs";

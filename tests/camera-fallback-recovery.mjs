@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { createCameraConstraintCoordinator } from "../public/camera-constraints.js";
 const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
 const section = (start, end) => {
   const first = source.indexOf(start);
@@ -25,9 +26,10 @@ for (const behavior of ["reject", "ignore", "hang", "replace"]) {
       getSettings: () => ({ torch: behavior === "ignore" })
     };
     const state = { cameraTrack: track, torchOn: true };
-    const context = vm.createContext({ state, window, pendingTrackConstraints: new WeakMap(),
+    const context = vm.createContext({ state, window, createCameraConstraintCoordinator,
       renderCameraAssist() {}, toast: message => messages.push(message) });
-    vm.runInContext(helper + section("async function applyTrackConstraint(", "// Chrome on Android")
+    vm.runInContext(section("const cameraConstraints =", "const applyCameraZoom =")
+      + helper + section("async function applyTrackConstraint(", "// Chrome on Android")
       + section("async function toggleTorch()", "async function cycleZoom()"), context);
     const toggle = context.toggleTorch();
     await tick();

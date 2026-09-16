@@ -594,10 +594,12 @@ el.scanLink.addEventListener("click", async () => {
     return;
   }
   el.scanLink.disabled = true;
+  const owner = state.draftOwner, draft = state.draft;
   try {
     const result = await openRoomScan();
     // Closed without finishing: the journey is exactly where it was left.
     if (!result) return;
+    if (state.draftOwner !== owner || state.draft !== draft) return;
     state.draft.tasks = Array.isArray(result.tasks) ? result.tasks : [];
     state.draft.scanChecklistEdited = false;
     state.draft.transcript = typeof result.transcript === "string" ? result.transcript : "";
@@ -616,8 +618,9 @@ el.scanLink.addEventListener("click", async () => {
     state.scanCorrections = [];
     state.scanMeasurements = [];
     state.scanReview = null;
-    await loadPricingConfig();
-    state.scanPremiumPlan = createPremiumPlan(state.scanRooms, state.draft.tasks, pricingConfig);
+    // Results are already available. Pricing and AI assessment refresh behind
+    // the editable review; neither may delay showing or saving the room list.
+    state.scanPremiumPlan = createPremiumPlan(state.scanRooms, state.draft.tasks, pricingConfig || defaultPricingConfig);
     state.scanPremiumSelected = [];
     state.draft.tasks = state.scanPremiumPlan.baseTasks;
     state.draft.guideTime = "";
@@ -1277,6 +1280,16 @@ async function loadPricingConfig() {
   return pricingConfig;
 }
 
+function refreshScanPricing() {
+  const previous = state.scanPremiumPlan;
+  state.scanPremiumPlan = createPremiumPlan(correctedScanRooms(), scanChecklistLines(taskReviewRooms()), pricingConfig || defaultPricingConfig);
+  state.scanPremiumSelected = state.scanPremiumSelected.filter(id => state.scanPremiumPlan.options.some(option =>
+    option.id === id && previous?.options.some(old => old.id === id && old.code === option.code)));
+  reconcileReviewedChecklist();
+  state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
+  renderPremiumChoices(); updateResultTotals(); saveDraft();
+}
+
 function renderReviewPrice(review) {
   const host = reviewElement("[data-review-estimate]");
   const refusal = reviewElement("[data-review-refusal]");
@@ -1822,8 +1835,12 @@ async function refreshScanReview() {
   setScanReviewStatus("Updating your scan review… You can keep editing.");
   try {
     // Dependency failures use the same visible recovery as assessment failures.
+    const previousPricing = pricingConfig;
     await loadPricingConfig();
     if (!isCurrent()) return;
+    // Rebuild from the current edits, not the captured result. A customer may
+    // have renamed/moved items or selected specialist work while rates loaded.
+    if (pricingConfig !== previousPricing) refreshScanPricing();
     const rooms = correctedScanRooms();
     const csrf = await recoverCsrf();
     if (!isCurrent()) return;
