@@ -57,18 +57,31 @@ BEGIN
   result:=tideway_private.reconcile_payment_provider_event('stripe','evt_replay_after_reply_failure','refund-succeeded','re_reply_failure',p,r,1000,'gbp',occurred,repeat('8',64));
   IF result->>'accepted'<>'true' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000 THEN RAISE EXCEPTION 'Failed API reply vetoed signed money'; END IF;
 
-  -- Every normalized field, including the raw signed-body digest, is immutable.
-  FOR variation IN 1..4 LOOP
+  -- Financial identity stays immutable even if renewed delivery changes envelope bytes.
+  FOR variation IN 1..3 LOOP
     blocked:=false;
     BEGIN
       PERFORM tideway_private.reconcile_payment_provider_event('stripe','evt_replay_after_reply_failure','refund-succeeded',CASE WHEN variation=1 THEN 're_wrong' ELSE 're_reply_failure' END,p,r,
-        CASE WHEN variation=2 THEN 999 ELSE 1000 END,'gbp',occurred+CASE WHEN variation=3 THEN interval '1 second' ELSE interval '0 seconds' END,CASE WHEN variation=4 THEN repeat('9',64) ELSE repeat('8',64) END);
+        CASE WHEN variation=2 THEN 999 ELSE 1000 END,'gbp',occurred+CASE WHEN variation=3 THEN interval '1 second' ELSE interval '0 seconds' END,repeat('8',64));
     EXCEPTION WHEN SQLSTATE '22023' THEN
       IF SQLERRM<>'payment-event-identity-conflict' THEN RAISE; END IF;
       blocked:=true;
     END;
     IF NOT blocked THEN RAISE EXCEPTION 'Event identity variation % was accepted as duplicate',variation; END IF;
   END LOOP;
+
+  result:=tideway_private.reconcile_payment_provider_event('stripe','evt_replay_after_reply_failure','refund-succeeded','re_reply_failure',p,r,1000,'gbp',occurred,repeat('9',64));
+  IF result->>'duplicate'<>'true' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000 THEN RAISE EXCEPTION 'Renewed signed envelope rejected or duplicated identical financial facts'; END IF;
+  result:=tideway_private.reconcile_payment_dispute_event('stripe','evt_replay_dispute','dispute-opened',payment.provider_payment_id,p,NULL,NULL,NULL,occurred,repeat('a',64),'du_replay','needs_response');
+  result:=tideway_private.reconcile_payment_dispute_event('stripe','evt_replay_dispute','dispute-opened',payment.provider_payment_id,p,NULL,NULL,NULL,occurred,repeat('b',64),'du_replay','needs_response');
+  IF result->>'duplicate'<>'true' THEN RAISE EXCEPTION 'Dispute retry rejected identical signed financial facts'; END IF;
+  blocked:=false;
+  BEGIN
+    PERFORM tideway_private.reconcile_payment_dispute_event('stripe','evt_replay_dispute','dispute-opened',payment.provider_payment_id,p,NULL,NULL,NULL,occurred,repeat('c',64),'du_wrong','needs_response');
+  EXCEPTION WHEN SQLSTATE '22023' THEN blocked:=true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'Changed dispute identity was accepted'; END IF;
+  DELETE FROM tideway_private.payment_disputes WHERE payment_id=p;
 
   -- A missing capture prerequisite stays retryable, including exact redelivery.
   DELETE FROM payment_commands WHERE id=r;

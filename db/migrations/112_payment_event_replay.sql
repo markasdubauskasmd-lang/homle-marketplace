@@ -46,8 +46,11 @@ BEGIN
     ON CONFLICT(provider,provider_event_id) DO NOTHING;
   repeat_event := NOT FOUND;
   SELECT * INTO event_record FROM tideway_private.payment_provider_events WHERE provider=selected_provider AND provider_event_id=supplied_event_id FOR UPDATE;
-  IF ROW(event_record.event_kind,event_record.provider_object_id,event_record.payment_id,event_record.command_id,event_record.amount_pence,event_record.currency,event_record.occurred_at,event_record.payload_hash)
-    IS DISTINCT FROM ROW(supplied_kind,supplied_object_id,target_payment_id,target_command_id,supplied_amount_pence,supplied_currency,supplied_occurred_at,supplied_payload_hash)
+  -- Signature verification authenticates each delivery. Envelope fields such as
+  -- pending_webhooks may change; compare financial facts, not raw serialization.
+  -- Keep the first raw-body hash as audit evidence without vetoing safe retries.
+  IF ROW(event_record.event_kind,event_record.provider_object_id,event_record.payment_id,event_record.command_id,event_record.amount_pence,event_record.currency,event_record.occurred_at)
+    IS DISTINCT FROM ROW(supplied_kind,supplied_object_id,target_payment_id,target_command_id,supplied_amount_pence,supplied_currency,supplied_occurred_at)
     THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='payment-event-identity-conflict'; END IF;
   -- Only facts actually applied by this reconciler may be acknowledged as done.
   -- Older rejected/ignored events are eligible for an exact signed replay.
@@ -172,4 +175,94 @@ BEGIN
 END;
 $$;
 
+-- Disputes use the same financial-identity rule for renewed signed delivery.
+CREATE OR REPLACE FUNCTION tideway_private.reconcile_payment_dispute_event(selected_provider text,supplied_event_id text,supplied_kind text,supplied_object_id text,target_payment_id uuid,target_command_id uuid,supplied_amount_pence integer,supplied_currency character(3),supplied_occurred_at timestamptz,supplied_payload_hash character(64),supplied_dispute_id text,supplied_dispute_status text)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public,pg_temp AS $$
+DECLARE
+  payment booking_payments%ROWTYPE;
+  prior_event tideway_private.payment_provider_events%ROWTYPE;
+  dispute tideway_private.payment_disputes%ROWTYPE;
+  selected_key text;
+  selected_outcome text;
+  selected_closed boolean := supplied_kind='dispute-closed';
+  review_required boolean;
+  next_status text;
+  is_new boolean;
+  event_result_code text := 'processed';
+BEGIN
+  IF selected_provider IS DISTINCT FROM 'stripe' OR supplied_kind NOT IN ('dispute-opened','dispute-closed')
+    OR supplied_kind IS NULL OR supplied_occurred_at IS NULL OR supplied_occurred_at > now()+interval '5 minutes'
+    OR supplied_payload_hash IS NULL OR supplied_payload_hash !~ '^[0-9a-f]{64}$'
+    OR char_length(COALESCE(supplied_event_id,'')) NOT BETWEEN 3 AND 255
+    OR char_length(COALESCE(supplied_object_id,'')) NOT BETWEEN 3 AND 255
+    OR supplied_dispute_id IS NOT NULL AND supplied_dispute_id !~ '^du_[A-Za-z0-9_]{3,250}$'
+  THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='invalid-payment-dispute-event'; END IF;
+
+  -- Serialize dispute outcomes, command preparation and ordinary reconciliation.
+  SELECT * INTO payment FROM booking_payments WHERE id=target_payment_id AND provider=selected_provider FOR UPDATE;
+  IF NOT FOUND OR payment.provider_payment_id IS DISTINCT FROM supplied_object_id
+    THEN RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='payment-dispute-identity-mismatch'; END IF;
+
+  INSERT INTO tideway_private.payment_provider_events(provider,provider_event_id,event_kind,provider_object_id,payment_id,command_id,amount_pence,currency,occurred_at,payload_hash,provider_dispute_id,dispute_status)
+  VALUES(selected_provider,supplied_event_id,supplied_kind,supplied_object_id,target_payment_id,NULL,NULL,NULL,supplied_occurred_at,supplied_payload_hash,supplied_dispute_id,supplied_dispute_status)
+  ON CONFLICT(provider,provider_event_id) DO NOTHING;
+  IF NOT FOUND THEN
+    SELECT * INTO prior_event FROM tideway_private.payment_provider_events WHERE provider=selected_provider AND provider_event_id=supplied_event_id;
+    IF ROW(prior_event.payment_id,prior_event.provider_object_id,prior_event.event_kind,prior_event.occurred_at)
+       IS DISTINCT FROM ROW(target_payment_id,supplied_object_id,supplied_kind,supplied_occurred_at)
+       OR prior_event.provider_dispute_id IS NOT NULL AND supplied_dispute_id IS NOT NULL
+       AND ROW(prior_event.provider_dispute_id,prior_event.dispute_status) IS DISTINCT FROM ROW(supplied_dispute_id,supplied_dispute_status)
+      THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='payment-event-identity-conflict'; END IF;
+    IF prior_event.provider_dispute_id IS NULL AND supplied_dispute_id IS NOT NULL THEN
+      -- A verified replay of the same historical event can supply its lost
+      -- projection. Resolve only that event's unidentified hold, never others.
+      DELETE FROM tideway_private.payment_disputes WHERE dispute_key='legacy_'||md5(supplied_event_id) AND payment_id=payment.id;
+      UPDATE tideway_private.payment_provider_events SET provider_dispute_id=supplied_dispute_id,dispute_status=supplied_dispute_status
+        WHERE provider=selected_provider AND provider_event_id=supplied_event_id;
+    ELSE
+      RETURN jsonb_build_object('accepted',true,'duplicate',true);
+    END IF;
+  END IF;
+
+  selected_key := COALESCE(supplied_dispute_id,'legacy_'||md5(supplied_event_id));
+  selected_outcome := CASE
+    WHEN supplied_dispute_id IS NULL THEN 'unknown'
+    WHEN selected_closed AND supplied_dispute_status IN ('won','lost','warning_closed','prevented') THEN supplied_dispute_status
+    WHEN NOT selected_closed AND supplied_dispute_status IN ('warning_needs_response','warning_under_review','needs_response','under_review') THEN supplied_dispute_status
+    ELSE 'unknown' END;
+  review_required := selected_outcome NOT IN ('won','warning_closed');
+  INSERT INTO tideway_private.payment_disputes(dispute_key,provider_dispute_id,payment_id,status,closed,requires_review,last_event_id,last_event_at)
+  VALUES(selected_key,supplied_dispute_id,payment.id,selected_outcome,selected_closed,review_required,supplied_event_id,supplied_occurred_at)
+  ON CONFLICT(dispute_key) DO NOTHING;
+  is_new := FOUND;
+  SELECT * INTO dispute FROM tideway_private.payment_disputes WHERE dispute_key=selected_key FOR UPDATE;
+  IF dispute.payment_id <> payment.id THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='payment-dispute-identity-mismatch'; END IF;
+  IF NOT is_new THEN
+    IF dispute.status='conflict' THEN event_result_code := 'dispute-conflict-requires-review';
+    ELSIF supplied_occurred_at < dispute.last_event_at OR dispute.closed AND NOT selected_closed THEN event_result_code := 'stale-dispute-event';
+    ELSIF supplied_occurred_at=dispute.last_event_at AND dispute.closed AND selected_closed AND dispute.status<>selected_outcome THEN
+      UPDATE tideway_private.payment_disputes SET status='conflict',requires_review=true,last_event_id=supplied_event_id,updated_at=now() WHERE dispute_key=selected_key;
+      event_result_code := 'dispute-conflict-requires-review';
+    ELSE
+      UPDATE tideway_private.payment_disputes SET status=selected_outcome,closed=selected_closed,requires_review=review_required,
+        last_event_id=supplied_event_id,last_event_at=supplied_occurred_at,updated_at=now() WHERE dispute_key=selected_key;
+    END IF;
+  END IF;
+
+  review_required := tideway_private.payment_dispute_hold(payment.id) OR payment.amount_captured_pence=0;
+  next_status := CASE WHEN review_required THEN 'disputed'
+    WHEN payment.amount_refunded_pence=payment.amount_captured_pence THEN 'refunded'
+    WHEN payment.amount_refunded_pence>0 THEN 'partially-refunded' ELSE 'captured' END;
+  UPDATE booking_payments SET status=next_status,updated_at=now() WHERE id=payment.id;
+  -- Dispute timestamps must not suppress a delayed capture/refund for a separate command.
+  IF next_status IS DISTINCT FROM payment.status THEN
+    INSERT INTO payment_status_history(payment_id,from_status,to_status,event_source,reason,metadata)
+    VALUES(payment.id,payment.status,next_status,'provider','Verified dispute outcome reconciled without changing captured or refunded totals.',
+      jsonb_build_object('eventId',supplied_event_id,'disputeId',supplied_dispute_id,'disputeStatus',selected_outcome,'requiresReview',review_required));
+  END IF;
+  UPDATE tideway_private.payment_provider_events SET processed=true,result_code=event_result_code
+    WHERE provider=selected_provider AND provider_event_id=supplied_event_id;
+  RETURN jsonb_build_object('accepted',true,'duplicate',false,'requiresReview',review_required);
+END;
+$$;
 COMMIT;
