@@ -187,6 +187,8 @@ function normalizedEvent(value, payloadHash) {
 }
 
 export function createPaymentService(repository, provider, options = {}) {
+  if (options.commandWritesPaused !== undefined && typeof options.commandWritesPaused !== "boolean") throw new TypeError("Payment command pause must be a boolean.");
+  const commandWritesPaused = options.commandWritesPaused === true;
   const requiredRepository = ["getByBooking", "listForAdministrator", "getForAdministratorBooking", "beginAuthorization", "recordAuthorization", "beginCommand", "recordCommand", "reconcileEvent"];
   const requiredProvider = ["createAuthorization", "createSandboxCheckout", "retrieveAuthorization", "capture", "cancel", "refund", "transfer", "verifyWebhook"];
   if (!repository || requiredRepository.some((method) => typeof repository[method] !== "function")) throw new TypeError("A complete payment repository is required.");
@@ -244,6 +246,7 @@ export function createPaymentService(repository, provider, options = {}) {
     if (!commandKinds.has(kind)) throw new TypeError("A supported payment command is required.");
     if (kind === "cancel") requireRole(actor, "landlord", "administrator");
     else requireRole(actor, "administrator");
+    if (commandWritesPaused) throw Object.assign(new Error("Payment settlement is temporarily paused for maintenance. No payment action was sent. Try again later."), {statusCode:503,code:"payment-command-writes-paused"});
     const paymentId = uuid(input?.paymentId, "payment id");
     const amountPence = kind === "refund" ? positiveInteger(input?.amountPence, "Refund amount") : null;
     const idempotencyKeyHash = keyHash(input?.idempotencyKey);

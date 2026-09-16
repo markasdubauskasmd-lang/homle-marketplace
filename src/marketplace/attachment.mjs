@@ -278,6 +278,7 @@ export async function createMarketplaceAttachment(options = {}) {
     roomVisionModels: runtime.roomVisionModels || null,
     matchingReady: runtime.matchingReady === true,
     paymentsReady: environment.payments.requested && runtime.paymentReady === true,
+    paymentCommandWritesPaused: runtime.paymentCommandWritesPaused === true,
     router: runtime.router,
     async close() {
       if (closed) return;

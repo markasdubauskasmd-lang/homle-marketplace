@@ -5736,6 +5736,7 @@ async function handleHttpRequest(request, response) {
           addressLookupReady: marketplaceAttachment.addressLookupReady === true,
           matchingReady: marketplaceAttachment.matchingReady === true,
           paymentsReady: marketplaceAttachment.paymentsReady === true,
+          paymentCommandWritesPaused: marketplaceAttachment.paymentCommandWritesPaused === true,
           // Automatic dispatch is only real when a process is actually running
           // the dispatch job. Without this the Landlord dashboard would keep
           // offering automatic matching that nothing can ever act on.
