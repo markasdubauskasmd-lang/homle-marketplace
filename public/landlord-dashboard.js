@@ -1,3 +1,4 @@
+import { propertyDateTime } from "./property-schedule.js";
 import { connectBookingRefresh } from "./booking-live-refresh.js?v=20260913-1";
 import { createManualRequestRecovery } from "./manual-request-recovery.js";
 import { checklistFromTranscript } from "./checklist.js";
@@ -913,11 +914,11 @@ function prepareAnotherTime(requestId) {
   if (!request) return;
   const start = new Date(request.requestedStartAt);
   const end = new Date(request.requestedEndAt);
-  matchOutcomeDate.min = new Date(Date.now() - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  matchOutcomeDate.min = propertyDateTime().date;
   if (!Number.isNaN(start.getTime())) {
-    const localStart = new Date(start.getTime() - start.getTimezoneOffset() * 60_000).toISOString();
-    matchOutcomeDate.value = localStart.slice(0, 10);
-    matchOutcomeStart.value = localStart.slice(11, 16);
+    const localStart = propertyDateTime(start);
+    matchOutcomeDate.value = localStart.date;
+    matchOutcomeStart.value = localStart.time;
   }
   if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
     const durationMinutes = String(Math.round((end.getTime() - start.getTime()) / 60_000));
@@ -4485,8 +4486,7 @@ function setPending(button, pending, label) {
 }
 
 function initialiseRequestDefaults() {
-  const today = new Date();
-  const localDate = new Date(today.getTime() - today.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  const localDate = propertyDateTime().date;
   requestForm.elements.requestedDate.min = localDate;
   requestForm.elements.durationMinutes.value = "120";
   requestForm.elements.frequency.value = "one-time";

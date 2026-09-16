@@ -2,6 +2,27 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 const paymentStatuses = new Set(["creating", "requires-customer-action", "processing", "authorized", "authorization-failed", "captured", "partially-refunded", "refunded", "cancelled", "disputed"]);
 const bookingStatuses = new Set(["confirmed", "cleaner-en-route", "cleaner-arrived", "cleaning-in-progress", "awaiting-review", "completed", "cancelled", "disputed"]);
 const commandKinds = new Set(["capture", "cancel", "refund", "transfer"]);
+const disputeStatuses = new Set(["warning_needs_response", "warning_under_review", "needs_response", "under_review", "won", "lost", "warning_closed", "prevented", "unknown", "conflict"]);
+const resolvedDisputeStatuses = new Set(["won", "warning_closed", "prevented"]);
+
+export function paymentDisputeHeld(record) {
+  return record?.paymentStatus === "disputed" || record?.disputeReviewRequired === true
+    || (Array.isArray(record?.disputes) && record.disputes.some((item) => item.requiresReview === true || !resolvedDisputeStatuses.has(item.status) || item.providerDisputeId == null));
+}
+
+export function paymentDisputeStatusLabel(value) {
+  return ({ warning_needs_response: "Inquiry needs response", warning_under_review: "Inquiry under review", needs_response: "Dispute needs response", under_review: "Dispute under review", won: "Won", lost: "Lost — reconcile funds", warning_closed: "Inquiry closed", prevented: "Chargeback prevented", unknown: "Outcome unverified", conflict: "Conflicting outcomes — review required" })[value] || "Outcome unverified";
+}
+
+function paymentDisputes(value) {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value)) throw new Error("Payment dispute evidence is unavailable.");
+  return Object.freeze(value.map((item) => {
+    if (!item || !disputeStatuses.has(item.status) || (item.providerDisputeId !== null && !/^du_[A-Za-z0-9_]{1,252}$/.test(item.providerDisputeId || ""))
+      || !/^evt_[A-Za-z0-9_]{1,251}$/.test(item.lastEventId || "") || typeof item.requiresReview !== "boolean") throw new Error("Payment dispute evidence is unavailable.");
+    return Object.freeze({ providerDisputeId: item.providerDisputeId, status: item.status, lastEventId: item.lastEventId, requiresReview: item.requiresReview || !resolvedDisputeStatuses.has(item.status) || item.providerDisputeId == null });
+  }));
+}
 
 function integer(value, minimum, maximum, label) {
   if (!Number.isInteger(value) || value < minimum || value > maximum) throw new Error(`${label} is unavailable.`);
@@ -34,11 +55,15 @@ export function adminPaymentQueue(value) {
     const amountPence = integer(record.amountPence, 1, 10_000_000, "Payment amount");
     const amountCapturedPence = integer(record.amountCapturedPence, 0, amountPence, "Captured amount");
     const amountRefundedPence = integer(record.amountRefundedPence, 0, amountCapturedPence, "Refunded amount");
+    const disputes = paymentDisputes(record.disputes);
+    if (record.disputeReviewRequired !== undefined && typeof record.disputeReviewRequired !== "boolean") throw new Error("Payment dispute review status is unavailable.");
+    const disputeReviewRequired = paymentDisputeHeld({ ...record, disputes });
     return Object.freeze({
       paymentId: record.paymentId.toLowerCase(), bookingId: record.bookingId.toLowerCase(), paymentStatus: record.paymentStatus, bookingStatus: record.bookingStatus,
       scheduledStartAt: timestamp(record.scheduledStartAt, "Booking start time"), scheduledEndAt: timestamp(record.scheduledEndAt, "Booking end time"), updatedAt: timestamp(record.updatedAt, "Payment update time"),
       amountPence, amountCapturedPence, amountRefundedPence, cleanerPayPence: integer(record.cleanerPayPence, 1, amountPence, "Cleaner pay"), currency: "gbp",
-      payoutReady: record.payoutReady === true, canCapture: record.canCapture === true, canCancel: record.canCancel === true, canRefund: record.canRefund === true, canTransfer: record.canTransfer === true, awaitingProvider: record.awaitingProvider === true
+      payoutReady: record.payoutReady === true, canCapture: !disputeReviewRequired && record.canCapture === true, canCancel: !disputeReviewRequired && record.canCancel === true, canRefund: !disputeReviewRequired && record.canRefund === true, canTransfer: !disputeReviewRequired && record.canTransfer === true, awaitingProvider: record.awaitingProvider === true,
+      disputeReviewRequired, disputes
     });
   });
   return Object.freeze({ payments: Object.freeze(payments), limit, offset, testMode: value.testMode === true });
@@ -64,6 +89,9 @@ export function paymentActionLabel(value) {
 export function paymentNextAction(record) {
   if (!record || !paymentStatuses.has(record.paymentStatus) || !bookingStatuses.has(record.bookingStatus)) {
     return Object.freeze({ kind: "refresh", title: "Refresh verified status", copy: "No payment action is safe until Homle can verify the current booking and provider state." });
+  }
+  if (paymentDisputeHeld(record)) {
+    return Object.freeze({ kind: "dispute-review", title: "Review the payment dispute", copy: "Payment actions are on hold. Check the dispute outcome and reconcile the provider balance before continuing. Money already transferred to a Cleaner is not automatically recovered." });
   }
   if (record.awaitingProvider === true) {
     return Object.freeze({ kind: "refresh", title: "Refresh signed provider status", copy: "A previous command is still being reconciled. Do not repeat it or start another payment action." });

@@ -1,4 +1,4 @@
-import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "./admin-payments-model.js";
+import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentDisputeHeld, paymentDisputeStatusLabel, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "./admin-payments-model.js";
 import { storedCsrf } from "./session-csrf.js";
 
 const pageSize = 50;
@@ -132,7 +132,7 @@ function clearRetryKey(record, kind, amountPence = 0) {
 }
 
 function openAction(record, kind) {
-  if (commanding || uncertainPayments.has(record.paymentId)) return;
+  if (commanding || uncertainPayments.has(record.paymentId) || paymentDisputeHeld(record)) return;
   selected = record;
   selectedKind = kind;
   form.reset();
@@ -154,7 +154,7 @@ function openAction(record, kind) {
 function actionButton(record, kind, secondary = false) {
   const button = element("button", secondary ? "button button-outline" : "button", paymentActionLabel(kind));
   button.type = "button";
-  button.disabled = uncertainPayments.has(record.paymentId);
+  button.disabled = uncertainPayments.has(record.paymentId) || paymentDisputeHeld(record);
   button.addEventListener("click", () => openAction(record, kind));
   return button;
 }
@@ -171,6 +171,16 @@ function paymentCard(record) {
   const nextAction = element("div", `admin-payment-next admin-payment-next-${guidance.kind}`);
   nextAction.append(element("strong", "", guidance.title), element("p", "", guidance.copy));
   card.append(heading, facts, nextAction);
+  if (record.disputes?.length) {
+    const evidence = element("details", "admin-payment-next");
+    evidence.append(element("summary", "", `Payment dispute evidence (${record.disputes.length})`));
+    const entries = element("dl", "admin-case-facts");
+    for (const dispute of record.disputes) {
+      entries.append(fact(dispute.providerDisputeId || "Earlier dispute — identity unverified", `${paymentDisputeStatusLabel(dispute.status)} · ${dispute.requiresReview ? "Review required" : "Recorded outcome"} · Event ${dispute.lastEventId}`));
+    }
+    evidence.append(entries);
+    card.append(evidence);
+  }
   if (record.awaitingProvider) card.append(element("p", "admin-payment-waiting", "Waiting for a signed provider update. Refresh status; do not repeat the action."));
   if (uncertainPayments.has(record.paymentId)) card.append(element("p", "admin-payment-warning", "The previous action has an uncertain result. Refresh the signed status before any retry."));
   const actions = element("div", "booking-summary-actions");
@@ -230,6 +240,11 @@ async function runSelectedAction() {
   if (commanding || !selected || !selectedKind) return;
   const actionRecord = selected;
   const actionKind = selectedKind;
+  function ensureNoDisputeHold() {
+    const current = queue.payments.find((item) => item.paymentId === actionRecord.paymentId);
+    if (paymentDisputeHeld(actionRecord) || paymentDisputeHeld(current)) throw new Error("This payment requires dispute review. No payment action was sent.");
+  }
+  ensureNoDisputeHold();
   const refundText = String(new FormData(form).get("refundAmount") || "").trim();
   const amountPence = actionKind === "refund" && /^\d+(?:\.\d{1,2})?$/.test(refundText) ? Math.round(Number(refundText) * 100) : actionKind === "refund" ? NaN : 0;
   const maximumRefund = actionRecord.amountCapturedPence - actionRecord.amountRefundedPence;
@@ -237,6 +252,7 @@ async function runSelectedAction() {
   const key = retryKey(actionRecord, actionKind, amountPence);
   const payload = paymentActionPayload(actionKind, { amountPence, idempotencyKey: key, confirmed: new FormData(form).get("confirmed") === "on" });
   const csrf = await recoverCsrf();
+  ensureNoDisputeHold();
   commanding = true;
   submit.disabled = cancel.disabled = true;
   submit.textContent = "Contacting test provider…";

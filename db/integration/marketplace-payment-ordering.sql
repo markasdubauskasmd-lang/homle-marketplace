@@ -153,6 +153,157 @@ END
 $authorization_response_ordering$;
 ROLLBACK TO SAVEPOINT authorization_response_ordering;
 
+SAVEPOINT dispute_outcome_checks;
+
+CREATE FUNCTION pg_temp.test_dispute_event(event_id text, dispute_id text, outcome text, event_time timestamptz, event_kind text DEFAULT 'dispute-closed')
+RETURNS jsonb LANGUAGE sql AS $$
+ SELECT tideway_private.reconcile_payment_dispute_event('stripe',event_id,event_kind,'pi_payment_ordering',
+ '50000000-0000-4000-8000-000000000010',NULL,NULL,NULL,event_time,repeat('a',64),dispute_id,outcome);
+$$;
+
+DO $dispute_outcomes$
+DECLARE
+  p uuid := '50000000-0000-4000-8000-000000000010';
+  c uuid := '51000000-0000-4000-8000-000000000099';
+  t timestamptz := now()-interval '10 minutes';
+  outcome text;
+  ordering integer;
+  payment booking_payments%ROWTYPE;
+  result jsonb;
+  detail jsonb;
+  blocked boolean;
+  event_name text;
+BEGIN
+  DELETE FROM payment_commands WHERE payment_id=p;
+  UPDATE booking_payments SET status='captured',amount_refunded_pence=0,last_provider_event_at=now()-interval '1 minute' WHERE id=p;
+  SELECT * INTO payment FROM booking_payments WHERE id=p;
+
+  FOREACH outcome IN ARRAY ARRAY['won','lost','warning_closed','prevented','unknown'] LOOP
+    FOREACH ordering IN ARRAY ARRAY[0,1] LOOP
+      DELETE FROM tideway_private.payment_disputes WHERE payment_id=p;
+      UPDATE booking_payments SET status='captured' WHERE id=p;
+      event_name := 'evt_dispute_'||outcome||'_'||ordering;
+      IF ordering=0 THEN PERFORM pg_temp.test_dispute_event(event_name||'_open','du_order_test','needs_response',t,'dispute-opened'); END IF;
+      result := pg_temp.test_dispute_event(event_name||'_closed','du_order_test',outcome,t);
+      IF ordering=1 THEN PERFORM pg_temp.test_dispute_event(event_name||'_open','du_order_test','needs_response',t,'dispute-opened'); END IF;
+      IF (SELECT status FROM booking_payments WHERE id=p) <> (CASE WHEN outcome IN ('won','warning_closed') THEN 'captured' ELSE 'disputed' END)
+        THEN RAISE EXCEPTION 'Wrong dispute outcome % order %',outcome,ordering; END IF;
+      IF (SELECT amount_captured_pence FROM booking_payments WHERE id=p) <> payment.amount_captured_pence OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>0
+        THEN RAISE EXCEPTION 'Dispute changed money totals'; END IF;
+      result := pg_temp.test_dispute_event(event_name||'_closed','du_order_test',outcome,t);
+      IF result->>'duplicate'<>'true' THEN RAISE EXCEPTION 'Dispute duplicate was reapplied'; END IF;
+      blocked := false;
+      BEGIN
+        PERFORM pg_temp.test_dispute_event(event_name||'_closed','du_different_identity',outcome,t);
+      EXCEPTION WHEN SQLSTATE '22023' THEN blocked := true;
+      END;
+      IF NOT blocked THEN RAISE EXCEPTION 'Duplicate event changed its dispute identity'; END IF;
+    END LOOP;
+  END LOOP;
+
+  -- Independent cases: resolving one never releases another.
+  DELETE FROM tideway_private.payment_disputes WHERE payment_id=p;
+  PERFORM pg_temp.test_dispute_event('evt_multi_a','du_multi_a','lost',t);
+  PERFORM pg_temp.test_dispute_event('evt_multi_b','du_multi_b','won',t);
+  IF (SELECT status FROM booking_payments WHERE id=p)<>'disputed' THEN RAISE EXCEPTION 'One won dispute released a different lost dispute'; END IF;
+  -- Stripe documents late wins. A newer signed win can supersede the loss;
+  -- an older loss delivered afterward must not undo it.
+  PERFORM pg_temp.test_dispute_event('evt_multi_late_win','du_multi_a','won',t+interval '2 seconds');
+  PERFORM pg_temp.test_dispute_event('evt_multi_stale_lost','du_multi_a','lost',t+interval '1 second');
+  IF (SELECT status FROM booking_payments WHERE id=p)<>'captured' THEN RAISE EXCEPTION 'Documented late win was not retained'; END IF;
+  PERFORM pg_temp.test_dispute_event('evt_multi_equal_conflict','du_multi_a','lost',t+interval '2 seconds');
+  PERFORM pg_temp.test_dispute_event('evt_multi_after_conflict','du_multi_a','won',t+interval '3 seconds');
+  IF (SELECT status FROM booking_payments WHERE id=p)<>'disputed' OR (SELECT status FROM tideway_private.payment_disputes WHERE dispute_key='du_multi_a')<>'conflict'
+    THEN RAISE EXCEPTION 'Ambiguous terminal conflict was automatically released'; END IF;
+
+  -- Both admin routes expose the hold and outcomes, and the default queue includes it.
+  detail := tideway_private.get_administrator_booking_payment_operation(payment.booking_id);
+  IF detail->>'disputeReviewRequired'<>'true' OR jsonb_array_length(detail->'disputes')<>2 OR detail->>'canTransfer'<>'false'
+    THEN RAISE EXCEPTION 'Booking admin projection hid dispute evidence or enabled payout'; END IF;
+  result := tideway_private.list_administrator_payment_operations('actionable',100,0);
+  IF NOT EXISTS(SELECT 1 FROM jsonb_array_elements(result->'payments') item WHERE item->>'paymentId'=p::text AND item->>'disputeReviewRequired'='true')
+    THEN RAISE EXCEPTION 'Disputed payment vanished from default admin queue'; END IF;
+
+  -- Existing ten-argument callers remain fail closed, and exact signed replay
+  -- can recover only the corresponding historical event's missing projection.
+  DELETE FROM tideway_private.payment_disputes WHERE payment_id=p;
+  result := tideway_private.reconcile_payment_provider_event('stripe','evt_legacy_closed','dispute-closed','pi_payment_ordering',p,NULL,NULL,NULL,t,repeat('a',64));
+  PERFORM pg_temp.test_dispute_event('evt_other_safe','du_other_safe','won',t);
+  IF (SELECT status FROM booking_payments WHERE id=p)<>'disputed' THEN RAISE EXCEPTION 'Unidentified legacy evidence was released by an unrelated win'; END IF;
+  result := pg_temp.test_dispute_event('evt_legacy_closed','du_recovered_legacy','won',t);
+  IF (SELECT status FROM booking_payments WHERE id=p)<>'captured' OR EXISTS(SELECT 1 FROM tideway_private.payment_disputes WHERE dispute_key='legacy_'||md5('evt_legacy_closed'))
+    THEN RAISE EXCEPTION 'Verified legacy replay could not restore its exact projection'; END IF;
+
+  -- Monetary totals survive won disputes after partial and full refunds.
+  UPDATE booking_payments SET amount_refunded_pence=1000 WHERE id=p;
+  PERFORM pg_temp.test_dispute_event('evt_won_partial','du_partial','won',t);
+  IF (SELECT status FROM booking_payments WHERE id=p)<>'partially-refunded' THEN RAISE EXCEPTION 'Won dispute erased partial refund state'; END IF;
+  UPDATE booking_payments SET amount_refunded_pence=amount_captured_pence WHERE id=p;
+  PERFORM pg_temp.test_dispute_event('evt_won_full','du_full','won',t);
+  IF (SELECT status FROM booking_payments WHERE id=p)<>'refunded' THEN RAISE EXCEPTION 'Won dispute erased full refund state'; END IF;
+
+  -- Reserve a transfer, receive a dispute, then retry the identical unsent command.
+  DELETE FROM tideway_private.payment_disputes WHERE payment_id=p;
+  UPDATE booking_payments SET status='captured',amount_refunded_pence=0 WHERE id=p;
+  PERFORM * FROM tideway_private.begin_booking_payment_command(c,p,'transfer',NULL,decode(repeat('ef',32),'hex'));
+  PERFORM pg_temp.test_dispute_event('evt_retry_hold','du_retry_hold','lost',t);
+  blocked := false;
+  BEGIN
+    PERFORM * FROM tideway_private.begin_booking_payment_command(c,p,'transfer',NULL,decode(repeat('ef',32),'hex'));
+  EXCEPTION WHEN SQLSTATE 'P0001' THEN
+    IF SQLERRM <> 'payment-dispute-review-required' THEN RAISE; END IF;
+    blocked := true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'Idempotent unsent transfer bypassed the dispute hold'; END IF;
+  -- A command already sent may still report its financial fact; this does not recover lost money.
+  result := tideway_private.reconcile_payment_provider_event('stripe','evt_transfer_after_loss','transfer-succeeded','tr_dispute_test',p,c,payment.amount_pence*0+ (SELECT cleaner_pay_pence FROM bookings WHERE id=payment.booking_id),'gbp',t-interval '1 second',repeat('b',64));
+  IF result->>'accepted'<>'true' OR (SELECT status FROM payment_commands WHERE id=c)<>'reconciled' OR (SELECT status FROM booking_payments WHERE id=p)<>'disputed'
+    THEN RAISE EXCEPTION 'Late transfer fact erased or bypassed the dispute hold'; END IF;
+
+  -- Capture/refund signed events may arrive after a later dispute timestamp.
+  DELETE FROM payment_commands WHERE payment_id=p;
+  UPDATE booking_payments SET amount_captured_pence=0,amount_refunded_pence=0 WHERE id=p;
+  INSERT INTO payment_commands(id,payment_id,command_kind,amount_pence,status,idempotency_key_hash,created_by)
+    VALUES(c,p,'capture',payment.amount_pence,'provider-pending',decode(repeat('ee',32),'hex'),'10000000-0000-4000-8000-000000000004');
+  result := tideway_private.reconcile_payment_provider_event('stripe','evt_capture_after_loss','capture-succeeded','pi_payment_ordering',p,c,payment.amount_pence,'gbp',t-interval '1 second',repeat('c',64));
+  IF result->>'accepted'<>'true' OR (SELECT amount_captured_pence FROM booking_payments WHERE id=p)<>payment.amount_pence OR (SELECT status FROM booking_payments WHERE id=p)<>'disputed'
+    THEN RAISE EXCEPTION 'Delayed capture was discarded or erased the hold'; END IF;
+  DELETE FROM payment_commands WHERE payment_id=p;
+  INSERT INTO payment_commands(id,payment_id,command_kind,amount_pence,status,idempotency_key_hash,created_by)
+    VALUES(c,p,'refund',1000,'provider-pending',decode(repeat('ed',32),'hex'),'10000000-0000-4000-8000-000000000004');
+  result := tideway_private.reconcile_payment_provider_event('stripe','evt_refund_after_loss','refund-succeeded','re_dispute_test',p,c,1000,'gbp',t-interval '2 seconds',repeat('d',64));
+  IF result->>'accepted'<>'true' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000 OR (SELECT status FROM booking_payments WHERE id=p)<>'disputed'
+    THEN RAISE EXCEPTION 'Delayed refund was discarded or erased the hold'; END IF;
+  result := tideway_private.reconcile_payment_provider_event('stripe','evt_refund_after_loss_second','refund-succeeded','re_dispute_test',p,c,1000,'gbp',t-interval '1 second',repeat('e',64));
+  IF result->>'duplicate'<>'true' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000 THEN RAISE EXCEPTION 'Disputed refund was applied twice'; END IF;
+  PERFORM pg_temp.test_dispute_event('evt_refund_then_won','du_retry_hold','won',t+interval '2 seconds');
+  IF (SELECT status FROM booking_payments WHERE id=p)<>'partially-refunded' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000
+    THEN RAISE EXCEPTION 'Resolving dispute lost a delayed refund fact'; END IF;
+
+  DELETE FROM tideway_private.payment_disputes WHERE payment_id=p;
+  DELETE FROM payment_commands WHERE payment_id=p;
+  UPDATE booking_payments SET status='authorized',amount_refunded_pence=0,amount_captured_pence=0 WHERE id=p;
+  PERFORM pg_temp.test_dispute_event('evt_won_before_capture','du_won_before_capture','won',t);
+  IF (SELECT status FROM booking_payments WHERE id=p)<>'disputed' THEN RAISE EXCEPTION 'Won dispute invented a captured balance'; END IF;
+  INSERT INTO payment_commands(id,payment_id,command_kind,amount_pence,status,idempotency_key_hash,created_by)
+    VALUES(c,p,'capture',payment.amount_pence,'provider-pending',decode(repeat('ec',32),'hex'),'10000000-0000-4000-8000-000000000004');
+  result := tideway_private.reconcile_payment_provider_event('stripe','evt_capture_after_won','capture-succeeded','pi_payment_ordering',p,c,payment.amount_pence,'gbp',t-interval '1 second',repeat('f',64));
+  IF result->>'accepted'<>'true' OR (SELECT status FROM booking_payments WHERE id=p)<>'captured'
+    THEN RAISE EXCEPTION 'Delayed capture could not complete an already won dispute'; END IF;
+
+  IF has_table_privilege('tideway_app','tideway_private.payment_disputes','SELECT') OR has_table_privilege('tideway_app','tideway_private.payment_disputes','UPDATE')
+    THEN RAISE EXCEPTION 'Runtime gained direct dispute-table access'; END IF;
+  IF NOT has_function_privilege('tideway_app','tideway_private.reconcile_payment_dispute_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character,text,text)','EXECUTE')
+    THEN RAISE EXCEPTION 'Signed event route missing its narrow function grant'; END IF;
+  PERFORM set_config('app.user_roles','landlord',true);
+  blocked := false;
+  BEGIN PERFORM tideway_private.get_administrator_booking_payment_operation(payment.booking_id);
+  EXCEPTION WHEN SQLSTATE '42501' THEN blocked := true; END;
+  IF NOT blocked THEN RAISE EXCEPTION 'Non-admin read dispute operations'; END IF;
+END
+$dispute_outcomes$;
+ROLLBACK TO SAVEPOINT dispute_outcome_checks;
+
 -- Exercise the SECURITY DEFINER ownership logic on a captured fixture and verify runtime grants.
 SELECT set_config('app.user_id', (SELECT landlord_user_id::text FROM bookings WHERE id='40000000-0000-4000-8000-000000000003'), true);
 SELECT set_config('app.user_roles', 'landlord', true);

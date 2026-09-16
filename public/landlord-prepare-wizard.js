@@ -1,3 +1,4 @@
+import { propertyDateTime } from "./property-schedule.js";
 // Prepare-a-clean stepped wizard (progressive enhancement).
 //
 // The request builder in landlord-dashboard.html is a complete, working private
@@ -515,7 +516,7 @@
     const err = fieldError("Pick a date to continue.", wrap);
 
     const weekdays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    function startOfToday() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+    function startOfToday() { return parse(propertyDateTime().date); }
     function parse(value) { if (!value) return null; const p = value.split("-"); const d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); return isNaN(d.getTime()) ? null : d; }
     function minDate() { return parse(input.min) || startOfToday(); }
     function fmt(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }

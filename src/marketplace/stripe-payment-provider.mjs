@@ -134,7 +134,12 @@ export async function createStripePaymentProvider(configuration = {}, options = 
     const intent = await stripe.paymentIntents.retrieve(reference(paymentIntentId, "dispute PaymentIntent id"));
     const references = metadataReferences(intent);
     if (!references) return { ignored: true, eventId: event.id };
-    return normalizedEvent(event, event.type === "charge.dispute.created" ? "dispute-opened" : "dispute-closed", dispute, references, { objectId: intent.id, amountPence: null, currency: null });
+    if (!/^du_[A-Za-z0-9_]{3,250}$/.test(dispute.id || "")) throw new TypeError("Stripe returned an invalid dispute id.");
+    const statuses = new Set(["warning_needs_response", "warning_under_review", "needs_response", "under_review", "won", "lost", "warning_closed", "prevented"]);
+    const projected = normalizedEvent(event, event.type === "charge.dispute.closed" ? "dispute-closed" : "dispute-opened", dispute,
+      { ...references, commandId: null }, { objectId: intent.id });
+    return Object.freeze({ ...projected, amountPence: null, currency: null,
+      disputeId: dispute.id, disputeStatus: statuses.has(dispute.status) ? dispute.status : "unknown" });
   }
 
   async function verifiedEvent(event) {
@@ -142,7 +147,7 @@ export async function createStripePaymentProvider(configuration = {}, options = 
     if (event.api_version && event.api_version !== stripeApiVersion) throw new TypeError("Stripe webhook API version does not match the reviewed adapter.");
     const object = event.data?.object;
     if (!object || typeof object !== "object") throw new TypeError("Stripe webhook event data is missing.");
-    if (["charge.dispute.created", "charge.dispute.closed"].includes(event.type)) return eventWithDisputePayment(event, object);
+    if (["charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed"].includes(event.type)) return eventWithDisputePayment(event, object);
     const references = metadataReferences(object);
     if (!references) return Object.freeze({ ignored: true, eventId: reference(event.id, "event id") });
     if (event.type === "payment_intent.amount_capturable_updated" && object.status === "requires_capture") return normalizedEvent(event, "authorization-succeeded", object, references);

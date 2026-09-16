@@ -1,3 +1,4 @@
+import "./property-schedule.mjs";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -44,12 +45,11 @@ for (const day of days) {
   previous = parsed;
 }
 if (new Set(days.map((day) => day.iso)).size !== days.length) problems.push("duplicate day in " + days.map((day) => day.iso).join(" "));
-// The first day offered must be tomorrow, in local calendar terms. This is what catches
-// the daylight-saving defect: adding a fixed 24 hours to a late-evening start the night
-// before a spring-forward lands on the day *after* tomorrow, so the whole run is shifted
-// by one and the sequence still looks perfectly consecutive.
-const tomorrow = new Date(at.getFullYear(), at.getMonth(), at.getDate() + 1, 12);
-const tomorrowIso = tomorrow.getFullYear() + "-" + String(tomorrow.getMonth() + 1).padStart(2, "0") + "-" + String(tomorrow.getDate()).padStart(2, "0");
+// Tomorrow is relative to the London property, even when the browser is abroad.
+const londonParts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(at).map(({type,value}) => [type,value]));
+const tomorrow = new Date(londonParts.year + "-" + londonParts.month + "-" + londonParts.day + "T12:00:00Z");
+tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+const tomorrowIso = tomorrow.toISOString().slice(0, 10);
 if (days.length && days[0].iso !== tomorrowIso) problems.push("first day should be " + tomorrowIso + " but is " + days[0].iso);
 process.stdout.write(JSON.stringify(problems));
 `;
@@ -108,4 +108,4 @@ const when = { date: days[0].iso, time: arrivalWindows[0], frequency: "one-time"
 assert.equal(canLeaveStep("when", when), true, `A day this module generated was rejected by the when step: ${JSON.stringify(when)}`);
 assert.equal(canLeaveStep("when", { ...when, date: "" }), false, "The when step passed with no chosen day.");
 
-console.log(`Landlord journey date tests passed: across ${zones.length} timezones and eleven instants including both daylight-saving transitions, every offered day submits the date its own label shows; days are consecutive, never in the past, frozen and ISO-shaped.`);
+console.log(`Landlord journey date tests passed: across ${zones.length} timezones and eleven instants including both daylight-saving transitions, every offered UK day submits the date its own label shows; days are consecutive, never in the past, frozen and ISO-shaped.`);
