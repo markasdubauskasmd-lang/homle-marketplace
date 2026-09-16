@@ -304,4 +304,4 @@ try {
 
 if (failure) throw failure;
 
-await import("./browser-scan-review-edits.mjs");
+import "./browser-scan-review-edits.mjs";
