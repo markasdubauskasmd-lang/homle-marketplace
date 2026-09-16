@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+import * as model from "../public/room-scan-model.js";
+import { mergeReviewedRoomRescan } from "../public/scan-review-edit.js";
 import {
   mergeRoomInventory, mergeSavedDetections, mergeInventoryIntoSavedDetections,
   conditionNeedsReview, correctInventoryItem, recommendedAction
@@ -39,3 +43,32 @@ for (const first of [{ ...clean, conditionConfidence: .2 }, { ...dirty, conditio
   assert.equal(mergeSavedDetections([first], [dirty])[0].condition, "heavy");
 }
 console.log("Conflicting room-condition review checks passed.");
+
+// The actual Done handoff and a saved booking draft must retain the uncertainty
+// and explicit quantity; otherwise returning to review silently resets them.
+{
+  const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
+  const start = source.indexOf("function finishScan()");
+  const end = source.indexOf("/* ── Teardown", start);
+  const inventory = mergeRoomInventory(mergeRoomInventory([], [clean]), [dirty]);
+  const detections = mergeInventoryIntoSavedDetections([], inventory).map(item => ({ ...item,
+    quantity: 3, quantityConfirmed: true }));
+  const state = { rooms: [{ name: "Kitchen", detections, tasks: [], readingStatus: "ready" }], dismissed: new Map() };
+  let result;
+  const context = vm.createContext({ ...model, state, toast(){}, renderHub(){}, stopVoice(){}, forgetRoomNotes(){},
+    inventoryFor: () => [], localRoomTasks: () => [], roomTranscript: () => "", transcriptKey: name => name.toLowerCase(),
+    scanEvents: { record(){}, flush(){} }, elapsedSince: () => 0, stopCamera(){}, close: value => { result = value; } });
+  vm.runInContext(source.slice(start, end), context);
+  context.finishScan(); if (!result) context.finishScan();
+  const room = JSON.parse(JSON.stringify(result.rooms[0]));
+  assert.equal(room.objects[0].conditionMixed, true, "Done lost the conflict before booking review");
+  assert.equal(room.objects[0].quantityConfirmed, true, "Done lost the customer's quantity decision");
+  const reread = mergeReviewedRoomRescan(room, { objects: [{ ...clean, inventoryKey: "oven", quantity: 1,
+    confidenceCondition: .99 }], tasks: [] });
+  assert.equal(reread.objects[0].condition, "");
+  assert.equal(reread.objects[0].quantity, 3);
+  const unconfirmedQuantity = { ...room, objects: room.objects.map(item => ({ ...item, quantityConfirmed: false })) };
+  assert.equal(mergeReviewedRoomRescan(unconfirmedQuantity, { objects: [{ ...clean, inventoryKey: "oven", quantity: 3,
+    confidenceCondition: .99 }], tasks: [] }).objects[0].condition, "",
+    "A booking-review rescan discarded the persisted conflict");
+}
