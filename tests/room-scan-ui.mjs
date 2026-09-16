@@ -477,7 +477,8 @@ assert(/catch (?:\(\w+\) )?\{[\s\S]{0,400}generation !== state\.detectionGenerat
 // Selecting on a live feed and cropping at send time would cut the crop from
 // whatever the phone had moved on to. The frame is frozen first, always.
 assert(overlay.includes("function freezeFrame") && /if \(state\.frozen\) return confirmSelection\(\)/.test(overlay), "The scan reads the room without freezing the frame that was chosen from.");
-assert(/function freezeFrame[\s\S]{0,400}stopDetection\(\)/.test(overlay), "Freezing a frame leaves the detector running over the top of it.");
+const freezeBody = overlay.slice(overlay.indexOf("function freezeFrame("), overlay.indexOf("function unfreeze("));
+assert(freezeBody.includes("stopDetection()"), "Freezing a frame leaves the detector running over the top of it.");
 assert(overlay.includes("function drawVisibleRegion"), "The capture no longer matches the cropped region the viewfinder actually shows, so boxes and pixels can disagree.");
 
 // Tapping empty space adds a box. Without this the scan loses every fixture
@@ -622,7 +623,7 @@ assert(overlay.includes("validatedGuidedRoomPhotoFile(file)") && overlay.include
 
 // A tap during the revisit photo load must not start a fresh capture that the
 // load then overwrites.
-assert(overlay.includes("state.loadingRoom") && /function capture\(\)[\s\S]{0,120}state\.loadingRoom/.test(overlay), "A shutter tap while a revisited room is still loading can race the load.");
+assert(/function capture\([^\n]*\)[\s\S]{0,160}state\.loadingRoom/.test(overlay), "A shutter tap while a revisited room is still loading can race the load.");
 
 // Revisit clearing, unoffered findings and walking-only rooms are exercised
 // through the actual openRevisit/saveRoom functions in scan-walkthrough.mjs.
@@ -746,9 +747,23 @@ assert(/el\.voiceTime\.textContent = "0:00"/.test(overlay), "A new recording sho
 // and the post-await guards are what stop a stale encode landing on a view the
 // Landlord has already left or frozen.
 assert(/function flashViewfinder\(\)[\s\S]{0,240}classList\.add\("pop"\)/.test(overlay), "Nothing triggers the capture flash the stylesheet has always defined.");
-assert(/async function capture\(\)[\s\S]{0,1200}flashViewfinder\(\);\s*\n\s*el\.shutter\.disabled = true/.test(overlay), "The shutter press is not acknowledged before the asynchronous encode.");
-assert(/async function capture\(\)[\s\S]{0,1600}const frame = await pending;[\s\S]{0,300}if \(state\.closed \|\| state\.frozen \|\| state\.screen !== "live"\) return;/.test(overlay), "A capture encoded after the Landlord moved on can still freeze the wrong view.");
-assert(/await pending\.catch\(\(\) => ""\)/.test(overlay), "A failed tap-to-freeze encode rejects unhandled instead of degrading to the warming-up message.");
+{
+  const captureBody = overlay.slice(overlay.indexOf("async function capture("), overlay.indexOf("async function confirmSelection()"));
+  const flash = captureBody.indexOf("flashViewfinder();");
+  const lock = captureBody.indexOf("el.shutter.disabled = true;");
+  const wait = captureBody.indexOf("const frame = await pending;");
+  const freeze = captureBody.indexOf("freezeFrame(frame,");
+  assert(flash >= 0 && lock > flash && wait > lock, "The shutter press is not acknowledged before the asynchronous encode.");
+  const afterEncode = captureBody.slice(wait, freeze);
+  assert(freeze > wait && /if \(state\.closed \|\| state\.frozen \|\| state\.screen !== "live"[\s\S]*\) return;/.test(afterEncode)
+    && afterEncode.includes("owner.session !== state.roomSession") && afterEncode.includes("owner.track !== state.cameraTrack")
+    && afterEncode.includes("state.liveCapturePending !== owner"), "A stale encode can still freeze the wrong room, camera or replacement capture.");
+  const captureError = captureBody.indexOf("} catch {", wait);
+  const tapBody = overlay.slice(overlay.indexOf("async function onViewfinderTap(event)"), overlay.indexOf("function toggleDetectedItem("));
+  assert(tapBody.includes("return capture({ point });") && captureBody.indexOf("try {") < wait && captureError > freeze
+    && captureBody.slice(captureError).includes('toast("That capture could not be prepared — try again.")'),
+  "Tap-to-freeze does not share the shutter's handled encode failure and recovery feedback.");
+}
 
 /* ── Spoken guidance never talks into the microphone ── */
 
@@ -779,7 +794,17 @@ assert(/state\.darkStreak = quality\.luma < torchLumaThreshold[\s\S]{0,900}void 
 assert(/async function maybeAssistCamera\(\)[\s\S]{0,120}state\.closed \|\| state\.frozen \|\| !state\.cameraTrack\) return;/.test(overlay), "The assist can fire while the frame is frozen or the camera is gone.");
 assert(/if \(shouldEnableTorch\(\{/.test(overlay) && /createManualCameraZoom\(/.test(overlay), "The overlay makes its own assist decisions instead of using the tested rules.");
 // Manual off is final for the room, on both assists.
-assert(/async function toggleTorch\(\)[\s\S]{0,420}state\.torchOn = false;[\s\S]{0,160}state\.torchDeclined = true;/.test(overlay), "Turning the torch off does not decline it, so it re-lights a second later.");
+{
+  const toggleBody = overlay.slice(overlay.indexOf("async function toggleTorch()"), overlay.indexOf("async function cycleZoom()"));
+  const target = toggleBody.indexOf("const target = !state.torchOn;");
+  const decline = toggleBody.indexOf("if (!target) state.torchDeclined = true;");
+  const apply = toggleBody.indexOf("await applyTrackConstraint({ torch: target })");
+  const failure = toggleBody.indexOf("if (!applied)");
+  const display = toggleBody.indexOf("state.torchOn = target;");
+  assert(target >= 0 && decline > target && apply > decline && failure > apply && display > failure
+    && toggleBody.slice(failure, display).includes("return;"),
+  "Manual torch-off must decline automatic relighting and may change the displayed state only after success.");
+}
 assert(/async function cycleZoom\(\)[\s\S]{0,120}changeCameraZoom\(false\)/.test(overlay), "A manual zoom step does not take over from the automation, so it re-zooms a second later.");
 // A new room is a new conversation: declines and streaks reset, zoom returns
 // to wide.

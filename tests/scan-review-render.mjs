@@ -286,6 +286,7 @@ console.log("Customer scan-review checks passed.");
     };
     context.correctedScanRooms = () => context.state.scanRooms;
     context.renderReview = () => { context.reviewHost.hidden = false; if (context.state.scanReview) renders.push(context.state.scanReview); };
+    context.renderReviewWhenIdle = context.renderReview;
     vm.createContext(context); vm.runInContext(refreshSource, context);
     return { context, requests, renders, refresh: () => context.refreshScanReview() };
   }
@@ -385,7 +386,7 @@ console.log("Customer scan-review checks passed.");
 {
   const {default:vm}=await import("node:vm");
   const start=script.indexOf("function renderReview() {");
-  const end=script.indexOf("function setScanReviewStatus",start);
+  const end=script.indexOf("function renderReviewWhenIdle",start);
   const messages=[];
   const context={state:{scanRooms:[],scanReview:null},reviewHost:{hidden:false},setScanReviewStatus:message=>messages.push(message)};
   vm.runInNewContext(script.slice(start,end)+"\nrenderReview();",context);

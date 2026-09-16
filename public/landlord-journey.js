@@ -34,7 +34,7 @@ import { createPremiumPlan, premiumScope, premiumBaseTasks, unselectedPremiumInT
 import { openRoomScan, warmRoomScanDetector } from "./room-scan-overlay.js";
 import { checklistFromTranscript } from "./checklist.js";
 import { scanChecklistLines, scanTaskReview, withCurrentRoomInstructions, roomInstructionTasks } from "./room-scan-model.js";
-import { editScanRooms, scanRoomTypes, inferredRoomType } from "./scan-review-edit.js";
+import { editScanRooms, scanRoomTypes, inferredRoomType, mergeReviewedRoomRescan } from "./scan-review-edit.js";
 import { applyCorrection, scanReview, localScanReview } from "./scan-review-render.js";
 import { measurableSubjects, measurementConfirmation, measurementStep, offeredReferences } from "./room-measure-model.js";
 import { pricingRequestFromManualTasks, requestTasksFromLines, requestedWindow } from "./landlord-dashboard-model.js?v=20260719-1";
@@ -1354,7 +1354,7 @@ function openScanTextEditor(host, {label, value = "", maxLength, trigger, onSave
   caption.append(input); panel.append(caption);
   const save = textNode("button", "scan-review-edit", "Save"); save.type = "button";
   const cancel = textNode("button", "scan-review-edit", "Cancel"); cancel.type = "button";
-  const close = () => { panel.remove(); if (trigger?.isConnected) trigger.focus(); };
+  const close = () => { panel.remove(); if (trigger?.isConnected) trigger.focus(); if (state.scanReviewRenderPending) renderReviewWhenIdle(); };
   const submit = () => { const value = input.value.trim(); if (!value) { input.setCustomValidity("Enter a name."); input.reportValidity(); return; } input.setCustomValidity(""); if (onSave(value) !== false) close(); };
   input.addEventListener("input", () => input.setCustomValidity(""));
   input.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); submit(); } if (event.key === "Escape") { event.preventDefault(); close(); } });
@@ -1771,6 +1771,7 @@ if (measureUi.host) {
 
 function renderReview() {
   if (!reviewHost) return;
+  state.scanReviewRenderPending = false;
   if (!state.scanRooms.length) setScanReviewStatus("");
   if (!state.scanRooms.length && !state.scanPremiumPlan) {
     reviewHost.hidden = true;
@@ -1783,6 +1784,20 @@ function renderReview() {
   renderReviewQuestions(review);
   renderReviewRooms(review);
 }
+
+function renderReviewWhenIdle() {
+  // Assessment can finish while the customer is typing. Keep the actual input
+  // nodes and their unsaved text until the edit is saved, cancelled or blurred.
+  if (reviewHost?.querySelector("[data-scan-inline-editor]")
+      || (reviewHost?.contains(document.activeElement) && document.activeElement?.matches("input, textarea, select"))) {
+    state.scanReviewRenderPending = true;
+    return;
+  }
+  renderReview();
+}
+reviewHost?.addEventListener("focusout", () => window.setTimeout(() => {
+  if (state.scanReviewRenderPending) renderReviewWhenIdle();
+}, 0));
 
 function setScanReviewStatus(message, retry = false) {
   const status = document.querySelector("[data-review-status]");
@@ -1803,7 +1818,7 @@ async function refreshScanReview() {
     setScanReviewStatus("");
     return;
   }
-  renderReview();
+  renderReviewWhenIdle();
   setScanReviewStatus("Updating your scan review… You can keep editing.");
   try {
     // Dependency failures use the same visible recovery as assessment failures.
@@ -1827,11 +1842,11 @@ async function refreshScanReview() {
     if (!isCurrent()) return;
     state.scanReview = scanReview(result.scan);
     setScanReviewStatus("");
-    renderReview();
+    renderReviewWhenIdle();
   } catch (error) {
     if (!isCurrent()) return;
     state.scanReview = null;
-    renderReview();
+    renderReviewWhenIdle();
     setScanReviewStatus("Your edits are saved on this device. Automatic assessment is unavailable; keep editing or retry.", true);
   }
 }
@@ -1854,7 +1869,7 @@ function taskReviewRooms() {
     const noteKey = String(name).trim().toLowerCase();
     const note = state.scanNoteEdits?.[noteKey];
     const current = typeof note === "string"
-      ? withCurrentRoomInstructions(room, roomInstructionTasks(name, note, checklistFromTranscript)) : room;
+      ? {...withCurrentRoomInstructions(room, roomInstructionTasks(name, note, checklistFromTranscript)), note} : room;
     const edits = state.scanCorrections.filter(edit => edit.roomName === name);
     return {...current,
       removedInventoryKeys: [...new Set([...(room.removedInventoryKeys || []),
@@ -1920,6 +1935,19 @@ function correctScanObject(roomName, inventoryKey, field, value) {
 
 
 function commitScanStructure(rooms, edit = {}) {
+  const selectedWork = (state.scanPremiumPlan?.options || []).filter(option => state.scanPremiumSelected.includes(option.id)).map(option => {
+    let id = option.id;
+    if (edit.action === "rename-room" && roomKeyOf(option.roomName) === roomKeyOf(edit.roomName)) {
+      id = premiumChoiceId(edit.name, JSON.parse(option.id)[1]);
+    } else if (edit.action === "move-item" && option.id === premiumChoiceId(edit.roomName, edit.inventoryKey)
+        && roomKeyOf(edit.destination) !== roomKeyOf(edit.roomName)) {
+      const target = correctedScanRooms().find(room => roomKeyOf(room.name || room.roomName) === roomKeyOf(edit.destination));
+      let identity = edit.inventoryKey, suffix = 2;
+      while (target?.objects?.some(item => item.inventoryKey === identity)) identity = `${edit.inventoryKey}-${suffix++}`;
+      id = premiumChoiceId(edit.destination, identity);
+    }
+    return {...option, id};
+  });
   if (edit.action === "rename-room") {
     const oldKey = roomKeyOf(edit.roomName), newKey = roomKeyOf(edit.name);
     if (Object.hasOwn(state.scanNoteEdits, oldKey)) { state.scanNoteEdits[newKey] = state.scanNoteEdits[oldKey]; delete state.scanNoteEdits[oldKey]; }
@@ -1927,6 +1955,7 @@ function commitScanStructure(rooms, edit = {}) {
     state.scanMeasurements = state.scanMeasurements.map(entry => roomKeyOf(entry.roomName) === oldKey ? { ...entry, roomName: edit.name.trim() } : entry);
   }
   const names = new Set(rooms.map(room => roomKeyOf(room.name)));
+  state.scanNoteEdits = Object.fromEntries(Object.entries(state.scanNoteEdits).filter(([name]) => names.has(name)));
   state.scanPhotos = state.scanPhotos.filter(photo => names.has(roomKeyOf(photo.roomName)));
   state.scanMeasurements = state.scanMeasurements.filter(entry => names.has(roomKeyOf(entry.roomName)));
   state.scanRooms = rooms;
@@ -1936,7 +1965,9 @@ function commitScanStructure(rooms, edit = {}) {
   state.scanSessionId = "";
   invalidateScanRequest();
   state.scanPremiumPlan = createPremiumPlan(rooms, scanChecklistLines(rooms), pricingConfig || defaultPricingConfig);
-  state.scanPremiumSelected = state.scanPremiumSelected.filter(id => state.scanPremiumPlan.options.some(option => option.id === id));
+  // Preserve the customer's selected service when its room changes. A rescan
+  // that changes appliance type requires a new choice for that different extra.
+  state.scanPremiumSelected = selectedWork.filter(old => state.scanPremiumPlan.options.some(option => option.id === old.id && option.code === old.code)).map(option => option.id);
   reconcileReviewedChecklist();
   state.draft.tasks = premiumScope(state.scanPremiumPlan, editableTaskLines(), eligiblePremiumSelections());
   renderPremiumChoices(); renderRoomNotes(); updateResultTotals(); saveDraft(); renderReview();
@@ -1948,9 +1979,11 @@ function changeScanStructure(edit) {
 }
 async function rescanReviewRoom(roomName, inventoryKey = "") {
   if (state.rescanningRoom) return;
+  const owner = state.draftOwner;
   state.rescanningRoom = true;
   try {
     const result = await openRoomScan({ initialRoom: roomName, itemOnly: Boolean(inventoryKey) });
+    if (state.draftOwner !== owner) return;
     if (!result?.rooms?.length) return;
     const current = taskReviewRooms();
     const old = current.find(room => room.name === roomName);
@@ -1971,11 +2004,19 @@ async function rescanReviewRoom(roomName, inventoryKey = "") {
       corrected = applyCorrection(corrected, {roomName, inventoryKey, field: "quantity", value: detected.quantity}).rooms;
       updated = {...corrected[0], objects: replacement.objects};
     } else {
+      updated = mergeReviewedRoomRescan(old, replacement);
+      const notes = {...state.scanNoteEdits, [roomName.trim().toLowerCase()]:updated.note};
+      // Check the combined request limit before changing photos or instructions.
+      // A rejected rescan must leave the resumable booking exactly as it was.
+      try { reviewedScanNotes(current.map(room => room === old ? updated : room), notes, state.scanGeneralNote ?? state.draft?.transcript); }
+      catch (error) { throw new RangeError(error.message); }
+      // Keep the note editor and saved scope on the same merged instructions.
+      state.scanNoteEdits = notes;
       state.scanPhotos = [...state.scanPhotos.filter(photo => photo.roomName !== roomName), ...(result.photos || []).filter(photo => photo.roomName === roomName)];
     }
     commitScanStructure(current.map(room => room === old ? updated : room));
   } catch (error) {
-    toast("The rescan could not finish. Your original room is unchanged; try again.");
+    toast(error instanceof RangeError ? error.message : "The rescan could not finish. Your original room is unchanged; try again.");
   } finally { state.rescanningRoom = false; }
 }
 

@@ -2109,7 +2109,7 @@ export function mergeScanTaskRecords(...groups) {
     const text = String(record?.text || "").replace(/\s+/g, " ").trim().slice(0, 300);
     if (text.length < 3) continue;
     const origin = ["customer", "vision", "legacy"].includes(record?.origin) ? record.origin : "legacy";
-    const refs = Array.isArray(record?.inventoryKeys) && record.inventoryKeys.length <= 24
+    const refs = Array.isArray(record?.inventoryKeys) && record.inventoryKeys.length <= inventoryLimit
       && record.inventoryKeys.every(key => typeof key === "string" && key.length > 0 && key.length <= 120)
       ? [...new Set(record.inventoryKeys)].sort() : [];
     const key = JSON.stringify([text, origin, refs]);
@@ -2138,7 +2138,7 @@ export function readingTaskRecords(reading, {selected = false, customer = false,
   return mergeScanTaskRecords(tasks.map((text, taskIndex) => {
     const matches = links.filter(link => link?.taskIndex === taskIndex);
     const refs = matches.length === 1 ? matches[0].itemRefs : null;
-    const valid = Array.isArray(refs) && refs.length > 0 && refs.length <= 24
+    const valid = Array.isArray(refs) && refs.length > 0 && refs.length <= inventoryLimit
       && refs.every(ref => typeof ref === "string" && references.get(ref));
     return {text, origin:customer ? "customer" : "vision",
       inventoryKeys:!customer && valid ? refs.map(ref => references.get(ref)) : []};

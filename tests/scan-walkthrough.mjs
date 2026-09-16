@@ -12,6 +12,28 @@ import {
   readingTaskRecords, mergeScanTaskRecords, scanTaskRecordsFor, reconcileScanTaskRecords, scanChecklistLines, scanSummary, mergeItemReadings
 } from "../public/room-scan-model.js";
 
+// Whole-room inventory accepts forty objects, and linked instructions need the
+// same capacity so removing/correcting a busy room does not orphan its tasks.
+{
+  const detections = Array.from({length:40}, (_, index) => ({label:`Appliance ${index+1}`,
+    condition:"medium", conditionConfidence:.85, inventoryKey:`appliance ${index+1}`}));
+  const reading = {detections, tasks:["Wipe the appliance handles"],
+    taskLinks:[{taskIndex:0,itemRefs:detections.map((_,index)=>String(index))}]};
+  const records = readingTaskRecords(reading);
+  assert.equal(records[0].inventoryKeys.length,40,"Large room instruction lost its object links");
+  assert.equal(mergeScanTaskRecords(records)[0].inventoryKeys.length,40,"Saved task normalization erased large room links");
+  const removedKeys=detections.map(item=>item.inventoryKey);
+  const allRemoved=reconcileScanTaskRecords(records,[],{removedKeys});
+  assert.equal(allRemoved[0].decision,"remove","Removing all forty linked items left their instruction behind");
+  assert.equal(allRemoved[0].reviewRequired,false);
+  const partlyRemoved=reconcileScanTaskRecords(records,detections.slice(1),{removedKeys:removedKeys.slice(0,1)});
+  assert.equal(partlyRemoved[0].decision,"keep","Removing one item silently deleted a shared instruction");
+  assert.equal(partlyRemoved[0].reviewRequired,true,"Partially changed shared instruction skipped review");
+  const overflow={...reading,taskLinks:[{taskIndex:0,itemRefs:[...reading.taskLinks[0].itemRefs,"0"]}]};
+  assert.equal(readingTaskRecords(overflow)[0].inventoryKeys.length,0,"Oversized task references escaped the forty-item bound");
+  assert.equal(mergeScanTaskRecords([{...records[0],inventoryKeys:[...removedKeys,"extra"]}])[0].inventoryKeys.length,0);
+}
+
 // A missing token must not put session recovery outside the reading deadline
 // or the overlay's close cancellation. Execute both actual functions together.
 {
@@ -1142,7 +1164,7 @@ for(const key of ["provider","browser","inventory","saved","objects","review"])a
 assert.equal(report.offered,12,"Revisiting must retain the camera selection limit");
 for(const label of ["Floor","Skirting board","Cupboard"])assert.ok(report.labels.includes(label),`Missing ${label} in review`);
 assert.equal(report.calls,1,"Retaining a response must not add provider calls");
-assert.equal(report.maxTokens,2048,"This change must not increase the output-token allowance");
+assert.equal(report.maxTokens,8192,"Whole-room output allowance must cover its bounded forty-object response");
 assert.deepEqual(JSON.parse(JSON.stringify(report.taskRecords[0].inventoryKeys)),["floor"],"A later finding lost its task ownership");
 }
 }
