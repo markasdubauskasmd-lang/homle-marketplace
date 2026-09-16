@@ -103,11 +103,12 @@ BEGIN
   result := tideway_private.reconcile_payment_provider_event('stripe','evt_authorization_before_response','authorization-succeeded','pi_response_race','50000000-0000-4000-8000-000000000010',NULL,
     (SELECT amount_pence FROM booking_payments WHERE id='50000000-0000-4000-8000-000000000010'),'gbp',now()-interval '1 minute',repeat('9',64));
   IF result->>'accepted' <> 'true' THEN RAISE EXCEPTION 'Signed authorization fixture did not reconcile'; END IF;
+  IF (SELECT provider_payment_id FROM booking_payments WHERE id='50000000-0000-4000-8000-000000000010') IS DISTINCT FROM 'pi_response_race' THEN RAISE EXCEPTION 'Signed authorization did not bind provider identity immediately'; END IF;
   blocked := false;
   BEGIN
     PERFORM tideway_private.record_booking_payment_authorization('50000000-0000-4000-8000-000000000010','pi_wrong_response','processing');
   EXCEPTION WHEN SQLSTATE 'P0001' THEN
-    IF SQLERRM <> 'payment-state-conflict' THEN RAISE; END IF;
+    IF SQLERRM <> 'provider-payment-conflict' THEN RAISE; END IF;
     blocked := true;
   END;
   IF NOT blocked THEN RAISE EXCEPTION 'Wrong provider identity was attached after signed authorization'; END IF;
@@ -303,6 +304,8 @@ BEGIN
 END
 $dispute_outcomes$;
 ROLLBACK TO SAVEPOINT dispute_outcome_checks;
+
+\ir marketplace-payment-replay.sql
 
 -- Exercise the SECURITY DEFINER ownership logic on a captured fixture and verify runtime grants.
 SELECT set_config('app.user_id', (SELECT landlord_user_id::text FROM bookings WHERE id='40000000-0000-4000-8000-000000000003'), true);

@@ -99,7 +99,17 @@ function metadataReferences(value) {
   return { paymentId: paymentId.toLowerCase(), commandId: commandId ? commandId.toLowerCase() : null };
 }
 
+function monetaryEventObject(object, prefix, type) {
+  if (!new RegExp(`^${prefix}_[A-Za-z0-9_]{3,250}$`).test(object.id || "")
+    || object.object != null && object.object !== type) throw new TypeError("Stripe returned an invalid monetary event object.");
+  // Currency and amount are reconciliation evidence. Never turn contradictory
+  // or missing values into null, which would skip the ledger's checks.
+  if (object.currency !== "gbp") throw new TypeError("Stripe returned an unsupported monetary event currency.");
+  if (!Number.isInteger(object.amount) || object.amount < 1 || object.amount > 10_000_000) throw new TypeError("Stripe returned an invalid monetary event amount.");
+}
+
 function normalizedEvent(event, kind, object, references, overrides = {}) {
+  if (!/^evt_[A-Za-z0-9_]{3,250}$/.test(event.id || "")) throw new TypeError("Stripe returned an invalid event id.");
   return Object.freeze({
     eventId: reference(event.id, "event id"),
     kind,
@@ -150,6 +160,19 @@ export async function createStripePaymentProvider(configuration = {}, options = 
     if (["charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed"].includes(event.type)) return eventWithDisputePayment(event, object);
     const references = metadataReferences(object);
     if (!references) return Object.freeze({ ignored: true, eventId: reference(event.id, "event id") });
+    const intentStatuses = {
+      "payment_intent.requires_action": "requires_action",
+      "payment_intent.processing": "processing",
+      "payment_intent.payment_failed": "requires_payment_method",
+      "payment_intent.succeeded": "succeeded",
+      "payment_intent.canceled": "canceled"
+    };
+    if (Object.hasOwn(intentStatuses, event.type) || event.type === "payment_intent.amount_capturable_updated") {
+      monetaryEventObject(object, "pi", "payment_intent");
+      if (Object.hasOwn(intentStatuses, event.type) && object.status !== intentStatuses[event.type]) throw new TypeError("Stripe returned a contradictory PaymentIntent event status.");
+      if (event.type === "payment_intent.succeeded" && (!Number.isInteger(object.amount_received)
+        || object.amount_received < 1 || object.amount_received > object.amount)) throw new TypeError("Stripe returned an invalid captured event amount.");
+    }
     if (event.type === "payment_intent.amount_capturable_updated" && object.status === "requires_capture") return normalizedEvent(event, "authorization-succeeded", object, references);
     if (event.type === "payment_intent.requires_action") return normalizedEvent(event, "authorization-requires-action", object, references);
     if (event.type === "payment_intent.processing") return normalizedEvent(event, "authorization-processing", object, references);
@@ -157,12 +180,20 @@ export async function createStripePaymentProvider(configuration = {}, options = 
     if (event.type === "payment_intent.succeeded") return normalizedEvent(event, references.commandId ? "capture-succeeded" : "authorization-succeeded", object, references, { amountPence: object.amount_received });
     if (event.type === "payment_intent.canceled") return normalizedEvent(event, references.commandId ? "cancellation-succeeded" : "authorization-failed", object, references);
     if (["refund.created", "refund.updated", "refund.failed"].includes(event.type)) {
+      monetaryEventObject(object, "re", "refund");
+      if (!["pending", "requires_action", "succeeded", "failed", "canceled"].includes(object.status)
+        || event.type === "refund.failed" && !["failed", "canceled"].includes(object.status)) throw new TypeError("Stripe returned a contradictory refund event status.");
       if (object.status === "succeeded") return normalizedEvent(event, "refund-succeeded", object, references);
-      if (object.status === "failed" || object.status === "canceled" || event.type === "refund.failed") return normalizedEvent(event, "refund-failed", object, references);
+      if (object.status === "failed" || object.status === "canceled") return normalizedEvent(event, "refund-failed", object, references);
       return Object.freeze({ ignored: true, eventId: reference(event.id, "event id") });
     }
-    if (event.type === "transfer.created") return normalizedEvent(event, "transfer-succeeded", object, references);
-    if (event.type === "transfer.failed") return normalizedEvent(event, "transfer-failed", object, references);
+    if (event.type === "transfer.created") {
+      monetaryEventObject(object, "tr", "transfer");
+      return normalizedEvent(event, "transfer-succeeded", object, references);
+    }
+    // Current Stripe transfer events do not include transfer.failed. A transfer
+    // API error must not be fabricated into an authoritative lifecycle event.
+    if (event.type === "transfer.failed") throw new TypeError("Stripe returned an unsupported transfer failure event.");
     if (event.type === "transfer.reversed") {
       // Stripe sends this event for partial reversals too. The ledger's current
       // reversal transition releases the whole transfer, so require proof that
@@ -172,6 +203,7 @@ export async function createStripePaymentProvider(configuration = {}, options = 
         || object.amount_reversed !== object.amount || object.reversed !== true) {
         throw new TypeError("The Stripe transfer reversal is not a verified full reversal; payment reconciliation requires review.");
       }
+      monetaryEventObject(object, "tr", "transfer");
       return normalizedEvent(event, "transfer-reversed", object, references);
     }
     return Object.freeze({ ignored: true, eventId: reference(event.id, "event id") });
