@@ -238,6 +238,19 @@ console.log('Scan persistence and structural regressions passed: repeated reload
   state.scanPremiumSelected=state.scanPremiumPlan.options.map(o=>o.id);
   context.commitScanStructure([{name:'Utility',objects:[{inventoryKey:'oven',pricingCode:'fridge',label:'Fridge'}],tasks:[]}]);
   assert.equal(state.scanPremiumSelected.length,0,'An appliance rescan silently selected a different paid extra');
+  state.scanRooms=[...old,{name:'Utility',objects:[],tasks:[]}];
+  state.scanPremiumPlan=createPremiumPlan(state.scanRooms,[],defaultPricingConfig);
+  state.scanPremiumSelected=state.scanPremiumPlan.options.map(o=>o.id);
+  for(const edit of [
+    {action:'move-item',roomName:'Kitchen',inventoryKey:'oven',destination:'Utility'},
+    {action:'move-item',roomName:'Utility',inventoryKey:'oven',destination:'Kitchen'}
+  ]) context.commitScanStructure(editScanRooms(state.scanRooms,edit),edit);
+  assert.equal(state.scanRooms[0].objects[0].inventoryKey,'oven-2');
+  assert.deepEqual(Array.from(state.scanPremiumSelected),[premiumChoiceId('Kitchen','oven-2')],
+    'Returning a selected appliance reused a removed identity or lost its specialist selection');
+  context.commitScanStructure(state.scanRooms.map(room=>room.name==='Kitchen'?mergeReviewedRoomRescan(room,{objects:[],tasks:[]}):room));
+  assert.deepEqual(Array.from(state.scanPremiumSelected),[premiumChoiceId('Kitchen','oven-2')]);
+  assert.equal(state.scanRooms[0].objects.length,1,'A rescan discarded the returned selected appliance');
 }
 
 // A room rescan is additional evidence, not permission to erase reviewed scope.
@@ -312,4 +325,62 @@ console.log('Scan persistence and structural regressions passed: repeated reload
   context.correctScanObject('Kitchen','oven','quantity',3);
   assert.deepEqual(Array.from(state.draft.tasks),['Kitchen: Clean the 3 × oven'],'A stale optional task survived the corrected appliance quantity');
   assert.equal(state.scanPremiumSelected.length,1,'Changing quantity should not deselect previously approved specialist work');
+}
+
+// Explicitly adding or returning an item must not reuse a dismissal identity:
+// rescanning later would otherwise silently discard the current object.
+{
+  const original={name:'Kitchen',objects:[{inventoryKey:'oven',pricingCode:'oven',label:'Oven',quantity:2}],
+    taskRecords:[{text:'Clean the 2 × oven',origin:'vision',inventoryKeys:['oven']}]};
+  let moved=editScanRooms([original,{name:'Utility',objects:[]}],{action:'move-item',roomName:'Kitchen',destination:'Utility',inventoryKey:'oven'});
+  moved=editScanRooms(moved,{action:'move-item',roomName:'Utility',destination:'Kitchen',inventoryKey:'oven'});
+  assert.equal(moved[0].objects[0].inventoryKey,'oven-2');
+  const rescanned=mergeReviewedRoomRescan(moved[0],{objects:[]});
+  assert.equal(rescanned.objects.length,1);assert.equal(rescanned.objects[0].quantity,2);
+  assert.deepEqual(scanChecklistLines([rescanned]),['Kitchen: Clean the 2 × oven']);
+  const deleted={...original,objects:[],removedInventoryKeys:['oven'],changedInventoryKeys:['oven']};
+  const added=editScanRooms([deleted],{action:'add-item',roomName:'Kitchen',label:'Oven'})[0];
+  assert.equal(added.objects[0].inventoryKey,'oven-2');
+  const after=mergeReviewedRoomRescan(added,{objects:[{inventoryKey:'oven',label:'Oven',quantity:1}],tasks:[]});
+  assert.equal(after.objects.length,1);assert.equal(after.objects[0].pricingCode,'oven');
+  assert.deepEqual(scanChecklistLines([after]),['Kitchen: Clean the oven'],'Previously dismissed task quantities were revived');
+}
+
+// Object evidence without linked replacement work cannot erase the checklist.
+{
+  const old={name:'Kitchen',objects:[{inventoryKey:'tap',label:'Tap',quantity:1},{inventoryKey:'sink',label:'Sink',quantity:1}],
+    taskRecords:[{text:'Descale the tap',origin:'vision',inventoryKeys:['tap']},{text:'Clean tap and sink',origin:'vision',inventoryKeys:['tap','sink']}]};
+  const objects=old.objects.map(item=>({...item}));
+  const empty=mergeReviewedRoomRescan(old,{objects,tasks:[]});
+  assert.deepEqual(scanChecklistLines([empty]),['Kitchen: Descale the tap','Kitchen: Clean tap and sink']);
+  const partial=mergeReviewedRoomRescan(old,{objects,taskRecords:[{text:'Polish the tap',origin:'vision',inventoryKeys:['tap']}]});
+  assert(scanChecklistLines([partial]).includes('Kitchen: Clean tap and sink'),'Partial replacement dropped grouped work');
+  assert(!scanChecklistLines([partial]).includes('Kitchen: Descale the tap'));
+  assert(scanChecklistLines([partial]).includes('Kitchen: Polish the tap'));
+}
+
+// Renaming and quantities also apply to names ending in punctuation and names
+// outside ASCII, without replacing a similar word inside another item name.
+for(const label of ['TV (large)','洗衣机','Fridge + freezer']) {
+  const rooms=[{name:'Room',objects:[{inventoryKey:'custom',label,quantity:1}],taskRecords:[{text:'Wipe the '+label,origin:'vision',inventoryKeys:['custom']},
+    {text:'Leave the '+label+' alone',origin:'customer',inventoryKeys:[]}]}];
+  let result=applyCorrection(rooms,{roomName:'Room',inventoryKey:'custom',field:'quantity',value:3}).rooms;
+  assert.equal(result[0].taskRecords[0].text,'Wipe the 3 × '+label.toLowerCase());
+  result=applyCorrection(result,{roomName:'Room',inventoryKey:'custom',field:'label',value:'Monitor'}).rooms;
+  assert.equal(result[0].taskRecords[0].text,'Wipe the 3 × monitor');
+  assert.equal(result[0].taskRecords[1].text,'Leave the '+label+' alone');
+}
+{
+  const rooms=[{name:'Room',objects:[{inventoryKey:'chair',label:'Chair',quantity:1}],taskRecords:[{text:'Clean the wheelchair and chair',origin:'vision',inventoryKeys:['chair']}]}];
+  assert.equal(applyCorrection(rooms,{roomName:'Room',inventoryKey:'chair',field:'label',value:'Stool'}).rooms[0].taskRecords[0].text,'Clean the wheelchair and stool');
+}
+console.log('Additional review regressions passed: dismissal-safe identities, incomplete rescan tasks, punctuation and Unicode item corrections.');
+
+// Checklist prefixes already compare room names without case sensitivity; a
+// room rename must use that same rule instead of nesting its former name.
+for(const useRoomName of [false,true]) {
+  const room={...(useRoomName?{roomName:'Kitchen'}:{name:'Kitchen'}),objects:[],tasks:['kitchen: Wipe handles'],taskRecords:[{text:'kitchen: Wipe handles',origin:'customer',inventoryKeys:[]}]};
+  const renamed=editScanRooms([room],{action:'rename-room',roomName:'Kitchen',name:'Utility'});
+  assert.deepEqual(scanChecklistLines(renamed),['Utility: Wipe handles']);
+  assert.equal(renamed[0].taskRecords[0].origin,'customer');
 }

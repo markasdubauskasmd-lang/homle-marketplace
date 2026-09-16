@@ -191,10 +191,10 @@ export function applyCorrection(rooms, { roomName, inventoryKey, field, value })
     let taskRecords = scanTaskRecordsFor(room);
     if (before && after && (field === "label" || field === "quantity")) {
       const escaped = String(before.label).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp("(?:[0-9]+ × )?\\b" + escaped + "\\b", "gi");
+      const pattern = new RegExp("(^|[^\\p{L}\\p{N}_])(?:[0-9]+ × )?" + escaped + "(?=$|[^\\p{L}\\p{N}_])", "giu");
       const label = (Number(after.quantity) > 1 ? after.quantity + " × " : "") + after.label.toLowerCase();
       taskRecords = taskRecords.map(record => record.origin === "vision" && record.inventoryKeys.length === 1 && record.inventoryKeys[0] === inventoryKey
-        ? { ...record, text: record.text.replace(pattern, () => label) } : record);
+        ? { ...record, text: record.text.replace(pattern, (_match, prefix) => prefix + label) } : record);
     }
     nextRooms.push({ ...room, objects, taskRecords, tasks: taskRecords.map(record => record.text) });
   }

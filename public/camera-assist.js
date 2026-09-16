@@ -52,9 +52,11 @@ export function nextManualZoom(range, zoom) {
   if (!range) return null;
   const quantize = value => range.min + Math.floor((Math.min(value, range.max) - range.min + 1e-8) / range.step) * range.step;
   const steps = [range.min, range.min * 1.5, range.min * 2, range.min * 3]
-    .map((step) => Math.round(quantize(Math.min(step, range.min * zoomCeiling)) * 1000) / 1000)
+    .map((step) => quantize(Math.min(step, range.min * zoomCeiling)))
     .filter((step, index, all) => all.indexOf(step) === index);
   const current = Number.isFinite(zoom) && zoom >= range.min ? zoom : range.min;
   const next = steps.find((step) => step > current + range.step / 2);
-  return Math.round((next ?? range.min) * 100) / 100;
+  // Hardware steps and minima can have more than two decimal places. Only the
+  // visible label is rounded; rounding this command can make it unsupported.
+  return next ?? range.min;
 }

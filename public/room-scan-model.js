@@ -1455,6 +1455,16 @@ function reviewMixedConditions(item) {
     note: "Check each item’s condition." };
 }
 
+// A clean face and a dirty edge may both be real observations of one object.
+// Confidence scores do not establish which view covers its complete condition.
+// Keep this unresolved until an explicit customer correction; weak guesses can
+// still be replaced by useful evidence and differing dirty grades can improve.
+function conflictingCleanViews(first, second) {
+  return first?.conditionConfirmed !== true && second?.conditionConfirmed !== true
+    && !conditionNeedsReview(first) && !conditionNeedsReview(second)
+    && ((first.condition === "clean") !== (second.condition === "clean"));
+}
+
 // A quantity is trusted only when one frame showed several non-overlapping boxes
 // with the same label. Seeing "Chair" in three different walking reads is not
 // proof of three chairs — it is usually one chair seen from three angles. Seeing
@@ -1595,7 +1605,8 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = Infini
     const score = Number.isFinite(item?.score) ? item.score : 0;
     const quantity = simultaneousQuantity(group, key);
     const grades = new Set(group.map(item => item.condition).filter(grade => ["clean", "light", "medium", "heavy"].includes(grade)));
-    const conditionMixed = quantity > 1 && (grades.size > 1 || group.some(conditionNeedsReview));
+    const conditionMixed = (quantity > 1 && (grades.size > 1 || group.some(conditionNeedsReview)))
+      || group.some(candidate => conflictingCleanViews(evidence, candidate));
     const current = merged.get(key);
     if (!current) {
       merged.set(key, {
@@ -1639,7 +1650,8 @@ export function mergeRoomInventory(existing, incoming, { now = 0, limit = Infini
       // time the camera turned back towards it. Keep only the largest simultaneous
       // count one frame actually proved.
       quantity: current.quantityConfirmed ? itemQuantity(current) : Math.max(itemQuantity(current), quantity),
-      conditionMixed: current.conditionMixed === true || conditionMixed || confirmationGrew,
+      conditionMixed: current.conditionMixed === true || conditionMixed || confirmationGrew
+        || conflictingCleanViews(current, evidence),
       conditionConfirmed: current.conditionConfirmed === true && !confirmationGrew,
       lastSeenAt: now,
       // The better-evidenced look at the same object wins its condition too. A
@@ -1734,19 +1746,33 @@ export function mergeSavedDetections(existing, incoming) {
     const batch = Array.isArray(source) ? source : [];
     const grades = new Map();
     const unresolved = new Set();
+    const grouped = new Map();
     for (const detection of batch) {
       const key = String(detection?.inventoryKey || inventoryKey(detection?.label)).trim();
       if (!key) continue;
-      target.set(key, (target.get(key) || 0) + itemQuantity(detection));
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(detection);
       if (conditionNeedsReview(detection)) unresolved.add(key);
       if (["clean", "light", "medium", "heavy"].includes(detection.condition)) {
         if (!grades.has(key)) grades.set(key, new Set());
         grades.get(key).add(detection.condition);
       }
     }
+    for (const [key, group] of grouped) {
+      // Whole-room confirmations can repeat the same appliance under an alias.
+      // Count distinct boxes with the same suppression as the walking list;
+      // keep all observations below so conflicting condition evidence survives.
+      const boxed = deduplicateDetections(group.map(detection => ({
+        ...detection, className: key, score: itemQuantity(detection)
+      })));
+      const boxedQuantity = boxed.reduce((total, detection) => total + itemQuantity(detection), 0);
+      // Unboxed inventory rows represent accumulated groups, not proof of an
+      // extra object outside the photograph. Never add that group twice.
+      target.set(key, Math.max(boxedQuantity, ...group.map(itemQuantity)));
+    }
     // Separate objects in ONE reading can have different grades. Detect this
-    // before merging discards one grade. Across readings, a better view of the
-    // same object may legitimately correct its grade, so do not pool the sets.
+    // before merging discards one grade. Across readings, stronger evidence may
+    // improve a weak guess; settled clean/dirty conflicts are checked below.
     // Individual confirmations also cannot settle a conflicting whole group;
     // a later single grouped customer correction still wins in the merge below.
     return batch.map(detection => {
@@ -1809,7 +1835,8 @@ export function mergeSavedDetections(existing, incoming) {
     merged.set(key, {
       ...base,
       condition: conditionSource.condition || "",
-      conditionMixed: current.conditionMixed === true || detection.conditionMixed === true || confirmationGrew,
+      conditionMixed: current.conditionMixed === true || detection.conditionMixed === true || confirmationGrew
+        || conflictingCleanViews(current, detection),
       conditionConfirmed: false,
       conditionConfidence: conditionEvidenceConfidence(conditionSource),
       note: String(conditionSource.note || ""),

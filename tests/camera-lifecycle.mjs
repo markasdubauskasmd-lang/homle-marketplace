@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
 import { createCameraSession } from "../public/camera-session.js";
+import { createManualCameraZoom } from "../public/manual-camera-zoom.js";
 
 const source = fs.readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
 function section(start, end) {
@@ -75,7 +76,31 @@ for (const stage of ["permission", "first-frame"]) for (const action of ["backgr
   context.stopCamera();
 }
 
-console.log("Camera lifecycle: foreground/Reset during permission or first-frame waits, silent cancellation and late-stream ownership passed.");
+// A real rejected/ignored zoom reset must reach the overlay's reopen path.
+// Setting zoomNeedsRestart by hand alone would miss regressions at this boundary.
+for (const behavior of ["rejected", "ignored", "unreported"]) {
+  let attempts = 0, reopenings = 0, stops = 0;
+  const broken = {
+    readyState: "live", getCapabilities: () => ({ zoom: { min: 1, max: 3, step: .1 } }),
+    getSettings: () => behavior === "unreported" ? {} : { zoom: 2 },
+    applyConstraints: async () => { attempts++; if (behavior === "rejected") throw Error("unsupported"); }
+  };
+  const state = { closed: false, cameraTrack: broken, zoom: 2, zoomNeedsRestart: false };
+  const context = vm.createContext({ state, createManualCameraZoom,
+    renderCameraAssist() {}, toast() {}, stopDetection() {},
+    stopCamera() { stops++; state.cameraTrack = null; },
+    async startCamera() { reopenings++; state.cameraTrack = { readyState: "live" }; }
+  });
+  vm.runInContext(section("const applyCameraZoom =", "const pendingTrackConstraints ="), context);
+  assert.equal(await context.changeCameraZoom(true), false);
+  assert.equal(state.zoomNeedsRestart, true);
+  await context.changeCameraZoom(true);
+  assert.equal(attempts, 1, "Reset must not repeat the known-broken hardware command");
+  assert.equal(stops, 1);
+  assert.equal(reopenings, 1, "Reset must actually reopen after a failed constraint");
+}
+
+console.log("Camera lifecycle: foreground/Reset waits, failed-zoom reopening, silent cancellation and late-stream ownership passed.");
 
 import "./camera-capture-ownership.mjs";
 import "./camera-fallback-recovery.mjs";

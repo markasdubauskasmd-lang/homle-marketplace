@@ -1943,7 +1943,8 @@ function commitScanStructure(rooms, edit = {}) {
         && roomKeyOf(edit.destination) !== roomKeyOf(edit.roomName)) {
       const target = correctedScanRooms().find(room => roomKeyOf(room.name || room.roomName) === roomKeyOf(edit.destination));
       let identity = edit.inventoryKey, suffix = 2;
-      while (target?.objects?.some(item => item.inventoryKey === identity)) identity = `${edit.inventoryKey}-${suffix++}`;
+      while (target?.objects?.some(item => item.inventoryKey === identity)
+        || target?.removedInventoryKeys?.includes(identity)) identity = `${edit.inventoryKey}-${suffix++}`;
       id = premiumChoiceId(edit.destination, identity);
     }
     return {...option, id};
