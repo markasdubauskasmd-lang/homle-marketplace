@@ -158,7 +158,17 @@ export async function createStripePaymentProvider(configuration = {}, options = 
     }
     if (event.type === "transfer.created") return normalizedEvent(event, "transfer-succeeded", object, references);
     if (event.type === "transfer.failed") return normalizedEvent(event, "transfer-failed", object, references);
-    if (event.type === "transfer.reversed") return normalizedEvent(event, "transfer-reversed", object, references);
+    if (event.type === "transfer.reversed") {
+      // Stripe sends this event for partial reversals too. The ledger's current
+      // reversal transition releases the whole transfer, so require proof that
+      // every penny was returned before allowing that transition. Fail rather
+      // than acknowledge unsupported events, retaining provider retry evidence.
+      if (!Number.isInteger(object.amount) || object.amount < 1 || !Number.isInteger(object.amount_reversed)
+        || object.amount_reversed !== object.amount || object.reversed !== true) {
+        throw new TypeError("The Stripe transfer reversal is not a verified full reversal; payment reconciliation requires review.");
+      }
+      return normalizedEvent(event, "transfer-reversed", object, references);
+    }
     return Object.freeze({ ignored: true, eventId: reference(event.id, "event id") });
   }
 

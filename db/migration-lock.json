@@ -546,6 +546,11 @@
       "file": "109_editable_scan_rooms.sql",
       "sha256": "e7caecac8f989106a13e3ab1efc77f968f0b5d4a76557cf03b250632426085a6",
       "order": 109
+    },
+    {
+      "file": "110_payment_authorization_response_ordering.sql",
+      "sha256": "8bed65b31ff49170da5700040a56fa751c351599610b68cfe3440721ab20d1ea",
+      "order": 110
     }
   ],
   "grantFiles": [

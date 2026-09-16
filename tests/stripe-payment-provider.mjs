@@ -115,6 +115,37 @@ nextEvent = stripeEvent("refund.updated", { id: "re_test_refund", status: "succe
 assert.equal((await provider.verifyWebhook(rawBody, "signed")).kind, "refund-succeeded");
 nextEvent = stripeEvent("transfer.created", { id: "tr_test_transfer", amount: 7_200, currency: "gbp", metadata: { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId } });
 assert.equal((await provider.verifyWebhook(rawBody, "signed")).kind, "transfer-succeeded");
+const reversedTransfer = { id: "tr_test_transfer", amount: 7_200, amount_reversed: 7_200, reversed: true, currency: "gbp", metadata: { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId } };
+nextEvent = stripeEvent("transfer.reversed", reversedTransfer);
+const fullReversal = await provider.verifyWebhook(rawBody, "signed");
+assert.deepEqual(fullReversal, {
+  eventId: "evt_test_signed", kind: "transfer-reversed", objectId: "tr_test_transfer",
+  paymentId, commandId, amountPence: 7_200, currency: "gbp", occurredAt: new Date(1_783_000_000 * 1000).toISOString()
+});
+assert.deepEqual(await provider.verifyWebhook(rawBody, "signed"), fullReversal, "Repeated full reversals must retain the event identity for database deduplication.");
+for (const patch of [
+  { amount_reversed: 1_000, reversed: false },
+  { amount_reversed: 0, reversed: false },
+  { amount_reversed: 1_000, reversed: true },
+  { amount_reversed: 7_200, reversed: false },
+  { amount_reversed: 7_201 },
+  { amount_reversed: -1 },
+  { amount_reversed: "7200" },
+  { amount_reversed: 7_199.5 },
+  { amount_reversed: undefined },
+  { reversed: undefined },
+  { reversed: "true" },
+  { amount: 0, amount_reversed: 0 },
+  { amount: -1, amount_reversed: -1 },
+  { amount: "7200", amount_reversed: "7200" },
+  { amount: 7_199.5, amount_reversed: 7_199.5 }
+]) {
+  nextEvent = stripeEvent("transfer.reversed", { ...reversedTransfer, ...patch });
+  await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /not a verified full reversal/, "Partial or inconsistent reversals must not release the full transfer in the ledger.");
+  await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /not a verified full reversal/, "Retrying an unsupported reversal must not silently acknowledge it.");
+}
+nextEvent = stripeEvent("transfer.reversed", reversedTransfer, { id: "evt_test_full_reversal_after_partial" });
+assert.equal((await provider.verifyWebhook(rawBody, "signed")).amountPence, 7_200, "A later fully reversed event must still reconcile the full transfer.");
 nextEvent = stripeEvent("customer.created", { id: "cus_unrelated", metadata: {} });
 assert.equal((await provider.verifyWebhook(rawBody, "signed")).ignored, true);
 nextEvent = stripeEvent("customer.created", { id: "cus_live", metadata: {} }, { livemode: true });
