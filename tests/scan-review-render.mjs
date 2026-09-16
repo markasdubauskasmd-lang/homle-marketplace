@@ -277,7 +277,8 @@ console.log("Customer scan-review checks passed.");
   function harness() {
     const requests = [], renders = [];
     const context = {
-      scanReviewRequestVersion: 0, reviewHost: { hidden: false },
+      scanReviewRequestVersion: 0, reviewHost: { hidden: false }, pricingConfig: null,
+      refreshScanPricing: () => { context.pricingRefreshes = (context.pricingRefreshes || 0) + 1; },
       setScanReviewStatus: (message,retry=false) => { context.reviewStatus={message,retry}; },
       state: { scanRooms: [{ name: "Kitchen", objects: [] }], scanReview: null },
       loadPricingConfig: async () => {}, recoverCsrf: async () => "synthetic",
