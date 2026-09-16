@@ -304,6 +304,8 @@ END
 $dispute_outcomes$;
 ROLLBACK TO SAVEPOINT dispute_outcome_checks;
 
+\ir marketplace-payment-replay.sql
+
 -- Exercise the SECURITY DEFINER ownership logic on a captured fixture and verify runtime grants.
 SELECT set_config('app.user_id', (SELECT landlord_user_id::text FROM bookings WHERE id='40000000-0000-4000-8000-000000000003'), true);
 SELECT set_config('app.user_roles', 'landlord', true);

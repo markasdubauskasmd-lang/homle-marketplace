@@ -415,12 +415,21 @@ assert(signedWebhook.response.statusCode === 200 && signedWebhook.body.accepted 
 const rejectedWebhook = await dispatch(router, "POST", "/api/marketplace/payments/webhook", { body: Buffer.from("{}"), headers: { "stripe-signature": "bad" } });
 assert(rejectedWebhook.response.statusCode === 400 && rejectedWebhook.body.code === "invalid-payment-webhook" && !rejectedWebhook.response.body.includes("secret"), "Invalid Stripe signatures did not fail closed with a bounded response.");
 
-// A signed, non-duplicate event that does not reconcile raises a privacy-safe
-// operational signal but still answers 200 so Stripe does not retry a recorded event.
+// Permanent mismatches raise a privacy-safe operational signal. Recoverable
+// dependencies must remain retryable even when this event was already recorded.
 unexpectedError = undefined;
 paymentService.handleWebhook = async (body, signature) => { calls.push({ kind: "payment-webhook", body, signature }); return { accepted: false, duplicate: false, ignored: false }; };
 const mismatchWebhook = await dispatch(router, "POST", "/api/marketplace/payments/webhook", { body: exactWebhookBody, headers: { "stripe-signature": "t=1,v1=signed" } });
 assert(mismatchWebhook.response.statusCode === 200 && mismatchWebhook.body.accepted === false && unexpectedError?.code === "payment-webhook-unreconciled", "An unreconciled signed payment webhook did not raise an operational signal while still answering 200.");
+for (const duplicate of [false, true]) {
+  unexpectedError = undefined;
+  paymentService.handleWebhook = async () => ({ accepted: false, duplicate, retryable: true, resultCode: "awaiting-state", privatePaymentId: "not-for-the-response" });
+  const pendingWebhook = await dispatch(router, "POST", "/api/marketplace/payments/webhook", { body: exactWebhookBody, headers: { "stripe-signature": "t=1,v1=signed" } });
+  assert(pendingWebhook.response.statusCode === 503, "An unresolved signed event must obtain another Stripe delivery attempt.");
+  assert(pendingWebhook.response.headers["Retry-After"] === "30", "The payment retry delay is missing.");
+  assert(JSON.stringify(pendingWebhook.body) === JSON.stringify({ ok: false, accepted: false, duplicate, code: "payment-event-awaiting-reconciliation" }), "Retry responses must be bounded and omit private reconciliation details.");
+  assert(unexpectedError?.code === "payment-webhook-unreconciled", "Retryable payment failures must raise the operational signal.");
+}
 unexpectedError = undefined;
 paymentService.handleWebhook = async (body, signature) => { calls.push({ kind: "payment-webhook", body, signature }); return { accepted: true, duplicate: true, ignored: false }; };
 const duplicateWebhook = await dispatch(router, "POST", "/api/marketplace/payments/webhook", { body: exactWebhookBody, headers: { "stripe-signature": "t=1,v1=signed" } });

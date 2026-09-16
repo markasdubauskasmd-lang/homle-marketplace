@@ -556,6 +556,11 @@
       "file": "111_payment_dispute_outcomes.sql",
       "sha256": "f10388a80e09920fc6baaef472ad24d747f4e805526b8e81841e070826a39dfd",
       "order": 111
+    },
+    {
+      "file": "112_payment_event_replay.sql",
+      "sha256": "5351d84953cac990bb8bda628c9da7b45030fcec762ccbb3ca09ac37b8eee4f2",
+      "order": 112
     }
   ],
   "grantFiles": [

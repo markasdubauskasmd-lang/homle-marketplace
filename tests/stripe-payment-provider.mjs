@@ -152,6 +152,71 @@ nextEvent = stripeEvent("customer.created", { id: "cus_live", metadata: {} }, { 
 await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /Live Stripe webhook events are prohibited/);
 nextEvent = stripeEvent("customer.created", { id: "cus_version", metadata: {} }, { api_version: "2025-01-01.old" });
 await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /API version/);
+
+// Signed monetary snapshots must retain verifiable identities and economics.
+// A valid signature cannot make missing/contradictory fields safe to apply.
+const eventMetadata = { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId };
+const intentSnapshot = { id: "pi_test_authorization", object: "payment_intent", status: "succeeded", amount: 12_000, amount_received: 12_000, currency: "gbp", metadata: eventMetadata };
+const refundSnapshot = { id: "re_test_refund", object: "refund", status: "succeeded", amount: 2_000, currency: "gbp", payment_intent: intentSnapshot.id, metadata: eventMetadata };
+const transferSnapshot = { ...reversedTransfer, object: "transfer" };
+for (const [type, snapshot, wrongPrefix] of [
+  ["payment_intent.succeeded", intentSnapshot, "re_not_an_intent"],
+  ["refund.updated", refundSnapshot, "tr_not_a_refund"],
+  ["transfer.created", transferSnapshot, "pi_not_a_transfer"],
+  ["transfer.reversed", transferSnapshot, "re_not_a_transfer"]
+]) {
+  for (const patch of [{ currency: "usd" }, { currency: null }, { currency: undefined },
+    { amount: undefined }, { amount: "2000" }, { amount: -1 }, { amount: 2.5 },
+    { id: wrongPrefix }, { object: "customer" }]) {
+    nextEvent = stripeEvent(type, { ...snapshot, ...patch });
+    await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /invalid|unsupported|not a verified full reversal/, `${type} accepted malformed monetary evidence: ${JSON.stringify(patch)}`);
+  }
+  nextEvent = stripeEvent(type, snapshot, { id: "pi_not_an_event" });
+  await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /invalid event id/);
+}
+for (const amount_received of [undefined, null, 0, -1, 12_001, 3.5, "12000"]) {
+  nextEvent = stripeEvent("payment_intent.succeeded", { ...intentSnapshot, amount_received });
+  await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /captured event amount/,
+    "Missing capture amount must not fall back to the amount originally requested.");
+}
+for (const [type, status, kind] of [
+  ["payment_intent.requires_action", "requires_action", "authorization-requires-action"],
+  ["payment_intent.processing", "processing", "authorization-processing"],
+  ["payment_intent.payment_failed", "requires_payment_method", "capture-failed"],
+  ["payment_intent.succeeded", "succeeded", "capture-succeeded"],
+  ["payment_intent.canceled", "canceled", "cancellation-succeeded"]
+]) {
+  nextEvent = stripeEvent(type, { ...intentSnapshot, status });
+  assert.equal((await provider.verifyWebhook(rawBody, "signed")).kind, kind);
+  nextEvent = stripeEvent(type, { ...intentSnapshot, status: "contradictory" });
+  await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /contradictory PaymentIntent/);
+}
+for (const type of ["refund.created", "refund.updated", "refund.failed"]) {
+  for (const status of ["failed", "canceled"]) {
+    nextEvent = stripeEvent(type, { ...refundSnapshot, status, failure_balance_transaction: "txn_refund_returned" });
+    const failed = await provider.verifyWebhook(rawBody, "signed");
+    assert.equal(failed.kind, "refund-failed");
+    assert.equal(failed.objectId, refundSnapshot.id);
+    assert.equal(failed.amountPence, refundSnapshot.amount);
+    assert.equal(failed.currency, "gbp");
+  }
+  for (const status of [undefined, "future_unknown_status"]) {
+    nextEvent = stripeEvent(type, { ...refundSnapshot, status });
+    await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /contradictory refund/);
+  }
+}
+for (const status of ["pending", "requires_action", "succeeded"]) {
+  nextEvent = stripeEvent("refund.failed", { ...refundSnapshot, status });
+  await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /contradictory refund/);
+  for (const type of ["refund.created", "refund.updated"]) {
+    nextEvent = stripeEvent(type, { ...refundSnapshot, status });
+    const projected = await provider.verifyWebhook(rawBody, "signed");
+    if (status === "succeeded") assert.equal(projected.kind, "refund-succeeded");
+    else assert.equal(projected.ignored, true, "A pending refund must not alter captured/refunded totals.");
+  }
+}
+nextEvent = stripeEvent("transfer.failed", transferSnapshot);
+await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /unsupported transfer failure event/);
 assert(!JSON.stringify(provider).includes(secretKey) && !JSON.stringify(provider).includes(webhookSecret));
 
 console.log("Stripe payment provider tests passed: test-key-only adapter, hosted Cleaner payout onboarding, manual authorization, exact server commands, source-backed transfer and raw signed event projection.");
