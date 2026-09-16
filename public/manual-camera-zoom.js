@@ -36,7 +36,13 @@ export function createManualCameraZoom({ getTrack, onChange, onError, timeoutMs 
         if (Math.abs(actual - target) > range.step / 2) throw new Error("Camera did not apply zoom");
         return true;
       } catch (error) {
-        if (track === getTrack() && track.readyState !== "ended") onError(error);
+        if (track === getTrack() && track.readyState !== "ended") {
+          // Rejected or silently ignored constraints need the same escape as a
+          // timeout. Otherwise Reset can retry an unusable track forever.
+          onError(Object.assign(new Error(error?.message || "The camera could not change zoom"), {
+            name: error?.name || "Error", code: error?.code || "zoom-failed", recoverCamera: true
+          }));
+        }
         return false;
       } finally {
         clearTimeout(timer);

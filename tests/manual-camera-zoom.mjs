@@ -87,4 +87,42 @@ for (const value of [1,1.3,1.6,2.2,2.8]) {
   assert.equal(await recovering(true), true, "A track that eventually settles permits a fresh manual reset");
   assert.equal(value, 1);
 }
-console.log("Manual zoom: bounded stalls, per-track recovery, rapid reset ordering, rejected/ignored constraints and hardware steps passed.");
+{
+  const failures = [];
+  for (const behavior of ["rejected", "ignored", "unreported"]) {
+    let recovery;
+    const stuck = {
+      readyState: "live", getCapabilities: () => ({ zoom: { min: 1, max: 4, step: .1 } }),
+      getSettings: () => behavior === "unreported" ? {} : { zoom: 2 },
+      applyConstraints: async () => { if (behavior === "rejected") throw Error("unsupported constraint"); }
+    };
+    const reset = createManualCameraZoom({ getTrack: () => stuck,
+      onChange() {}, onError: error => { recovery = error.recoverCamera; } });
+    assert.equal(await reset(true), false);
+    if (recovery !== true) failures.push(`${behavior}: Reset offered no camera recovery`);
+  }
+  for (const range of [
+    { min: 1, max: 4, step: .015 },
+    { min: 1, max: 4, step: .007 },
+    { min: 1.125, max: 4, step: .125 },
+    { min: .875, max: 4, step: .0005 }
+  ]) {
+    let value = range.min;
+    const fractional = {
+      readyState: "live", getCapabilities: () => ({ zoom: range }), getSettings: () => ({ zoom: value }),
+      applyConstraints: async ({ advanced }) => {
+        const target = advanced[0].zoom;
+        const units = (target - range.min) / range.step;
+        if (Math.abs(units - Math.round(units)) > 1e-7) throw Error(`unaligned zoom ${target}`);
+        value = target;
+      }
+    };
+    const zoom = createManualCameraZoom({ getTrack: () => fractional,
+      onChange() {}, onError: error => failures.push(`step ${range.step}: ${error.message}`) });
+    for (let count = 0; count < 5; count++) await zoom();
+    await zoom(true);
+    assert.equal(value, range.min, "Reset must preserve the exact hardware minimum");
+  }
+  assert.deepEqual(failures, [], "Every failed Reset must permit recovery and every zoom command must preserve hardware alignment");
+}
+console.log("Manual zoom: bounded stalls, failed-reset recovery, rapid reset ordering and fractional hardware steps passed.");

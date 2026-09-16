@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import "./scan-condition-conflicts.mjs";
+import "./scan-saved-duplicates.mjs";
 import { readFileSync } from "node:fs";
 import {
   correctInventoryItem, frameSignature, inventoryKey, keyframeDefaults,
@@ -905,7 +907,8 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   }
   const clean = { ...graded, condition: "clean", conditionConfidence: .95, soiling: [], note: "Clear surface" };
   const result = mergeRoomInventory([], walkingReadingItems({ detections: [graded, clean] }, "Kitchen"));
-  assert.equal(result[0].condition, "clean", "A more severe grade outranked stronger evidence");
+  assert.equal(result[0].condition, "", "Conflicting clean/dirty evidence was silently settled");
+  assert.equal(conditionNeedsReview(result[0]), true);
   assert.deepEqual(result[0].soiling, []);
 }
 
@@ -956,8 +959,8 @@ assert.equal(conditionNeedsReview({condition:"clean",confidence:0.99}),false,"Le
   const betterView = [{ ...chair, condition: "heavy", conditionConfidence: .95 }];
   const revised = mergeSavedDetections(previousView, betterView);
   assert.equal(revised[0].quantity, 1);
-  assert.equal(revised[0].condition, "heavy");
-  assert.equal(revised[0].conditionMixed, false, "Two views of one object were mistaken for conflicting simultaneous objects");
+  assert.equal(revised[0].condition, "");
+  assert.equal(revised[0].conditionMixed, true, "Conflicting clean/dirty views skipped customer review");
   const alike = mergeSavedDetections([], [betterView[0], { ...betterView[0], x: 50 }]);
   assert.equal(alike[0].quantity, 2);
   assert.equal(conditionNeedsReview(alike[0]), false, "Matching grades were made unnecessarily unresolved");

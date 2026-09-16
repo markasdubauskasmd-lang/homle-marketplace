@@ -51,12 +51,16 @@ export function mergeReviewedRoomRescan(previous, reading) {
     }
     refreshed.add(targetKey);
   }
-  const oldRecords = scanTaskRecordsFor(previous).filter(record => record.origin !== "vision"
-    || !record.inventoryKeys.length || !record.inventoryKeys.every(identity => refreshed.has(identity)));
   const newRecords = scanTaskRecordsFor(reading).map(record => ({...record,
     inventoryKeys:record.inventoryKeys.map(identity => remapped.get(identity) || identity)}))
     .filter(record => record.origin !== "vision" || !record.inventoryKeys.length
       || !record.inventoryKeys.every(identity => removed.has(identity) || protectedKeys.has(identity)));
+  // Seeing an object again is not evidence that its previous work vanished.
+  // Replace generated tasks only when the new read actually supplies linked
+  // replacement work covering their complete scope.
+  const replacementTaskKeys = new Set(newRecords.filter(record => record.origin === "vision").flatMap(record => record.inventoryKeys));
+  const oldRecords = scanTaskRecordsFor(previous).filter(record => record.origin !== "vision"
+    || !record.inventoryKeys.length || !record.inventoryKeys.every(identity => refreshed.has(identity) && replacementTaskKeys.has(identity)));
   const taskRecords = mergeScanTaskRecords(oldRecords, newRecords);
   const note = [...new Set([previous.note, reading.note].flatMap(value => String(value || "").split("\n")).map(value => value.trim()).filter(Boolean))].join("\n");
   if (objects.length > 200) throw new RangeError("This room would exceed 200 item groups. Your original room is unchanged; remove incorrect items before rescanning.");
@@ -85,7 +89,8 @@ export function editScanRooms(rooms, edit) {
     const name = text(edit.name, 80);
     if (!name || /[:\r\n]/.test(name)) throw new Error("Enter a room name without a colon or line break.");
     if (list.some((entry, i) => i !== index && key(entry.name || entry.roomName) === key(name))) throw new Error("Choose a distinct room name.");
-    const renamePrefix = value => String(value).startsWith(room.name + ":") ? name + String(value).slice(room.name.length) : value;
+    const previousName = String(room.name || room.roomName);
+    const renamePrefix = value => String(value).toLowerCase().startsWith(previousName.toLowerCase() + ":") ? name + String(value).slice(previousName.length) : value;
     next[index] = { ...room, name, roomName: name, roomType: inferredRoomType(room),
       tasks: (room.tasks || []).map(renamePrefix), taskRecords: scanTaskRecordsFor(room).map(record => ({ ...record, text: renamePrefix(record.text) })) };
   } else if (edit.action === "room-type") {
@@ -99,7 +104,7 @@ export function editScanRooms(rooms, edit) {
     if (objects.length >= 200) throw new Error("This room already has 200 item groups.");
     const base = inventoryKey(label);
     let identity = base, suffix = 2;
-    while (objects.some(item => item.inventoryKey === identity)) identity = `${base}-${suffix++}`;
+    while (objects.some(item => item.inventoryKey === identity) || (room.removedInventoryKeys || []).includes(identity)) identity = `${base}-${suffix++}`;
     const object = { inventoryKey: identity, pricingCode: base, label, quantity: 1, condition: "", soiling: [], confidenceLabel: 1,
       confidenceCondition: 0, conditionConfirmed: false, origin: "manual", evidence: "" };
     const task = `Clean the ${label.toLowerCase()}`;
@@ -114,7 +119,7 @@ export function editScanRooms(rooms, edit) {
     const target = list[destination], targetObjects = target.objects || [];
     if (targetObjects.length >= 200) throw new Error("The destination room is full.");
     let identity = object.inventoryKey, suffix = 2;
-    while (targetObjects.some(entry => entry.inventoryKey === identity)) identity = `${object.inventoryKey}-${suffix++}`;
+    while (targetObjects.some(entry => entry.inventoryKey === identity) || (target.removedInventoryKeys || []).includes(identity)) identity = `${object.inventoryKey}-${suffix++}`;
     next[index] = changed(room, objects.filter(entry => entry !== object), [object.inventoryKey]);
     const sourceName = room.name || room.roomName, targetName = target.name || target.roomName;
     // Move only tasks linked solely to this item. A grouped instruction stays

@@ -1440,7 +1440,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       onError: (error) => {
         state.zoomNeedsRestart = error?.recoverCamera === true;
         toast(state.zoomNeedsRestart
-          ? "Zoom stopped responding. Tap Reset to reopen the camera at its widest view."
+          ? "Camera zoom could not change. Tap Reset to reopen the camera at its widest view."
           : "The camera could not change zoom. Try Reset or reopen the camera.");
       }
     });

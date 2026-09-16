@@ -239,9 +239,9 @@ assert.equal(resolveRoomCondition("unknown", "heavy"), "heavy", "A confirmation 
 
 console.log(`Scan walkthrough passed: a kitchen walked end to end through the real pipeline — ${keyframeDefaults.maxPerRoom} bounded reads with quality and motion gates, an alias and a quantity resolved, an unexpected observation retained for review, three customer corrections surviving a contradicting later reading, uncertainty surfaced for review, and every grade, quantity and soiling fact arriving intact in the saved room.`);
 
-// A better view clears obsolete dirt notes together with the superseded grade.
+// A better view clears a weak dirt guess together with the superseded grade.
 {
-  const dirty = [{ label: "Sink", confidence: .9, condition: "heavy", conditionConfidence: .6, note: "Thick limescale", soiling: ["limescale"] }];
+  const dirty = [{ label: "Sink", confidence: .9, condition: "heavy", conditionConfidence: .4, note: "Thick limescale", soiling: ["limescale"] }];
   const clean = [{ label: "Sink", confidence: .9, condition: "clean", conditionConfidence: .95, note: "", soiling: [] }];
   const first = compose("Kitchen", [], dirty, 1000);
   const revisited = compose("Kitchen", first, clean, 2000);
@@ -282,7 +282,8 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
   assert.equal(matching[0].condition, "clean", "Matching simultaneous conditions became uncertain");
   const overlapping = compose("Living room", [], [clean, { ...stained, x: 5 }], 1);
   assert.equal(overlapping[0].quantity, 1);
-  assert.equal(overlapping[0].condition, "clean", "A single object's duplicate was treated as two conditions");
+  assert.equal(overlapping[0].condition, "", "Contradictory labels for one object's condition skipped review");
+  assert.ok(conditionReviewAdvice(overlapping));
 }
 
 // Corrected names keep one identity during walking and final confirmation.
