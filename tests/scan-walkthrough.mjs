@@ -1182,8 +1182,8 @@ assert.deepEqual(JSON.parse(JSON.stringify(report.taskRecords[0].inventoryKeys))
   assert.ok(start >= 0 && end > start);
   const draw = (items, {busy = false, spotted = 0} = {}) => {
     const el = {foundList:[],found:{},foundBusy:{},foundCount:{},foundNoun:{}};
-    const context = {...model, el,
-      state:{currentRoom:"Kitchen",keyframeActiveRooms:new Set(busy ? ["room"] : []),walkingPreviews:new Map(),frozen:false,screen:"live",tracks:Array(spotted).fill({})},
+    const context = {...model, el, document:{activeElement:null},
+      state:{currentRoom:"Kitchen",keyframeActiveRooms:new Set(busy ? ["room"] : []),walkingPreviews:new Map(),dismissed:new Map(),frozen:false,screen:"live",tracks:Array(spotted).fill({})},
       renderScanDebug(){},inventoryFor:()=>items,transcriptKey:()=>"room"};
     vm.runInNewContext(source.slice(start,end)+"}\nrenderInventory();",context);
     return [el.foundCount.textContent,el.foundNoun.textContent,el.found.hidden,el.foundBusy.hidden];

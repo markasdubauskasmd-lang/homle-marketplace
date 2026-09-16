@@ -2003,7 +2003,11 @@ async function rescanReviewRoom(roomName, inventoryKey = "") {
       const detected = replacement.objects.find(item => item.inventoryKey === inventoryKey);
       let corrected = applyCorrection([old], {roomName, inventoryKey, field: "label", value: detected.label}).rooms;
       corrected = applyCorrection(corrected, {roomName, inventoryKey, field: "quantity", value: detected.quantity}).rooms;
-      updated = {...corrected[0], objects: replacement.objects};
+      // Selecting this replacement is an explicit correction. Keep its stable
+      // identity protected so a later wider view cannot add a second copy under
+      // the new label or overwrite the accepted quantity and condition.
+      updated = {...corrected[0], objects: replacement.objects,
+        changedInventoryKeys:[...new Set([...(old.changedInventoryKeys || []), inventoryKey])]};
     } else {
       updated = mergeReviewedRoomRescan(old, replacement);
       const notes = {...state.scanNoteEdits, [roomName.trim().toLowerCase()]:updated.note};

@@ -305,3 +305,4 @@ try {
 if (failure) throw failure;
 
 import "./browser-scan-review-edits.mjs";
+import "./browser-scan-inventory-stream.mjs";

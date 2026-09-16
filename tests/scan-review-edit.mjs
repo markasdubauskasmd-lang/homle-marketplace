@@ -98,6 +98,10 @@ console.log("Scan structural review: local edits, duplicate names, moves, scope,
   assert.equal(committed[0].objects[0].inventoryKey,'oven');assert.equal(committed[0].objects[1].label,'Fridge');
   assert.equal(committed[0].note,old.note);assert.equal(committed[0].roomType,'kitchen');
   assert.equal(committed[0].taskRecords[0].text,'Clean the 2 × air fryer');assert.equal(state.scanPhotos[0].dataUrl,'whole-room');
+  const afterItemRescan=JSON.parse(JSON.stringify(committed[0]));
+  const laterRoomRead=mergeReviewedRoomRescan(afterItemRescan,{objects:[{inventoryKey:'air fryer',label:'Air fryer',quantity:1,condition:'clean',confidenceCondition:.99}],tasks:[]});
+  assert.equal(laterRoomRead.objects.length,2,'A later room read duplicated the item explicitly selected by rescan');
+  assert.equal(laterRoomRead.objects[0].quantity,2,'A later room read overwrote the accepted item rescan');
   committed=undefined;shouldFail=true;await context.rescanReviewRoom('Kitchen','oven');assert.equal(committed,undefined);assert.equal(state.rescanningRoom,false);
   shouldFail=false;
   nextResult={rooms:[{name:'Kitchen',note:'Wipe the handles',objects:[{inventoryKey:'kettle',label:'Kettle',quantity:1}],taskRecords:[]}]};
