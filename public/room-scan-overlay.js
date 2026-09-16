@@ -1,5 +1,6 @@
 import { containScannerFocus } from "./scanner-modal-focus.js";
 import { createManualCameraZoom } from "./manual-camera-zoom.js";
+import { createCameraConstraintCoordinator } from "./camera-constraints.js";
 import { createCameraSession } from "./camera-session.js";
 import { readRoomResponse, withReadingSignal } from "./room-reading-stream.js";
 import {
@@ -768,6 +769,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       if ((!current && key !== "__new__") || state.closed) return;
       itemEditorKey = key;
       itemEditorPreviousFocus = trigger instanceof HTMLElement ? trigger : document.activeElement;
+      el.itemEditorName.setCustomValidity("");
       el.itemEditorName.value = current?.label || "";
       el.itemEditorQuantity.value = String(itemQuantity(current));
       const options = el.itemEditorForm.elements["homle-item-condition"];
@@ -858,6 +860,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       // same name would resurrect items the Landlord had just removed.
       state.inventories.delete(key);
       state.walkEvidence.delete(key);
+      state.dismissed.delete(key);
       // The BUDGET deliberately stays. Deleting it made remove-and-re-add an
       // unlimited supply of paid reads, which is exactly the bound the consent
       // promises. The room keeps its generation bump below, so anything still in
@@ -1434,11 +1437,23 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
 
     // Darkness may enable the torch; zoom is always chosen by the customer.
     const initializedZoomTracks = new WeakSet();
+    const cameraConstraints = createCameraConstraintCoordinator({
+      getTrack: () => state.closed ? null : state.cameraTrack,
+      setTimer: (callback, delay) => window.setTimeout(callback, delay),
+      clearTimer: timer => window.clearTimeout(timer),
+      onSettled: (settings) => {
+        if (Number.isFinite(settings.zoom) && settings.zoom > 0) state.zoom = settings.zoom;
+        if (typeof settings.torch === "boolean") state.torchOn = settings.torch;
+        renderCameraAssist();
+      }
+    });
     const applyCameraZoom = createManualCameraZoom({
       getTrack: () => state.closed ? null : state.cameraTrack,
+      cameraConstraints,
       onChange: (zoom) => { state.zoom = zoom; state.zoomNeedsRestart = false; renderCameraAssist(); },
       onError: (error) => {
         state.zoomNeedsRestart = error?.recoverCamera === true;
+        renderCameraAssist();
         toast(state.zoomNeedsRestart
           ? "Camera zoom could not change. Tap Reset to reopen the camera at its widest view."
           : "The camera could not change zoom. Try Reset or reopen the camera.");
@@ -1455,7 +1470,6 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       return applyCameraZoom(reset);
     }
 
-    const pendingTrackConstraints = new WeakMap();
     async function waitForCameraOperation(operation, milliseconds, message) {
       let timer;
       try {
@@ -1469,32 +1483,14 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
 
     async function applyTrackConstraint(constraint) {
       const track = state.cameraTrack;
-      if (!track?.applyConstraints || pendingTrackConstraints.has(track)) return false;
-      let timedOut = false;
+      if (!track?.applyConstraints) return false;
       try {
-        // Hardware changes cannot be cancelled. Keep the track locked even if
-        // its UI deadline expires, until the original operation really settles.
-        const operation = Promise.resolve().then(() => track.applyConstraints({ advanced: [constraint] }));
-        pendingTrackConstraints.set(track, operation);
-        const release = () => {
-          if (pendingTrackConstraints.get(track) !== operation) return;
-          pendingTrackConstraints.delete(track);
-          // A deadline does not cancel the hardware. If it eventually reports
-          // a different actual setting, keep the current camera's chip truthful.
-          if (timedOut && track === state.cameraTrack && !state.closed) {
-            try {
-              const actual = track.getSettings?.()?.torch;
-              if (typeof actual === "boolean") { state.torchOn = actual; renderCameraAssist(); }
-            } catch { /* No setting means the late result cannot be verified. */ }
-          }
-        };
-        operation.then(release, release);
-        await waitForCameraOperation(operation, 3000, "The torch did not respond in time.");
-        if (track !== state.cameraTrack || state.closed) return false;
-        const actual = track.getSettings?.()?.torch;
+        const result = await cameraConstraints.change(constraint);
+        if (!result || track !== state.cameraTrack || state.closed) return false;
+        const actual = result.settings.torch;
         return typeof actual !== "boolean" || actual === constraint.torch;
       }
-      catch (error) { timedOut = error?.code === "camera-operation-timeout"; return false; }
+      catch { return false; }
     }
 
     // Chrome on Android fills `getCapabilities()` in asynchronously after
@@ -1542,7 +1538,10 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         el.zoomReset.hidden = !state.stream || !range;
         el.zoomReset.textContent = zoomLabel(state.zoom || range?.min || 0);
         el.zoomReset.setAttribute("aria-label", `Camera zoom ${zoomLabel(state.zoom)}. Tap to zoom in; Reset returns to the widest view.`);
-        if (el.zoomWide) el.zoomWide.hidden = el.zoomReset.hidden;
+        if (el.zoomWide) {
+          el.zoomWide.hidden = !state.stream || (!range && !state.zoomNeedsRestart);
+          el.zoomWide.setAttribute("aria-label", state.zoomNeedsRestart ? "Reopen camera" : "Reset camera to widest view");
+        }
       }
     }
 
@@ -1559,7 +1558,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       })) {
         const track = state.cameraTrack;
         const session = state.roomSession;
-        if (pendingTrackConstraints.has(track)) return;
+        if (cameraConstraints.isPending(track)) return;
         const applied = await applyTrackConstraint({ torch: true });
         if (state.closed || track !== state.cameraTrack || session !== state.roomSession) return;
         if (applied) {
@@ -1588,7 +1587,9 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       const applied = await applyTrackConstraint({ torch: target });
       if (state.closed || track !== state.cameraTrack || session !== state.roomSession) return;
       if (!applied) {
-        toast("The torch could not change. Try again, or close and reopen the scanner to reset the camera.");
+        state.zoomNeedsRestart = true;
+        renderCameraAssist();
+        toast("The torch could not change. Tap Reset to reopen the camera.");
         return;
       }
       state.torchOn = target;
@@ -4290,6 +4291,9 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     });
     $("[data-add-inventory]").addEventListener("click", (event) => openItemEditor("__new__", event.currentTarget));
     el.itemEditorCancel.addEventListener("click", () => closeItemEditor());
+    // Native validation runs before submit; clear a whitespace-name error as
+    // the customer corrects it so the next valid submission can reach us.
+    el.itemEditorName.addEventListener("input", () => el.itemEditorName.setCustomValidity(""));
     el.itemEditor.addEventListener("click", (event) => {
       if (event.target === el.itemEditor) closeItemEditor();
     });

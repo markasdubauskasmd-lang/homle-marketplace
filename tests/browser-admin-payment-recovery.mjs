@@ -59,5 +59,3 @@ else {
   console.log('Administrator browser recovery passed:390/1280 layout, exact empty/CSRF request, double click, pending/error/failed refresh, reconciled balances, reload and role gate; synthetic APIs only.');
  } finally {gate?.resolve();await browser.close();await server.close();}
 }
-
-

@@ -164,6 +164,28 @@ assert.match(sources.get("marketplace-integration-cleanup.sql"), /DELETE FROM cl
 assert.match(sources.get("marketplace-integration-cleanup.sql"), /DELETE FROM privacy_requests/);
 assert.match(sources.get("marketplace-integration-cleanup.sql"), /DELETE FROM tideway_private\.facebook_data_deletion_requests/);
 assert.ok(sources.get("marketplace-integration-cleanup.sql").indexOf("DELETE FROM audit_logs") < sources.get("marketplace-integration-cleanup.sql").indexOf("DELETE FROM users"), "Fixture audit evidence must be removed before its actor users.");
+// Both the psql runner and the photo-delivery node-postgres client consume this
+// file. An include works under psql but reaches PostgreSQL as invalid raw SQL
+// through Client.query; require one self-contained transaction for both paths.
+const sharedCleanup = sources.get("marketplace-integration-cleanup.sql");
+const paymentCleanup = sources.get("payment-claim-concurrency-cleanup.sql");
+for (const sql of [sharedCleanup, paymentCleanup]) {
+  assert.doesNotMatch(sql, /^\s*\\/m, "Shared cleanup must not require any psql meta-command processing.");
+  assert.equal((sql.match(/^BEGIN;\s*$/gm) || []).length, 1, "Cleanup must use one transaction.");
+  assert.equal((sql.match(/^COMMIT;\s*$/gm) || []).length, 1, "Cleanup must commit exactly once.");
+}
+const paymentCleanupBody = paymentCleanup.slice(paymentCleanup.indexOf("BEGIN;") + 6, paymentCleanup.lastIndexOf("COMMIT;")).trim();
+assert.ok(sharedCleanup.includes(paymentCleanupBody), "The raw SQL consumer must execute every payment fixture cleanup statement.");
+const cleanupOrder = [
+  "DELETE FROM tideway_private.payment_command_recovery_attempts",
+  "DELETE FROM tideway_private.payment_command_attempt_windows",
+  "DELETE FROM payment_commands",
+  "DELETE FROM payment_status_history",
+  "DELETE FROM booking_payments",
+  "DELETE FROM bookings",
+  "DELETE FROM users"
+].map((statement) => sharedCleanup.indexOf(statement));
+assert.ok(cleanupOrder.every((offset, index) => offset >= 0 && (index === 0 || offset > cleanupOrder[index - 1])), "Both cleanup consumers must delete payment dependencies before booking/account fixtures.");
 
 const ownerPassword = "owner p@ss/secret";
 const appPassword = "app p@ss/secret";

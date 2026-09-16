@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import "./payment-disputes.mjs";
 import "./payment-command-recovery.mjs";
+import "./payment-command-pause.mjs";
 import { createHash } from "node:crypto";
 import { createPaymentService } from "../src/marketplace/payment-service.mjs";
 

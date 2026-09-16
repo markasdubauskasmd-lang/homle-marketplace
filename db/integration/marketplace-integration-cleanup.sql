@@ -1,8 +1,11 @@
-\set ON_ERROR_STOP on
-
-\ir payment-claim-concurrency-cleanup.sql
-
+-- Shared by psql and node-postgres: keep this file executable as raw SQL.
+-- psql's caller supplies ON_ERROR_STOP; client-side includes are not supported.
 BEGIN;
+DELETE FROM tideway_private.payment_command_recovery_attempts WHERE command_id='54000000-0000-4000-8000-000000000002';
+DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id='54000000-0000-4000-8000-000000000002';
+DELETE FROM payment_commands WHERE id='54000000-0000-4000-8000-000000000002';
+DELETE FROM payment_status_history WHERE payment_id='54000000-0000-4000-8000-000000000001';
+DELETE FROM booking_payments WHERE id='54000000-0000-4000-8000-000000000001';
 WITH callback_privacy AS (
   DELETE FROM tideway_private.facebook_data_deletion_requests
   WHERE id IN ('73000000-0000-4000-8000-000000000001', '73000000-0000-4000-8000-000000000002', '73000000-0000-4000-8000-000000000003')

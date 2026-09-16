@@ -3,6 +3,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { createCameraSession } from "../public/camera-session.js";
 import { createManualCameraZoom } from "../public/manual-camera-zoom.js";
+import { createCameraConstraintCoordinator } from "../public/camera-constraints.js";
 
 const source = fs.readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
 function section(start, end) {
@@ -86,12 +87,13 @@ for (const behavior of ["rejected", "ignored", "unreported"]) {
     applyConstraints: async () => { attempts++; if (behavior === "rejected") throw Error("unsupported"); }
   };
   const state = { closed: false, cameraTrack: broken, zoom: 2, zoomNeedsRestart: false };
-  const context = vm.createContext({ state, createManualCameraZoom,
+  const context = vm.createContext({ state, createManualCameraZoom, createCameraConstraintCoordinator,
+    window: { setTimeout, clearTimeout },
     renderCameraAssist() {}, toast() {}, stopDetection() {},
     stopCamera() { stops++; state.cameraTrack = null; },
     async startCamera() { reopenings++; state.cameraTrack = { readyState: "live" }; }
   });
-  vm.runInContext(section("const applyCameraZoom =", "const pendingTrackConstraints ="), context);
+  vm.runInContext(section("const cameraConstraints =", "async function waitForCameraOperation("), context);
   assert.equal(await context.changeCameraZoom(true), false);
   assert.equal(state.zoomNeedsRestart, true);
   await context.changeCameraZoom(true);
