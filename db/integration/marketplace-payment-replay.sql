@@ -45,6 +45,15 @@ BEGIN
   DELETE FROM payment_commands WHERE id=r;
   PERFORM * FROM tideway_private.begin_booking_payment_command(r,p,'refund',1000,decode(repeat('e4',32),'hex'));
   PERFORM * FROM tideway_private.record_booking_payment_command(r,'re_reply_failure','failed');
+  IF (SELECT status FROM payment_commands WHERE id=r)<>'provider-pending' THEN RAISE EXCEPTION 'API failure released an uncertain refund reservation'; END IF;
+  blocked:=false;
+  BEGIN
+    PERFORM * FROM tideway_private.begin_booking_payment_command(c,p,'refund',1000,decode(repeat('e7',32),'hex'));
+  EXCEPTION WHEN SQLSTATE 'P0001' THEN
+    IF SQLERRM<>'payment-not-refundable' THEN RAISE; END IF;
+    blocked:=true;
+  END;
+  IF NOT blocked THEN RAISE EXCEPTION 'A replacement refund escaped an uncertain API response'; END IF;
   result:=tideway_private.reconcile_payment_provider_event('stripe','evt_replay_after_reply_failure','refund-succeeded','re_reply_failure',p,r,1000,'gbp',occurred,repeat('8',64));
   IF result->>'accepted'<>'true' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000 THEN RAISE EXCEPTION 'Failed API reply vetoed signed money'; END IF;
 

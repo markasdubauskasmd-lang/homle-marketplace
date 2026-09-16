@@ -151,4 +151,25 @@ BEGIN
 END;
 $$;
 
+-- API snapshots cannot release a reservation; only signed events settle it.
+CREATE OR REPLACE FUNCTION tideway_private.record_booking_payment_command(target_command_id uuid, supplied_provider_command_id text, provider_result text)
+RETURNS TABLE(command_id uuid,payment_id uuid,kind text,status text)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp AS $
+DECLARE
+  actor_id uuid := tideway_private.current_user_id();
+  command_record payment_commands%ROWTYPE;
+BEGIN
+  IF actor_id IS NULL OR provider_result NOT IN ('pending','succeeded','failed') OR char_length(COALESCE(supplied_provider_command_id,'')) NOT BETWEEN 3 AND 255 THEN RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='invalid-provider-command'; END IF;
+  SELECT command.* INTO command_record FROM payment_commands command JOIN booking_payments payment ON payment.id=command.payment_id WHERE command.id=target_command_id AND (payment.landlord_user_id=actor_id OR tideway_private.has_role('administrator')) FOR UPDATE OF command;
+  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002', MESSAGE='payment-command-not-found'; END IF;
+  IF command_record.provider_command_id IS NOT NULL AND command_record.provider_command_id <> supplied_provider_command_id THEN RAISE EXCEPTION USING ERRCODE='P0001', MESSAGE='provider-command-conflict'; END IF;
+  IF command_record.status IN ('reconciled','provider-failed') THEN
+    UPDATE payment_commands SET provider_command_id=COALESCE(provider_command_id,supplied_provider_command_id),updated_at=now() WHERE id=command_record.id RETURNING * INTO command_record;
+  ELSE
+    UPDATE payment_commands SET provider_command_id=COALESCE(provider_command_id,supplied_provider_command_id),status='provider-pending',updated_at=now() WHERE id=command_record.id RETURNING * INTO command_record;
+  END IF;
+  RETURN QUERY SELECT command_record.id,command_record.payment_id,command_record.command_kind,command_record.status;
+END;
+$;
+
 COMMIT;

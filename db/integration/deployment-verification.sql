@@ -1319,6 +1319,23 @@ BEGIN
 END
 $verification$;
 
+DO $replay_verification$
+DECLARE installed boolean:=false; definition text;
+BEGIN
+  IF to_regclass('tideway_private.schema_migrations') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 112)' INTO installed;
+  END IF;
+  IF installed THEN
+    SELECT pg_get_functiondef('tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character)'::regprocedure) INTO definition;
+    IF definition NOT LIKE '%payment-event-identity-conflict%' OR definition NOT LIKE '%provider_terminal_failure%'
+      OR definition NOT LIKE '%awaiting-state%' OR definition NOT LIKE '%reconciliation_version=2%'
+      OR NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.payment_commands'::regclass AND attname='provider_success_applied' AND NOT attisdropped)
+      OR to_regclass('tideway_private.payment_provider_events_pending_idx') IS NULL
+      THEN RAISE EXCEPTION 'Payment event replay migration is incomplete'; END IF;
+  END IF;
+END
+$replay_verification$;
+
 SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
