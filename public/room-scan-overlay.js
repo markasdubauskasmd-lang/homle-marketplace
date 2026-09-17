@@ -1179,10 +1179,10 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     function enterRoom(rawName) {
       const name = normaliseRoomName(rawName);
       if (!name || state.closed || state.capturing) return;
-      state.cancelRevisit?.();
       if (state.voiceOn) stopVoice({ silent: true });
       const existing = findRoom(state.rooms, name);
       if (!existing && !canAddRoom(state.rooms, name)) return toast("That's as many rooms as one scan can carry.");
+      state.cancelRevisit?.();
       state.roomSession += 1;
       state.currentRoom = name;
       // The found list is per room; the read budget is looked up per room too, so

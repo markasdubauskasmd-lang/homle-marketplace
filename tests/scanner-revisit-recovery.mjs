@@ -72,4 +72,17 @@ for (const outcome of ["timeout", "error", "empty", "cancel", "superseded"]) {
   if (outcome === "superseded") { h.images[1].onload(); assert.equal(h.refreshes(), 1); }
   assert.equal(h.timers.size, 0);
 }
+// A rejected navigation (room limit) has not actually left the current room.
+// Its existing photo must still be allowed to finish loading.
+{
+  let cancellations = 0;
+  const state = { rooms: Array.from({length:20}, (_,i)=>({name:`Room ${i}`})), loadingRoom: true,
+    cancelRevisit: () => cancellations++ };
+  const context = vm.createContext({...model,state,toast(){}});
+  const first = source.indexOf("function enterRoom(rawName)");
+  vm.runInContext(source.slice(first,source.indexOf("function prepareLiveRoom()",first)),context);
+  context.enterRoom("Another room");
+  assert.equal(cancellations,0,"Rejected room navigation abandoned the current photo");
+  assert.equal(state.loadingRoom,true);
+}
 console.log("Saved room photo recovery: current corrections, final evidence, removals, deadlines and stale completion passed.");
