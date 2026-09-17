@@ -2048,19 +2048,27 @@ async function rescanReviewRoom(roomName, inventoryKey = "") {
 //
 // Matched by identity key rather than position, because the server orders objects
 // by its own ids and a positional match would correct the wrong thing. Individual
-// failures are skipped rather than aborting the rest: losing one training label is
-// better than losing them all, and none of this may fail the booking.
+// A missing or ambiguous saved target must stop confirmation: corrections are
+// customer-owned booking scope, not optional training labels.
 async function replayScanCorrections(csrf, requestId, savedScan) {
-  if (!state.scanCorrections.length || !savedScan?.rooms) return;
+  if (!state.scanCorrections.length) return;
+  const incomplete = () => new Error("Your saved room findings could not be verified. Please retry before booking.");
+  if (!Array.isArray(savedScan?.rooms)) throw incomplete();
   const objectIdFor = new Map();
   for (const room of savedScan.rooms) {
     for (const object of room.objects || []) {
-      objectIdFor.set(`${room.roomName}\u0000${object.inventoryKey}`, object.objectId);
+      const key = `${room.roomName}\u0000${object.inventoryKey}`;
+      if (objectIdFor.has(key)) throw incomplete();
+      objectIdFor.set(key, object.objectId);
     }
+  }
+  // Verify the whole mapping before applying any correction to a partial scan.
+  for (const correction of state.scanCorrections) {
+    const objectId = objectIdFor.get(`${correction.roomName}\u0000${correction.inventoryKey}`);
+    if (typeof objectId !== "string" || !objectId.trim()) throw incomplete();
   }
   for (const correction of state.scanCorrections) {
     const objectId = objectIdFor.get(`${correction.roomName}\u0000${correction.inventoryKey}`);
-    if (!objectId) continue;
     try {
       await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/room-scan/objects/${encodeURIComponent(objectId)}`, {
         method: "POST",

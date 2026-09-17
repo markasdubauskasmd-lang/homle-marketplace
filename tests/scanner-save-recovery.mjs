@@ -23,6 +23,30 @@ function harness({ rooms = [{ name: "Kitchen", objects: [{ inventoryKey: "oven",
 }
 const error = (statusCode, code) => Object.assign(new Error("Fixture save failed"), { statusCode, code });
 
+// An incomplete successful response is not evidence that corrections saved.
+for (const scan of [undefined, {}, {rooms: []}, {rooms: [{roomName:"Kitchen", objects:[]}]},
+  {rooms:[{roomName:"Kitchen",objects:[{inventoryKey:"oven"}]}]},
+  {rooms:[{roomName:"Kitchen",objects:[{inventoryKey:"oven",objectId:"one"},{inventoryKey:"oven",objectId:"two"}]}]}]) {
+  const h = harness({correction:true});
+  await assert.rejects(h.context.replayScanCorrections("csrf","request",scan), /could not be verified/);
+  assert.deepEqual(h.calls, [], "An incomplete mapping applied a partial correction");
+}
+{
+  const h = harness({correction:true});
+  h.state.scanCorrections.push({roomName:"Kitchen",inventoryKey:"missing",field:"quantity",value:2});
+  const scan={rooms:[{roomName:"Kitchen",objects:[{inventoryKey:"oven",objectId:"saved-oven"}]}]};
+  await assert.rejects(h.context.replayScanCorrections("csrf","request",scan), /could not be verified/);
+  assert.deepEqual(h.calls, [], "A later missing item allowed earlier partial corrections");
+}
+{
+  const h = harness({correction:true});
+  let attempts=0;
+  h.context.requestJson = async () => { attempts++; return {scan:{rooms:[]}}; };
+  assert.equal(await h.context.saveStructuredScanWithRetry("csrf","request"), false, "Unverified correction looked saved");
+  assert.equal(attempts,3);
+  assert.equal(h.state.scanCorrections.length,1);
+}
+
 // A manual booking has no scan to retry, and should not incur 2.1 seconds of waiting.
 {
   const h = harness({ rooms: [] });
