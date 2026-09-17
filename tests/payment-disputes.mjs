@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './dispute-parent-identity.mjs';
 import {createStripePaymentProvider} from '../src/marketplace/stripe-payment-provider.mjs';
 import {createPaymentService} from '../src/marketplace/payment-service.mjs';
 import {createPaymentRepository} from '../src/marketplace/payment-repository.mjs';
@@ -8,8 +9,8 @@ const commandId='66666666-6666-4666-8666-666666666666';
 const bookingId='44444444-4444-4444-8444-444444444444';
 let event, query, transferred=0;
 const client={accounts:{},accountLinks:{},refunds:{},transfers:{create(){transferred++;}},
-  paymentIntents:{async retrieve(id){return {id,metadata:{tideway_payment_id:paymentId,tideway_command_id:commandId}};}},
-  charges:{async retrieve(id){return {id,payment_intent:'pi_dispute_payment'};}},
+  paymentIntents:{async retrieve(id){return {id,object:'payment_intent',livemode:false,currency:'gbp',metadata:{tideway_payment_id:paymentId,tideway_command_id:commandId}};}},
+  charges:{async retrieve(id){return {id,object:'charge',livemode:false,currency:'gbp',payment_intent:'pi_dispute_payment'};}},
   webhooks:{constructEvent(body,signature){if(signature!=='signed')throw Error('bad signature');return event;}}
 };
 const provider=await createStripePaymentProvider({secretKey:'sk_test_'+ 'a'.repeat(32),webhookSecret:'whsec_'+ 'b'.repeat(32)},{stripeClient:client});
@@ -20,7 +21,7 @@ const repository=createPaymentRepository({
 const service=createPaymentService(repository,provider,{publishableKey:'pk_test_'+ 'c'.repeat(32)});
 for(const type of ['charge.dispute.created','charge.dispute.updated','charge.dispute.closed']) {
   for(const status of ['won','lost','warning_closed','prevented','under_review','warning_needs_response','future_status',undefined]) {
-    event={id:'evt_dispute_test',type,livemode:false,created:Math.floor(Date.now()/1000),data:{object:{id:'du_test_case',charge:'ch_test_charge',status,amount:2300,currency:'gbp'}}};
+    event={id:'evt_dispute_test',type,livemode:false,created:Math.floor(Date.now()/1000),data:{object:{id:'du_test_case',object:'dispute',livemode:false,charge:'ch_test_charge',status,amount:2300,currency:'gbp'}}};
     const projected=await provider.verifyWebhook(Buffer.from('{}'),'signed');
     assert.equal(projected.commandId,null,'Capture metadata must not turn a dispute into a command result');
     assert.equal(projected.disputeId,'du_test_case');
@@ -35,6 +36,16 @@ for(const type of ['charge.dispute.created','charge.dispute.updated','charge.dis
     assert.equal(query.values[11],projected.disputeStatus);
     assert.match(query.values[9],/^[a-f0-9]{64}$/);
   }
+}
+// Parent validation must reject before the service can write even a dispute
+// hold/release; the signed outcome is unsafe when attached to another object.
+for (const [resource, wrongId] of [[client.charges, 'ch_different_charge'], [client.paymentIntents, 'pi_different_payment']]) {
+  const retrieve = resource.retrieve;
+  resource.retrieve = async (...args) => ({...await retrieve(...args), id: wrongId});
+  query = null;
+  await assert.rejects(service.handleWebhook(Buffer.from('{}'),'signed'), /invalid dispute parent/);
+  assert.equal(query, null, 'Mismatched parent reached dispute reconciliation');
+  resource.retrieve = retrieve;
 }
 event.data.object.id='pi_not_a_dispute';
 await assert.rejects(service.handleWebhook(Buffer.from('{}'),'signed'),/invalid dispute id/);
