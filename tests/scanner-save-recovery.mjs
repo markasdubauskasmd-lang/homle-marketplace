@@ -48,6 +48,27 @@ for (const scan of [undefined, {}, {rooms: []}, {rooms: [{roomName:"Kitchen", ob
 }
 
 // A manual booking has no scan to retry, and should not incur 2.1 seconds of waiting.
+// The database deletes removed objects. A lost deletion response must still
+// recover from the next idempotent room read, including earlier edits to it.
+{
+  const h = harness({correction:true});
+  h.state.scanCorrections.push({roomName:"Kitchen",inventoryKey:"oven",field:"removed"});
+  let deleted=false, saves=0, corrections=0;
+  h.context.requestJson=async url => {
+    if (url.includes("/objects/")) {
+      corrections++;
+      if (corrections===2) { deleted=true; throw error(undefined,"request-timeout"); }
+      return {};
+    }
+    saves++;
+    return {scan:{rooms:[{roomName:"Kitchen",objects:deleted?[]:[{inventoryKey:"oven",objectId:"saved-oven"}]}]}};
+  };
+  assert.equal(await h.context.saveStructuredScanWithRetry("csrf","request"),true,"A committed removal could not recover after its response was lost");
+  assert.equal(saves,2);
+  assert.equal(corrections,2,"An absent removed object was targeted again");
+  await assert.rejects(h.context.replayScanCorrections("csrf","request",{rooms:[]}),/could not be verified/,"A missing room was treated as a verified deletion");
+}
+
 {
   const h = harness({ rooms: [] });
   assert.equal(await h.context.saveStructuredScanWithRetry("csrf", "request"), false);

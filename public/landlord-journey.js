@@ -2055,6 +2055,9 @@ async function replayScanCorrections(csrf, requestId, savedScan) {
   const incomplete = () => new Error("Your saved room findings could not be verified. Please retry before booking.");
   if (!Array.isArray(savedScan?.rooms)) throw incomplete();
   const objectIdFor = new Map();
+  const savedRooms = new Set(savedScan.rooms.map(room => room.roomName));
+  const removedKeys = new Set(state.scanCorrections.filter(correction => correction.field === "removed")
+    .map(correction => `${correction.roomName}\u0000${correction.inventoryKey}`));
   for (const room of savedScan.rooms) {
     for (const object of room.objects || []) {
       const key = `${room.roomName}\u0000${object.inventoryKey}`;
@@ -2064,11 +2067,17 @@ async function replayScanCorrections(csrf, requestId, savedScan) {
   }
   // Verify the whole mapping before applying any correction to a partial scan.
   for (const correction of state.scanCorrections) {
-    const objectId = objectIdFor.get(`${correction.roomName}\u0000${correction.inventoryKey}`);
+    const key = `${correction.roomName}\u0000${correction.inventoryKey}`;
+    // A removal can commit before its response is lost. The idempotent scan
+    // read then omits that object. Its confirmed absence in the saved room is
+    // already the customer's requested result; earlier edits to it need no replay.
+    if (!objectIdFor.has(key) && savedRooms.has(correction.roomName) && removedKeys.has(key)) continue;
+    const objectId = objectIdFor.get(key);
     if (typeof objectId !== "string" || !objectId.trim()) throw incomplete();
   }
   for (const correction of state.scanCorrections) {
     const objectId = objectIdFor.get(`${correction.roomName}\u0000${correction.inventoryKey}`);
+    if (!objectId) continue; // Only a verified already-absent removal passed preflight.
     try {
       await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/room-scan/objects/${encodeURIComponent(objectId)}`, {
         method: "POST",
