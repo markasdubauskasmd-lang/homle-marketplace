@@ -929,7 +929,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       setRoomTranscript(){},roomTranscript:()=>"",scanEvents:{record(){}},elapsedSince:()=>0,renderScanProgress(){},
       transcriptKey:name=>name.toLowerCase(),inventoryFor:()=>[],localRoomTasks:()=>[],toHub(){},
       nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},
-      window:{setTimeout:fn=>fn()},readRoomInBackground:()=>{reads+=1}});
+      window:{setTimeout:(fn,delay)=>delay===6000?1:fn(),clearTimeout(){}},readRoomInBackground:()=>{reads+=1}});
     vm.runInContext(source.slice(openStart,openEnd)+"\n"+source.slice(saveStart,saveEnd)+"\n"+source.slice(readStart,readEnd),context);
     for(let revisit=0;revisit<2;revisit+=1) {
       context.openRevisit(state.rooms[0],1);
@@ -1082,7 +1082,7 @@ console.log(`Scan walkthrough passed: a kitchen walked end to end through the re
       seedSavedInventory(){},prepareLiveRoom(){throw Error("Unexpected capture");},stopDetection(){},layoutFrozen(){},refreshSelection(){},
       setRoomTranscript(){},roomTranscript:()=>el.note.value,scanEvents:{record(){}},elapsedSince:()=>0,renderScanProgress(){},
       transcriptKey:name=>name.toLowerCase(),inventoryFor:()=>cached?[{...hidden,key:hidden.inventoryKey}]:[],localRoomTasks:()=>[],toHub(){},
-      nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},window:{setTimeout:fn=>fn()},
+      nextRoomSuggestion:()=>null,toast(){},announceGuidance(){},window:{setTimeout:(fn,delay)=>delay===6000?1:fn(),clearTimeout(){}},
       readRoomInBackground:()=>{reads++}});
     vm.runInContext(source.slice(openStart,openEnd)+"\n"+source.slice(saveStart,saveEnd),context);
     context.openRevisit(existing,1);

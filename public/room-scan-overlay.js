@@ -1154,6 +1154,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     }
 
     function toHub() {
+      state.cancelRevisit?.();
       // A late result from the phone's speech service must not land after the
       // current room changes. The note itself is already retained in the room
       // map before the recogniser is released.
@@ -1181,6 +1182,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       if (state.voiceOn) stopVoice({ silent: true });
       const existing = findRoom(state.rooms, name);
       if (!existing && !canAddRoom(state.rooms, name)) return toast("That's as many rooms as one scan can carry.");
+      state.cancelRevisit?.();
       state.roomSession += 1;
       state.currentRoom = name;
       // The found list is per room; the read budget is looked up per room too, so
@@ -1208,6 +1210,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     }
 
     function prepareLiveRoom() {
+      state.cancelRevisit?.();
       // A fresh live frame will be captured, so it is not an edit of a stored
       // one: its save must read. This also covers "Rescan" from a revisit.
       state.revisiting = false;
@@ -1252,21 +1255,51 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     // camera, no fresh capture — removing an object is immediate and costs
     // nothing; the room only reads again on save if its objects actually changed.
     function openRevisit(room, session) {
+      state.cancelRevisit?.();
       seedSavedInventory(room);
       if (!room?.image) { prepareLiveRoom(); return; }
       // Block the shutter until the stored photo is in place, so a tap during the
       // load cannot start a fresh capture that install() then overwrites.
       state.loadingRoom = true;
       const image = new Image();
+      let settled = false;
+      let timer;
+      const active = () => !settled && !state.closed && session === state.roomSession;
+      const release = () => {
+        settled = true;
+        window.clearTimeout(timer);
+        image.onload = null;
+        image.onerror = null;
+        if (state.cancelRevisit === release) state.cancelRevisit = null;
+      };
+      state.cancelRevisit = release;
+      const recover = () => {
+        if (!active()) { release(); return; }
+        release();
+        state.loadingRoom = false;
+        prepareLiveRoom();
+        toast("The saved photo could not open. Your items and edits are kept; use another photo or rescan.");
+      };
       const install = () => {
         // Dropped if the Landlord has already moved on to another room, so a
         // slow-loading photo can never land on top of the wrong one.
-        if (state.closed || session !== state.roomSession) return;
+        if (!active()) { release(); return; }
+        if (!image.naturalWidth || !image.naturalHeight) { recover(); return; }
+        // Image decoding can finish after an item edit or a final AI result.
+        // Use the current saved evidence and corrections at installation time.
+        const current = findRoom(state.rooms, room.name) || room;
+        const detections = mergeInventoryIntoSavedDetections(current.detections, inventoryFor(room.name),
+          state.dismissed.get(transcriptKey(room.name)) || new Set());
+        const context = el.canvas.getContext("2d");
+        if (!context) { recover(); return; }
+        try {
+          const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
+          el.canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          el.canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          context.drawImage(image, 0, 0, el.canvas.width, el.canvas.height);
+        } catch { recover(); return; }
+        release();
         state.loadingRoom = false;
-        const scale = Math.min(1, 1280 / Math.max(image.naturalWidth, image.naturalHeight));
-        el.canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-        el.canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-        el.canvas.getContext("2d").drawImage(image, 0, 0, el.canvas.width, el.canvas.height);
         state.revisiting = true;
         state.frozen = true;
         state.frozenFrame = room.image;
@@ -1278,7 +1311,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         // The room's named objects become the starting selection, each already
         // chosen. Their ids are namespaced so a newly added manual box cannot
         // collide with one of them.
-        state.candidates = usableLiveBoxes((room.detections || []).map((detection, index) => ({
+        state.candidates = usableLiveBoxes(detections.map((detection, index) => ({
           id: `s${index}`, inventoryKey: detection.inventoryKey, needsName: detection.needsName,
           quantity: itemQuantity(detection), conditionMixed: detection.conditionMixed === true, x: detection.x, y: detection.y, width: detection.width, height: detection.height,
           label: detection.label, note: detection.note || "", kind: "detected", score: 1,
@@ -1295,7 +1328,8 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         refreshSelection();
       };
       image.onload = install;
-      image.onerror = () => { if (!state.closed && session === state.roomSession) { state.loadingRoom = false; prepareLiveRoom(); } };
+      image.onerror = recover;
+      timer = window.setTimeout(recover, 6000);
       image.src = room.image;
     }
 
@@ -4203,6 +4237,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     /* ── Teardown ── */
     function close(result) {
       if (state.closed) return;
+      state.cancelRevisit?.();
       state.closed = true;
       state.generation += 1;
       stopVoice({ silent: true });

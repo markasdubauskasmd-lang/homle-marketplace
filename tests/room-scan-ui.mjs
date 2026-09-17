@@ -592,8 +592,9 @@ assert(/budget\.generation \+= 1/.test(overlay), "Removing a room does not inval
 assert(/el\.hub\.addEventListener\("click"[\s\S]{0,180}\[data-room-remove\][\s\S]{0,160}showRoomRemoval[\s\S]{0,140}\[data-room\]/.test(overlay), "The room hub treats the Remove control as an Edit action before opening its safety decision.");
 assert(styles.includes(".hub-room-row") && styles.includes(".hub-room-remove"), "The room-removal control has no mobile room-row presentation.");
 
-// Returning to a scanned room reopens its saved photo and its objects.
-assert(/function openRevisit\(room, session\)[\s\S]{0,1800}room\.detections/.test(overlay), "Returning to a room does not reopen the objects it already held.");
+// Execute the revisit handler: asynchronous photo loading must preserve current
+// corrections and completed evidence, and recover from failed or late images.
+await import("./scanner-revisit-recovery.mjs");
 // An unchanged save reads nothing; a change — an object added OR removed — reads
 // again, so a task like "clean the oven" cannot outlive the oven and keep
 // pricing a job for it.
