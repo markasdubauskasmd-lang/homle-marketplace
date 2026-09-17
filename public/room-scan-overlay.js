@@ -3076,14 +3076,18 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
     function seedSavedInventory(room) {
       if (!room) return;
       const previous = inventoryFor(room.name);
-      const saved = (room.detections || []).map(item => ({
-        ...item, key: item.inventoryKey || inventoryKey(item.label), score: item.confidence || 1,
-        sightings: 1, source: "read"
-      }));
-      const byKey = new Map(saved.map(item => [item.key, item]));
-      for (const item of previous) byKey.set(item.key, { ...byKey.get(item.key), ...item });
       const dismissed = state.dismissed.get(transcriptKey(room.name)) || new Set();
-      state.inventories.set(transcriptKey(room.name), [...byKey.values()].filter(item => !dismissed.has(item.key)));
+      const previousByKey = new Map(previous.map(item => [item.key, item]));
+      // A pending confirmation may already have seeded this list. Merge its
+      // completed evidence with the same rules used for saving: newer automatic
+      // evidence can fill gaps, while explicit customer corrections stay final.
+      const saved = mergeInventoryIntoSavedDetections(room.detections, previous, dismissed).map(item => {
+        const key = item.inventoryKey || inventoryKey(item.label);
+        const prior = previousByKey.get(key);
+        return { ...prior, ...item, key, score: item.confidence ?? prior?.score ?? 1,
+          sightings: prior?.sightings || 1, source: prior?.source || "read" };
+      });
+      state.inventories.set(transcriptKey(room.name), saved);
       renderInventory();
     }
 
