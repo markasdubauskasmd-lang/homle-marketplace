@@ -57,7 +57,7 @@ for (const stage of ["load", "detect"]) {
     const wait = new Promise(resolve => { settle = resolve; }), window = timerWindow();
     const detector = { detect() { calls++; return wait; } };
     const state = { roomSession: 1, detector: stage === "detect" ? detector : null };
-    const context = vm.createContext({ state, window, detectorBusy: false,
+    const context = vm.createContext({ state, window, detectorBusy: false, detectorStalled: false,
       pendingTrackConstraints: new WeakMap(), loadDetectorOnce: () => wait,
       detectionMinimumScore: .5, shouldRedact: () => true, renderDetectorState() {} });
     vm.runInContext(helper + section("async function refreshPrivateRegionsForSource(", "/* ── Choosing what matters"), context);
@@ -68,12 +68,14 @@ for (const stage of ["load", "detect"]) {
     for (const expire of [...window.timers]) expire();
     assert.equal(await observed, "rejected");
     if (stage === "detect") assert.equal(context.detectorBusy, true, "hung detector was unlocked for concurrent inference");
+    if (stage === "detect") assert.equal(context.detectorStalled, true, "A later camera session cannot identify the pending timed-out inference");
     state.roomSession++;
     state.privateRegions = [{ class: "new-room" }];
     settle(stage === "load" ? detector : [{ class: "person", bbox: [1, 1, 2, 2] }]);
     await tick();
     assert.equal(state.privateRegions[0].class, "new-room", "late private check overwrote newer room data");
     if (stage === "detect") assert.equal(context.detectorBusy, false);
+    if (stage === "detect") assert.equal(context.detectorStalled, false);
     assert.equal(window.timers.size, 0);
   });
 }
