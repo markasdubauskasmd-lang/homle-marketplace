@@ -156,6 +156,32 @@ const ignoredService = createPaymentService(repository, { ...provider, async ver
 assert.equal((await ignoredService.handleWebhook(Buffer.from("{}"), "signed")).ignored, true);
 assert.equal(calls.filter((call) => call.kind === "reconcile").length, reconcilesBeforeIgnored, "A signed unrelated Stripe event entered payment reconciliation.");
 
+// Parent relationships must survive the service allowlist all the way to the
+// atomic database check; missing or malformed references cannot become null.
+for (const kind of ["refund-succeeded", "refund-failed", "transfer-succeeded", "transfer-reversed"]) {
+  const isTransfer = kind.startsWith("transfer-");
+  const signed = {eventId: "evt_parent_bound", kind, objectId: isTransfer ? "tr_original_transfer" : "re_original_refund",
+    paymentId, commandId: commandIds[0], amountPence: 2000, currency: "gbp", occurredAt: new Date().toISOString(),
+    providerPaymentId: "pi_original_payment", sourceChargeId: "ch_original_charge", destinationAccountId: isTransfer ? "acct_original_cleaner" : null,
+    rawPrivateObject: "do not retain"};
+  let selected = signed;
+  const boundService = createPaymentService(repository, {...provider, async verifyWebhook() {return selected;}}, {publishableKey});
+  await boundService.handleWebhook(Buffer.from("signed-parent"), "signed");
+  const event = calls.at(-1).event;
+  assert.equal(event.providerPaymentId, signed.providerPaymentId);
+  assert.equal(event.sourceChargeId, signed.sourceChargeId);
+  assert.equal(event.destinationAccountId, signed.destinationAccountId);
+  assert(!Object.hasOwn(event, "rawPrivateObject"));
+  for (const patch of [{providerPaymentId: undefined}, {providerPaymentId: "ch_wrong_type"}, {providerPaymentId: {id: "pi_original_payment"}},
+    {sourceChargeId: null}, {sourceChargeId: "pi_wrong_type"},
+    ...(isTransfer ? [{destinationAccountId: undefined}, {destinationAccountId: "pi_wrong_type"}] : [{destinationAccountId: "acct_unexpected"}])]) {
+    selected = {...signed, ...patch};
+    const count = calls.filter(call => call.kind === "reconcile").length;
+    await assert.rejects(boundService.handleWebhook(Buffer.from("signed-parent"), "signed"), /event parent identity|destination identity/);
+    assert.equal(calls.filter(call => call.kind === "reconcile").length, count);
+  }
+}
+
 const mismatchedProvider = { ...provider, async createAuthorization(input) { return { id: "pi_bad_amount", status: "authorized", amountPence: input.amountPence - 1, currency: input.currency }; } };
 const mismatchService = createPaymentService(repository, mismatchedProvider, { publishableKey, createId: () => paymentId });
 await assert.rejects(mismatchService.beginAuthorization(landlord, { bookingId, idempotencyKey: "mismatch_retry_key_123456789012345" }), /invalid authorization result/i);

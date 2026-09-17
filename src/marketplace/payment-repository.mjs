@@ -178,9 +178,12 @@ export function createPaymentRepository(database) {
           );
           return Object.freeze(result.rows[0]?.result || { accepted: false, duplicate: false });
         }
+        const parentBound = input.kind.startsWith("refund-") || input.kind.startsWith("transfer-");
+        const values = [input.provider, input.providerEventId, input.kind, input.providerObjectId, input.paymentId, input.commandId, input.amountPence, input.currency, input.occurredAt, input.payloadHash];
+        if (parentBound) values.push(input.providerPaymentId, input.sourceChargeId, input.destinationAccountId ?? null);
         const result = await client.query(
-          "SELECT tideway_private.reconcile_payment_provider_event($1::text,$2::text,$3::text,$4::text,$5::uuid,$6::uuid,$7::integer,$8::character(3),$9::timestamptz,$10::character(64)) AS result",
-          [input.provider, input.providerEventId, input.kind, input.providerObjectId, input.paymentId, input.commandId, input.amountPence, input.currency, input.occurredAt, input.payloadHash]
+          "SELECT tideway_private.reconcile_payment_provider_event($1::text,$2::text,$3::text,$4::text,$5::uuid,$6::uuid,$7::integer,$8::character(3),$9::timestamptz,$10::character(64)" + (parentBound ? ",$11::text,$12::text,$13::text" : "") + ") AS result",
+          values
         );
         return Object.freeze(result.rows[0]?.result || { accepted: false, duplicate: false });
       });

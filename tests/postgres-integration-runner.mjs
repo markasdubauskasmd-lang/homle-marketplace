@@ -15,6 +15,7 @@ const requiredFiles = [
   "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql",
   "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "landlord-support-owner-setup.sql", "landlord-support-behaviour.sql", "landlord-support-owner-cleanup.sql",
   "payment-claim-concurrency-setup.sql", "payment-claim-concurrency-core.sql", "payment-claim-concurrency-a.sql", "payment-claim-concurrency-b.sql", "payment-claim-concurrency-expire.sql", "payment-claim-concurrency-verify.sql", "payment-claim-concurrency-cleanup.sql",
+  "marketplace-payment-event-identity.sql",
   "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
 ];
 const sources = new Map();
@@ -167,6 +168,9 @@ assert.ok(sources.get("marketplace-integration-cleanup.sql").indexOf("DELETE FRO
 // Both the psql runner and the photo-delivery node-postgres client consume this
 // file. An include works under psql but reaches PostgreSQL as invalid raw SQL
 // through Client.query; require one self-contained transaction for both paths.
+assert.match(sources.get("marketplace-payment-ordering.sql"), /\\ir marketplace-payment-event-identity\.sql/);
+assert.match(sources.get("marketplace-payment-event-identity.sql"), /113 recovery could not replay exact persisted signed parent facts/);
+assert.match(sources.get("marketplace-payment-event-identity.sql"), /Legacy ten-argument delivery changed money/);
 const sharedCleanup = sources.get("marketplace-integration-cleanup.sql");
 const paymentCleanup = sources.get("payment-claim-concurrency-cleanup.sql");
 for (const sql of [sharedCleanup, paymentCleanup]) {

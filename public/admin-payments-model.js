@@ -35,6 +35,12 @@ function recoveryCommands(value) {
 }
 
 export function paymentRecoveryReasonLabel(reason) {
+  if (reason === "awaiting-event-parent-identity")
+    return "The original payment event needs its charge details verified. Retry its delivery from Stripe; checking the provider record alone cannot settle it.";
+  if (reason === "payment-event-parent-mismatch")
+    return "The payment event points to different payment or payout instructions. Review the original Stripe event before taking another payment action.";
+  if (reason === "transfer-attempt-identity-unavailable")
+    return "The original payout source or destination is unavailable. Automatic settlement is on hold while the original instructions are reviewed.";
   if (["awaiting-signed-evidence", "awaiting-signed-terminal-evidence", "found-awaiting-signed-evidence"].includes(reason))
     return "Provider record found. Waiting for verified payment events before the ledger can be settled.";
   if (["provider-unavailable", "provider-search-failed", "provider-request-failed", "provider-search-time-bound", "provider-pagination-bound"].includes(reason))

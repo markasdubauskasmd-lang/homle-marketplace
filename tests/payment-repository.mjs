@@ -81,8 +81,12 @@ const recorded = await repository.recordCommand(actor, commandId, { providerComm
 assert.deepEqual(recorded, { commandId, paymentId, kind: "transfer", status: "provider-pending" });
 
 rows.push({ result: { accepted: true, duplicate: false } });
-const reconciled = await repository.reconcileEvent({ provider: "stripe", providerEventId: "evt_private", kind: "transfer-succeeded", providerObjectId: "tr_test_private", paymentId, commandId, amountPence: 7200, currency: "gbp", occurredAt: "2026-07-16T00:00:00.000Z", payloadHash: "a".repeat(64) });
-assert(reconciled.accepted === true && calls.at(-2).transaction === "authentication" && calls.at(-1).text.includes("reconcile_payment_provider_event") && calls.at(-1).values.length === 10, "Verified webhook reconciliation did not use the no-browser-actor transaction and narrow function.");
+const reconciled = await repository.reconcileEvent({ provider: "stripe", providerEventId: "evt_private", kind: "transfer-succeeded", providerObjectId: "tr_test_private", paymentId, commandId, amountPence: 7200, currency: "gbp", occurredAt: "2026-07-16T00:00:00.000Z", payloadHash: "a".repeat(64), providerPaymentId: "pi_original_payment", sourceChargeId: "ch_original_charge", destinationAccountId: "acct_original_cleaner" });
+assert(reconciled.accepted === true && calls.at(-2).transaction === "authentication" && calls.at(-1).text.includes("reconcile_payment_provider_event") && calls.at(-1).values.length === 13, "Verified webhook reconciliation did not use the no-browser-actor transaction and parent-bound function.");
+assert.deepEqual(calls.at(-1).values.slice(10), ["pi_original_payment", "ch_original_charge", "acct_original_cleaner"]);
+rows.push({ result: { accepted: true, duplicate: false } });
+await repository.reconcileEvent({ provider: "stripe", providerEventId: "evt_refund_parent", kind: "refund-succeeded", providerObjectId: "re_original_refund", paymentId, commandId, amountPence: 1000, currency: "gbp", occurredAt: "2026-07-16T00:00:00.000Z", payloadHash: "a".repeat(64), providerPaymentId: "pi_original_payment", sourceChargeId: "ch_original_charge" });
+assert.deepEqual(calls.at(-1).values.slice(10), ["pi_original_payment", "ch_original_charge", null]);
 
 failure = Object.assign(new Error("payment-not-refundable"), { code: "P0001" });
 await assert.rejects(repository.beginCommand(actor, { commandId, paymentId, kind: "refund", amountPence: 500, idempotencyKeyHash: hash }), (error) => error.code === "payment-not-refundable" && error.statusCode === 409);

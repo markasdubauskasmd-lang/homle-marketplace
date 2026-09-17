@@ -1326,7 +1326,8 @@ BEGIN
     EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order = 112)' INTO installed;
   END IF;
   IF installed THEN
-    SELECT pg_get_functiondef('tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character)'::regprocedure) INTO definition;
+    SELECT pg_get_functiondef(COALESCE(to_regprocedure('tideway_private.apply_bound_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character)'),
+      'tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character)'::regprocedure)) INTO definition;
     IF definition NOT LIKE '%payment-event-identity-conflict%' OR definition NOT LIKE '%provider_terminal_failure%'
       OR definition NOT LIKE '%awaiting-state%' OR definition NOT LIKE '%reconciliation_version=2%'
       OR NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='public.payment_commands'::regclass AND attname='provider_success_applied' AND NOT attisdropped)
@@ -1351,6 +1352,23 @@ BEGIN
   END IF;
 END
 $recovery_verification$;
+
+DO $parent_identity_verification$
+DECLARE installed boolean:=false; signature text:='tideway_private.reconcile_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character,text,text,text)';
+BEGIN
+ IF to_regclass('tideway_private.schema_migrations') IS NOT NULL THEN
+   EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order=114)' INTO installed;
+ END IF;
+ IF installed THEN
+   IF to_regclass('tideway_private.payment_event_parent_identities') IS NULL OR to_regprocedure(signature) IS NULL
+     OR NOT has_function_privilege('tideway_app',signature,'EXECUTE') THEN RAISE EXCEPTION 'Signed event parent binding is incomplete'; END IF;
+   IF has_table_privilege('tideway_app','tideway_private.payment_event_parent_identities','SELECT,INSERT,UPDATE,DELETE')
+     OR has_function_privilege('tideway_app','tideway_private.apply_bound_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character)','EXECUTE')
+     OR has_function_privilege('tideway_worker','tideway_private.apply_bound_payment_provider_event(text,text,text,text,uuid,uuid,integer,character,timestamptz,character)','EXECUTE')
+     THEN RAISE EXCEPTION 'Runtime can bypass signed parent binding'; END IF;
+ END IF;
+END;
+$parent_identity_verification$;
 
 SELECT json_build_object(
   'verified', true,
