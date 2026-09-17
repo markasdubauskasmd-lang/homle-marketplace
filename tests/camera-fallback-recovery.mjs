@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { createCameraConstraintCoordinator } from "../public/camera-constraints.js";
+import "./scanner-revisit-recovery.mjs";
 const source = readFileSync(new URL("../public/room-scan-overlay.js", import.meta.url), "utf8");
 const section = (start, end) => {
   const first = source.indexOf(start);
