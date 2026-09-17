@@ -167,13 +167,26 @@ export async function createStripePaymentProvider(configuration = {}, options = 
   }
 
   async function eventWithDisputePayment(event, dispute) {
-    let charge = typeof dispute.charge === "object" ? dispute.charge : await stripe.charges.retrieve(reference(dispute.charge, "dispute charge id"));
-    const paymentIntentId = objectReference(charge?.payment_intent);
-    if (!paymentIntentId) return { ignored: true, eventId: event.id };
-    const intent = await stripe.paymentIntents.retrieve(reference(paymentIntentId, "dispute PaymentIntent id"));
-    const references = metadataReferences(intent);
-    if (!references) return { ignored: true, eventId: event.id };
     if (!/^du_[A-Za-z0-9_]{3,250}$/.test(dispute.id || "")) throw new TypeError("Stripe returned an invalid dispute id.");
+    if (dispute.object !== "dispute" || dispute.livemode !== false) throw new TypeError("Stripe returned an invalid dispute object.");
+    const chargeId = parentReference(dispute.charge, "ch", "dispute charge id");
+    const signedPaymentIntentId = dispute.payment_intent == null ? null : parentReference(dispute.payment_intent, "pi", "dispute PaymentIntent id");
+    // Expanded references follow the same exact lookup as string references.
+    // GETs establish identity only; the signed dispute retains its outcome/time.
+    const charge = await stripe.charges.retrieve(chargeId, {}, eventParentRequestOptions);
+    if (charge?.id !== chargeId || charge.object !== "charge" || charge.livemode !== false || charge.currency !== "gbp") {
+      throw new TypeError("Stripe returned an invalid dispute parent charge.");
+    }
+    // Non-PaymentIntent legacy charges cannot belong to this integration.
+    if (charge.payment_intent === null && signedPaymentIntentId === null) return { ignored: true, eventId: reference(event.id, "event id") };
+    const paymentIntentId = parentReference(charge.payment_intent, "pi", "dispute PaymentIntent id");
+    if (signedPaymentIntentId !== null && signedPaymentIntentId !== paymentIntentId) throw new TypeError("Stripe dispute and charge parent identities do not match.");
+    const intent = await stripe.paymentIntents.retrieve(paymentIntentId, {}, eventParentRequestOptions);
+    if (intent?.id !== paymentIntentId || intent.object !== "payment_intent" || intent.livemode !== false || intent.currency !== "gbp") {
+      throw new TypeError("Stripe returned an invalid dispute parent PaymentIntent.");
+    }
+    const references = metadataReferences(intent);
+    if (!references) return { ignored: true, eventId: reference(event.id, "event id") };
     const statuses = new Set(["warning_needs_response", "warning_under_review", "needs_response", "under_review", "won", "lost", "warning_closed", "prevented"]);
     const projected = normalizedEvent(event, event.type === "charge.dispute.closed" ? "dispute-closed" : "dispute-opened", dispute,
       { ...references, commandId: null }, { objectId: intent.id });
