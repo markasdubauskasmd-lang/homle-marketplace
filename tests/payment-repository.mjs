@@ -24,6 +24,30 @@ const bookingId = "33333333-3333-4333-8333-333333333333";
 const commandId = "44444444-4444-4444-8444-444444444444";
 const hash = Buffer.alloc(32, 7);
 
+for (const [method, expectedFunction] of [["getCommandAttempt", "get_payment_command_attempt"], ["getAdministratorCommandRecovery", "get_administrator_payment_command_recovery"]]) {
+  rows.push({ result: { commandId, paymentId, requestIdentity: null, legacyUnknown: true } });
+  const value = await repository[method](administrator, commandId);
+  assert.equal(value.commandId, commandId);
+  assert.equal(calls.at(-2).transaction, "user");
+  assert(calls.at(-1).text.includes(expectedFunction));
+  assert.deepEqual(calls.at(-1).values, [commandId]);
+}
+const identity = { commandId, paymentId, bookingId, kind: "refund", amountPence: 2000, currency: "gbp", providerPaymentId: "pi_original_payment" };
+rows.push({ result: { action: "recover", requestIdentity: identity } });
+await repository.claimCommandAttempt(administrator, commandId, { requestHash: hash, identity });
+assert(calls.at(-1).text.includes("claim_payment_command_attempt"));
+assert.deepEqual(calls.at(-1).values, [commandId, hash, JSON.stringify(identity)]);
+rows.push({ result: { status: "provider-pending", recoveryRequired: true, recoveryReason: "awaiting-signed-evidence", signedEventsReplayed: 0 } });
+await repository.recordCommandRecovery(administrator, commandId, { outcome: "operator-required", reason: "provider-recovery-unavailable" });
+assert(calls.at(-1).text.includes("record_payment_command_recovery"));
+assert.deepEqual(calls.at(-1).values, [commandId, "operator-required", "provider-recovery-unavailable", null, "{}"]);
+for (const method of ["getCommandAttempt", "getAdministratorCommandRecovery"]) {
+  failure = Object.assign(new Error("administrator-required"), { code: "42501" });
+  await assert.rejects(repository[method](actor, commandId), error => error.statusCode === 403 && error.code === "administrator-required");
+}
+failure = Object.assign(new Error("payment-reconciliation-required"), { code: "P0001" });
+await assert.rejects(repository.claimCommandAttempt(administrator, commandId, { requestHash: hash, identity }), error => error.statusCode === 409 && error.code === "payment-reconciliation-required");
+
 rows.push({ id: paymentId, booking_id: bookingId, status: "authorized", amount_pence: 12000, currency: "gbp", amount_captured_pence: 0, amount_refunded_pence: 0 });
 const readable = await repository.getByBooking(actor, bookingId);
 assert(readable.paymentId === paymentId && readable.bookingId === bookingId && readable.providerPaymentId === null && calls.at(-1).text.includes("read_booking_payment"), "Landlord payment status did not use the narrow actor-bound projection.");

@@ -185,7 +185,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   if (!administratorFunnel || typeof administratorFunnel.get !== "function") throw new TypeError("Marketplace HTTP routes require the Administrator funnel-report service.");
   if (!landlordCare || typeof landlordCare.get !== "function") throw new TypeError("Marketplace HTTP routes require the Landlord care-record service.");
   if (!privacyRequests || !["list", "request"].every((method) => typeof privacyRequests[method] === "function")) throw new TypeError("Marketplace HTTP routes require the account privacy-request service.");
-  if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration", "listForAdministrator", "capture", "cancel", "refund", "transfer"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
+  if (payments && !["handleWebhook", "beginAuthorization", "getForBooking", "getClientConfiguration", "listForAdministrator", "capture", "cancel", "refund", "transfer", "recoverCommand"].every((method) => typeof payments[method] === "function")) throw new TypeError("Marketplace payment routes require the complete payment service.");
   if (cleanerPayouts && !["getStatus", "refreshStatus", "beginOnboarding"].every((method) => typeof cleanerPayouts[method] === "function")) throw new TypeError("Marketplace Cleaner payout routes require the complete payout service.");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
   const limitPublicRead = createRateLimitBoundary(rateLimiter, options.clientKey, { onUnexpectedError });
@@ -324,6 +324,17 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { roles: ["administrator"] });
           const readiness = administratorMatchingReadiness(await matching.recommendForRequest(context.actor, selectedAdminMatchingReadiness[1]));
           sendJson(response, 200, { ok: true, matchingReadiness: readiness });
+          return true;
+        }
+        const selectedRecoveryCommand = pathname.match(/^\/api\/marketplace\/admin\/payment-commands\/([0-9a-f-]{36})\/recover$/i);
+        if (selectedRecoveryCommand) {
+          if (!payments) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const input = await readJsonObject(request);
+          if (Object.keys(input).length) throw new TypeError("The payment outcome check does not accept payment instructions.");
+          const recovery = await payments.recoverCommand(context.actor, selectedRecoveryCommand[1]);
+          sendJson(response, 200, { ok: true, recovery });
           return true;
         }
         const selectedAdminPaymentCommand = pathname.match(adminPaymentCommandPath);

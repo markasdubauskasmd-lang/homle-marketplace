@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import "./payment-disputes.mjs";
+import "./payment-command-recovery.mjs";
 import "./payment-command-pause.mjs";
 import { createHash } from "node:crypto";
 import { createPaymentService } from "../src/marketplace/payment-service.mjs";
@@ -17,6 +18,7 @@ const commandIds = [
 ];
 const publishableKey = `pk_test_${"p".repeat(32)}`;
 const calls = [];
+const preparedCommands = new Map();
 let idIndex = 0;
 
 const repository = {
@@ -43,8 +45,14 @@ const repository = {
   async beginCommand(actor, input) {
     calls.push({ kind: "begin-command", actor, input });
     const amountPence = input.kind === "refund" ? input.amountPence : input.kind === "transfer" ? 7_200 : 12_000;
-    return { commandId: input.commandId, paymentId: input.paymentId, bookingId, kind: input.kind, status: "created", amountPence, currency: "gbp", providerPaymentId: "pi_test_private", providerCommandId: null, destinationAccountId: input.kind === "transfer" ? "acct_cleaner_private" : null };
+    const record = { commandId: input.commandId, paymentId: input.paymentId, bookingId, kind: input.kind, status: "created", amountPence, currency: "gbp", providerPaymentId: "pi_test_private", providerCommandId: null, destinationAccountId: input.kind === "transfer" ? "acct_cleaner_private" : null };
+    preparedCommands.set(record.commandId, record);
+    return record;
   },
+  async getCommandAttempt(actor, commandId) { return { ...preparedCommands.get(commandId), requestIdentity: null, legacyUnknown: false, hasAttemptWindow: false }; },
+  async getAdministratorCommandRecovery(actor, commandId) { return { ...preparedCommands.get(commandId), requestIdentity: null, legacyUnknown: true }; },
+  async claimCommandAttempt(actor, commandId, input) { return { action: "post", remainingMs: 23 * 60 * 60 * 1000, requestIdentity: input.identity }; },
+  async recordCommandRecovery(actor, commandId, discovery) { return { status: "provider-pending", recoveryRequired: true, recoveryReason: discovery.reason || "awaiting-signed-evidence", signedEventsReplayed: 0 }; },
   async recordCommand(actor, selectedCommandId, result) {
     calls.push({ kind: "record-command", actor, selectedCommandId, result });
     const prepared = calls.findLast((call) => call.kind === "begin-command" && call.input.commandId === selectedCommandId);
@@ -58,6 +66,8 @@ const repository = {
 
 const provider = {
   name: "stripe",
+  async prepareCommandAttempt(input) { return { ...input, sourceChargeId: "ch_frozen_source" }; },
+  async discoverCommandObject() { return { outcome: "operator-required", reason: "awaiting-signed-evidence" }; },
   async createSandboxCheckout(input) {
     calls.push({ kind: "provider-sandbox-checkout", input });
     return { id: "pi_test_sandbox", status: "requires-customer-action", clientSecret: "pi_test_sandbox_secret", amountPence: input.amountPence, currency: input.currency };

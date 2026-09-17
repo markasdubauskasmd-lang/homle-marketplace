@@ -561,12 +561,17 @@
       "file": "112_payment_event_replay.sql",
       "sha256": "61a71cc674dc6d938364f3fffa0d4e231ceab322162036431b6748359f12c7ec",
       "order": 112
+    },
+    {
+      "order": 113,
+      "file": "113_payment_command_recovery.sql",
+      "sha256": "59f33c3094ffba1b0e8ee4ecdad1a5134c7621c844d8ffe86f76b09a5701e6a8"
     }
   ],
   "grantFiles": [
     {
       "file": "runtime-role-grants.sql",
-      "sha256": "cec10d09bafbac594ee890f36a1e45ac2d8c1984ee18a19cb6fea91ddb4ed78e"
+      "sha256": "e8759fe30d72de61caa7913a68c443a5efabdb24422700f0ead03d848e99ee75"
     },
     {
       "file": "worker-role-grants.sql",

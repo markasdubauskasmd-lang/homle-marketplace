@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { runInNewContext } from "node:vm";
-import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentDisputeHeld, paymentDisputeStatusLabel, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "../public/admin-payments-model.js";
+import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentDisputeHeld, paymentDisputeStatusLabel, paymentRecoveryHeld, paymentRecoveryReasonLabel, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "../public/admin-payments-model.js";
+import "./admin-payment-recovery.mjs";
+import "./browser-admin-payment-recovery.mjs";
 
 const paymentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const bookingId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -83,7 +85,7 @@ const [page, script, caseScript, styles, server, admin, packageJson, router, ser
 function node(tag, className = "", text = "") {
   return { tag, className, text, children: [], handlers: {}, append(...items) { this.children.push(...items); }, addEventListener(name, handler) { this.handlers[name] = handler; }, get childElementCount() { return this.children.length; } };
 }
-const context = { element: node, paymentNextAction, paymentDisputeHeld, paymentDisputeStatusLabel, paymentStatusLabel, paymentActionLabel, shortPaymentReference, uncertainPayments: new Set(), date: (value) => value, money: (value) => String(value), fact: (label, value) => node("fact", label, value), commanding: false, form: { reset() { throw new Error("Held action reached the form"); } } };
+const context = { element: node, paymentNextAction, paymentDisputeHeld, paymentDisputeStatusLabel, paymentRecoveryHeld, paymentRecoveryReasonLabel, paymentStatusLabel, paymentActionLabel, shortPaymentReference, uncertainPayments: new Set(), recoveringCommands: new Set(), date: (value) => value, money: (value) => String(value), fact: (label, value) => node("fact", label, value), commanding: false, form: { reset() { throw new Error("Held action reached the form"); } } };
 const ui = script.slice(script.indexOf("function openAction("), script.indexOf("function renderQueue("));
 runInNewContext(ui, context);
 const heldRaw = { ...record, disputes: [dispute("lost")], disputeReviewRequired: true };
@@ -97,12 +99,12 @@ const resolvedNodes = flatten(context.paymentCard(normalize({ disputes: [dispute
 assert(resolvedNodes.some((item) => item.text.includes("Won") && item.text.includes("Recorded outcome")));
 assert(resolvedNodes.some((item) => item.tag === "button" && !item.disabled));
 const selectedAction = script.slice(script.indexOf("async function runSelectedAction("), script.indexOf('form.addEventListener("submit"'));
-const submitContext = { commanding: false, selected: record, selectedKind: "transfer", queue: { payments: [heldRaw] }, paymentDisputeHeld };
+const submitContext = { commanding: false, recoveringCommands: new Set(), uncertainPayments: new Set(), selected: record, selectedKind: "transfer", queue: { payments: [heldRaw] }, paymentDisputeHeld, paymentRecoveryHeld, paymentActionLabel, submit: {}, cancel: {} };
 runInNewContext(selectedAction, submitContext);
 await assert.rejects(() => submitContext.runSelectedAction(), /requires dispute review/, "A modal opened before refreshed dispute evidence must not submit.");
 submitContext.queue.payments = [record];
 Object.assign(submitContext, { form: {}, FormData: class { get(key) { return key === "confirmed" ? "on" : ""; } }, retryKey: () => key, paymentActionPayload,
-  recoverCsrf: async () => { submitContext.queue.payments = [heldRaw]; return "test_csrf"; } });
+  renderQueue(){}, recoverCsrf: async () => { submitContext.queue.payments = [heldRaw]; return "test_csrf"; } });
 await assert.rejects(() => submitContext.runSelectedAction(), /requires dispute review/, "A dispute discovered during CSRF recovery must stop the pending action before provider submission.");
 
 assert(page.includes("Administrator · test payments only") && page.includes("Every button contacts the configured test payment provider") && page.includes("Live Stripe keys remain rejected") && page.includes("data-admin-payments-workspace hidden"), "The payment screen lost its truthful, fail-closed test-provider boundary.");
@@ -111,7 +113,7 @@ assert(page.includes("data-admin-payment-related") && page.includes("Review the 
 assert(page.includes('/admin-payments.js?v=20260723-1'), "The safer settlement guidance can remain hidden behind an older cached Administrator controller.");
 assert(!page.includes("provider_payment_id") && !page.includes("destination_account_id") && !page.includes("client_secret"), "The Administrator page exposes private payment-provider material.");
 assert(script.includes('requestJson("/api/marketplace/auth/session"') && script.includes('"X-CSRF-Token": csrf') && script.includes("60_000") && script.includes("uncertainPayments.add") && script.includes("refresh the signed status") && script.includes("crypto.randomUUID"), "Administrator payment actions lost CSRF recovery, bounded waits, uncertain-result protection or private idempotency.");
-assert(script.includes("accepted by Homle") && script.includes("queue = previousQueue") && script.includes("locked until you refresh the queue successfully"), "An accepted payment command can be mistaken for a failed command when its read-only status refresh loses connection.");
+assert(script.includes("accepted by Homle") && script.includes("locked until you refresh the queue successfully"), "An accepted payment command can be mistaken for a failed command when its read-only status refresh loses connection.");
 assert(script.includes("adminPaymentBookingFilter") && script.includes("bookingId: selectedBookingId") && script.includes("Invalid related payment link") && caseScript.includes("Review related test payment") && caseScript.includes("/admin/payments?bookingId="), "The booking-case handoff is not exact, fail-closed or discoverable only after review starts.");
 assert(script.includes("amountCapturedPence - actionRecord.amountRefundedPence") && script.includes("amountPence > maximumRefund") && script.includes("paymentActionPayload") && script.includes("textContent"), "Refunds lost the remaining-capture boundary or the page stopped using validated/safe rendering.");
 assert(script.includes("paymentNextAction(record)") && script.includes('actionButton(record, "refund", true)') && styles.includes(".admin-payment-next-payout-wait") && styles.includes(".admin-payment-next-refund-review"), "Routine settlement can still present refund as the normal primary action while Cleaner payout setup is incomplete.");

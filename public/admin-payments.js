@@ -1,4 +1,4 @@
-import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentDisputeHeld, paymentDisputeStatusLabel, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "./admin-payments-model.js";
+import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentDisputeHeld, paymentDisputeStatusLabel, paymentRecoveryHeld, paymentRecoveryReasonLabel, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "./admin-payments-model.js";
 import { storedCsrf } from "./session-csrf.js";
 
 const pageSize = 50;
@@ -20,6 +20,8 @@ const related = document.querySelector("[data-admin-payment-related]");
 const queueControls = document.querySelector("[data-admin-payments-queue-controls]");
 const pagination = document.querySelector("[data-admin-payments-pagination]");
 const uncertainPayments = new Set();
+const recoveringCommands = new Set();
+let queueRevision = 0;
 let queue = { payments: [], limit: pageSize, offset: 0, testMode: false };
 let selected = null;
 let selectedKind = "";
@@ -132,7 +134,7 @@ function clearRetryKey(record, kind, amountPence = 0) {
 }
 
 function openAction(record, kind) {
-  if (commanding || uncertainPayments.has(record.paymentId) || paymentDisputeHeld(record)) return;
+  if (commanding || recoveringCommands.size || uncertainPayments.has(record.paymentId) || paymentDisputeHeld(record) || paymentRecoveryHeld(record)) return;
   selected = record;
   selectedKind = kind;
   form.reset();
@@ -154,9 +156,58 @@ function openAction(record, kind) {
 function actionButton(record, kind, secondary = false) {
   const button = element("button", secondary ? "button button-outline" : "button", paymentActionLabel(kind));
   button.type = "button";
-  button.disabled = uncertainPayments.has(record.paymentId) || paymentDisputeHeld(record);
+  button.disabled = commanding || recoveringCommands.size > 0 || uncertainPayments.has(record.paymentId) || paymentDisputeHeld(record) || paymentRecoveryHeld(record);
   button.addEventListener("click", () => openAction(record, kind));
   return button;
+}
+
+async function recoverCommand(record, command) {
+  if (commanding || recoveringCommands.size) return;
+  const current = queue.payments.find(item => item.paymentId === record.paymentId);
+  if (!current?.recoveryCommands?.some(item => item.commandId === command.commandId)) return;
+  recoveringCommands.add(command.commandId);
+  renderQueue();
+  showFeedback(feedback, "Checking the provider outcome. No money action is being repeated.");
+  try {
+    const csrf = await recoverCsrf();
+    const result = await requestJson(`/api/marketplace/admin/payment-commands/${command.commandId}/recover`, {
+      method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}"
+    });
+    const recovery = result.recovery;
+    if (recovery?.commandId !== command.commandId || recovery.paymentId !== record.paymentId
+      || typeof recovery.recoveryRequired !== "boolean") throw new Error("The recovery result could not be verified. Refresh the payment queue before continuing.");
+    // Successful discovery alone is not proof of financial success. The fresh
+    // server queue remains the authority for both balances and action controls.
+    uncertainPayments.add(record.paymentId);
+    if (!await loadQueue(queue.offset)) throw new Error("A newer payment status request is still pending.");
+    showFeedback(feedback, recovery.recoveryRequired
+      ? paymentRecoveryReasonLabel(recovery.recoveryReason)
+      : "Verified payment evidence reconciled. The current ledger status is shown below.", recovery.recoveryRequired ? "info" : "success");
+  } catch (error) {
+    uncertainPayments.add(record.paymentId);
+    showFeedback(feedback, "The recovery check could not be completed or refreshed. No charge, refund or payout was repeated. Refresh the queue and check again.", "error");
+  } finally {
+    recoveringCommands.delete(command.commandId);
+    list.setAttribute("aria-busy", "false");
+    renderQueue();
+  }
+}
+
+function recoveryPanel(record) {
+  const panel = element("section", "admin-payment-next");
+  panel.append(element("strong", "", "Earlier payment actions"));
+  for (const command of record.recoveryCommands || []) {
+    const row = element("div", "admin-payment-recovery");
+    row.append(element("p", "", `${paymentActionLabel(command.kind)} · ${command.recoveryRequired ? paymentRecoveryReasonLabel(command.recoveryReason) : "Verified outcome recorded."}`));
+    row.append(element("p", "", command.checkedAt ? `Last checked ${date(command.checkedAt)}` : "Not checked yet"));
+    const button = element("button", "button button-outline", recoveringCommands.has(command.commandId) ? "Checking provider…" : "Check provider outcome");
+    button.type = "button";
+    button.disabled = commanding || recoveringCommands.size > 0;
+    button.addEventListener("click", () => recoverCommand(record, command));
+    row.append(button);
+    panel.append(row);
+  }
+  return panel;
 }
 
 function paymentCard(record) {
@@ -182,6 +233,7 @@ function paymentCard(record) {
     card.append(evidence);
   }
   if (record.awaitingProvider) card.append(element("p", "admin-payment-waiting", "Waiting for a signed provider update. Refresh status; do not repeat the action."));
+  if (record.recoveryCommands?.length) card.append(recoveryPanel(record));
   if (uncertainPayments.has(record.paymentId)) card.append(element("p", "admin-payment-warning", "The previous action has an uncertain result. Refresh the signed status before any retry."));
   const actions = element("div", "booking-summary-actions");
   if (record.canCapture) actions.append(actionButton(record, "capture"));
@@ -198,7 +250,7 @@ function renderQueue() {
   empty.hidden = queue.payments.length > 0;
   list.setAttribute("aria-busy", "false");
   document.querySelector("[data-admin-payments-count]").textContent = String(queue.payments.length);
-  document.querySelector("[data-admin-payments-actionable-count]").textContent = String(queue.payments.filter((item) => item.canCapture || item.canCancel || item.canRefund || item.canTransfer).length);
+  document.querySelector("[data-admin-payments-actionable-count]").textContent = String(queue.payments.filter((item) => item.canCapture || item.canCancel || item.canRefund || item.canTransfer || item.recoveryCommands?.length).length);
   document.querySelector("[data-admin-payments-waiting-count]").textContent = String(queue.payments.filter((item) => item.awaitingProvider).length);
   document.querySelector("[data-admin-payments-page]").textContent = selectedBookingId ? "One related booking" : `Page ${Math.floor(queue.offset / queue.limit) + 1}`;
   previous.disabled = queue.offset === 0;
@@ -206,15 +258,19 @@ function renderQueue() {
 }
 
 async function loadQueue(offset = 0) {
+  const revision = ++queueRevision;
   const query = selectedBookingId
     ? new URLSearchParams({ bookingId: selectedBookingId, limit: "1", offset: "0" })
     : new URLSearchParams({ status: adminPaymentFilter(filter.value), limit: String(pageSize), offset: String(offset) });
   list.setAttribute("aria-busy", "true");
   const result = await requestJson(`/api/marketplace/admin/payments?${query}`);
-  queue = adminPaymentQueue(result);
-  if (!queue.testMode) throw new Error("The Administrator payment queue did not prove test mode.");
+  const refreshed = adminPaymentQueue(result);
+  if (!refreshed.testMode) throw new Error("The Administrator payment queue did not prove test mode.");
+  if (revision !== queueRevision) return false;
+  queue = refreshed;
   uncertainPayments.clear();
   renderQueue();
+  return true;
 }
 
 async function load() {
@@ -237,12 +293,16 @@ async function load() {
 }
 
 async function runSelectedAction() {
-  if (commanding || !selected || !selectedKind) return;
+  if (commanding || recoveringCommands.size || !selected || !selectedKind) return;
   const actionRecord = selected;
   const actionKind = selectedKind;
   function ensureNoDisputeHold() {
     const current = queue.payments.find((item) => item.paymentId === actionRecord.paymentId);
     if (paymentDisputeHeld(actionRecord) || paymentDisputeHeld(current)) throw new Error("This payment requires dispute review. No payment action was sent.");
+    if (paymentRecoveryHeld(actionRecord) || paymentRecoveryHeld(current)) throw new Error("This payment requires recovery review. No payment action was sent.");
+    if (!current || uncertainPayments.has(actionRecord.paymentId)) throw new Error("Refresh the current payment status before continuing.");
+    const allowed = {capture: "canCapture", cancel: "canCancel", refund: "canRefund", transfer: "canTransfer"}[actionKind];
+    if (!allowed || current[allowed] !== true) throw new Error("This payment action is no longer available. Refresh the payment status.");
   }
   ensureNoDisputeHold();
   const refundText = String(new FormData(form).get("refundAmount") || "").trim();
@@ -251,23 +311,24 @@ async function runSelectedAction() {
   if (actionKind === "refund" && (!Number.isInteger(amountPence) || amountPence < 1 || amountPence > maximumRefund)) throw new TypeError(`Enter a refund between £0.01 and ${money(maximumRefund)}.`);
   const key = retryKey(actionRecord, actionKind, amountPence);
   const payload = paymentActionPayload(actionKind, { amountPence, idempotencyKey: key, confirmed: new FormData(form).get("confirmed") === "on" });
-  const csrf = await recoverCsrf();
-  ensureNoDisputeHold();
   commanding = true;
   submit.disabled = cancel.disabled = true;
   submit.textContent = "Contacting test provider…";
   try {
+    const csrf = await recoverCsrf();
+    ensureNoDisputeHold();
     const result = await requestJson(`/api/marketplace/admin/payments/${actionRecord.paymentId}/${actionKind}`, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(payload) });
-    clearRetryKey(actionRecord, actionKind, amountPence);
+    if (result.command?.recoveryRequired !== true) clearRetryKey(actionRecord, actionKind, amountPence);
     uncertainPayments.add(actionRecord.paymentId);
     dialog.close();
     renderQueue();
-    const previousQueue = queue;
     try {
-      await loadQueue(queue.offset);
-      showFeedback(feedback, `${paymentActionLabel(actionKind)} was accepted once. Homle is waiting for the signed provider status before any next action.`, "success");
+      if (!await loadQueue(queue.offset)) throw new Error("A newer payment status request is pending.");
+      showFeedback(feedback, result.command?.recoveryRequired
+        ? paymentRecoveryReasonLabel(result.command.recoveryReason)
+        : `${paymentActionLabel(actionKind)} was accepted once. Homle is waiting for the signed provider status before any next action.`, result.command?.recoveryRequired ? "info" : "success");
     } catch {
-      queue = previousQueue;
+      uncertainPayments.add(actionRecord.paymentId);
       list.setAttribute("aria-busy", "false");
       renderQueue();
       showFeedback(feedback, `${paymentActionLabel(actionKind)} was accepted by Homle, but its signed status could not be refreshed. This payment is locked until you refresh the queue successfully.`, "error");
@@ -286,6 +347,7 @@ async function runSelectedAction() {
     commanding = false;
     submit.disabled = cancel.disabled = false;
     submit.textContent = paymentActionLabel(actionKind);
+    renderQueue();
   }
 }
 

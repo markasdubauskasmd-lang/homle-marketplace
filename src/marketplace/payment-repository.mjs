@@ -1,4 +1,8 @@
 const mappedErrors = Object.freeze({
+  "payment-attempt-parameters-changed": [409, "payment-attempt-parameters-changed", "This payment action needs an outcome check before it can continue."],
+  "payment-reconciliation-required": [409, "payment-reconciliation-required", "Check the provider outcome before starting another payment action."],
+  "invalid-payment-attempt": [422, "invalid-payment-attempt", "The payment attempt could not be verified."],
+  "invalid-payment-recovery": [422, "invalid-payment-recovery", "The payment outcome check could not be verified."],
   "booking-not-found": [404, "booking-not-found", "The booking was not found."],
   "payment-not-found": [404, "payment-not-found", "The payment was not found."],
   "payment-command-not-found": [404, "payment-command-not-found", "The payment action was not found."],
@@ -121,6 +125,39 @@ export function createPaymentRepository(database) {
         try {
           const result = await client.query("SELECT * FROM tideway_private.begin_booking_payment_command($1::uuid,$2::uuid,$3::text,$4::integer,$5::bytea)", [input.commandId, input.paymentId, input.kind, input.amountPence, input.idempotencyKeyHash]);
           return commandRecord(result.rows[0]);
+        } catch (error) { throw mapError(error); }
+      });
+    },
+    getCommandAttempt(actor, commandId) {
+      return database.withUserTransaction(actor, async client => {
+        try {
+          const result = await client.query("SELECT tideway_private.get_payment_command_attempt($1::uuid) AS result", [commandId]);
+          return result.rows[0]?.result || null;
+        } catch (error) { throw mapError(error); }
+      });
+    },
+    getAdministratorCommandRecovery(actor, commandId) {
+      return database.withUserTransaction(actor, async client => {
+        try {
+          const result = await client.query("SELECT tideway_private.get_administrator_payment_command_recovery($1::uuid) AS result", [commandId]);
+          return result.rows[0]?.result || null;
+        } catch (error) { throw mapError(error); }
+      });
+    },
+    claimCommandAttempt(actor, commandId, input) {
+      return database.withUserTransaction(actor, async client => {
+        try {
+          const result = await client.query("SELECT tideway_private.claim_payment_command_attempt($1::uuid,$2::bytea,$3::jsonb) AS result", [commandId,input.requestHash,JSON.stringify(input.identity)]);
+          return result.rows[0]?.result;
+        } catch (error) { throw mapError(error); }
+      });
+    },
+    recordCommandRecovery(actor, commandId, input) {
+      return database.withUserTransaction(actor, async client => {
+        try {
+          const result = await client.query("SELECT tideway_private.record_payment_command_recovery($1::uuid,$2::text,$3::text,$4::text,$5::jsonb) AS result",
+            [commandId,input.outcome,input.reason || null,input.providerObjectId || null,JSON.stringify(input.evidence || {})]);
+          return result.rows[0]?.result;
         } catch (error) { throw mapError(error); }
       });
     },

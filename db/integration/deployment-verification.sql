@@ -1336,6 +1336,22 @@ BEGIN
 END
 $replay_verification$;
 
+DO $recovery_verification$
+DECLARE installed boolean:=false; signature text;
+BEGIN
+  IF to_regclass('tideway_private.schema_migrations') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order=113)' INTO installed;
+  END IF;
+  IF installed THEN
+    IF to_regclass('tideway_private.payment_command_attempt_windows') IS NULL OR to_regclass('tideway_private.payment_command_recovery_attempts') IS NULL THEN RAISE EXCEPTION 'Payment recovery storage is incomplete'; END IF;
+    FOREACH signature IN ARRAY ARRAY['tideway_private.claim_payment_command_attempt(uuid,bytea,jsonb)','tideway_private.record_payment_command_recovery(uuid,text,text,text,jsonb)','tideway_private.get_payment_command_attempt(uuid)','tideway_private.get_administrator_payment_command_recovery(uuid)'] LOOP
+      IF to_regprocedure(signature) IS NULL OR NOT has_function_privilege('tideway_app',signature,'EXECUTE') THEN RAISE EXCEPTION 'Payment recovery function/grant is incomplete'; END IF;
+    END LOOP;
+    IF has_table_privilege('tideway_app','tideway_private.payment_command_attempt_windows','SELECT') OR has_table_privilege('tideway_app','tideway_private.payment_command_recovery_attempts','UPDATE') THEN RAISE EXCEPTION 'Runtime gained direct recovery material access'; END IF;
+  END IF;
+END
+$recovery_verification$;
+
 SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),

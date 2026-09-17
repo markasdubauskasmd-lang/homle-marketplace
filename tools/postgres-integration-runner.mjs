@@ -62,6 +62,11 @@ const scripts = Object.freeze({
   landlordSupportCleanup: "landlord-support-owner-cleanup.sql",
   paymentGate: "marketplace-payment-gate.sql",
   paymentOrdering: "marketplace-payment-ordering.sql",
+  paymentClaimSetup: "payment-claim-concurrency-setup.sql",
+  paymentClaimA: "payment-claim-concurrency-a.sql",
+  paymentClaimB: "payment-claim-concurrency-b.sql",
+  paymentClaimExpire: "payment-claim-concurrency-expire.sql",
+  paymentClaimVerify: "payment-claim-concurrency-verify.sql",
   verify: "marketplace-integration-verify.sql",
   cleanup: "marketplace-integration-cleanup.sql"
 });
@@ -86,6 +91,23 @@ function runPsqlSync({ label, file, environment, command, execute }) {
   const result = execute(command, psqlArguments(file), { encoding: "utf8", windowsHide: true, env: environment });
   if (result?.status !== 0) throw failedPsql(label, result);
   return sanitizePostgresOutput(result.stdout);
+}
+
+export function verifyPaymentClaimResults(results, expectedAction) {
+  if (!Array.isArray(results) || results.length !== 2) throw new Error("Payment claim concurrency returned invalid results.");
+  const grants = results.map((result, index) => {
+    if (result?.status !== 0) throw failedPsql("Concurrent payment claim", result);
+    const marker = "PAYMENT_CLAIM_" + (index === 0 ? "A" : "B") + "|";
+    const lines = String(result.stdout || "").split(/\r?\n/).filter((line) => line.startsWith(marker));
+    if (lines.length !== 1) throw new Error("Concurrent payment claim omitted its result proof.");
+    const grant = JSON.parse(lines[0].slice(marker.length));
+    if (grant.action !== expectedAction || !Number.isFinite(Date.parse(grant.firstAttemptAt))) throw new Error("Concurrent payment claim returned an unsafe action or missing timestamp.");
+    if (expectedAction === "post" && !(grant.remainingMs > 0 && grant.remainingMs <= 82_800_000)) throw new Error("Concurrent payment claim returned an invalid retry deadline.");
+    return grant;
+  });
+  if (grants[0].firstAttemptAt !== grants[1].firstAttemptAt || JSON.stringify(grants[0].requestIdentity) !== JSON.stringify(grants[1].requestIdentity)) throw new Error("Concurrent payment claims did not preserve the same original attempt.");
+  if (expectedAction === "recover" && Date.parse(grants[0].firstAttemptAt) !== Date.parse("2020-01-01T00:00:00Z")) throw new Error("Expired concurrent claims reset the original attempt timestamp.");
+  return grants;
 }
 
 function boundedAppend(current, chunk) {
@@ -330,10 +352,19 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
       runPsqlSync({ label: "Landlord support fixture cleanup", file: scripts.landlordSupportCleanup, environment: ownerEnvironment, command, execute });
     }
     runPsqlSync({ label: "Payment reconciliation ordering test", file: scripts.paymentOrdering, environment: ownerEnvironment, command, execute });
+    runPsqlSync({ label: "Payment claim concurrency setup", file: scripts.paymentClaimSetup, environment: ownerEnvironment, command, execute });
+    for (const action of ["post", "recover"]) {
+      if (action === "recover") runPsqlSync({ label: "Expire original payment attempt", file: scripts.paymentClaimExpire, environment: ownerEnvironment, command, execute });
+      verifyPaymentClaimResults(await executeConcurrent([
+        { file: scripts.paymentClaimA, environment: appEnvironment },
+        { file: scripts.paymentClaimB, environment: appEnvironment }
+      ]), action);
+      runPsqlSync({ label: "Payment claim concurrency verification", file: scripts.paymentClaimVerify, environment: ownerEnvironment, command, execute });
+    }
     runPsqlSync({ label: "Concurrency result verification", file: scripts.verify, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Integration fixture cleanup", file: scripts.cleanup, environment: ownerEnvironment, command, execute });
     fixturesCreated = false;
-    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, administratorCoverage: true, administratorFunnel: true, propertyArchive: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, landlordSupport: true, paymentJourneyGate: true, paymentOrdering: true, fixturesRemoved: true });
+    return Object.freeze({ database: owner.summary.database, host: owner.summary.host, verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, administratorCoverage: true, administratorFunnel: true, propertyArchive: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, landlordSupport: true, paymentJourneyGate: true, paymentOrdering: true, paymentClaimConcurrency: true, fixturesRemoved: true });
   } finally {
     if (fixturesCreated) {
       try {
@@ -349,7 +380,7 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
 if (process.argv[1] && path.resolve(process.argv[1]) === toolPath) {
   try {
     const result = await runPostgresMarketplaceIntegration();
-    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, privacy-safe public Cleaner profiles, a genuinely paginated Administrator Cleaner verification queue, paid-mode payout-ready matching, signed-provider deletion persistence, RLS, privacy, two-worker automatic dispatch with expiry/requeue, concurrent booking overlap protection, a complete synthetic Landlord-to-Cleaner lifecycle with committed cross-connection real-time signals and private two-way messaging, audited disputes, current-payment journey gating and exactly-once payment ordering verified and fixtures removed.`);
+    console.log(`PostgreSQL marketplace integration passed for ${result.database} on ${result.host}; owner-only first-Administrator bootstrap, privacy-safe public Cleaner profiles, a genuinely paginated Administrator Cleaner verification queue, paid-mode payout-ready matching, signed-provider deletion persistence, RLS, privacy, two-worker automatic dispatch with expiry/requeue, concurrent booking overlap protection, a complete synthetic Landlord-to-Cleaner lifecycle with committed cross-connection real-time signals and private two-way messaging, audited disputes, current-payment journey gating and exactly-once payment ordering and two-connection payment attempt deadlines verified and fixtures removed.`);
   } catch (error) {
     console.error(error.message);
     if (error.integrationOutput) console.error(error.integrationOutput.trim());
