@@ -200,6 +200,19 @@ function normalizedEvent(value, payloadHash) {
     occurredAt: occurredAt.toISOString(),
     payloadHash
   };
+  if (value.kind.startsWith("refund-") || value.kind.startsWith("transfer-")) {
+    for (const [field, prefix] of [["providerPaymentId", "pi"], ["sourceChargeId", "ch"]]) {
+      if (typeof value[field] !== "string" || !new RegExp(`^${prefix}_[A-Za-z0-9_]{3,250}$`).test(value[field])) throw new TypeError("The payment provider returned an invalid event parent identity.");
+      result[field] = value[field];
+    }
+    if (value.kind.startsWith("transfer-")) {
+      if (typeof value.destinationAccountId !== "string" || !/^acct_[A-Za-z0-9_]{3,250}$/.test(value.destinationAccountId)) throw new TypeError("The payment provider returned an invalid event destination identity.");
+      result.destinationAccountId = value.destinationAccountId;
+    } else {
+      if (value.destinationAccountId != null) throw new TypeError("The payment provider returned an unexpected refund destination identity.");
+      result.destinationAccountId = null;
+    }
+  }
   if (value.kind === "dispute-opened" || value.kind === "dispute-closed") {
     if (value.disputeId != null && !/^du_[A-Za-z0-9_]{3,250}$/.test(value.disputeId)) throw new TypeError("The payment provider returned an invalid dispute identity.");
     result.commandId = null;

@@ -9,6 +9,7 @@ const sandboxIdempotencyPattern = /^homle_sandbox_[0-9a-f]{64}$/;
 // SDK Retry-After waits can outlive the dispatch margin. Monetary calls retry
 // only through the persisted attempt protocol, with a fresh deadline check.
 const commandRequestOptions = Object.freeze({ timeout: 10_000, maxNetworkRetries: 0 });
+const eventParentRequestOptions = Object.freeze({ timeout: 10_000, maxNetworkRetries: 0 });
 
 function reference(value, label) {
   if (!providerReferencePattern.test(value || "")) throw new TypeError(`Stripe returned an invalid ${label}.`);
@@ -88,6 +89,12 @@ function objectReference(value) {
   return typeof value === "string" ? value : value?.id;
 }
 
+function parentReference(value, prefix, label) {
+  const id = objectReference(value);
+  if (!new RegExp(`^${prefix}_[A-Za-z0-9_]{3,250}$`).test(id || "")) throw new TypeError(`Stripe returned an invalid ${label}.`);
+  return id;
+}
+
 function eventTime(value) {
   if (!Number.isInteger(value) || value < 1) throw new TypeError("Stripe returned an invalid event timestamp.");
   return new Date(value * 1000).toISOString();
@@ -141,6 +148,24 @@ export async function createStripePaymentProvider(configuration = {}, options = 
   const required = ["accounts", "accountLinks", "paymentIntents", "refunds", "transfers", "charges", "webhooks"];
   if (!required.every((key) => stripe?.[key])) throw new TypeError("The Stripe SDK client is incomplete.");
 
+  async function monetaryEventParents(object, kind) {
+    const refund = kind === "refund";
+    const sourceChargeId = parentReference(refund ? object.charge : object.source_transaction, "ch", "event source charge id");
+    const signedPaymentId = refund ? parentReference(object.payment_intent, "pi", "refund PaymentIntent id") : null;
+    const destinationAccountId = refund ? null : parentReference(object.destination, "acct", "transfer destination id");
+    if (!refund && object.livemode !== false) throw new TypeError("Stripe returned a non-test transfer object.");
+    // A signed event's metadata is routing information, not proof of which
+    // payment funded it. Read only its exact charge to establish that immutable
+    // parent relationship. Amount/status/time still come from the signed event.
+    const charge = await stripe.charges.retrieve(sourceChargeId, {}, eventParentRequestOptions);
+    if (charge?.id !== sourceChargeId || charge.object !== "charge" || charge.livemode !== false || charge.currency !== "gbp") {
+      throw new TypeError("Stripe returned an invalid event parent charge.");
+    }
+    const providerPaymentId = parentReference(charge.payment_intent, "pi", "event parent PaymentIntent id");
+    if (refund && providerPaymentId !== signedPaymentId) throw new TypeError("Stripe refund and charge parent identities do not match.");
+    return { providerPaymentId, sourceChargeId, destinationAccountId };
+  }
+
   async function eventWithDisputePayment(event, dispute) {
     let charge = typeof dispute.charge === "object" ? dispute.charge : await stripe.charges.retrieve(reference(dispute.charge, "dispute charge id"));
     const paymentIntentId = objectReference(charge?.payment_intent);
@@ -187,13 +212,16 @@ export async function createStripePaymentProvider(configuration = {}, options = 
       monetaryEventObject(object, "re", "refund");
       if (!["pending", "requires_action", "succeeded", "failed", "canceled"].includes(object.status)
         || event.type === "refund.failed" && !["failed", "canceled"].includes(object.status)) throw new TypeError("Stripe returned a contradictory refund event status.");
-      if (object.status === "succeeded") return normalizedEvent(event, "refund-succeeded", object, references);
-      if (object.status === "failed" || object.status === "canceled") return normalizedEvent(event, "refund-failed", object, references);
+      if (["succeeded", "failed", "canceled"].includes(object.status)) {
+        const parents = await monetaryEventParents(object, "refund");
+        return Object.freeze({ ...normalizedEvent(event, object.status === "succeeded" ? "refund-succeeded" : "refund-failed", object, references), ...parents });
+      }
       return Object.freeze({ ignored: true, eventId: reference(event.id, "event id") });
     }
     if (event.type === "transfer.created") {
       monetaryEventObject(object, "tr", "transfer");
-      return normalizedEvent(event, "transfer-succeeded", object, references);
+      const parents = await monetaryEventParents(object, "transfer");
+      return Object.freeze({ ...normalizedEvent(event, "transfer-succeeded", object, references), ...parents });
     }
     // Current Stripe transfer events do not include transfer.failed. A transfer
     // API error must not be fabricated into an authoritative lifecycle event.
@@ -208,7 +236,8 @@ export async function createStripePaymentProvider(configuration = {}, options = 
         throw new TypeError("The Stripe transfer reversal is not a verified full reversal; payment reconciliation requires review.");
       }
       monetaryEventObject(object, "tr", "transfer");
-      return normalizedEvent(event, "transfer-reversed", object, references);
+      const parents = await monetaryEventParents(object, "transfer");
+      return Object.freeze({ ...normalizedEvent(event, "transfer-reversed", object, references), ...parents });
     }
     return Object.freeze({ ignored: true, eventId: reference(event.id, "event id") });
   }

@@ -53,6 +53,20 @@ else {
    assert(await browser.evaluate(`!document.querySelector('.admin-payment-recovery') && document.querySelector('.admin-payment-card').textContent.includes('£20.00')`),'Signed result did not refresh ledger');
    assert(await browser.evaluate(`[...document.querySelectorAll('.admin-payment-card button')].some(b=>b.textContent==='Issue refund'&&!b.disabled)`),'Eligible action stayed disabled after recovery finished');
    await browser.goto(server.origin+'/admin/payments');await wait(`document.querySelector('.admin-payment-card')?.textContent.includes('£20.00')`);
+   for(const [reason,explanation] of [
+    ['awaiting-event-parent-identity','Retry its delivery from Stripe'],
+    ['payment-event-parent-mismatch','different payment or payout instructions'],
+    ['transfer-attempt-identity-unavailable','original payout source or destination is unavailable']
+   ]) {
+    held=true;command.recoveryReason=reason;
+    await browser.goto(server.origin+'/admin/payments');
+    await wait(`document.querySelector('.admin-payment-recovery')?.textContent.includes(${JSON.stringify(explanation)})`);
+    assert(await browser.evaluate(`![...document.querySelectorAll('.admin-payment-card button')].some(b=>['Issue refund','Pay Cleaner'].includes(b.textContent))`));
+    assert(await browser.evaluate(`document.documentElement.scrollWidth<=innerWidth`));
+    await browser.evaluate(`document.querySelector('.admin-payment-recovery').scrollIntoView({behavior:'instant',block:'center'});return true;`);
+    await writeFile(new URL(reason+'-'+width+'.png',captures),await browser.screenshot());
+   }
+   command.recoveryReason='awaiting-signed-evidence';
   }
   role='landlord';await browser.goto(server.origin+'/admin/payments');await wait(`document.querySelector('[data-admin-payments-gate-title]').textContent==='Administrator account required'`);
   assert(await browser.evaluate(`document.querySelector('[data-admin-payments-workspace]').hidden`));

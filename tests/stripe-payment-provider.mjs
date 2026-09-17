@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./payment-event-identity.mjs";
 import { performance } from "node:perf_hooks";
 import { createStripePaymentProvider, stripePaymentApiVersion } from "../src/marketplace/stripe-payment-provider.mjs";
 
@@ -29,7 +30,7 @@ const client = {
   },
   refunds: { async create(input, options) { calls.push({ kind: "refund", input, options }); return { id: "re_test_refund", status: "pending" }; } },
   transfers: { async create(input, options) { calls.push({ kind: "transfer", input, options }); return { id: "tr_test_transfer" }; } },
-  charges: { async retrieve(id) { calls.push({ kind: "charge", id }); return { id, payment_intent: "pi_test_authorization" }; } },
+  charges: { async retrieve(id) { calls.push({ kind: "charge", id }); return { id, object: "charge", livemode: false, currency: "gbp", payment_intent: "pi_test_authorization" }; } },
   webhooks: { constructEvent(body, signature, secret) { calls.push({ kind: "webhook", body, signature, secret }); if (signature === "bad") throw new Error("private signature diagnostic"); return nextEvent; } }
 };
 
@@ -117,16 +118,17 @@ await assert.rejects(provider.verifyWebhook(rawBody, "bad"), (error) => error.st
 
 nextEvent = stripeEvent("payment_intent.succeeded", { id: "pi_test_authorization", status: "succeeded", amount: 12_000, amount_received: 12_000, currency: "gbp", metadata: { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId } });
 assert.equal((await provider.verifyWebhook(rawBody, "signed")).kind, "capture-succeeded");
-nextEvent = stripeEvent("refund.updated", { id: "re_test_refund", status: "succeeded", amount: 2_000, currency: "gbp", metadata: { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId } });
+nextEvent = stripeEvent("refund.updated", { id: "re_test_refund", status: "succeeded", amount: 2_000, currency: "gbp", charge: "ch_test_captured", payment_intent: "pi_test_authorization", metadata: { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId } });
 assert.equal((await provider.verifyWebhook(rawBody, "signed")).kind, "refund-succeeded");
-nextEvent = stripeEvent("transfer.created", { id: "tr_test_transfer", amount: 7_200, currency: "gbp", metadata: { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId } });
+nextEvent = stripeEvent("transfer.created", { id: "tr_test_transfer", amount: 7_200, currency: "gbp", livemode: false, source_transaction: "ch_test_captured", destination: "acct_test_cleaner", metadata: { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId } });
 assert.equal((await provider.verifyWebhook(rawBody, "signed")).kind, "transfer-succeeded");
-const reversedTransfer = { id: "tr_test_transfer", amount: 7_200, amount_reversed: 7_200, reversed: true, currency: "gbp", metadata: { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId } };
+const reversedTransfer = { id: "tr_test_transfer", amount: 7_200, amount_reversed: 7_200, reversed: true, currency: "gbp", livemode: false, source_transaction: "ch_test_captured", destination: "acct_test_cleaner", metadata: { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId } };
 nextEvent = stripeEvent("transfer.reversed", reversedTransfer);
 const fullReversal = await provider.verifyWebhook(rawBody, "signed");
 assert.deepEqual(fullReversal, {
   eventId: "evt_test_signed", kind: "transfer-reversed", objectId: "tr_test_transfer",
-  paymentId, commandId, amountPence: 7_200, currency: "gbp", occurredAt: new Date(1_783_000_000 * 1000).toISOString()
+  paymentId, commandId, amountPence: 7_200, currency: "gbp", occurredAt: new Date(1_783_000_000 * 1000).toISOString(),
+  providerPaymentId: "pi_test_authorization", sourceChargeId: "ch_test_captured", destinationAccountId: "acct_test_cleaner"
 });
 assert.deepEqual(await provider.verifyWebhook(rawBody, "signed"), fullReversal, "Repeated full reversals must retain the event identity for database deduplication.");
 for (const patch of [
@@ -163,7 +165,7 @@ await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /API version/);
 // A valid signature cannot make missing/contradictory fields safe to apply.
 const eventMetadata = { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId };
 const intentSnapshot = { id: "pi_test_authorization", object: "payment_intent", status: "succeeded", amount: 12_000, amount_received: 12_000, currency: "gbp", metadata: eventMetadata };
-const refundSnapshot = { id: "re_test_refund", object: "refund", status: "succeeded", amount: 2_000, currency: "gbp", payment_intent: intentSnapshot.id, metadata: eventMetadata };
+const refundSnapshot = { id: "re_test_refund", object: "refund", status: "succeeded", amount: 2_000, currency: "gbp", charge: "ch_test_captured", payment_intent: intentSnapshot.id, metadata: eventMetadata };
 const transferSnapshot = { ...reversedTransfer, object: "transfer" };
 for (const [type, snapshot, wrongPrefix] of [
   ["payment_intent.succeeded", intentSnapshot, "re_not_an_intent"],

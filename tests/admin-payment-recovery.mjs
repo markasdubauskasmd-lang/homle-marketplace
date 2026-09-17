@@ -13,6 +13,18 @@ const record = { paymentId, bookingId, paymentStatus: "captured", bookingStatus:
   amountRefundedPence: 0, cleanerPayPence: 7000, currency: "gbp", payoutReady: true, canRefund: true, canTransfer: true };
 const page = (payment = record, offset = 0) => ({ ok: true, payments: [payment], limit: 50, offset, testMode: true });
 const held = { ...record, recoveryCommands: [command], reconciliationReviewRequired: true };
+for (const [reason, explanation] of [
+  ["awaiting-event-parent-identity", /Retry its delivery from Stripe/],
+  ["payment-event-parent-mismatch", /different payment or payout instructions/],
+  ["transfer-attempt-identity-unavailable", /original payout source or destination is unavailable/]
+]) {
+  const normalized = model.adminPaymentQueue(page({...record,
+    recoveryCommands:[{...command,status:"reconciled",recoveryReason:reason}]})).payments[0];
+  assert.equal(model.paymentNextAction(normalized).kind,"reconciliation-review");
+  assert.equal(normalized.canRefund,false,"An earlier reconciled command bypassed a new identity hold");
+  assert.equal(normalized.canTransfer,false);
+  assert.match(model.paymentRecoveryReasonLabel(normalized.recoveryCommands[0].recoveryReason),explanation);
+}
 for (const value of [held, { ...record, recoveryCommands: [command] }, { ...record, reconciliationReviewRequired: true }]) {
   const normalized = model.adminPaymentQueue(page(value)).payments[0];
   assert.equal(model.paymentNextAction(normalized).kind, "reconciliation-review");

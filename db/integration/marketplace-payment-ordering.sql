@@ -5,6 +5,36 @@ BEGIN;
 SELECT set_config('app.user_id', '10000000-0000-4000-8000-000000000004', true);
 SELECT set_config('app.user_roles', 'administrator', true);
 
+-- Historical ordering tests now supply synthetic signed parent facts explicitly.
+-- Only this owner-run fixture helper seeds frozen transfer attempts; product code
+-- must use113 claims and must never infer identity from today's payout account.
+CREATE FUNCTION pg_temp.reconcile_bound_fixture_event(provider text,event_id text,kind text,object_id text,payment_id uuid,command_id uuid,amount_pence integer,currency character(3),occurred timestamptz,payload_hash character(64))
+RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE pi text; source text:='ch_integration_event'; destination text; identity jsonb;
+BEGIN
+ SELECT provider_payment_id INTO pi FROM booking_payments WHERE id=payment_id;
+ IF kind LIKE 'transfer-%' THEN
+   SELECT request_identity INTO identity FROM tideway_private.payment_command_attempt_windows WHERE payment_command_attempt_windows.command_id=reconcile_bound_fixture_event.command_id;
+   IF identity IS NULL THEN
+     identity:=jsonb_build_object('providerPaymentId',pi,'sourceChargeId',source,'destinationAccountId','acct_integration_ordering');
+     INSERT INTO tideway_private.payment_command_attempt_windows(command_id,first_attempt_at,retry_before,request_hash,request_identity)
+       VALUES(command_id,now(),now()+interval '23 hours',decode(repeat('ff',32),'hex'),identity);
+   END IF;
+   source:=identity->>'sourceChargeId'; destination:=identity->>'destinationAccountId';
+ END IF;
+ RETURN tideway_private.reconcile_payment_provider_event(provider,event_id,kind,object_id,payment_id,command_id,amount_pence,currency,occurred,payload_hash,pi,source,destination);
+END;
+$$;
+CREATE FUNCTION pg_temp.seed_retained_event_identity(selected_event text) RETURNS void LANGUAGE sql AS $$
+ INSERT INTO tideway_private.payment_event_parent_identities(provider,provider_event_id,provider_payment_id,source_charge_id,destination_account_id)
+ SELECT e.provider,e.provider_event_id,p.provider_payment_id,
+   CASE WHEN e.event_kind LIKE 'transfer-%' THEN w.request_identity->>'sourceChargeId' ELSE 'ch_integration_event' END,
+   CASE WHEN e.event_kind LIKE 'transfer-%' THEN w.request_identity->>'destinationAccountId' ELSE NULL END
+ FROM tideway_private.payment_provider_events e JOIN booking_payments p ON p.id=e.payment_id
+ LEFT JOIN tideway_private.payment_command_attempt_windows w ON w.command_id=e.command_id
+ WHERE e.provider_event_id=selected_event;
+$$;
+
 DO $payment_ordering$
 DECLARE
   booking_record bookings%ROWTYPE;
@@ -39,7 +69,7 @@ BEGIN
   IF NOT blocked THEN RAISE EXCEPTION 'Cleaner transfer began while a refund was live'; END IF;
 
   -- Only a signed terminal refund failure releases its monetary reservation.
-  PERFORM tideway_private.reconcile_payment_provider_event('stripe','evt_ordering_refund_failed','refund-failed','re_ordering_failed',
+  PERFORM pg_temp.reconcile_bound_fixture_event('stripe','evt_ordering_refund_failed','refund-failed','re_ordering_failed',
     '50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000001',1000,'gbp',occurred-interval '1 second',repeat('7',64));
   PERFORM * FROM tideway_private.begin_booking_payment_command('51000000-0000-4000-8000-000000000004','50000000-0000-4000-8000-000000000010','transfer',NULL,decode(repeat('d5',32),'hex'));
   blocked := false;
@@ -52,21 +82,21 @@ BEGIN
   IF NOT blocked THEN RAISE EXCEPTION 'Refund began after Cleaner transfer was reserved'; END IF;
 
   PERFORM * FROM tideway_private.record_booking_payment_command('51000000-0000-4000-8000-000000000004','tr_payment_ordering','pending');
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_ordering_transfer_1','transfer-succeeded','tr_payment_ordering','50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000004',booking_record.cleaner_pay_pence,'gbp',occurred,repeat('a',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_ordering_transfer_1','transfer-succeeded','tr_payment_ordering','50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000004',booking_record.cleaner_pay_pence,'gbp',occurred,repeat('a',64));
   IF result->>'accepted'<>'true' OR result->>'duplicate'<>'false' THEN RAISE EXCEPTION 'First Cleaner transfer event did not reconcile'; END IF;
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_ordering_transfer_2','transfer-succeeded','tr_payment_ordering','50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000004',booking_record.cleaner_pay_pence,'gbp',occurred+interval '1 second',repeat('b',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_ordering_transfer_2','transfer-succeeded','tr_payment_ordering','50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000004',booking_record.cleaner_pay_pence,'gbp',occurred+interval '1 second',repeat('b',64));
   IF result->>'duplicate'<>'true' THEN RAISE EXCEPTION 'A second event re-applied the same Cleaner transfer'; END IF;
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_ordering_transfer_reverse','transfer-reversed','tr_payment_ordering','50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000004',booking_record.cleaner_pay_pence,'gbp',occurred+interval '2 seconds',repeat('c',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_ordering_transfer_reverse','transfer-reversed','tr_payment_ordering','50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000004',booking_record.cleaner_pay_pence,'gbp',occurred+interval '2 seconds',repeat('c',64));
   IF result->>'accepted'<>'true' OR (SELECT status FROM payment_commands WHERE id='51000000-0000-4000-8000-000000000004')<>'provider-failed' THEN RAISE EXCEPTION 'Verified Cleaner transfer reversal did not reopen the money boundary'; END IF;
 
   PERFORM * FROM tideway_private.begin_booking_payment_command('51000000-0000-4000-8000-000000000006','50000000-0000-4000-8000-000000000010','refund',1000,decode(repeat('d7',32),'hex'));
   PERFORM * FROM tideway_private.record_booking_payment_command('51000000-0000-4000-8000-000000000006','re_payment_ordering','pending');
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_ordering_refund_1','refund-succeeded','re_payment_ordering','50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000006',1000,'gbp',occurred+interval '3 seconds',repeat('d',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_ordering_refund_1','refund-succeeded','re_payment_ordering','50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000006',1000,'gbp',occurred+interval '3 seconds',repeat('d',64));
   IF result->>'accepted'<>'true' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id='50000000-0000-4000-8000-000000000010')<>1000 THEN RAISE EXCEPTION 'First refund event did not reconcile exactly once'; END IF;
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_ordering_refund_2','refund-succeeded','re_payment_ordering','50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000006',1000,'gbp',occurred+interval '4 seconds',repeat('e',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_ordering_refund_2','refund-succeeded','re_payment_ordering','50000000-0000-4000-8000-000000000010','51000000-0000-4000-8000-000000000006',1000,'gbp',occurred+interval '4 seconds',repeat('e',64));
   IF result->>'duplicate'<>'true' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id='50000000-0000-4000-8000-000000000010')<>1000 THEN RAISE EXCEPTION 'A second event applied the same refund twice'; END IF;
 
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_ordering_invalid_regression','authorization-succeeded','pi_payment_ordering','50000000-0000-4000-8000-000000000010',NULL,booking_record.customer_price_pence,'gbp',occurred+interval '5 seconds',repeat('f',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_ordering_invalid_regression','authorization-succeeded','pi_payment_ordering','50000000-0000-4000-8000-000000000010',NULL,booking_record.customer_price_pence,'gbp',occurred+interval '5 seconds',repeat('f',64));
   IF result->>'stateConflict'<>'true' OR (SELECT status FROM booking_payments WHERE id='50000000-0000-4000-8000-000000000010')<>'partially-refunded' THEN RAISE EXCEPTION 'A late authorization event regressed captured/refunded payment state'; END IF;
 END
 $payment_ordering$;
@@ -102,7 +132,7 @@ BEGIN
   UPDATE booking_payments SET status='creating',provider_payment_id=NULL,last_provider_event_at=NULL,
     amount_captured_pence=0,amount_refunded_pence=0,authorized_at=NULL,captured_at=NULL,cancelled_at=NULL
     WHERE id='50000000-0000-4000-8000-000000000010';
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_authorization_before_response','authorization-succeeded','pi_response_race','50000000-0000-4000-8000-000000000010',NULL,
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_authorization_before_response','authorization-succeeded','pi_response_race','50000000-0000-4000-8000-000000000010',NULL,
     (SELECT amount_pence FROM booking_payments WHERE id='50000000-0000-4000-8000-000000000010'),'gbp',now()-interval '1 minute',repeat('9',64));
   IF result->>'accepted' <> 'true' THEN RAISE EXCEPTION 'Signed authorization fixture did not reconcile'; END IF;
   IF (SELECT provider_payment_id FROM booking_payments WHERE id='50000000-0000-4000-8000-000000000010') IS DISTINCT FROM 'pi_response_race' THEN RAISE EXCEPTION 'Signed authorization did not bind provider identity immediately'; END IF;
@@ -124,7 +154,7 @@ BEGIN
     WHERE id=payment.id;
   payment := tideway_private.record_booking_payment_authorization(payment.id,'pi_response_first','authorized');
   IF payment.status <> 'processing' OR payment.authorized_at IS NOT NULL THEN RAISE EXCEPTION 'Unsigned API response authorized a booking'; END IF;
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_authorization_after_response','authorization-succeeded','pi_response_first',payment.id,NULL,payment.amount_pence,'gbp',now()-interval '30 seconds',repeat('8',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_authorization_after_response','authorization-succeeded','pi_response_first',payment.id,NULL,payment.amount_pence,'gbp',now()-interval '30 seconds',repeat('8',64));
   SELECT * INTO payment FROM booking_payments WHERE id=payment.id;
   IF result->>'accepted' <> 'true' OR payment.status <> 'authorized' THEN RAISE EXCEPTION 'Signed event after response could not authorize'; END IF;
 
@@ -177,6 +207,7 @@ DECLARE
   blocked boolean;
   event_name text;
 BEGIN
+  DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN (SELECT id FROM payment_commands WHERE payment_id=p);
   DELETE FROM payment_commands WHERE payment_id=p;
   UPDATE booking_payments SET status='captured',amount_refunded_pence=0,last_provider_event_at=now()-interval '1 minute' WHERE id=p;
   SELECT * INTO payment FROM booking_payments WHERE id=p;
@@ -230,7 +261,7 @@ BEGIN
   -- Existing ten-argument callers remain fail closed, and exact signed replay
   -- can recover only the corresponding historical event's missing projection.
   DELETE FROM tideway_private.payment_disputes WHERE payment_id=p;
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_legacy_closed','dispute-closed','pi_payment_ordering',p,NULL,NULL,NULL,t,repeat('a',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_legacy_closed','dispute-closed','pi_payment_ordering',p,NULL,NULL,NULL,t,repeat('a',64));
   PERFORM pg_temp.test_dispute_event('evt_other_safe','du_other_safe','won',t);
   IF (SELECT status FROM booking_payments WHERE id=p)<>'disputed' THEN RAISE EXCEPTION 'Unidentified legacy evidence was released by an unrelated win'; END IF;
   result := pg_temp.test_dispute_event('evt_legacy_closed','du_recovered_legacy','won',t);
@@ -259,38 +290,41 @@ BEGIN
   END;
   IF NOT blocked THEN RAISE EXCEPTION 'Idempotent unsent transfer bypassed the dispute hold'; END IF;
   -- A command already sent may still report its financial fact; this does not recover lost money.
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_transfer_after_loss','transfer-succeeded','tr_dispute_test',p,c,payment.amount_pence*0+ (SELECT cleaner_pay_pence FROM bookings WHERE id=payment.booking_id),'gbp',t-interval '1 second',repeat('b',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_transfer_after_loss','transfer-succeeded','tr_dispute_test',p,c,payment.amount_pence*0+ (SELECT cleaner_pay_pence FROM bookings WHERE id=payment.booking_id),'gbp',t-interval '1 second',repeat('b',64));
   IF result->>'accepted'<>'true' OR (SELECT status FROM payment_commands WHERE id=c)<>'reconciled' OR (SELECT status FROM booking_payments WHERE id=p)<>'disputed'
     THEN RAISE EXCEPTION 'Late transfer fact erased or bypassed the dispute hold'; END IF;
 
   -- Capture/refund signed events may arrive after a later dispute timestamp.
+  DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN (SELECT id FROM payment_commands WHERE payment_id=p);
   DELETE FROM payment_commands WHERE payment_id=p;
   UPDATE booking_payments SET amount_captured_pence=0,amount_refunded_pence=0 WHERE id=p;
   INSERT INTO payment_commands(id,payment_id,command_kind,amount_pence,status,idempotency_key_hash,created_by)
     VALUES(c,p,'capture',payment.amount_pence,'provider-pending',decode(repeat('ee',32),'hex'),'10000000-0000-4000-8000-000000000004');
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_capture_after_loss','capture-succeeded','pi_payment_ordering',p,c,payment.amount_pence,'gbp',t-interval '1 second',repeat('c',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_capture_after_loss','capture-succeeded','pi_payment_ordering',p,c,payment.amount_pence,'gbp',t-interval '1 second',repeat('c',64));
   IF result->>'accepted'<>'true' OR (SELECT amount_captured_pence FROM booking_payments WHERE id=p)<>payment.amount_pence OR (SELECT status FROM booking_payments WHERE id=p)<>'disputed'
     THEN RAISE EXCEPTION 'Delayed capture was discarded or erased the hold'; END IF;
+  DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN (SELECT id FROM payment_commands WHERE payment_id=p);
   DELETE FROM payment_commands WHERE payment_id=p;
   INSERT INTO payment_commands(id,payment_id,command_kind,amount_pence,status,idempotency_key_hash,created_by)
     VALUES(c,p,'refund',1000,'provider-pending',decode(repeat('ed',32),'hex'),'10000000-0000-4000-8000-000000000004');
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_refund_after_loss','refund-succeeded','re_dispute_test',p,c,1000,'gbp',t-interval '2 seconds',repeat('d',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_refund_after_loss','refund-succeeded','re_dispute_test',p,c,1000,'gbp',t-interval '2 seconds',repeat('d',64));
   IF result->>'accepted'<>'true' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000 OR (SELECT status FROM booking_payments WHERE id=p)<>'disputed'
     THEN RAISE EXCEPTION 'Delayed refund was discarded or erased the hold'; END IF;
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_refund_after_loss_second','refund-succeeded','re_dispute_test',p,c,1000,'gbp',t-interval '1 second',repeat('e',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_refund_after_loss_second','refund-succeeded','re_dispute_test',p,c,1000,'gbp',t-interval '1 second',repeat('e',64));
   IF result->>'duplicate'<>'true' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000 THEN RAISE EXCEPTION 'Disputed refund was applied twice'; END IF;
   PERFORM pg_temp.test_dispute_event('evt_refund_then_won','du_retry_hold','won',t+interval '2 seconds');
   IF (SELECT status FROM booking_payments WHERE id=p)<>'partially-refunded' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000
     THEN RAISE EXCEPTION 'Resolving dispute lost a delayed refund fact'; END IF;
 
   DELETE FROM tideway_private.payment_disputes WHERE payment_id=p;
+  DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN (SELECT id FROM payment_commands WHERE payment_id=p);
   DELETE FROM payment_commands WHERE payment_id=p;
   UPDATE booking_payments SET status='authorized',amount_refunded_pence=0,amount_captured_pence=0 WHERE id=p;
   PERFORM pg_temp.test_dispute_event('evt_won_before_capture','du_won_before_capture','won',t);
   IF (SELECT status FROM booking_payments WHERE id=p)<>'disputed' THEN RAISE EXCEPTION 'Won dispute invented a captured balance'; END IF;
   INSERT INTO payment_commands(id,payment_id,command_kind,amount_pence,status,idempotency_key_hash,created_by)
     VALUES(c,p,'capture',payment.amount_pence,'provider-pending',decode(repeat('ec',32),'hex'),'10000000-0000-4000-8000-000000000004');
-  result := tideway_private.reconcile_payment_provider_event('stripe','evt_capture_after_won','capture-succeeded','pi_payment_ordering',p,c,payment.amount_pence,'gbp',t-interval '1 second',repeat('f',64));
+  result := pg_temp.reconcile_bound_fixture_event('stripe','evt_capture_after_won','capture-succeeded','pi_payment_ordering',p,c,payment.amount_pence,'gbp',t-interval '1 second',repeat('f',64));
   IF result->>'accepted'<>'true' OR (SELECT status FROM booking_payments WHERE id=p)<>'captured'
     THEN RAISE EXCEPTION 'Delayed capture could not complete an already won dispute'; END IF;
 
@@ -340,5 +374,6 @@ END
 $receipt_owner$;
 
 \ir marketplace-payment-recovery.sql
+\ir marketplace-payment-event-identity.sql
 
 ROLLBACK;

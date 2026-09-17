@@ -2,6 +2,7 @@
 SAVEPOINT recovery_checks;
 SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000004',true);
 SELECT set_config('app.user_roles','administrator',true);
+DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN (SELECT id FROM payment_commands WHERE payment_id='50000000-0000-4000-8000-000000000010');
 DELETE FROM payment_commands WHERE payment_id='50000000-0000-4000-8000-000000000010';
 DELETE FROM tideway_private.payment_disputes WHERE payment_id='50000000-0000-4000-8000-000000000010';
 UPDATE booking_payments SET status='captured',amount_refunded_pence=0,amount_captured_pence=amount_pence WHERE id='50000000-0000-4000-8000-000000000010';
@@ -56,6 +57,7 @@ BEGIN
   -- Exact retained signed projection was previously rejected and acknowledged.
   INSERT INTO tideway_private.payment_provider_events(provider,provider_event_id,event_kind,provider_object_id,payment_id,command_id,amount_pence,currency,occurred_at,payload_hash,processed,result_code,reconciliation_version)
     VALUES('stripe','evt_recovery_retained_refund','refund-succeeded','re_recovery_refund',p,c,1000,'gbp',now()-interval '1 minute',repeat('8',64),true,'command-already-failed',1);
+  PERFORM pg_temp.seed_retained_event_identity('evt_recovery_retained_refund');
   result:=tideway_private.record_payment_command_recovery(c,'found-awaiting-signed-evidence',NULL,'re_recovery_refund',pg_temp.recovery_evidence(c,'succeeded'));
   IF result->>'recoveryRequired'<>'false' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000 THEN RAISE EXCEPTION 'Retained verified refund evidence did not recover exactly once'; END IF;
   PERFORM tideway_private.record_payment_command_recovery(c,'found-awaiting-signed-evidence',NULL,'re_recovery_refund',pg_temp.recovery_evidence(c,'succeeded'));
@@ -69,7 +71,7 @@ BEGIN
   result:=tideway_private.record_payment_command_recovery(c,'found-awaiting-signed-evidence',NULL,'re_recovery_refund',pg_temp.recovery_evidence(c,'succeeded'));
   IF result->>'recoveryRequired'<>'true' OR NOT tideway_private.payment_reconciliation_hold(p) THEN RAISE EXCEPTION 'A stale succeeded GET erased the earlier adverse refund observation'; END IF;
   PERFORM tideway_private.record_payment_command_recovery(c,'found-awaiting-signed-evidence',NULL,'re_recovery_refund',pg_temp.recovery_evidence(c,'failed'));
-  PERFORM tideway_private.reconcile_payment_provider_event('stripe','evt_recovery_late_refund_failure','refund-failed','re_recovery_refund',p,c,1000,'gbp',now(),repeat('9',64));
+  PERFORM pg_temp.reconcile_bound_fixture_event('stripe','evt_recovery_late_refund_failure','refund-failed','re_recovery_refund',p,c,1000,'gbp',now(),repeat('9',64));
   IF (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>0 OR (tideway_private.payment_command_recovery_state(c)->>'recoveryRequired')::boolean THEN RAISE EXCEPTION 'Late signed terminal evidence did not resolve its matching observed failure'; END IF;
   -- Future API failure replies remain reserved until a signed outcome.
   PERFORM * FROM tideway_private.begin_booking_payment_command('51000000-0000-4000-8000-000000000802',p,'refund',500,decode(repeat('83',32),'hex'));
@@ -162,6 +164,7 @@ BEGIN
   evidence:=pg_temp.recovery_evidence(c,NULL)||jsonb_build_object('destinationAccountId','acct_integration_ordering','sourceChargeId','ch_recovery_transfer','observedReversedAmount',0);
   INSERT INTO tideway_private.payment_provider_events(provider,provider_event_id,event_kind,provider_object_id,payment_id,command_id,amount_pence,currency,occurred_at,payload_hash,processed,result_code,reconciliation_version)
     VALUES('stripe','evt_recovery_transfer_created','transfer-succeeded','tr_recovery_transfer',p,c,amount,'gbp',now()-interval '1 minute',repeat('c',64),false,'awaiting-state',2);
+  PERFORM pg_temp.seed_retained_event_identity('evt_recovery_transfer_created');
   result:=tideway_private.record_payment_command_recovery(c,'found-awaiting-signed-evidence',NULL,'tr_recovery_transfer',evidence);
   IF result->>'recoveryRequired'<>'false' OR (SELECT status FROM payment_commands WHERE id=c)<>'reconciled' THEN RAISE EXCEPTION 'Exact retained transfer evidence did not recover'; END IF;
   result:=tideway_private.record_payment_command_recovery(c,'found-awaiting-signed-evidence',NULL,'tr_recovery_transfer',evidence||jsonb_build_object('observedReversedAmount',1));
@@ -175,6 +178,7 @@ BEGIN
   IF result->>'recoveryRequired'<>'true' OR (SELECT provider_terminal_failure FROM payment_commands WHERE id=c) THEN RAISE EXCEPTION 'Unsigned full reversal overrode signed transfer accounting'; END IF;
   INSERT INTO tideway_private.payment_provider_events(provider,provider_event_id,event_kind,provider_object_id,payment_id,command_id,amount_pence,currency,occurred_at,payload_hash,processed,result_code,reconciliation_version)
     VALUES('stripe','evt_recovery_transfer_reversed','transfer-reversed','tr_recovery_transfer',p,c,amount,'gbp',now(),repeat('d',64),false,'awaiting-state',2);
+  PERFORM pg_temp.seed_retained_event_identity('evt_recovery_transfer_reversed');
   result:=tideway_private.record_payment_command_recovery(c,'found-awaiting-signed-evidence',NULL,'tr_recovery_transfer',evidence);
   IF result->>'recoveryRequired'<>'false' OR (SELECT status FROM payment_commands WHERE id=c)<>'provider-failed' OR tideway_private.payment_reconciliation_hold(p) THEN RAISE EXCEPTION 'Retained signed full reversal did not resolve its exact transfer'; END IF;
 END
