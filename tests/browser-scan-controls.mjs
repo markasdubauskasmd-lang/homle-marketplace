@@ -169,6 +169,40 @@ try {
   assert(assists.torchHidden, "The torch control is visible on a camera that cannot honour it.");
   assert(assists.zoomHidden, "The zoom chip is visible on a camera that cannot zoom.");
 
+  // An accepted image file can still be corrupt. The recovery action must
+  // replace an existing live stream, not return early because one still exists.
+  for (const frozen of [false, true]) {
+  if (frozen) {
+    await browser.evaluate(`document.querySelector('[data-shutter]').click(); return true;`);
+    await waitFor('!document.querySelector("[data-selection]").hidden', "The previous frame did not freeze before the import.");
+  }
+  await browser.evaluate(`
+    window.__preImportStream = document.querySelector('[data-camera]').srcObject;
+    const files = new DataTransfer();
+    files.items.add(new File(['corrupt jpeg bytes'], 'room.jpg', {type:'image/jpeg'}));
+    const input = document.querySelector('[data-camera-fallback-input]');
+    input.files = files.files;
+    input.dispatchEvent(new Event('change', {bubbles:true}));
+    return true;
+  `);
+  await waitFor('!document.querySelector("[data-camera-blocked]").hidden', "Corrupt photo did not show recovery.");
+  await browser.evaluate(`document.querySelector('[data-camera-retry]').click(); return true;`);
+  await waitFor('document.querySelector("[data-camera-blocked]").hidden && document.querySelector("[data-camera]").srcObject !== window.__preImportStream && document.querySelector("[data-camera]").videoWidth > 0', "Try live camera again did not recover from a corrupt photo.");
+  assert(await browser.evaluate(`
+    const camera = document.querySelector('[data-camera]');
+    const current = camera.srcObject;
+    const oldTrack = window.__preImportStream.getVideoTracks()[0];
+    const released = oldTrack.readyState === 'ended';
+    // A late event from the released camera must not block its replacement.
+    oldTrack.dispatchEvent(new Event('ended'));
+    const deck = document.querySelector('.deck');
+    return released && current === camera.srcObject && current.getVideoTracks()[0].readyState === 'live'
+      && document.querySelector('[data-camera-blocked]').hidden && !document.querySelector('[data-shutter]').disabled
+      && document.querySelector('[data-still]').hidden && document.querySelector('[data-selection]').hidden
+      && !deck.hidden && !deck.inert;
+  `), "Retry left stale hardware, disabled controls, or accepted an old camera's ended event.");
+  }
+
   /* ── Recording: Stop and Cancel visible, Done hidden, mic says Stop ────── */
 
   await browser.evaluate(`document.querySelector("[data-mic]").click(); return true;`);

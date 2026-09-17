@@ -15,7 +15,7 @@ const tick = () => new Promise(setImmediate);
 
 // Exercise the actual overlay orchestration, not just the session helper. A
 // foreground/Reset request must survive cancellation of a pending first frame.
-for (const stage of ["permission", "first-frame"]) for (const action of ["background", "reset", "close"]) {
+for (const stage of ["permission", "first-frame"]) for (const action of ["background", "reset", "retry", "close"]) {
   let acquisitions = 0, resumeTimer, blocked = 0, latePermission;
   const makeStream = () => {
     let stops = 0;
@@ -42,7 +42,7 @@ for (const stage of ["permission", "first-frame"]) for (const action of ["backgr
     setTimeout, clearTimeout,
     window: { clearTimeout() {}, setTimeout: callback => { resumeTimer = callback; return 1; } },
     refreshCameraCapabilities() {}, scheduleCapabilityProbes() {}, renderCameraAssist() {}, layoutLive() {},
-    startDetection() {}, stopDetection() {}, stopSpeaking() {}, resumeDeferredRoomReads() {},
+    startDetection() {}, stopDetection() {}, stopSpeaking() {}, resumeDeferredRoomReads() {}, unfreeze() { state.frozen = false; },
     scanEvents: { record() { blocked++; } }
   });
   vm.runInContext(
@@ -61,6 +61,8 @@ for (const stage of ["permission", "first-frame"]) for (const action of ["backgr
     resumeTimer(); // Return before the cancelled attempt's promise unwinds.
   } else if (action === "reset") {
     await context.changeCameraZoom(true);
+  } else if (action === "retry") {
+    await context.retryCamera();
   } else {
     state.closed = true; context.stopCamera();
   }

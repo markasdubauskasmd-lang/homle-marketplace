@@ -2074,7 +2074,11 @@ async function replayScanCorrections(csrf, requestId, savedScan) {
           trainingConsent: false
         })
       });
-    } catch (error) { throw new Error("Your item correction could not be saved. Please retry before booking.", { cause: error }); }
+    } catch (error) {
+      throw Object.assign(new Error("Your item correction could not be saved. Please retry before booking.", { cause: error }), {
+        statusCode: error?.statusCode, code: error?.code
+      });
+    }
   }
 }
 
@@ -2169,7 +2173,7 @@ async function saveStructuredScan(csrf, requestId) {
       code: String(error?.code || "unknown").slice(0, 40),
       status: Number.isInteger(error?.statusCode) ? error.statusCode : null
     });
-    return false;
+    throw error;
   }
 }
 
@@ -2183,8 +2187,18 @@ async function saveStructuredScan(csrf, requestId) {
 // Only worth retrying a failure that might pass next time. A 4xx means the
 // server understood and refused, and retrying it just wastes the wait.
 async function saveStructuredScanWithRetry(csrf, requestId, attempts = 3) {
+  // Manual booking has no structured scan. Do not add retry delays to it.
+  if (!state.scanRooms.some(room => room && String(room.name || "").trim())) return false;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    if (await saveStructuredScan(csrf, requestId)) return true;
+    try {
+      if (await saveStructuredScan(csrf, requestId)) return true;
+    } catch (error) {
+      const status = error?.statusCode;
+      // Expired authentication and validation failures need customer action;
+      // retain their identity so checkout can show the correct recovery route.
+      if (error?.code === "journey-account-changed"
+          || (status >= 400 && status < 500 && ![408, 429].includes(status))) throw error;
+    }
     if (attempt === attempts) break;
     await new Promise((resolve) => setTimeout(resolve, attempt * 700));
   }
