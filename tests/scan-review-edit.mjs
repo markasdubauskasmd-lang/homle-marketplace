@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {editScanRooms, inferredRoomType, mergeReviewedRoomRescan} from "../public/scan-review-edit.js";
 import "./scanner-handoff.mjs";
+import "./scan-inventory-refresh.mjs";
 import {localScanReview, applyCorrection} from "../public/scan-review-render.js";
 import {scanChecklistLines, inventoryKey, correctInventoryItem, mergeRoomInventory, mergeInventoryIntoSavedDetections} from "../public/room-scan-model.js";
 import {normalizedRoomScan, scanProjection} from "../src/marketplace/scan-service.mjs";
@@ -53,7 +54,7 @@ console.log("Scan structural review: local edits, duplicate names, moves, scope,
   const source=readFileSync(new URL("../public/room-scan-overlay.js",import.meta.url),"utf8");
   const start=source.indexOf("    function seedSavedInventory("), end=source.indexOf("    function setInventory(",start);
   const state={inventories:new Map(),dismissed:new Map([["kitchen",new Set(["fridge"])]])};
-  const context=vm.createContext({state,inventoryKey,transcriptKey:name=>name.toLowerCase(),inventoryFor:name=>state.inventories.get(name.toLowerCase())||[],renderInventory(){}});
+  const context=vm.createContext({state,inventoryKey,mergeInventoryIntoSavedDetections,transcriptKey:name=>name.toLowerCase(),inventoryFor:name=>state.inventories.get(name.toLowerCase())||[],renderInventory(){}});
   vm.runInContext(source.slice(start,end),context);
   context.seedSavedInventory({name:"Kitchen",detections:[{inventoryKey:"oven",label:"Oven",quantity:1},{inventoryKey:"fridge",label:"Fridge"}]});
   assert.equal(state.inventories.get("kitchen")[0].label,"Oven");assert.equal(state.inventories.get("kitchen").length,1);

@@ -9,14 +9,17 @@ const start = source.indexOf("    function renderInventory() {");
 const end = source.indexOf("    // Everything a walking read", start);
 assert(start > 0 && end > start);
 const render = source.slice(start, end);
+const seedStart = source.indexOf("    function seedSavedInventory(");
+const seed = source.slice(seedStart, source.indexOf("    function setInventory(", seedStart));
 const module = `import * as model from '/room-scan-model.js';
-const {inventoryConditionCounts,inventoryKey,inventoryPage,inventoryDisplayLabel,conditionNeedsReview,recommendedAction}=model;
+const {inventoryConditionCounts,inventoryKey,inventoryPage,inventoryDisplayLabel,conditionNeedsReview,recommendedAction,mergeInventoryIntoSavedDetections}=model;
 const el=Object.fromEntries(['found','foundList','foundCount','foundNoun','foundBusy'].map(name=>[name,document.getElementById(name)]));
-const state={currentRoom:'Kitchen',screen:'live',frozen:false,tracks:[],inventoryPages:new Map(),dismissed:new Map(),walkingPreviews:new Map(),keyframeActiveRooms:new Set(['kitchen'])};
+const state={currentRoom:'Kitchen',screen:'live',frozen:false,tracks:[],inventories:new Map(),inventoryPages:new Map(),dismissed:new Map(),walkingPreviews:new Map(),keyframeActiveRooms:new Set(['kitchen'])};
 let items=[{key:'oven',label:'Oven',quantity:1,condition:'light',conditionConfidence:.9}];
-const inventoryFor=()=>items, transcriptKey=()=>state.currentRoom.toLowerCase(), renderScanDebug=()=>{};
+const transcriptKey=(name=state.currentRoom)=>name.toLowerCase(), inventoryFor=(name=state.currentRoom)=>state.inventories.get(transcriptKey(name))||items, renderScanDebug=()=>{};
 ${render}
-window.scanHarness={state,draw:renderInventory,getItems:()=>items,setItems:value=>{items=value;renderInventory();},preview:labels=>{state.walkingPreviews.set(transcriptKey(),labels.map((label,index)=>({label,index})));renderInventory();}};
+${seed}
+window.scanHarness={state,seed:seedSavedInventory,draw:renderInventory,getItems:inventoryFor,setItems:value=>{state.inventories.clear();items=value;renderInventory();},preview:labels=>{state.walkingPreviews.set(transcriptKey(),labels.map((label,index)=>({label,index})));renderInventory();}};
 renderInventory();`;
 if (!resolveChromiumPath()) { console.log("Browser inventory stream SKIPPED: Chromium unavailable."); }
 else {
@@ -61,6 +64,17 @@ else {
         h.state.keyframeActiveRooms.add('kitchen');h.state.walkingPreviews.clear();h.setItems([{key:'oven',label:'Oven'},{key:'air fryer',label:'Air fryer'}]);
         return frozen && switched && failed && !document.querySelector('.is-provisional') && document.querySelectorAll('[data-inventory-rename]').length===2;
       `),'Stale provisional names survived freeze, room switch, failure or final result');
+      assert(await browser.evaluate(`
+        const h=scanHarness;h.setItems([]);
+        h.seed({name:'Kitchen',detections:[{inventoryKey:'oven',label:'Oven',quantity:1,condition:'',conditionConfidence:null}]});
+        const pending=document.querySelector('[data-inventory-rename="oven"] .found-grade').dataset.grade;
+        document.querySelector('[data-inventory-rename="oven"]').focus();
+        h.seed({name:'Kitchen',detections:[{inventoryKey:'oven',label:'Oven',quantity:1,condition:'heavy',conditionConfidence:.95,note:'Visible grease on door',soiling:['grease']}]});
+        const row=document.querySelector('[data-inventory-rename="oven"]');
+        return pending==='uncertain' && row.querySelector('.found-grade').dataset.grade==='heavy'
+          && row.title.includes('Visible grease on door') && document.activeElement===row
+          && document.querySelectorAll('[data-inventory-rename]').length===1;
+      `),'Completed condition evidence stayed hidden behind the provisional inventory row or lost keyboard focus');
     }
     console.log("Browser inventory stream passed: later-view names appear before completion, saved controls remain, aliases/dismissals filtered, stale results cleared; 390/1280px.");
   } finally {await browser.close();await server.close();}
