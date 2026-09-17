@@ -1339,6 +1339,15 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       isCancelled: () => state.closed || document.hidden
     });
     let cameraStartPromise = null;
+    function retryCamera() {
+      if (state.closed) return;
+      // A failed photo import can cover a camera that is still running. An
+      // explicit retry owns a fresh stream and returns from any frozen frame.
+      stopDetection();
+      stopCamera();
+      unfreeze();
+      return startCamera();
+    }
     async function startCamera() {
       if (state.closed || document.hidden) return;
       // Reset or foreground recovery may arrive while the cancelled acquisition,
@@ -4399,7 +4408,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       scheduleNoteRecovery();
       renderRoomNoteControls(el.note.value);
     });
-    el.retry.addEventListener("click", startCamera);
+    el.retry.addEventListener("click", retryCamera);
     for (const button of el.fallbacks) {
       button.addEventListener("click", () => {
         el.fallbackInput.value = "";

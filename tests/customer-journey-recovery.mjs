@@ -4,6 +4,7 @@ import vm from "node:vm";
 import { webcrypto } from "node:crypto";
 import { pricingRequestFromManualTasks, requestedWindow, requestTasksFromLines } from "../public/landlord-dashboard-model.js";
 import { premiumBaseTasks, premiumScope } from "../public/scan-premium-selection.js";
+import "./scanner-save-recovery.mjs";
 
 // Exercise the actual customer handlers with deferred directory responses.
 // No browser, account, network requests or booking mutations are involved.

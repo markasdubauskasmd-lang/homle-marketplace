@@ -2048,19 +2048,36 @@ async function rescanReviewRoom(roomName, inventoryKey = "") {
 //
 // Matched by identity key rather than position, because the server orders objects
 // by its own ids and a positional match would correct the wrong thing. Individual
-// failures are skipped rather than aborting the rest: losing one training label is
-// better than losing them all, and none of this may fail the booking.
+// A missing or ambiguous saved target must stop confirmation: corrections are
+// customer-owned booking scope, not optional training labels.
 async function replayScanCorrections(csrf, requestId, savedScan) {
-  if (!state.scanCorrections.length || !savedScan?.rooms) return;
+  if (!state.scanCorrections.length) return;
+  const incomplete = () => new Error("Your saved room findings could not be verified. Please retry before booking.");
+  if (!Array.isArray(savedScan?.rooms)) throw incomplete();
   const objectIdFor = new Map();
+  const savedRooms = new Set(savedScan.rooms.map(room => room.roomName));
+  const removedKeys = new Set(state.scanCorrections.filter(correction => correction.field === "removed")
+    .map(correction => `${correction.roomName}\u0000${correction.inventoryKey}`));
   for (const room of savedScan.rooms) {
     for (const object of room.objects || []) {
-      objectIdFor.set(`${room.roomName}\u0000${object.inventoryKey}`, object.objectId);
+      const key = `${room.roomName}\u0000${object.inventoryKey}`;
+      if (objectIdFor.has(key)) throw incomplete();
+      objectIdFor.set(key, object.objectId);
     }
+  }
+  // Verify the whole mapping before applying any correction to a partial scan.
+  for (const correction of state.scanCorrections) {
+    const key = `${correction.roomName}\u0000${correction.inventoryKey}`;
+    // A removal can commit before its response is lost. The idempotent scan
+    // read then omits that object. Its confirmed absence in the saved room is
+    // already the customer's requested result; earlier edits to it need no replay.
+    if (!objectIdFor.has(key) && savedRooms.has(correction.roomName) && removedKeys.has(key)) continue;
+    const objectId = objectIdFor.get(key);
+    if (typeof objectId !== "string" || !objectId.trim()) throw incomplete();
   }
   for (const correction of state.scanCorrections) {
     const objectId = objectIdFor.get(`${correction.roomName}\u0000${correction.inventoryKey}`);
-    if (!objectId) continue;
+    if (!objectId) continue; // Only a verified already-absent removal passed preflight.
     try {
       await requestJson(`/api/marketplace/cleaning-requests/${encodeURIComponent(requestId)}/room-scan/objects/${encodeURIComponent(objectId)}`, {
         method: "POST",
@@ -2074,7 +2091,11 @@ async function replayScanCorrections(csrf, requestId, savedScan) {
           trainingConsent: false
         })
       });
-    } catch (error) { throw new Error("Your item correction could not be saved. Please retry before booking.", { cause: error }); }
+    } catch (error) {
+      throw Object.assign(new Error("Your item correction could not be saved. Please retry before booking.", { cause: error }), {
+        statusCode: error?.statusCode, code: error?.code
+      });
+    }
   }
 }
 
@@ -2169,7 +2190,7 @@ async function saveStructuredScan(csrf, requestId) {
       code: String(error?.code || "unknown").slice(0, 40),
       status: Number.isInteger(error?.statusCode) ? error.statusCode : null
     });
-    return false;
+    throw error;
   }
 }
 
@@ -2183,8 +2204,18 @@ async function saveStructuredScan(csrf, requestId) {
 // Only worth retrying a failure that might pass next time. A 4xx means the
 // server understood and refused, and retrying it just wastes the wait.
 async function saveStructuredScanWithRetry(csrf, requestId, attempts = 3) {
+  // Manual booking has no structured scan. Do not add retry delays to it.
+  if (!state.scanRooms.some(room => room && String(room.name || "").trim())) return false;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    if (await saveStructuredScan(csrf, requestId)) return true;
+    try {
+      if (await saveStructuredScan(csrf, requestId)) return true;
+    } catch (error) {
+      const status = error?.statusCode;
+      // Expired authentication and validation failures need customer action;
+      // retain their identity so checkout can show the correct recovery route.
+      if (error?.code === "journey-account-changed"
+          || (status >= 400 && status < 500 && ![408, 429].includes(status))) throw error;
+    }
     if (attempt === attempts) break;
     await new Promise((resolve) => setTimeout(resolve, attempt * 700));
   }
