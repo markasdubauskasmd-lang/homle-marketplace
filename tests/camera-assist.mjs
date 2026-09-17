@@ -81,3 +81,4 @@ import "./manual-camera-zoom.mjs";
 import "./camera-session.mjs";
 import "./camera-lifecycle.mjs";
 import "./camera-constraint-coordination.mjs";
+import "./camera-inference-recovery.mjs";

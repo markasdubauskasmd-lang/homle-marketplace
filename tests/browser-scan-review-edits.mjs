@@ -119,6 +119,15 @@ try {
   await browser.evaluate(`await Promise.all(document.getAnimations().filter(animation=>animation.effect?.getTiming().iterations!==Infinity).map(animation=>animation.finished.catch(()=>{})));await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));const room=document.querySelector('[aria-label="Room name for Utility room"]').closest('section');room.scrollIntoView({behavior:'instant',block:'start'});window.scrollBy({top:-90,behavior:'instant'});await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));return true;`);
   assert.equal(await browser.evaluate(`const control=document.querySelector('[aria-label="Room name for Utility room"]');const rect=control.getBoundingClientRect();return rect.top>=0 && rect.bottom<innerHeight && getComputedStyle(document.querySelector('[data-step=results]')).opacity==='1';`),true,"Capture must show settled room editing controls");
   await writeFile(new URL("review-"+width+".png",captureRoot),await browser.screenshot());
+  // Use actual controls, then reload the saved draft before another AI view.
+  await browser.evaluate(`const row=document.querySelector('[aria-label="Quantity of Tap"]').closest('.scan-review-object');[...row.querySelectorAll('button')].find(button=>button.textContent==='Rename').click();const input=document.querySelector('[aria-label="Item name"]');input.value='Towel rail';[...document.querySelector('[data-scan-inline-editor]').querySelectorAll('button')].find(button=>button.textContent==='Save').click();return true;`);
+  await waitFor(`document.querySelector('[aria-label="Quantity of Towel rail"]')`);
+  await browser.evaluate(`const row=document.querySelector('[aria-label="Quantity of Towel rail"]').closest('.scan-review-object');[...row.querySelectorAll('button')].find(button=>button.textContent==='Not here').click();return true;`);
+  await browser.goto(server.origin+"/landlord/book");await ready();
+  const followthrough=await browser.evaluate(`const {mergeReviewedRoomRescan}=await import('/scan-review-edit.js');const draft=JSON.parse(sessionStorage.getItem('homle_journey_draft')).draft;const room=draft.rooms.find(room=>room.name==='Utility room');const reread=mergeReviewedRoomRescan(room,{objects:[{inventoryKey:'towel rail',label:'Towel rail',quantity:1}],tasks:[]});return {removed:room.removedInventoryKeys,reappeared:reread.objects.some(item=>item.label==='Towel rail'),visible:!!document.querySelector('[aria-label="Quantity of Towel rail"]')};`);
+  assert(followthrough.removed.includes('tap') && followthrough.removed.includes('towel rail'));
+  assert.equal(followthrough.reappeared,false,"A reread recreated the renamed, removed item after reload");
+  assert.equal(followthrough.visible,false);
  }
  assert.deepEqual(writes,[]);
  assert.deepEqual(browser.pageErrors.filter(message=>!/favicon|manifest/i.test(message)),[]);

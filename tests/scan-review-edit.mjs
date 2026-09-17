@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./scan-correction-followthrough.mjs";
 import {editScanRooms, inferredRoomType, mergeReviewedRoomRescan} from "../public/scan-review-edit.js";
 import "./scanner-handoff.mjs";
 import "./scan-inventory-refresh.mjs";

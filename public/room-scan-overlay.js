@@ -352,6 +352,9 @@ let detectorLoad = null;
 // shared too. An overlay closed and reopened mid-inference would otherwise have
 // two callers inside `detect()` on the same model at once.
 let detectorBusy = false;
+// A deadline releases the UI, not non-cancellable GPU work. Later camera
+// sessions must use the room-reading fallback until that shared work settles.
+let detectorStalled = false;
 // Which backend actually won, for the scan record. A device that quietly fell
 // back to WebGL reads identically to one that never had WebGPU unless this is
 // captured at the point the choice is made.
@@ -1837,7 +1840,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         const operation = Promise.resolve().then(() => detector.detect(source, 12, detectionMinimumScore));
         // Inference has no cancellation API on the main-thread backend. A late
         // completion releases the singleton but may never install stale data.
-        const release = () => { detectorBusy = false; };
+        const release = () => { detectorBusy = false; detectorStalled = false; };
         operation.then(release, release);
         const found = await waitForCameraOperation(operation, 8000, "The private-content check took too long. Try another photo or use a room note.");
         if (!isCurrent()) return;
@@ -1845,7 +1848,8 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
           .filter((item) => shouldRedact(item?.class))
           .map((item) => ({ class: item.class, bbox: Array.isArray(item?.bbox) ? item.bbox : [] }));
         state.privateRegionSource = { width, height };
-      } catch {
+      } catch (error) {
+        if (error?.code === "camera-operation-timeout" && detectorBusy) detectorStalled = true;
         if (isCurrent()) {
           state.detectorState = "unavailable";
           state.liveDetectionAvailable = false;
@@ -3550,6 +3554,14 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         state.rafId = 0;
         if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
         scheduleDetectionFrame(step);
+        if (state.detectorState === "ready" && detectorBusy && detectorStalled) {
+          state.detectorState = "unavailable";
+          state.liveDetectionAvailable = false;
+          state.tracks = [];
+          clearBoxes();
+          renderDetectorState();
+          scanEvents.record("scan.detector.unavailable");
+        }
         // Frame selection and assisted reading are not a feature of COCO. While
         // that optional model is loading—or when WebGL/model loading failed—the
         // cheap quality pass still chooses settled views for the room reader.
@@ -3747,12 +3759,19 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
       if (!video.videoWidth || !video.videoHeight) return;
       detectorBusy = true;
       const startedAt = Date.now();
+      let operation;
       try {
         const source = inferenceFrame(video);
         sampleFrameQuality(source);
         // The third argument is coco-ssd's own minimum score. Omitted before, so its
         // 0.5 default applied and low-confidence guesses reached the tracker at all.
-        const found = await state.detector.detect(source, 12, detectionMinimumScore);
+        const detector = state.detector;
+        operation = Promise.resolve().then(() => detector.detect(source, 12, detectionMinimumScore));
+        // Keep singleton ownership until actual settlement even if the UI times
+        // out. A late result can release resources but cannot paint old boxes.
+        const release = () => { detectorBusy = false; detectorStalled = false; };
+        operation.then(release, release);
+        const found = await waitForCameraOperation(operation, 8000, "The object finder took too long. Room reading can continue.");
         state.diagnostics.framesInferred += 1;
         if (state.closed || state.frozen || generation !== state.detectionGeneration) return;
         const rect = viewfinderRect();
@@ -3826,6 +3845,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         // is the union of all of them rather than one photograph.
         maybeReadKeyframe(video);
       } catch (error) {
+        if (error?.code === "camera-operation-timeout" && detectorBusy) detectorStalled = true;
         // A detector that starts failing mid-scan must not wedge the loop or
         // leave stale boxes floating over a live camera. Guarded like the
         // success path, so a rejection arriving from a previous run cannot wipe
@@ -3842,7 +3862,7 @@ export function openRoomScan({ initialRoom = "", itemOnly = false } = {}) {
         state.tracks = [];
         clearBoxes();
       } finally {
-        detectorBusy = false;
+        if (!operation) detectorBusy = false;
         // A phone that needs 400ms a frame is asked for fewer, rather than
         // being pinned at full load until the viewfinder itself stutters.
         state.detectionInterval = nextDetectionDelay(Date.now() - startedAt);

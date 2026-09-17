@@ -470,7 +470,11 @@ assert(
 // the Landlord has since frozen and is choosing on.
 // The binding is optional — the catch takes an `error` so the failure can be logged —
 // but the generation guard must still come before anything that touches the boxes.
-assert(/catch (?:\(\w+\) )?\{[\s\S]{0,400}generation !== state\.detectionGeneration\) return;/.test(overlay), "A failed inference from an earlier run can clear a frozen frame's boxes.");
+const inferenceBody = overlay.slice(overlay.indexOf("async function runDetection("), overlay.indexOf("function pauseForBackground()"));
+const inferenceFailure = inferenceBody.slice(inferenceBody.indexOf("} catch (error) {"));
+assert(inferenceFailure.indexOf("generation !== state.detectionGeneration) return;") >= 0
+  && inferenceFailure.indexOf("generation !== state.detectionGeneration) return;") < inferenceFailure.indexOf("clearBoxes();"),
+  "A failed inference from an earlier run can clear a frozen frame's boxes.");
 
 /* ── Freezing before choosing ──────────────────────── */
 

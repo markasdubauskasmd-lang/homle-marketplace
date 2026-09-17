@@ -196,7 +196,12 @@ export function applyCorrection(rooms, { roomName, inventoryKey, field, value })
       taskRecords = taskRecords.map(record => record.origin === "vision" && record.inventoryKeys.length === 1 && record.inventoryKeys[0] === inventoryKey
         ? { ...record, text: record.text.replace(pattern, (_match, prefix) => prefix + label) } : record);
     }
-    nextRooms.push({ ...room, objects, taskRecords, tasks: taskRecords.map(record => record.text) });
+    // A corrected label may be recognised on the next view under a new key.
+    // Remember both names when it is dismissed, without hiding a separate row.
+    const removedKeys = field === "removed" && before
+      ? [inventoryKey, pricingKey(before.label)].filter(identity => identity && !objects.some(item => item.inventoryKey === identity)) : [];
+    nextRooms.push({ ...room, objects, taskRecords, tasks: taskRecords.map(record => record.text),
+      ...(removedKeys.length ? {removedInventoryKeys: [...new Set([...(room.removedInventoryKeys || []), ...removedKeys])]} : {}) });
   }
   return { rooms: nextRooms, corrections: recorded };
 }

@@ -9,8 +9,10 @@ export function inferredRoomType(room) {
   return scanRoomTypes.find(type => name.includes(type)) || "other";
 }
 function changed(room, objects, removed = [], added = []) {
+  const aliases = (room.objects || []).filter(item => removed.includes(item.inventoryKey))
+    .map(item => inventoryKey(item.label)).filter(identity => identity && !objects.some(item => item.inventoryKey === identity));
   return { ...room, objects, fixtures: objects.map(inventoryDisplayLabel),
-    removedInventoryKeys: [...new Set([...(room.removedInventoryKeys || []), ...removed])],
+    removedInventoryKeys: [...new Set([...(room.removedInventoryKeys || []), ...removed, ...aliases])],
     changedInventoryKeys: [...new Set([...(room.changedInventoryKeys || []), ...removed, ...added])]
   };
 }
