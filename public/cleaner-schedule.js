@@ -131,45 +131,20 @@ function scheduleState(booking) {
   return ["cancelled", "expired", "completed"].includes(booking.status) ? "closed" : "confirmed";
 }
 
-function previewDate(dayIndex, hour, durationHours) {
-  const start = weekDays(dayIndex > 6 ? 1 : 0)[dayIndex % 7];
-  start.setUTCHours(hour, 0, 0, 0);
-  return {
-    scheduledStartAt: start.toISOString(),
-    scheduledEndAt: new Date(start.getTime() + durationHours * 3_600_000).toISOString()
-  };
-}
-
-function previewBookings() {
-  return [
-    {
-      bookingId: "preview-deep-clean",
-      preview: true,
-      participantRole: "cleaner",
-      status: "confirmed",
-      cleaningType: "Deep clean",
-      locationLabel: "Battersea, SW11",
-      propertyArea: "SW11",
-      pricePence: 6800,
-      taskCount: 8,
-      imageLabels: ["Kitchen", "Living room", "Bathroom"],
-      ...previewDate(5, 8, 3)
-    },
-    {
-      bookingId: "preview-regular-clean",
-      preview: true,
-      participantRole: "cleaner",
-      status: "confirmed",
-      cleaningType: "Regular home clean",
-      locationLabel: "Clapham, SW4",
-      propertyArea: "SW4",
-      pricePence: 4800,
-      taskCount: 6,
-      imageLabels: ["Kitchen", "Bedroom", "Hallway"],
-      ...previewDate(8, 12, 2)
-    }
-  ];
-}
+// A Cleaner with no work sees an empty week, not invented work. The calendar
+// itself still renders, because the shape of the week is genuinely useful before
+// the first job arrives — but it carries nothing that could be mistaken for a
+// booking.
+//
+// This replaced two fabricated cleans that were priced, dated and located in
+// south London. They carried an "example" tag, but they sat in an otherwise
+// empty calendar directly beneath stat tiles reading zero earnings and zero
+// jobs, so the page contradicted itself — and of the two readings on offer, the
+// optimistic one is the one a new Cleaner is most likely to take.
+//
+// tests/booking-dashboard-ui.mjs pins their absence, including the literal
+// fixture values, so this note deliberately describes them rather than quoting
+// them.
 
 function jobsForDay(date) {
   const key = londonKey(date.toISOString());
@@ -421,14 +396,17 @@ function setTimeOffConnected(connected) {
 
 function showPreviewSchedule(message) {
   previewMode = true;
-  bookings = previewBookings();
+  bookings = [];
   gate.hidden = true;
   view.hidden = false;
   view.dataset.preview = "true";
   setTimeOffConnected(false);
   if (timeOffStatus) timeOffStatus.textContent = "Time-off controls will activate when live Cleaner jobs are connected.";
   renderAll();
-  showFeedback(message || "Preview mode: these example cleans show how selected work will appear. They are not bookings.");
+  // An empty calendar on a failed load must not read as "you have no work".
+  // Saying the schedule could not be loaded is the only honest message when we
+  // do not know what is in it.
+  showFeedback(message || "Your schedule could not be loaded, so this calendar is empty. Refresh to see your real cleans.", "error");
 }
 
 async function loadSchedule() {
@@ -455,7 +433,7 @@ async function loadSchedule() {
     const liveBookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
     previewMode = !activityRedesign && liveBookings.length === 0;
     if (!activityRedesign || requestedRevision === bookingRevision) {
-      bookings = activityRedesign ? activityRecords(liveBookings) : previewMode ? previewBookings() : liveBookings;
+      bookings = activityRedesign ? activityRecords(liveBookings) : previewMode ? [] : liveBookings;
     }
     view.dataset.preview = previewMode ? "true" : "false";
     setTimeOffConnected(!activityRedesign || Boolean(availabilitySection));
@@ -466,13 +444,13 @@ async function loadSchedule() {
     const payoutLink = document.querySelector("[data-cleaner-payout-link]");
     if (payoutLink) payoutLink.hidden = false;
     renderAll();
-    showFeedback(previewMode ? "No work has been selected yet. The clearly labelled examples below show how future cleans will appear." : "");
+    showFeedback(previewMode ? "No work yet. Your accepted cleans will appear in this calendar. To be offered work, publish your profile and add future availability." : "");
   } catch (error) {
     if (error.code === "browser-offline") showGate("You are offline.", "Reconnect to load your current schedule.", { allowRetry: true });
     else if (error.statusCode === 401) showGate("Sign in as a Cleaner to open your schedule.", "Jobs are private to the assigned Cleaner account.", { allowSignIn: true });
     else if (error.statusCode === 403) showGate("This account cannot open the Cleaner schedule.", "Use a Cleaner account selected during onboarding.", { allowSignIn: true });
     else if (activityRedesign) showGate("Your schedule could not be loaded.", "Try again to see your real bookings and weekly totals.", { allowRetry: true });
-    else showPreviewSchedule("Live jobs are not connected yet. The examples below preview the Activity schedule; no work has been accepted or changed.");
+    else showPreviewSchedule("Live jobs are not connected yet, so this calendar is empty. No work has been accepted or changed.");
   } finally {
     loading = false;
   }

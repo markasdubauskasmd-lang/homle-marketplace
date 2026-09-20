@@ -36,3 +36,14 @@ lossless and stops a dirty tree tripping the publication guard.
 header.** Quoting the PKCS#8 header in prose makes the guard match the prose,
 which is how `LAUNCH_READINESS.md` became a false positive. Describing it avoids
 adding another.
+
+**D6 — Do not delete the `.scan-hero` CSS; it is not dead, and it is not urgent.**
+My own first pass called these 36 rules dead because no markup carries the class.
+That was wrong. `tests/landlord-dashboard-ui.mjs:352` reads `.scan-hero`'s
+`min-height` as the reference the manual booking route must match or exceed, so
+the two routes read as equals — deleting the rules would drop a design guarantee
+while the test still passed on a `null` match, or crash it. The source comment at
+`public/landlord-dashboard.css:407` already says this and says both should retire
+together. Correct fix is to restate the constraint against `.hub-cta`, which
+actually replaced it, then retire both. Deferred: it is cosmetic, and nothing
+about it blocks a paid booking.
