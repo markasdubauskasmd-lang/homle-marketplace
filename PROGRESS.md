@@ -99,8 +99,8 @@ coverage is 71/71. The real gaps are narrower:
 
 | ID | Task | Status |
 |---|---|---|
-| H1 | **Booking and request creation have no rate limit.** `marketplace-http.mjs:475` and `:696` call `security.protect` with no scope. Every auth and AI endpoint is limited; the two money-path writes are not. | TODO |
-| H2 | **No cumulative Anthropic spend cap.** Per-call token ceilings, a 30 s timeout, `maxRetries: 1` and a cheap-model-by-default escalation guard all exist, but nothing stops sustained legitimate-looking traffic running a large bill. The brief asks for a spend cap specifically. | TODO |
+| H1 | ✅ **DONE** `971373f2` — **Booking and request creation had no rate limit.** `marketplace-http.mjs:475` and `:696` call `security.protect` with no scope. Every auth and AI endpoint is limited; the two money-path writes are not. | TODO |
+| H2 | ✅ **DONE** `534fa8b3` — **No cumulative Anthropic spend cap.** Per-call token ceilings, a 30 s timeout, `maxRetries: 1` and a cheap-model-by-default escalation guard all exist, but nothing stops sustained legitimate-looking traffic running a large bill. The brief asks for a spend cap specifically. | TODO |
 | H3 | **No 500 HTML page.** `server.mjs:5967` returns JSON only and never consults `wantsHtmlDocument`, so a browser hitting a server fault gets the unstyled-JSON experience the 404 work existed to remove. | TODO |
 | H4 | **No structured request log** — no request id, latency, or method/path/status line. Error events exist with no request trail to correlate against. | TODO |
 | H5 | `FORCE ROW LEVEL SECURITY` is absent on all 60 tables. Low risk (the app connects as a non-owner) but cheap to close. | TODO |
@@ -127,17 +127,17 @@ coverage is 71/71. The real gaps are narrower:
 
 ## Next step
 
-**H1 — rate-limit booking and request creation.** `marketplace-http.mjs:475` and
-`:696` call `security.protect` with no scope. Every auth and AI endpoint is
-limited; the two money-path writes are not, so an authenticated session can
-create bookings without bound. Needs a new scope in the `request_rate_limits`
-CHECK constraint.
+**H3 — a 500 HTML page.** `server.mjs` returns JSON only on a server fault and
+never consults `wantsHtmlDocument`, so a browser hitting an error gets exactly
+the unstyled-JSON experience the 404 work existed to remove. Small and
+self-contained.
 
-Then **H2** (no cumulative Anthropic spend cap — per-call ceilings exist, nothing
-stops sustained traffic running a large bill), **M5** (no-shows are entirely
-unimplemented), **M7** (nothing reconciles captured − transferred − refunded
-against the expected platform fee), and the **L1 export generation** now that the
-data inventory exists.
+Then **M5** (no-shows are entirely unimplemented — no code, schema or tests,
+only prose in a preview FAQ), **M7** (nothing reconciles captured − transferred
+− refunded against the expected platform fee), **H4** (no structured request
+log, so error events have no request trail to correlate against), and the **L1
+export generation**, now unblocked by the data inventory in
+`docs/DATA_RETENTION_AND_ERASURE.md`.
 
 ## Note on reviews
 
