@@ -47,31 +47,35 @@ For the test path (should already be set — verify):
 For live money, later, all of these must be true in fact before they are set:
 - `PUBLIC_PAYMENTS_APPROVED`, `PAYMENT_ACCOUNT_VERIFIED`, `REFUND_PROCESS_READY`.
 
-### 2a. Automatic settlement — switch on after one rehearsal
+### 2a. Automatic settlement — ⚠️ BUILT BUT NOT YET RUNNABLE
 
-Capture and payout used to need you to open `/admin/payments` and click twice
+**Do not try to switch this on yet. It will do nothing.** An earlier version of
+this section told you to set two environment variables; that was wrong and is
+corrected here.
+
+Capture and payout currently need you to open `/admin/payments` and click twice
 for **every single job**. That does not scale, and it is worse than slow: Stripe
 releases an uncaptured authorization after about a week, so a missed click does
 not delay the money, it loses it.
 
-A settlement worker now does both on a five-minute schedule. It is off by
-default and needs two settings:
+The settlement worker that does both automatically is written and tested. It is
+**not yet composed into any running process**, so the flag has nothing to
+enable. The reason is a real design question rather than an oversight: the
+background worker connects with the restricted `tideway_worker` credential,
+which deliberately has no table grants and cannot execute the payment command
+functions. Making settlement run needs one of:
 
-1. `PLATFORM_SETTLEMENT_USER_ID` — the account id of an administrator the
-   platform acts as. Use the administrator created by
-   `pnpm run provision:administrator`; the database resolves the role from the
-   account, so this cannot be faked with a config value.
-2. `WORKER_PAYMENT_SETTLEMENT_ENABLED=true`.
+- granting the worker role execute rights on the payment commands, which widens
+  a deliberately narrow credential; or
+- running settlement inside the web process with the application credential; or
+- giving it a third, separately-credentialled pool.
 
-**Rehearse before switching it on.** Run one full test-mode booking to
-completion and confirm on `/admin/payments` that the capture and the transfer
-both appear, with the cleaner receiving the expected share and the platform
-keeping the rest. The administrator queue stays authoritative and still works by
-hand, so you can leave settlement off indefinitely if you would rather approve
-each one yourself while volume is low.
+That is a decision about how much the restricted worker is allowed to do, and it
+is recorded in `PROGRESS.md` as the next step rather than guessed at here.
 
-The worker will not touch a payment flagged for reconciliation or dispute
-review — those stay for a human, which is the whole point of the flag.
+**Until then, keep clicking.** The administrator queue is authoritative and
+works. At one cleaner and a handful of bookings that is entirely manageable; it
+is the thing to fix before volume arrives, not after.
 
 ---
 
