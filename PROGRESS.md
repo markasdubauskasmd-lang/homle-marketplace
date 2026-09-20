@@ -5,7 +5,7 @@ limits + the real stack), then this file, then `DECISIONS.md` and
 `HUMAN_TODO.md`.
 
 **Branch:** `claude/great-mendel-7ozvur` · **Base:** `main` at `f38cb82` (#557)
-**Last updated:** 20 September 2026
+**Last updated:** 20 September 2026 · 28 commits ahead of `main`
 
 ---
 
@@ -63,7 +63,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 | ID | Task | Status |
 |---|---|---|
 | L1 | 🟡 **PARTLY DONE** `dc1389d5`, `df6275fd` — queue, deadlines and audited progression shipped; erasure analysed in `docs/DATA_RETENTION_AND_ERASURE.md` and awaiting founder/solicitor decisions. Export generation still to build. **GDPR export/deletion was intake-only.** `privacy-request-service.mjs` has only `list` and `request`; migration 035 inserts a row and never touches user data. No admin fulfilment queue, no export artefact, no SLA. Hard UK GDPR blocker (Art. 15/17, one-month deadline). | TODO |
-| L2 | **No Cookie Policy**, and the privacy notice does not disclose the session/auth cookies actually set. | TODO |
+| L2 | ✅ **DONE** `75c50e9a` — **No Cookie Policy**, and the privacy notice does not disclose the session/auth cookies actually set. | TODO |
 | L3 | Terms, Privacy and the 9 Cleaner Agreement PDFs are self-declared drafts with operator identity unfilled. Signing is hard-blocked in code. Needs a solicitor — `HUMAN_TODO.md` §5. | FOUNDER |
 
 ### P2 — growth (the stated main channel is unserved)
@@ -72,7 +72,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 |---|---|---|
 | G1 | ✅ **DONE** `455ede5e` — **Landing page did not address landlords or letting agents at all.** Zero portfolio/multi-property/agency copy, no section, no CTA. The only trace is a subtitle inside a collapsed dropdown. This is the stated main growth channel. | TODO |
 | G2 | Cleaner audience gets two links and no pitch — no earnings, flexibility or how-it-works copy. | TODO |
-| G3 | **SEO: one indexable page.** 49 of 50 pages have no canonical or OG tag; sitemap has a single URL, test-locked; Terms and Privacy are `noindex`. No service or area landing pages. | TODO |
+| G3 | 🟡 **PARTLY DONE** `455ede5e` — two indexable pages now, both with canonical and OG tags, sitemap updated. The remaining 48 are private or deliberately `noindex`, so the real gap is the absence of service and area landing pages rather than missing tags. **SEO: was one indexable page.** 49 of 50 pages have no canonical or OG tag; sitemap has a single URL, test-locked; Terms and Privacy are `noindex`. No service or area landing pages. | TODO |
 | G4 | **No analytics of any kind** and no funnel conversion events. CSP `script-src 'self'` would block a vendor tag today. Admin funnel report exists but is aggregate, post-signup, no attribution. | TODO |
 | G5 | Cookie consent banner — not required yet (cookies are strictly necessary) but becomes mandatory the moment G4 lands. Do G5 with G4. | TODO |
 
@@ -84,7 +84,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 | Q2 | Ignore test screenshot output | **DONE** — `04db97fa` |
 | Q3 | Remove invented example jobs from the empty Cleaner calendar | **DONE** — `a5822711` |
 | Q4 | P1-6: converge Landlord and Cleaner dashboards onto one design system | TODO — large |
-| Q5 | P2-1: settle Property / Place / Booking vocabulary (`landlord-dashboard.js:1222`) | TODO |
+| Q5 | ✅ **DONE** `2d79d573` — Property / Place / Booking vocabulary settled; "place" is gone from visible copy |
 | Q6 | Close the 40 dead PRs (all verified to contain nothing not in `main`) | FOUNDER — outward-facing |
 | Q7 | `.scan-hero` CSS — not dead, see D6; retire with `.hub-cta` together | DEFERRED |
 | Q8 | Publication guard: 6 false positives + 122 MB tracked vs 100 MiB limit | TODO |
