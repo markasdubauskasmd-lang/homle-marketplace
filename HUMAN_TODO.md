@@ -216,6 +216,18 @@ Administrator until a second one exists.
 
 ## 3. Recruit the first real cleaner — ✅ NOW UNBLOCKED
 
+**There is now a page to send them to: `/for-cleaners`.** It is indexable, in
+the sitemap and linked from the homepage. Read it before you use it, because it
+deliberately says three things a recruitment page usually does not: that Homle
+**cannot promise work yet**, that Homle **does not insure them**, and that they
+are **not employed by Homle**. That is on purpose — anybody who applies despite
+it is someone who will not feel misled in week one, which matters far more at
+this size than conversion rate.
+
+It quotes **no earnings figures** and there is a test that refuses to let one
+be added, because Homle has no basis for one yet. If you later want to say what
+cleaners typically earn, that has to come from real completed jobs.
+
 **This section was blocked and is not any more.** An earlier version told you to
 go and recruit somebody immediately; that was wrong, because a cleaner could not
 then be onboarded to the point of being bookable. Two product gaps caused it,

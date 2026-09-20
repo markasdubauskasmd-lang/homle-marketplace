@@ -153,15 +153,29 @@ assert(visitorShare(300, 200) === 100, "A stage larger than the first threw or e
 // anybody remembering; a test that they match is the price of three copies.
 {
   const beacon = await readFile(new URL("../public/funnel.js", import.meta.url), "utf8");
-  const migration = await readFile(new URL("../db/migrations/124_public_funnel_telemetry.sql", import.meta.url), "utf8");
+  // Derived from disk rather than pinned to 124. Migrations here are
+  // forward-only -- a later one replaces the CHECK constraint and the function
+  // wholesale -- so naming a file means this eventually validates a superseded
+  // copy of the vocabulary instead of the one the database runs. That is the
+  // exact drift `tests/postgres-rate-limiter.mjs` already guards against for
+  // the rate-limit scopes.
+  const { readdir } = await import("node:fs/promises");
+  const migrationDirectory = new URL("../db/migrations/", import.meta.url);
+  let latestFunnelMigration = null;
+  for (const name of (await readdir(migrationDirectory)).filter((entry) => entry.endsWith(".sql")).sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))) {
+    const candidate = await readFile(new URL(name, migrationDirectory), "utf8");
+    if (candidate.includes("public_funnel_surface_allowed") || candidate.includes("record_public_funnel_batch")) latestFunnelMigration = candidate;
+  }
+  assert(latestFunnelMigration, "No migration defines the funnel vocabulary.");
+  const migration = latestFunnelMigration;
   for (const metric of funnelMetrics) {
     assert(beacon.includes(`"${metric}"`), `The browser beacon is missing ${metric}.`);
-    assert(migration.includes(`'${metric}'`), `Migration 124 is missing ${metric}.`);
+    assert(migration.includes(`'${metric}'`), `The latest funnel migration is missing ${metric}.`);
   }
   for (const [name, values] of Object.entries(allowedFunnelDimensions)) {
     for (const value of values) {
       assert(beacon.includes(`"${value}"`), `The browser beacon is missing the ${name} value ${value}.`);
-      assert(migration.includes(`'${value}'`), `Migration 124 is missing the ${name} value ${value}.`);
+      assert(migration.includes(`'${value}'`), `The latest funnel migration is missing the ${name} value ${value}.`);
     }
   }
   for (const [metric] of visitorStages) {

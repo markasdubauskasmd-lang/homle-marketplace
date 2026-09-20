@@ -32,7 +32,7 @@ const metrics = new Set([
   "funnel.payment.authorised"
 ]);
 const audiences = new Set(["customer", "landlord", "agent", "cleaner", "unknown"]);
-const surfaces = new Set(["landing", "for-landlords", "pricing", "signup", "app"]);
+const surfaces = new Set(["landing", "for-landlords", "for-cleaners", "pricing", "signup", "app"]);
 
 const endpoint = "/api/marketplace/funnel-events";
 const maximumQueue = 40;

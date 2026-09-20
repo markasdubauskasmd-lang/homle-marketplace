@@ -56,7 +56,7 @@ export const allowedFunnelDimensions = Object.freeze({
   audience: Object.freeze(["customer", "landlord", "agent", "cleaner", "unknown"]),
   // Which page, from a fixed list -- never a URL and never a path carrying an
   // id.
-  surface: Object.freeze(["landing", "for-landlords", "pricing", "signup", "app"])
+  surface: Object.freeze(["landing", "for-landlords", "for-cleaners", "pricing", "signup", "app"])
 });
 
 // One request cannot carry more than a page's worth of events, and one event

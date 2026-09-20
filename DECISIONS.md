@@ -376,3 +376,32 @@ to save building one panel.
 A negative platform take is preserved rather than clamped. It is exactly what
 an over-transferred booking looks like, and it is the single figure here most
 worth seeing.
+
+**D19 — The cleaner page recruits by being honest about what is missing.**
+Cleaner supply is the constraint that blocks every booking: with nobody to
+match, nothing else in the product matters. The cleaner audience had two links
+saying "Work as a cleaner" and no pitch at all, which is why this outranked the
+remaining admin work despite being a Phase 5 item on paper.
+
+The page is built entirely from things the code actually does — cleaners set
+their own service prices, choose their postcode areas, set the availability
+windows that gate matching, and see the customer-confirmed checklist and their
+exact pay before accepting. The required onboarding sections are listed by
+name, taken from `requiredCleanerSubmissionSections` rather than guessed.
+
+Three things it says that a recruitment page normally would not, and they are
+the point:
+
+* **"We cannot promise you work."** There is no queue of jobs. Implying
+  otherwise recruits people on a promise this platform cannot currently keep,
+  and they would find out in week one.
+* **"Homle does not insure you."** Public liability cover is something the
+  cleaner provides and evidences; the word "insurance" appearing in onboarding
+  must never read as Homle providing it.
+* **"You are not employed by Homle."** Self-employed, own tax, own pricing.
+
+A smoke test refuses, by pattern rather than by review, any hourly earnings
+figure, any "guaranteed work" or volume claim, and any suggestion that Homle
+insures or vets on the cleaner's behalf. Inventing those is the entire failure
+mode of a recruitment page and it is the kind of thing that gets added later by
+somebody optimising conversion.

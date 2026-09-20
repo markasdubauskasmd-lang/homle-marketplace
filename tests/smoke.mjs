@@ -506,7 +506,7 @@ try {
   const [robotsText, sitemapText] = await Promise.all([robotsResponse.text(), sitemapResponse.text()]);
   assert(robotsResponse.ok && robotsResponse.headers.get("content-type") === "text/plain; charset=utf-8" && robotsResponse.headers.get("cache-control") === "no-cache" && robotsText.includes("Sitemap: https://homlle.com/sitemap.xml") && ["/admin", "/api/", "/bookings/", "/cleaner/", "/landlord/", "/login", "/signup", "/onboarding", "/settings", "/notifications", "/opportunity"].every((route) => robotsText.includes(`Disallow: ${route}`)) && !robotsText.includes("onrender.com"), "The public crawler policy is missing, cache-unsafe, points at the preview host or permits a private marketplace surface.");
   const sitemapLocations = [...sitemapText.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
-  assert(sitemapResponse.ok && sitemapResponse.headers.get("content-type") === "application/xml; charset=utf-8" && sitemapResponse.headers.get("cache-control") === "no-cache" && JSON.stringify(sitemapLocations) === JSON.stringify(["https://homlle.com/", "https://homlle.com/for-landlords"]) && !sitemapText.includes("onrender.com"), "The canonical sitemap is missing, cache-unsafe, exposes a private/noindex route or advertises the preview host.");
+  assert(sitemapResponse.ok && sitemapResponse.headers.get("content-type") === "application/xml; charset=utf-8" && sitemapResponse.headers.get("cache-control") === "no-cache" && JSON.stringify(sitemapLocations) === JSON.stringify(["https://homlle.com/", "https://homlle.com/for-landlords", "https://homlle.com/for-cleaners"]) && !sitemapText.includes("onrender.com"), "The canonical sitemap is missing, cache-unsafe, exposes a private/noindex route or advertises the preview host.");
   const landlordPage = await fetch(`${base}/for-landlords`);
   const landlordPageText = await landlordPage.text();
   assert(landlordPage.ok && landlordPageText.includes("letting agents") && landlordPageText.includes("<link rel=\"canonical\" href=\"https://homlle.com/for-landlords\">") && landlordPageText.includes('property="og:title"') && !landlordPageText.includes('name="robots" content="noindex"'), "The landlord and letting-agent page is missing, uncanonicalised or de-indexed. It is the only page addressing the stated main growth channel.");
@@ -517,6 +517,37 @@ try {
   }
   const homePage = await fetch(`${base}/`);
   assert((await homePage.text()).includes("/for-landlords"), "Nothing on the homepage reaches the landlord and letting-agent page.");
+  // Cleaner supply is the constraint that blocks every booking, and the cleaner
+  // audience previously got two links saying "Work as a cleaner" and no pitch.
+  // What matters most here is that the page does not overpromise to get
+  // somebody to apply, so the claims it must NOT make are pinned harder than
+  // the ones it makes.
+  const cleanerPage = await fetch(`${base}/for-cleaners`);
+  const cleanerText = await cleanerPage.text();
+  assert(cleanerPage.ok && !cleanerText.includes('name="robots" content="noindex"')
+    && cleanerText.includes('<link rel="canonical" href="https://homlle.com/for-cleaners">')
+    && cleanerText.includes('property="og:title"'),
+    "The cleaner recruitment page is missing, uncanonicalised or de-indexed.");
+  // It must say plainly that there is no work waiting. A platform this young
+  // implying otherwise recruits people on a promise it cannot keep.
+  assert(cleanerText.includes("we cannot promise you work"),
+    "The cleaner page no longer admits that Homle cannot promise work yet.");
+  // Homle does not insure cleaners; they provide their own cover.
+  assert(cleanerText.includes("Homle does not insure you"),
+    "The cleaner page no longer makes clear that cleaners provide their own insurance.");
+  assert(cleanerText.includes("you are not employed by Homle"),
+    "The cleaner page no longer states the self-employed relationship.");
+  // Invented earnings, volumes and guarantees are the whole failure mode of a
+  // recruitment page, so they are refused by pattern rather than by review.
+  const cleanerClaims = cleanerText.replace(/<!--[\s\S]*?-->/g, "");
+  assert(!/£\s*\d+\s*(?:-|to|–)?\s*\d*\s*(?:per hour|an hour|\/hour|ph\b)/i.test(cleanerClaims),
+    "The cleaner page quotes an hourly earnings figure Homle cannot support.");
+  assert(!/guaranteed (?:work|income|jobs|hours)|earn up to|thousands of (?:jobs|cleaners|customers)/i.test(cleanerClaims),
+    "The cleaner page makes a volume or guarantee claim that is not true.");
+  assert(!/we are insured|fully insured|insurance included|DBS[- ]checked by Homle/i.test(cleanerClaims),
+    "The cleaner page claims insurance or vetting Homle does not provide.");
+  assert(cleanerText.includes('href="/cleaner/onboarding"'), "The cleaner page does not reach onboarding.");
+  assert(homeText.includes("/for-cleaners"), "Nothing on the homepage reaches the cleaner recruitment page.");
   const faviconFallback = await fetch(`${base}/favicon.ico`, { redirect: "manual" });
   assert(faviconFallback.status === 308 && faviconFallback.headers.get("location") === "/homle-logo-128-4f82ebad.png" && faviconFallback.headers.get("cache-control") === "no-cache", "The conventional favicon path does not redirect to the approved compact Homle icon with a revalidating cache boundary.");
   const removedCleanerPreviewAsset = await fetch(`${base}/cleaner-application-preview.js?v=smoke-test`);

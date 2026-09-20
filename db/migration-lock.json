@@ -651,6 +651,11 @@
       "order": 130,
       "file": "130_administrator_revenue_summary.sql",
       "sha256": "48b7b471216411da4a9fbe47297c50b9821f9eacffbdbd039cf8ce8c6bce5023"
+    },
+    {
+      "order": 131,
+      "file": "131_cleaner_surface_funnel.sql",
+      "sha256": "1f7926defe4e750511afc59c7a7e80f7e0abd6ba168a3ee3a60186783d0a25a6"
     }
   ],
   "grantFiles": [

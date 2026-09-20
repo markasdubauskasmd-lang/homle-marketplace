@@ -5629,6 +5629,10 @@ async function serveFile(requestPath, response, cspNonce = "") {
     // with one home. A separate page keeps that pitch out of the pinned-scroll
     // acts and, unlike the homepage, gives the channel something indexable.
     "/for-landlords": "for-landlords.html",
+    // Cleaner supply is the binding constraint: no cleaner means no booking,
+    // whatever else works. The cleaner audience previously got two links
+    // saying "Work as a cleaner" and no pitch at all.
+    "/for-cleaners": "for-cleaners.html",
     "/cookies": "cookies.html",
     "/login": "account.html",
     "/signup": "account.html",
