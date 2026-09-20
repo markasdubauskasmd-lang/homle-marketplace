@@ -168,6 +168,43 @@ is not cosmetic and must be acted on.
 
 ---
 
+### 2d. You can now see what you are approving, and suspend an account
+
+Two things that were missing from the Administrator desk and both matter
+before a real Cleaner meets a real customer.
+
+**Cleaner vetting now shows the application.** `/admin/verifications` had a
+name and two status strings; the submitted application was encrypted with no
+way to read it, so approval — the decision that puts a stranger in somebody's
+home — was made blind. There is now a "Review submitted application" button on
+each Cleaner. Two things to know: every time you open it, that is recorded
+against your account, deliberately, because looking at someone's identity
+documents should be answerable later. And the panel shows document *details*,
+not the files. You still need to open the documents themselves before recording
+an identity decision, and the screen says so.
+
+**`/admin/accounts` can suspend an account.** Search by exact email or account
+id, give a reason, suspend. It signs them out everywhere and stops them signing
+back in. It is reversible.
+
+What it deliberately will not do, so you are not surprised:
+
+- **It does not cancel their bookings or tell anyone.** If you suspend a
+  Cleaner with a job tomorrow, the customer is still expecting them. The screen
+  shows the live booking count before you act; handling those is on you until
+  there is an approved policy for it.
+- **It does not delete anything.** Deletion is the data-protection erasure path
+  in §5, which still needs your retention decisions, and it cannot be undone.
+- **It will not let you suspend yourself, or the last Administrator account.**
+  Both of those would lock you out of the only screen that can undo it.
+
+**Before you rely on it:** create a second Administrator account. The
+last-Administrator guard means that with only one, you cannot suspend it — 
+which is correct, but it also means you have no way to lock out a compromised
+Administrator until a second one exists.
+
+---
+
 ## 3. Recruit the first real cleaner — ✅ NOW UNBLOCKED
 
 **This section was blocked and is not any more.** An earlier version told you to

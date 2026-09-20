@@ -81,6 +81,8 @@ import { createStagingAccountAccess } from "./staging-account-access.mjs";
 import { createAdministratorBookingRepository } from "./administrator-booking-repository.mjs";
 import { createAdministratorBookingService } from "./administrator-booking-service.mjs";
 import { createAdministratorVerificationRepository } from "./administrator-verification-repository.mjs";
+import { createAdministratorAccountRepository } from "./administrator-account-repository.mjs";
+import { createAdministratorAccountService } from "./administrator-account-service.mjs";
 import { createAdministratorVerificationService } from "./administrator-verification-service.mjs";
 import { createAdministratorCoverageRepository } from "./administrator-coverage-repository.mjs";
 import { createAdministratorCoverageService } from "./administrator-coverage-service.mjs";
@@ -307,6 +309,11 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const administratorBookingService = createAdministratorBookingService(administratorBookingRepository);
   const administratorVerificationRepository = createAdministratorVerificationRepository(database);
   const administratorVerificationService = createAdministratorVerificationService(administratorVerificationRepository, { dataEncryptionSecret: env.DATA_ENCRYPTION_KEY });
+  // Suspending an account. `users.account_status` has been enforced in
+  // forty-five places since migration 001 and settable from nowhere, so the
+  // lock was fitted and there was no key.
+  const administratorAccountRepository = createAdministratorAccountRepository(database);
+  const administratorAccountService = createAdministratorAccountService(administratorAccountRepository);
   const administratorCoverageRepository = createAdministratorCoverageRepository(database, { requirePayoutReady: paymentService !== null });
   const administratorCoverageService = createAdministratorCoverageService(administratorCoverageRepository);
   const administratorFunnelRepository = createAdministratorFunnelRepository(database);
@@ -375,7 +382,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     });
   }
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository, { assembleExport: assembleAccountExport });
-  const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, funnelTelemetry: funnelTelemetryRepository, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
+  const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, administratorAccountService, funnelTelemetry: funnelTelemetryRepository, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
     clientKey: options.clientKey,
     onUnexpectedError: options.onUnexpectedError,
     pricingConfiguration: (actor) => pricingConfigurationRepository.activeConfig(actor),
@@ -488,6 +495,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     administratorCoverageService,
     administratorFunnelRepository,
     administratorFunnelService,
+    administratorAccountRepository,
+    administratorAccountService,
     funnelTelemetry: funnelTelemetryRepository,
     unpaidBookingRepository,
     landlordCareRepository,

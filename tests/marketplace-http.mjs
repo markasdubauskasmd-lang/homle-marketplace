@@ -1440,3 +1440,60 @@ console.log("Case-desk refund checks passed: server-resolved payment, money befo
     "The single-verification route now returns an application, so the two paths have been confused.");
 }
 console.log("Cleaner application review HTTP checks passed: administrator-only read, denied to landlords and signed-out visitors, read-only, and the verification routes stay distinct.");
+
+/* ── Suspending an account ─────────────────────────────────────────────── */
+
+// `users.account_status` has been enforced since migration 001 and settable
+// from nowhere, so a Cleaner who behaved badly in somebody's home could not be
+// stopped. These pin the control that closes that.
+{
+  const targetAccountId = "77777777-7777-4777-8777-777777777777";
+  const statusPath = `/api/marketplace/admin/accounts/${targetAccountId}/status`;
+  const accountCalls = [];
+  const accountRouter = createMarketplaceHttpRouter({
+    ...dependencies,
+    administratorAccountService: {
+      async find(actor, identifier) {
+        accountCalls.push({ kind: "find", actor, identifier });
+        return { accountId: targetAccountId, email: "cleaner@example.com", displayName: "A Cleaner", accountStatus: "active", emailVerifiedAt: null, createdAt: "2026-06-01T10:00:00.000Z", roles: ["cleaner"], liveBookings: 1 };
+      },
+      async setStatus(actor, accountId, input) {
+        accountCalls.push({ kind: "set", actor, accountId, input });
+        return { accountId, accountStatus: input.accountStatus, previousStatus: "active", changed: true, revokedSessions: 2, liveBookings: 1 };
+      }
+    }
+  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+
+  const found = await dispatch(accountRouter, "GET", "/api/marketplace/admin/accounts?identifier=cleaner%40example.com", { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(found.response.statusCode === 200 && found.body.account.accountId === targetAccountId,
+    `An Administrator could not look up an account: ${found.response.statusCode}`);
+  assert(accountCalls[0].identifier === "cleaner@example.com", "The search identifier did not reach the service.");
+
+  const suspended = await dispatch(accountRouter, "POST", statusPath, { headers: administratorAuthHeaders, body: { accountStatus: "suspended", reason: "Reported conduct in a customer home." } });
+  assert(suspended.response.statusCode === 200 && suspended.body.changed === true && suspended.body.revokedSessions === 2,
+    `An account could not be suspended: ${suspended.response.statusCode} ${JSON.stringify(suspended.body)}`);
+  assert(accountCalls.at(-1).accountId === targetAccountId && accountCalls.at(-1).actor.roles.includes("administrator"),
+    "The suspension lost its target or its actor.");
+
+  // Nobody else, and never without CSRF.
+  const landlordLookup = await dispatch(accountRouter, "GET", "/api/marketplace/admin/accounts?identifier=cleaner%40example.com", { headers: { cookie: authHeaders.cookie } });
+  assert(landlordLookup.response.statusCode === 403, `A Landlord looked up another account: ${landlordLookup.response.statusCode}`);
+  const anonymousLookup = await dispatch(accountRouter, "GET", "/api/marketplace/admin/accounts?identifier=cleaner%40example.com", {});
+  assert(anonymousLookup.response.statusCode === 401, `A signed-out visitor looked up an account: ${anonymousLookup.response.statusCode}`);
+  const landlordSuspend = await dispatch(accountRouter, "POST", statusPath, { headers: authHeaders, body: { accountStatus: "suspended", reason: "A landlord attempting a suspension." } });
+  assert(landlordSuspend.response.statusCode === 403, `A Landlord suspended an account: ${landlordSuspend.response.statusCode}`);
+  const withoutCsrf = await dispatch(accountRouter, "POST", statusPath, {
+    headers: { cookie: administratorAuthHeaders.cookie, origin: administratorAuthHeaders.origin, "content-type": administratorAuthHeaders["content-type"] },
+    body: { accountStatus: "suspended", reason: "Reported conduct in a customer home." }
+  });
+  assert(withoutCsrf.response.statusCode === 403 && withoutCsrf.body.code === "csrf-rejected", "Account suspension accepted a missing CSRF token.");
+  assert((await dispatch(accountRouter, "GET", statusPath, { headers: { cookie: administratorAuthHeaders.cookie } })).response.statusCode === 405,
+    "The account status path answered a read.");
+
+  // With the service unattached the routes stay unhandled rather than
+  // pretending to be a control that is not there.
+  const withoutAccounts = createMarketplaceHttpRouter({ ...dependencies, administratorAccountService: null }, { clientKey: () => trustedClientKey });
+  assert((await dispatch(withoutAccounts, "GET", "/api/marketplace/admin/accounts?identifier=cleaner%40example.com", { headers: { cookie: administratorAuthHeaders.cookie } })).handled !== true,
+    "An unattached account service still answered a lookup.");
+}
+console.log("Account suspension HTTP checks passed: administrator-only lookup and suspension, CSRF-bound, read-only refused, and unattached service left unhandled.");

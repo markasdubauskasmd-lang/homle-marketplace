@@ -307,3 +307,40 @@ into memory as a side effect of being opened, and the screen says plainly that
 the files themselves still need checking, because an Administrator who believes
 they have seen a passport when they have seen a filename is worse off than one
 who knows they have not. Serving the files themselves is follow-up work.
+
+**D17 — Suspension is the account control; deletion is not.**
+`users.account_status` has existed since migration 001 and is checked in
+forty-five places — login refuses a non-active account, the session lookup
+stops resolving one, settlement refuses to act as one. Nothing in the codebase
+could set it. The lock was fitted and there was no key, so if a Cleaner behaved
+badly in somebody's home, or an account was taken over, there was no way to
+stop them.
+
+Migration 129 adds the key. The column also permits `deletion-pending` and
+`deleted`, and both stay out of reach from this screen on purpose: erasure is a
+reviewed data-protection operation with retention rules the founder still has
+to approve, a hard delete is impossible anyway against twenty-seven foreign
+keys, and a screen offering both invites the irreversible one. Suspension is
+reversible, which is exactly why it is the one offered.
+
+The guards live in the database rather than the service, so there is no second
+copy to drift: a reason of at least ten characters, recorded in the audit row
+— suspending somebody's livelihood is not an anonymous act, and "why" is the
+first question asked afterwards; no suspending yourself, because locking
+yourself out of the only screen that can unlock you is unrecoverable in the
+moment; no suspending the last active Administrator, or the platform loses the
+ability to administer itself in one click; and session revocation in the same
+transaction, because "suspended" and "signed out" disagreeing is the kind of
+gap nobody re-reads.
+
+It reports the account's live booking count and does **not** act on it.
+Suspending a Cleaner with a job tomorrow leaves a customer expecting somebody
+who will not arrive; cancelling those automatically is a money and
+notification decision, not a side effect of a safety action. The number is put
+in front of the Administrator before they act, which is the only place it is
+any use.
+
+The lookup takes an exact email or id and is not a directory. An Administrator
+suspending an account already knows who they are looking for; free-text search
+across everyone who ever signed up is a different feature with a different
+privacy question behind it.

@@ -82,6 +82,7 @@ const adminPaymentCommandPath = new RegExp(`^/api/marketplace/admin/payments/(${
 const adminRequestMatchingReadinessPath = new RegExp(`^/api/marketplace/admin/cleaning-requests/(${uuidPattern})/matching-readiness$`);
 const adminCleanerVerificationPath = new RegExp(`^/api/marketplace/admin/cleaner-verifications/(${uuidPattern})$`);
 const adminCleanerApplicationPath = new RegExp(`^/api/marketplace/admin/cleaner-verifications/(${uuidPattern})/application$`);
+const adminAccountStatusPath = new RegExp(`^/api/marketplace/admin/accounts/(${uuidPattern})/status$`);
 const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
 const bookingDisputePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/dispute$`);
 const adminDisputePath = new RegExp(`^/api/marketplace/admin/disputes/(${uuidPattern})$`);
@@ -159,6 +160,9 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const administratorVerification = dependencies?.administratorVerificationService;
   const administratorCoverage = dependencies?.administratorCoverageService;
   const administratorFunnel = dependencies?.administratorFunnelService;
+  // Optional: absent means the account-control routes report themselves
+  // unavailable rather than the whole administrator surface failing to build.
+  const administratorAccounts = dependencies?.administratorAccountService || null;
   // Optional: absent means the visitor beacon answers 503 and the
   // account-derived funnel report is unaffected. Analytics is never a reason a
   // deployment cannot take a booking.
@@ -321,6 +325,27 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             catch (error) { onUnexpectedError(error); }
           }
           sendJson(response, 200, { ok: true, ...report, visitors });
+          return true;
+        }
+        // Finding and suspending an account. `users.account_status` has been
+        // enforced since migration 001 -- login refuses a non-active account
+        // and the session lookup stops resolving one -- and nothing could set
+        // it. If a Cleaner behaves badly in somebody's home there was no way
+        // to stop them.
+        if (pathname === "/api/marketplace/admin/accounts") {
+          if (!administratorAccounts) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          sendJson(response, 200, { ok: true, account: await administratorAccounts.find(context.actor, url.searchParams.get("identifier")) });
+          return true;
+        }
+        const selectedAccountStatus = pathname.match(adminAccountStatusPath);
+        if (selectedAccountStatus) {
+          if (!administratorAccounts) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const outcome = await administratorAccounts.setStatus(context.actor, selectedAccountStatus[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, ...outcome });
           return true;
         }
         // The evidence behind a vetting decision. Approving a Cleaner is what

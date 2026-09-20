@@ -641,6 +641,11 @@
       "order": 128,
       "file": "128_administrator_cleaner_application_read.sql",
       "sha256": "48311f648d27ca9a30e029fff5a8951d8bf99baf434d04c8eb2daedc852089a9"
+    },
+    {
+      "order": 129,
+      "file": "129_administrator_account_status.sql",
+      "sha256": "7613724181c2976be164a33e7ed12e075f4eaea45099ac8f67b0becc8e1fa142"
     }
   ],
   "grantFiles": [

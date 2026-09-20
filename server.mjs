@@ -5700,6 +5700,7 @@ async function serveFile(requestPath, response, cspNonce = "") {
     "/admin/scan-operations": "admin-scan-operations.html",
     "/admin/bookings": "admin-bookings.html",
     "/admin/verifications": "admin-verifications.html",
+    "/admin/accounts": "admin-accounts.html",
     "/privacy": "privacy.html",
     "/facebook-data-deletion": "facebook-data-deletion.html",
     "/terms": "terms.html"
