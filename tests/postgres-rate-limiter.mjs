@@ -37,7 +37,7 @@ databaseDecision = { allowed: false, retry_after_seconds: 0 };
 await assert.rejects(() => limiter.consume({ scope: "login", key: "trusted:client" }), /invalid retry time/);
 assert.throws(() => createPostgresRateLimiter({}, { secret }), /query-capable pool/);
 assert.throws(() => createPostgresRateLimiter(pool, { secret: "short" }), /32-character secret/);
-assert.equal(postgresRateLimitScopes.length, 25);
+assert.equal(postgresRateLimitScopes.length, 27);
 
 // Derived from disk rather than naming one migration. Pinning 085 meant that
 // the moment a later migration replaced the policy, this check silently

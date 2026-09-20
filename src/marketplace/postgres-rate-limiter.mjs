@@ -30,7 +30,11 @@ const supportedScopes = Object.freeze([
   // real Cleaner may be asked to answer, and neither was bounded — see
   // migration 119.
   "marketplace-landlord:cleaning-request",
-  "marketplace-landlord:booking"
+  "marketplace-landlord:booking",
+  // Platform-wide daily ceilings on metered provider spend, keyed on a constant
+  // so every instance shares one bucket — see migration 120.
+  "marketplace-platform:room-reading-daily",
+  "marketplace-platform:scan-summary-daily"
 ]);
 
 function secretKey(value) {

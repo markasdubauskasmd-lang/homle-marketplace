@@ -596,6 +596,11 @@
       "order": 119,
       "file": "119_booking_write_rate_limits.sql",
       "sha256": "3f344701e121ab6066b894673b369ba8e6c098a4463d4e00b5aaf37dabbfd6ff"
+    },
+    {
+      "order": 120,
+      "file": "120_provider_spend_ceiling.sql",
+      "sha256": "90d948745f579d9d5a84de4116b34562ffa28ba56f8caceb275538a38896c2f0"
     }
   ],
   "grantFiles": [

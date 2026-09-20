@@ -1080,6 +1080,15 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           // Landlord replaying their own valid session must not be able to
           // drive unbounded provider cost.
           await limitPublicRead(request, "marketplace-landlord:scan-summary");
+          // Per-client limits bound one session. They do not bound what a
+          // thousand honest sessions cost, and that is the bill that arrives.
+          // A spent daily budget degrades exactly like an unconfigured
+          // provider, because to the Landlord it is the same thing: the
+          // assisted summary is not available and the walkthrough continues.
+          if (!(await limitPublicRead.platform("marketplace-platform:scan-summary-daily"))) {
+            sendJson(response, 503, { ok: false, error: "Assisted walkthrough summaries are not configured." });
+            return true;
+          }
           if (!speechSummary) {
             sendJson(response, 503, { ok: false, error: "Assisted walkthrough summaries are not configured." });
             return true;
@@ -1108,6 +1117,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
           const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
           await limitPublicRead(request, "marketplace-landlord:room-reading");
+          // The browser already falls back to its on-device reader when the
+          // provider is unavailable. A spent budget takes that same path
+          // rather than showing an error nobody can act on.
+          if (!(await limitPublicRead.platform("marketplace-platform:room-reading-daily"))) {
+            sendJson(response, 503, { ok: false, error: "Assisted room reading is not configured." });
+            return true;
+          }
           if (!roomVision) {
             observeScan("scan.reading.unavailable");
             sendJson(response, 503, { ok: false, error: "Assisted room reading is not configured." });
