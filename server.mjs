@@ -5548,9 +5548,21 @@ function wantsHtmlDocument(request, requestUrl) {
  * than to a blank response.
  */
 async function serveNotFoundDocument(request, response, cspNonce = "") {
+  return serveErrorDocument(request, response, 404, "not-found.html");
+}
+
+/**
+ * Sends a designed error page, or reports that it could not.
+ *
+ * Shared by the 404 and 500 paths so they cannot drift. Returning false rather
+ * than throwing matters on the 500 path in particular: the caller is already
+ * handling a failure, and a page that fails to load must fall through to the
+ * JSON body rather than become a second error inside the first.
+ */
+async function serveErrorDocument(request, response, status, fileName) {
   try {
-    const body = await readFile(path.resolve(publicDir, "not-found.html"));
-    response.writeHead(404, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    const body = await readFile(path.resolve(publicDir, fileName));
+    response.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
     if (request.method === "HEAD") response.end();
     else response.end(body);
     return true;
@@ -5969,6 +5981,14 @@ async function handleHttpRequest(request, response) {
     // and handed an unvalidated value to writeHead, which throws if it is not a
     // legal status.
     const authored = clientErrorStatuses.has(error?.statusCode);
+    // A browser gets a page here too. The 404 work removed the unstyled-JSON
+    // experience for a mistyped URL and left it for a server fault, which is
+    // the worse of the two: the person did nothing wrong and is most likely to
+    // be mid-booking. An API caller still receives the JSON below, with the
+    // same status either way.
+    if (!authored && wantsHtmlDocument(request, requestUrl)) {
+      if (await serveErrorDocument(request, response, 500, "server-error.html")) return;
+    }
     json(response, authored ? error.statusCode : 500, { ok: false, error: authored ? error.message : "Something went wrong. Please try again." });
   }
 }

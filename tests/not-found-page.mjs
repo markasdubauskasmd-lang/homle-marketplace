@@ -123,3 +123,35 @@ if(resolveChromiumPath()){
   }finally{await browser.close();await fixture.close();}
   console.log("404 rendered recovery targets passed at390/768/1440 with documented inline-prose exception.");
 }else console.log("404 rendered recovery targets SKIPPED: Chromium unavailable.");
+
+// The 500 page. The 404 work removed the unstyled-JSON experience for a
+// mistyped URL and left it in place for a server fault, which is the worse of
+// the two: the person did nothing wrong, and they are most likely to be
+// mid-booking when it happens.
+{
+  const { readFile: readSource } = await import("node:fs/promises");
+  const serverSource = await readSource(new URL("../server.mjs", import.meta.url), "utf8");
+  const errorPage = await readSource(new URL("../public/server-error.html", import.meta.url), "utf8");
+
+  // Scriptless by design. This page renders when something has already failed,
+  // so it must not depend on a module loading or a session resolving — either
+  // could be the thing that broke.
+  if (/<script/i.test(errorPage)) throw new Error("The 500 page loads a script, so the failure that produced it could also stop the page explaining it.");
+  if (!errorPage.includes("Error 500")) throw new Error("The 500 page does not say what happened.");
+  // Somebody mid-booking needs to know whether they were charged.
+  if (!/(?:Nothing|not)[^.]*charged or confirmed/.test(errorPage)) throw new Error("The 500 page does not tell a customer whether their booking or payment went through.");
+  if (!errorPage.includes('href="/"') || !errorPage.includes("/landlord/help")) throw new Error("The 500 page offers no way back into Homle and no way to ask for help.");
+  if (!errorPage.includes('class="skip-link"')) throw new Error("The 500 page has no skip link.");
+  if (!/noindex/.test(errorPage)) throw new Error("The 500 page is indexable.");
+
+  // Only for browsers, only for faults this server did not author, and it must
+  // fall through to JSON if the page itself cannot be read — otherwise a
+  // missing file becomes a second error inside the first.
+  const catchBlock = serverSource.slice(serverSource.indexOf("const authored = clientErrorStatuses.has"), serverSource.indexOf("const authored = clientErrorStatuses.has") + 1200);
+  if (!catchBlock.includes("wantsHtmlDocument(request, requestUrl)")) throw new Error("A browser hitting a server fault still receives raw JSON.");
+  if (!catchBlock.includes("!authored")) throw new Error("An authored client error is being replaced by the generic 500 page, hiding the real reason.");
+  if (!/serveErrorDocument\(request, response, 500, "server-error\.html"\)\) return;/.test(catchBlock)) throw new Error("The 500 page does not fall through to JSON when it cannot itself be served.");
+  // One implementation for both pages so they cannot drift apart.
+  if (!serverSource.includes("return serveErrorDocument(request, response, 404, \"not-found.html\")")) throw new Error("The 404 and 500 pages are served by two separate implementations.");
+  console.log("Server-error page tests passed: a browser fault renders a designed, scriptless page that says whether money moved, while API callers keep their JSON and an unreadable page falls through rather than failing twice.");
+}
