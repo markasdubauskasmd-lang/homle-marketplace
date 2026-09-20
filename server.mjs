@@ -366,6 +366,44 @@ function canonicalPublicLocation(request, requestUrl) {
   return `${canonicalUrl.origin}${requestUrl.pathname}${requestUrl.search}`;
 }
 
+/**
+ * One structured line per request, so an error has a trail to sit in.
+ *
+ * Error monitoring records what broke and nothing about the request that broke
+ * it — no method, no path, no timing, no way to correlate two events from the
+ * same visitor. During an incident that is the difference between "something
+ * is throwing" and "every POST to this route has taken nine seconds since the
+ * deploy".
+ *
+ * What is deliberately NOT logged: the query string, any header, any cookie and
+ * any body. Tokens travel in query strings and fragments across this product —
+ * private tracker links, opportunity links, verification links — and a log is
+ * the easiest place in a system to leak one and the hardest to clean up
+ * afterwards. The path is kept because it identifies the route, and UUIDs in a
+ * path are record identifiers rather than credentials.
+ *
+ * On in production by default, because a trail nobody switched on before the
+ * incident is not a trail. `REQUEST_LOG` set to "off" disables it.
+ */
+const requestLogEnabled = String(process.env.REQUEST_LOG || "").trim().toLowerCase() !== "off"
+  && (process.env.NODE_ENV === "production" || String(process.env.REQUEST_LOG || "").trim().toLowerCase() === "on");
+
+function logRequest(request, response, requestUrl, requestId, startedAt) {
+  if (!requestLogEnabled) return;
+  try {
+    console.log(JSON.stringify({
+      channel: "request",
+      requestId,
+      method: request.method,
+      path: requestUrl.pathname,
+      status: response.statusCode,
+      durationMs: Math.round(Number(process.hrtime.bigint() - startedAt) / 1e6)
+    }));
+  } catch {
+    // A logging failure must never take a served request with it.
+  }
+}
+
 function json(response, statusCode, body) {
   response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
   response.end(JSON.stringify(body));
@@ -5698,6 +5736,11 @@ async function handleHttpRequest(request, response) {
   const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
   const cspNonce = randomBytes(18).toString("base64");
   setSecurityHeaders(response, requestUrl.pathname, cspNonce);
+  // Recorded on `finish` rather than inline, so the status and duration are the
+  // ones the client actually received no matter which branch answered.
+  const requestId = randomBytes(8).toString("hex");
+  const startedAt = process.hrtime.bigint();
+  response.once("finish", () => logRequest(request, response, requestUrl, requestId, startedAt));
 
   try {
     const canonicalLocation = canonicalPublicLocation(request, requestUrl);
@@ -5967,7 +6010,9 @@ async function handleHttpRequest(request, response) {
     }
     json(response, 404, { ok: false, error: "Not found." });
   } catch (error) {
-    console.error(error);
+    // Tagged with the same id as the request line above, which is the whole
+    // point: an error and its request can be put back together afterwards.
+    console.error(`request ${requestId} failed`, error);
     // Once a handler has started writing, a second write throws
     // ERR_HTTP_HEADERS_SENT from inside this catch — which escaped the request and
     // took the process with it, because nothing awaits the promise `createServer`

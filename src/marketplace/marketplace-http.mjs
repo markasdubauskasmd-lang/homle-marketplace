@@ -1099,7 +1099,11 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           // A spent daily budget degrades exactly like an unconfigured
           // provider, because to the Landlord it is the same thing: the
           // assisted summary is not available and the walkthrough continues.
-          if (!(await limitPublicRead.platform("marketplace-platform:scan-summary-daily"))) {
+          //
+          // Charged only once a provider is actually configured, so a budget
+          // that measures provider spend is not consumed by requests that could
+          // never reach one.
+          if (speechSummary && !(await limitPublicRead.platform("marketplace-platform:scan-summary-daily"))) {
             sendJson(response, 503, { ok: false, error: "Assisted walkthrough summaries are not configured." });
             return true;
           }
@@ -1131,15 +1135,23 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
           const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
           await limitPublicRead(request, "marketplace-landlord:room-reading");
-          // The browser already falls back to its on-device reader when the
-          // provider is unavailable. A spent budget takes that same path
-          // rather than showing an error nobody can act on.
-          if (!(await limitPublicRead.platform("marketplace-platform:room-reading-daily"))) {
+          if (!roomVision) {
+            observeScan("scan.reading.unavailable");
             sendJson(response, 503, { ok: false, error: "Assisted room reading is not configured." });
             return true;
           }
-          if (!roomVision) {
-            observeScan("scan.reading.unavailable");
+          // Charged after the provider-configured check, because a budget that
+          // measures provider spend must only count requests that could reach
+          // the provider. Charging first meant a deployment with no provider
+          // burned a ceiling that measured nothing.
+          //
+          // The browser already falls back to its on-device reader when the
+          // provider is unavailable, and a spent budget takes that same path
+          // rather than showing an error nobody can act on. It is observed, so
+          // reaching the ceiling is a signal somebody can see rather than a
+          // silent degradation.
+          if (!(await limitPublicRead.platform("marketplace-platform:room-reading-daily"))) {
+            observeScan("scan.reading.budget-spent");
             sendJson(response, 503, { ok: false, error: "Assisted room reading is not configured." });
             return true;
           }

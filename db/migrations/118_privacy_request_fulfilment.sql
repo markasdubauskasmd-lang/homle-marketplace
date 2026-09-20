@@ -43,7 +43,11 @@ BEGIN
 
   SELECT jsonb_build_object(
     'requests', COALESCE((
-      SELECT jsonb_agg(entry ORDER BY entry->>'createdAt')
+      -- No outer ORDER BY: sorting on the rendered timestamp is lexicographic,
+      -- which is only chronological while the session timezone is UTC. Under a
+      -- zone with daylight saving the rendered offsets mix and the page
+      -- misorders. The inner ORDER BY already sequences the page correctly.
+      SELECT jsonb_agg(entry)
       FROM (
         SELECT jsonb_build_object(
           'requestId', request.id,

@@ -54,10 +54,18 @@ booking completed, payment authorized, no dispute or reconciliation hold,
 verified payout destination, one live command per kind — lives in
 `begin_payment_command`. A parallel settlement path in SQL would duplicate all of
 it, and money movement is the last place in this codebase that should have two
-implementations able to drift. The cost is that the worker needs a real
-administrator account to act as, because the database resolves the role from the
-account; that is `PLATFORM_SETTLEMENT_USER_ID`, and it is a feature rather than a
-workaround — no environment variable can assert a role.
+implementations able to drift. The cost is that the worker needs a real administrator account to act as:
+`PLATFORM_SETTLEMENT_USER_ID`.
+
+**Corrected 20 September 2026.** This decision originally claimed the database
+resolves the role from the account, so a wrong id would fail safely. That is
+backwards. `tideway_private.has_role` reads `app.user_roles`, which
+`database.mjs` sets verbatim from the actor the application supplies — the
+database trusts the caller. Any user's id in that variable would have granted
+that identity authority to capture and transfer every payment and stamped them
+on the audit record. Migration 122 adds `account_holds_role`, and the attachment
+verifies the configured account against `user_roles` before scheduling
+anything, which is what makes the original sentence true.
 
 **D8 — Cancelling a booking charges nothing.** The money is only ever authorized,
 never captured, before a clean happens, so releasing an uncaptured hold costs the

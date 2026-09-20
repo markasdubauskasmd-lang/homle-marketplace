@@ -42,14 +42,23 @@ export function createPaymentSettlementWorker(options = {}) {
     throw new TypeError("Payment settlement requires a payment service with an administrator queue, capture and transfer.");
   }
   const actor = options.actor;
-  // The actor is the platform acting as itself. It must genuinely carry the
-  // administrator role, because the database checks the role rather than
-  // trusting the caller — which is the property that makes reusing the manual
-  // path safe rather than a way around it.
+  // The actor is the platform acting as itself.
+  //
+  // This check is a guard against a programming mistake, NOT a security
+  // boundary. `tideway_private.has_role` reads the roles the application hands
+  // the database, so the database trusts this actor rather than resolving it
+  // from the account. The account is verified against `user_roles` in
+  // attachment.mjs before a worker is ever constructed; that is where the real
+  // check lives, and it has to, because this one is only checking a literal
+  // written two lines away from it.
   if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.includes("administrator")) {
     throw new TypeError("Payment settlement requires a platform administrator actor.");
   }
-  const batchLimit = boundedInteger(options.batchLimit, 1, 100, 25, "Settlement batch limit");
+  const batchLimit = boundedInteger(options.batchLimit, 1, 100, 100, "Settlement batch limit");
+  // Bounded so one pass cannot run unbounded against the database. Twenty pages
+  // of a hundred covers far more than the pilot will hold; exceeding it is
+  // reported rather than silently truncated.
+  const maximumPages = boundedInteger(options.maximumPages, 1, 200, 20, "Settlement page limit");
   const onUnexpectedError = typeof options.onUnexpectedError === "function" ? options.onUnexpectedError : () => {};
 
   return Object.freeze({
@@ -57,40 +66,69 @@ export function createPaymentSettlementWorker(options = {}) {
       let captured = 0;
       let transferred = 0;
       let failed = 0;
-      const page = await payments.listForAdministrator(actor, { status: "actionable", limit: batchLimit });
-      const queue = Array.isArray(page?.payments) ? page.payments : [];
-      for (const payment of queue) {
-        // Anything the queue has flagged for human review stays for a human.
-        // These are exactly the cases where moving money automatically is most
-        // likely to be wrong.
-        if (payment.reconciliationReviewRequired === true || payment.disputeReviewRequired === true) continue;
-        try {
-          if (payment.canCapture === true) {
-            // A stable key means a repeated pass, a restart mid-flight, or two
-            // workers racing all resolve to the same command rather than a
-            // second charge.
-            await payments.capture(actor, { paymentId: payment.paymentId, idempotencyKey: `settle_capture_${payment.paymentId}` });
-            captured += 1;
-            continue;
+      let inspected = 0;
+      let pages = 0;
+      let exhausted = false;
+
+      // The queue must be paged, not sampled.
+      //
+      // "Actionable" includes `canCancel`, which is true for every live
+      // confirmed booking with an authorization — and the queue orders ties by
+      // most recently updated. A booking authorized this morning therefore
+      // sorts above a completed job awaiting capture, whose payment last
+      // changed days ago. Reading one fixed first page meant that once enough
+      // upcoming bookings existed, the page contained nothing settleable and
+      // the worker quietly settled nothing at all, for ever, reporting a
+      // perfectly healthy `captured: 0`.
+      //
+      // That is precisely the volume this worker exists for, and the outcome it
+      // exists to prevent: authorizations expiring uncaptured.
+      while (pages < maximumPages && !exhausted) {
+        const page = await payments.listForAdministrator(actor, { status: "actionable", limit: batchLimit, offset: pages * batchLimit });
+        const queue = Array.isArray(page?.payments) ? page.payments : [];
+        pages += 1;
+        inspected += queue.length;
+        exhausted = queue.length < batchLimit;
+        for (const payment of queue) {
+          // Anything the queue has flagged for human review stays for a human.
+          // These are exactly the cases where moving money automatically is most
+          // likely to be wrong.
+          if (payment.reconciliationReviewRequired === true || payment.disputeReviewRequired === true) continue;
+          try {
+            if (payment.canCapture === true) {
+              // A stable key means a repeated pass, a restart mid-flight, or two
+              // workers racing all resolve to the same command rather than a
+              // second charge.
+              await payments.capture(actor, { paymentId: payment.paymentId, idempotencyKey: `settle_capture_${payment.paymentId}` });
+              captured += 1;
+              continue;
+            }
+            if (payment.canTransfer === true) {
+              await payments.transfer(actor, { paymentId: payment.paymentId, idempotencyKey: `settle_transfer_${payment.paymentId}` });
+              transferred += 1;
+            }
+          } catch (error) {
+            failed += 1;
+            // A refusal is information, not a crash. The administrator queue is
+            // still there and still shows this payment; reporting keeps it
+            // visible in monitoring rather than only in a log nobody reads.
+            onUnexpectedError(error);
           }
-          if (payment.canTransfer === true) {
-            await payments.transfer(actor, { paymentId: payment.paymentId, idempotencyKey: `settle_transfer_${payment.paymentId}` });
-            transferred += 1;
-          }
-        } catch (error) {
-          failed += 1;
-          // A refusal is information, not a crash. The administrator queue is
-          // still there and still shows this payment; reporting keeps it
-          // visible in monitoring rather than only in a log nobody reads.
-          onUnexpectedError(error);
         }
       }
+
+      // Running out of pages before running out of queue is a capacity signal,
+      // not a routine outcome: something settleable may be sitting past the
+      // last page this pass reached.
+      if (!exhausted) onUnexpectedError(new RangeError(`Payment settlement stopped after ${pages} pages without reaching the end of the actionable queue.`));
+
       return Object.freeze({
-        inspected: queue.length,
+        inspected,
+        pages,
         captured,
         transferred,
         failed,
-        moreMayRemain: queue.length === batchLimit
+        moreMayRemain: !exhausted
       });
     }
   });
@@ -100,9 +138,10 @@ export function createPaymentSettlementWorker(options = {}) {
  * Whether automatic settlement is switched on.
  *
  * Default off, like every other money-touching capability here. Turning it on
- * needs a real platform administrator account id, because the database resolves
- * the role from the account rather than from configuration — there is no way to
- * assert the role from an environment variable, which is the point.
+ * also needs `PLATFORM_SETTLEMENT_USER_ID`, and that account is verified
+ * against `user_roles` before anything is scheduled — see `attachment.mjs`.
+ * The database does not resolve the role itself; it trusts the roles the
+ * application hands it, which is exactly why that check has to exist.
  */
 export function paymentSettlementEnabled(env = process.env) {
   return String(env.WORKER_PAYMENT_SETTLEMENT_ENABLED || "").trim().toLowerCase() === "true";

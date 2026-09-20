@@ -26,7 +26,8 @@ function stubPayments(queue, behaviour = {}) {
     calls,
     async listForAdministrator(suppliedActor, input) {
       calls.push({ kind: "list", actor: suppliedActor, input });
-      return { payments: queue, limit: input.limit, offset: 0, testMode: true };
+      const offset = Number(input.offset || 0);
+      return { payments: queue.slice(offset, offset + input.limit), limit: input.limit, offset, testMode: true };
     },
     async capture(suppliedActor, input) {
       calls.push({ kind: "capture", actor: suppliedActor, input });
@@ -98,10 +99,28 @@ const mixedRun = await createPaymentSettlementWorker({ payments: mixed, actor, o
 assert(mixedRun.failed === 1 && mixedRun.transferred === 1, "A failing payment stopped the rest of the batch from settling.");
 assert(reported.length === 1 && reported[0].code === "payment-not-capturable", "A settlement refusal was swallowed instead of being reported to monitoring.");
 
-// A full page means there is probably more waiting.
-const full = stubPayments(Array.from({ length: 2 }, (_, index) => payment({ paymentId: index === 0 ? paymentId : otherPaymentId })));
-const fullRun = await createPaymentSettlementWorker({ payments: full, actor, batchLimit: 2 }).runOnce();
-assert(fullRun.moreMayRemain === true && full.calls[0].input.limit === 2, "A full settlement page did not report that more may remain.");
+// The queue must be paged, not sampled. "Actionable" includes every live
+// confirmed booking with an authorization, and ties order by most recently
+// updated — so a booking authorized this morning sorts above a completed job
+// awaiting capture whose payment last changed days ago. Reading one fixed first
+// page meant that past a certain number of upcoming bookings the worker settled
+// nothing at all, for ever, while reporting a healthy zero.
+const buried = stubPayments([
+  ...Array.from({ length: 4 }, () => payment({ paymentId: otherPaymentId })),
+  payment({ canCapture: true })
+]);
+const buriedRun = await createPaymentSettlementWorker({ payments: buried, actor, batchLimit: 2 }).runOnce();
+assert(buriedRun.captured === 1, "A settleable payment beyond the first page was never reached, which is the starvation this worker exists to avoid.");
+assert(buried.calls.filter((call) => call.kind === "list").length >= 3, "The worker read a single page instead of paging the queue.");
+assert(buried.calls.some((call) => call.kind === "list" && Number(call.input.offset) > 0), "The worker never advanced the offset.");
+
+// Bounded, so one pass cannot run unbounded against the database — and running
+// out of pages is reported rather than silently truncating the queue.
+const endless = stubPayments(Array.from({ length: 20 }, () => payment({ paymentId: otherPaymentId })));
+const capped = [];
+const cappedRun = await createPaymentSettlementWorker({ payments: endless, actor, batchLimit: 2, maximumPages: 3, onUnexpectedError: (error) => capped.push(error) }).runOnce();
+assert(cappedRun.pages === 3 && cappedRun.moreMayRemain === true, "The settlement pass did not stop at its page limit.");
+assert(capped.some((error) => error instanceof RangeError), "Stopping before the end of the queue was not reported.");
 
 // Default off, like every other money-touching capability here.
 assert(paymentSettlementEnabled({}) === false && paymentSettlementEnabled({ WORKER_PAYMENT_SETTLEMENT_ENABLED: "false" }) === false, "Automatic settlement defaulted to on.");
@@ -132,7 +151,23 @@ assert(/settlementTimer\.unref\?\.\(\)/.test(attachmentSource), "The settlement 
 assert(/clearInterval\(settlementTimer\)/.test(attachmentSource), "Shutting the marketplace down leaves the settlement timer running.");
 // Enabled-but-not-composed would otherwise be invisible until somebody noticed
 // money had stopped moving.
-assert(/settlementRequested\)\s*\{[\s\S]{0,400}onUnexpectedError\(/.test(attachmentSource), "Settlement asked for and not composed fails silently.");
+assert(/settlementRefusal\) \{[\s\S]{0,300}onUnexpectedError\(/.test(attachmentSource), "Settlement asked for and not composed fails silently.");
+
+// The configured account must be verified against user_roles before anything is
+// scheduled. `tideway_private.has_role` reads the roles the application hands
+// the database, so the database TRUSTS this actor rather than resolving it —
+// without this check, any user's id in PLATFORM_SETTLEMENT_USER_ID would have
+// granted that identity authority to capture and transfer every payment, and
+// stamped them on the audit record as the person who moved the money.
+assert(attachmentSource.includes("account_holds_role"), "The settlement account is never verified, so any user's id would gain administrator money authority.");
+assert(/account_holds_role[\s\S]{0,400}not an active administrator account/.test(attachmentSource), "A configured account that is not an administrator does not stop settlement.");
+assert(attachmentSource.indexOf("account_holds_role") < attachmentSource.indexOf("createPaymentSettlementWorker("), "The account is verified after the worker is built rather than before.");
+const verificationMigration = await readFile(new URL("../db/migrations/122_settlement_account_verification.sql", import.meta.url), "utf8");
+assert(verificationMigration.includes("FROM user_roles") && verificationMigration.includes("account.account_status = 'active'"), "Account verification does not read the granted roles, or lets a suspended account keep settling.");
+assert(/RETURNS boolean/.test(verificationMigration), "Account verification returns more than a yes or no, so it could enumerate somebody's roles.");
+// A settlement misconfiguration must not take the marketplace down with it, and
+// must not leak the pools -- this block sits after the teardown try/catch.
+assert(/try \{[\s\S]{0,500}createPaymentSettlementWorker\(/.test(attachmentSource), "A throw while composing settlement would leak the pools and never call adapters.close().");
 const runtimeSource = await readFile(new URL("../src/marketplace/worker-runtime.mjs", import.meta.url), "utf8");
 assert(/paymentSettlement[\s\S]{0,400}actor: options\.paymentSettlement\.actor/.test(runtimeSource), "The settlement job does not receive an explicit platform actor.");
 

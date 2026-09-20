@@ -590,7 +590,7 @@
     {
       "order": 118,
       "file": "118_privacy_request_fulfilment.sql",
-      "sha256": "f24c191ccb9614265b5cfb7c4d9b9a9522e4a6a116723ed200f1493f4594e761"
+      "sha256": "8c00bc2a887b019a6e68ca35d15505be6f662577826830da5080fbc9e8e5f02b"
     },
     {
       "order": 119,
@@ -606,6 +606,16 @@
       "order": 121,
       "file": "121_settlement_reconciliation.sql",
       "sha256": "2a6926692d3fd4fde4396b1be1bfcd44b962f904bb17577845165b5a20b7ba8b"
+    },
+    {
+      "order": 122,
+      "file": "122_settlement_account_verification.sql",
+      "sha256": "9d53420ae56042efabf0950d53cd16e72d34cfa758b7d69563082b7481ade16e"
+    },
+    {
+      "order": 123,
+      "file": "123_payment_notice_event_binding.sql",
+      "sha256": "b5000d9cf7d11b13fb643ddac27c36ed4a70873ccd427a90d785a1beafc55896"
     }
   ],
   "grantFiles": [

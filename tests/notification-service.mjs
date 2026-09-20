@@ -202,5 +202,27 @@ console.log("Notification tests passed: account-only inbox, race-safe read actio
   // because it cannot be corrected once sent.
   const paymentEmailCopy = workerCopy.slice(workerCopy.indexOf('"payment-captured"'), workerCopy.indexOf('"booking-reminder"'));
   if (/£|pence|\d+\.\d{2}/.test(paymentEmailCopy)) throw new Error("A payment email states an amount, which cannot be corrected once sent.");
+  // A status is not an event. Dispute reconciliation recomputes the payment's
+  // status from the captured and refunded totals, so closing a chargeback
+  // produces `disputed -> captured` or `disputed -> refunded` without any money
+  // moving. Keyed on to_status alone, that emailed the customer "Payment taken
+  // for your clean" weeks after the charge, mid-dispute, and "A refund was
+  // issued" when the bank had pulled the money. Both are false statements about
+  // somebody's money, by email, unrecallable.
+  const noticeBinding = await readFile(new URL("../db/migrations/123_payment_notice_event_binding.sql", import.meta.url), "utf8");
+  if (!noticeBinding.includes("eventKind")) throw new Error("Payment notices are still chosen from the status alone, so a dispute closure will claim money moved.");
+  for (const [status, kind] of [["captured", "capture-succeeded"], ["refunded","refund-succeeded"], ["authorization-failed", "authorization-failed"]]) {
+    if (!new RegExp(`'${status}'[\\s\\S]{0,120}'${kind}'`).test(noticeBinding)) throw new Error(`The ${status} notice is not bound to the ${kind} provider event.`);
+  }
+  // No causing event means it was not a capture, refund or failure, whatever
+  // status it landed on -- including routes added later.
+  if (!/causing_event IS NULL[\s\S]{0,80}RETURN NEW/.test(noticeBinding)) throw new Error("A transition with no causing provider event still sends a money notice.");
+
+  // The retry notice must reach the step it names. Its button says "Retry
+  // payment" and its purpose is to get the customer back to paying.
+  const { notificationActionPath } = await import("../public/notification-inbox-model.js");
+  const someBooking = "55555555-5555-4555-8555-555555555555";
+  if (notificationActionPath("payment-failed", someBooking) !== "/landlord/dashboard") throw new Error("payment-failed routes somewhere without a payment step, while promising Retry payment.");
+
   console.log("Payment outcome notice tests passed: capture, refund and failure reach the customer by email and in the inbox, keyed per transition so repeated partial refunds are not dropped, without restating an amount.");
 }

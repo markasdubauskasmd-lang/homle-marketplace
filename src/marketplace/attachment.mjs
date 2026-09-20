@@ -268,33 +268,56 @@ export async function createMarketplaceAttachment(options = {}) {
   // credential so a scheduled job could move money is a worse trade than
   // running the job where the application credential already lives.
   //
-  // The actor's `roles` only satisfy the service-layer check. The database
-  // resolves the administrator role from the account itself, so a misconfigured
-  // id fails there and the worker reports it — it cannot grant itself anything.
+  // The configured account is verified against `user_roles` before anything is
+  // scheduled. This is not belt and braces: `tideway_private.has_role` reads
+  // the roles the application supplies, so the database trusts this actor
+  // rather than resolving it. Without the check, any user's id in
+  // PLATFORM_SETTLEMENT_USER_ID would have granted that identity authority to
+  // capture and transfer every payment, and stamped them on the audit record.
   let settlementTimer = null;
   const settlementUserId = platformSettlementUserId(env);
   const settlementRequested = paymentSettlementEnabled(env);
   let settlementReady = false;
-  if (settlementRequested && runtime.paymentService && settlementUserId) {
-    const settlement = createPaymentSettlementWorker({
-      payments: runtime.paymentService,
-      actor: { userId: settlementUserId, roles: ["administrator"] },
-      onUnexpectedError: adapters.onUnexpectedError
-    });
-    const runSettlement = () => {
-      settlement.runOnce().catch((error) => adapters.onUnexpectedError(error));
-    };
-    settlementTimer = setInterval(runSettlement, 300_000);
-    settlementTimer.unref?.();
-    settlementReady = true;
-  } else if (settlementRequested) {
-    // Asked for and not composed is a configuration mistake that would
-    // otherwise be invisible until somebody noticed money had stopped moving.
-    adapters.onUnexpectedError(new TypeError(
-      settlementUserId
-        ? "Automatic payment settlement is enabled but payments are not attached, so nothing will settle."
-        : "Automatic payment settlement is enabled but PLATFORM_SETTLEMENT_USER_ID is not set, so nothing will settle."
-    ));
+  if (settlementRequested) {
+    let settlementRefusal = null;
+    if (!runtime.paymentService) settlementRefusal = "payments are not attached";
+    else if (!settlementUserId) settlementRefusal = "PLATFORM_SETTLEMENT_USER_ID is not set";
+    else {
+      let holdsRole = false;
+      try {
+        const verified = await pool.query("SELECT tideway_private.account_holds_role($1::uuid, 'administrator') AS ok", [settlementUserId]);
+        holdsRole = verified.rows[0]?.ok === true;
+      } catch (error) {
+        settlementRefusal = `the configured account could not be verified (${error?.code || "unknown error"})`;
+      }
+      if (!settlementRefusal && !holdsRole) settlementRefusal = "PLATFORM_SETTLEMENT_USER_ID is not an active administrator account";
+    }
+    if (settlementRefusal) {
+      // Enabled and not running would otherwise be invisible until somebody
+      // noticed money had stopped moving.
+      adapters.onUnexpectedError(new TypeError(`Automatic payment settlement is enabled but ${settlementRefusal}, so nothing will settle.`));
+    } else {
+      // This block sits after the composition try/catch that owns teardown, so
+      // anything thrown here would leak the pools, the realtime source, email
+      // and object storage and never call adapters.close(). Settlement is
+      // optional and the marketplace is not: a settlement misconfiguration is
+      // reported loudly and leaves the site serving.
+      try {
+        const settlement = createPaymentSettlementWorker({
+          payments: runtime.paymentService,
+          actor: { userId: settlementUserId, roles: ["administrator"] },
+          onUnexpectedError: adapters.onUnexpectedError
+        });
+        const runSettlement = () => {
+          settlement.runOnce().catch((error) => adapters.onUnexpectedError(error));
+        };
+        settlementTimer = setInterval(runSettlement, 300_000);
+        settlementTimer.unref?.();
+        settlementReady = true;
+      } catch (error) {
+        adapters.onUnexpectedError(error);
+      }
+    }
   }
 
   let closed = false;

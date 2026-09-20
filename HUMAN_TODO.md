@@ -50,30 +50,48 @@ For live money, later, all of these must be true in fact before they are set:
 ### 2a. Automatic settlement — switch on after one rehearsal
 
 Capture and payout otherwise need you to open `/admin/payments` and click twice
-for **every single job**. That does not scale, and it is worse than slow: Stripe
-releases an uncaptured authorization after about a week, so a missed click does
-not delay the money, it loses it.
-
-A settlement worker now does both on a five-minute schedule, inside the web
-process. It is off by default and needs two settings in the Render dashboard:
+for every completed job. A settlement worker now does both on a five-minute
+schedule, inside the web process. It is off by default and needs two settings in
+the Render dashboard:
 
 1. `PLATFORM_SETTLEMENT_USER_ID` — the account id of an administrator the
    platform acts as. Use the administrator created by
-   `pnpm run provision:administrator`. The database resolves the role from the
-   account, so a wrong id fails safely rather than granting anything.
+   `pnpm run provision:administrator`.
 2. `WORKER_PAYMENT_SETTLEMENT_ENABLED=true`.
+
+**Use the administrator's id and nothing else.** An earlier version of this
+section said a wrong id would "fail safely". That was wrong, and it was the most
+dangerous sentence in this file. The database does not resolve the role from the
+account — it trusts the roles the application hands it — so any user's id would
+have given that identity authority to capture and transfer every payment on the
+platform, and recorded them as the person who moved the money.
+
+That is now checked: the configured account is verified against the granted
+roles before settlement is scheduled, and a non-administrator, suspended or
+unknown id stops settlement and reports it rather than borrowing that person's
+identity. The instruction is safe now because the check exists, not because it
+was ever safe.
+
+**What this does and does not solve.** It removes the administrator's two
+clicks. It does **not** remove the click that actually loses money: a payment
+can only be captured once the booking reaches `completed`, and only the customer
+can do that by confirming the finished clean. A customer who never opens the app
+leaves the booking awaiting review, the authorization uncaptured, and Stripe
+releases the hold after about a week. Chasing that confirmation — a reminder, a
+time limit after which completion is assumed, or an administrator override — is
+a policy decision you still need to make, and it is the one that protects the
+money.
 
 **Rehearse before relying on it.** Run one full test-mode booking to completion
 and confirm on `/admin/payments` that both the capture and the transfer appear,
 with the cleaner receiving the expected share and the platform keeping the rest.
+Then open `/api/marketplace/admin/payments/reconciliation`, which reports any
+booking where a cleaner was paid more than the customer paid, or where money was
+captured days ago and never transferred.
 
-It will not touch a payment flagged for reconciliation or dispute review —
-those stay for a human, which is the point of the flag — and the administrator
-queue remains authoritative, so you can leave settlement off indefinitely and
-keep approving each one by hand while volume is low.
-
-If you enable it without setting the account id, it reports that to monitoring
-rather than failing silently.
+It will not touch a payment flagged for reconciliation or dispute review, and
+the administrator queue remains authoritative, so you can leave settlement off
+and keep approving each one by hand while volume is low.
 
 ---
 

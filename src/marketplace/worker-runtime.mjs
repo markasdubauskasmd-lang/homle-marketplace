@@ -47,7 +47,9 @@ export function createMarketplaceWorkerRuntime(pool, options = {}) {
   // grants on the payment commands. The hook stays because a future standalone
   // settlement service would use it, and because the tests construct it
   // directly; it is inert unless a caller supplies a payment service, and
-  // nothing in this repository does.
+  // nothing in this repository does. A caller that ever does must verify the
+  // actor's account against `user_roles` first — the database trusts the roles
+  // it is handed rather than resolving them.
   if (options.paymentSettlement) {
     const worker = createPaymentSettlementWorker({
       payments: options.paymentSettlement.payments,

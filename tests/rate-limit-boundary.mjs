@@ -114,8 +114,19 @@ console.log("Rate-limit boundary tests passed: trusted keys, scoped decisions, b
   }
   // Degrading must look like an unconfigured provider, because to the customer
   // it is the same thing and the browser already handles that by falling back.
-  if (!/scan-summary-daily"\)\)\) \{\s*sendJson\(response, 503/.test(httpSource) || !/room-reading-daily"\)\)\) \{\s*sendJson\(response, 503/.test(httpSource)) {
+  if (!/scan-summary-daily"\)\)\)[\s\S]{0,80}sendJson\(response, 503/.test(httpSource) || !/room-reading-daily"\)\)\)[\s\S]{0,120}sendJson\(response, 503/.test(httpSource)) {
     throw new Error("A spent provider budget does not degrade the way an unconfigured provider does.");
   }
+  // A budget that measures provider spend must only be charged for requests
+  // that could reach the provider. Charging first meant a deployment with no
+  // provider configured burned a ceiling that measured nothing, and a client
+  // looping on a malformed body could exhaust it without one metered call.
+  const readingRoute = httpSource.slice(httpSource.indexOf('pathname === "/api/marketplace/landlord/room-reading"'), httpSource.indexOf('pathname === "/api/marketplace/landlord/room-reading"') + 2400);
+  if (readingRoute.indexOf("room-reading-daily") < readingRoute.indexOf("if (!roomVision)")) throw new Error("The room-reading budget is charged before the provider-configured check, so an unconfigured deployment spends it.");
+  const summaryRoute = httpSource.slice(httpSource.indexOf('pathname === "/api/marketplace/landlord/scan-summary"'), httpSource.indexOf('pathname === "/api/marketplace/landlord/scan-summary"') + 2400);
+  if (!/speechSummary && !\(await limitPublicRead\.platform/.test(summaryRoute)) throw new Error("The summary budget is charged even when no provider is configured.");
+  // Reaching the ceiling has to be visible, or the "signal to look" the policy
+  // promises never reaches anybody.
+  if (!readingRoute.includes("scan.reading.budget-spent")) throw new Error("A spent room-reading budget is not observed, so the degradation is silent.");
   console.log("Provider spend-ceiling tests passed: one shared daily bucket above the per-client limits, degrading to the on-device path when spent, failing loudly when the limiter itself is down, and set high enough that an honest day never reaches it.");
 }

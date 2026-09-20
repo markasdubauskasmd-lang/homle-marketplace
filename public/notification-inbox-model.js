@@ -55,7 +55,10 @@ export function notificationActionPath(eventType, bookingId, payload = {}) {
   if (eventType === "new-booking-request") return "/cleaner/dashboard";
   if (eventType === "cleaner-declined") return "/landlord/dashboard";
   if (eventType === "cleaner-invitation-expired") return payload?.matchingReopened === true ? "/landlord/dashboard" : "/cleaner/dashboard";
-  if (["payment-window-opened", "payment-action-required"].includes(eventType)) return "/landlord/dashboard";
+  // payment-failed belongs here too: its whole purpose is to get the customer
+  // back to the payment step, and its button says "Retry payment". Routing it
+  // to the booking page promised the one action the destination does not offer.
+  if (["payment-window-opened", "payment-action-required", "payment-failed"].includes(eventType)) return "/landlord/dashboard";
   return bookingPath;
 }
 
