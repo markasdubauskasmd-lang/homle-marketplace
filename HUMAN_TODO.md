@@ -49,13 +49,34 @@ For live money, later, all of these must be true in fact before they are set:
 
 ---
 
-## 3. Recruit the first real cleaner
+## 3. Recruit the first real cleaner — ⚠️ DO NOT START YET
 
-**Unblocks:** everything. The live public directory returns zero cleaner
-profiles, so a customer can complete the entire booking journey and match nobody.
-No code change fixes this.
+**Read this before you contact anybody.** An earlier version of this file told
+you to go and recruit a cleaner now. That was wrong, and acting on it would have
+wasted a real person's time and your credibility with them.
 
-Steps:
+A cleaner currently **cannot be onboarded to the point of being bookable**, for
+two reasons found in the 20 September audit, both in code and both mine to fix:
+
+1. **A cleaner can never publish their profile.** Publishing requires 100%
+   completion, but four of the nine required fields — biography, price,
+   languages, and the residential/commercial preference — are not written by any
+   page in the product. The ceiling is about 56%. The publish control itself is
+   inert: it is marked read-only and has no handler behind it.
+2. **A cleaner cannot create a bookable availability window.** The API exists and
+   is correct, but no page calls it, and the page built for it is redirected
+   away. What the schedule screen saves goes into a different store that the
+   matcher never reads.
+
+So the live directory returning zero cleaners is **not** purely a recruitment
+problem, which is what this file previously implied. It is a product gap sitting
+behind a recruitment problem. Recruiting first would produce a vetted, willing
+cleaner who then cannot be matched to any job.
+
+These are tracked as C1 and C2 in `PROGRESS.md` and are now the top of the queue.
+**This section unblocks once they ship** — you will be told.
+
+When it does unblock, the steps are:
 1. Find and vet one cleaner: right to work, references, DBS if you are claiming
    it (do not claim it until it is done), and public liability cover.
 2. Have them complete the real application at `/cleaner/apply` on the live site.
