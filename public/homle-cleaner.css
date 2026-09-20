@@ -7585,3 +7585,141 @@ a.hc-reg-card:hover { box-shadow: 0 14px 30px rgba(180, 150, 110, .2); text-deco
 @media(max-width:600px) { #cleaner-performance-main .hc-criteria { grid-template-columns:1fr; } #cleaner-performance-main .hc-rank { flex-direction:column; align-items:flex-start; } }
 
 .hp-faq { margin:24px 0; line-height:1.6; } .hp-faq details { border-top:1px solid #ddd; padding:14px 0; } .hp-faq summary { cursor:pointer; font-weight:700; } .hp-faq summary:focus-visible { outline:3px solid #e9003b; outline-offset:4px; } .hp-table-wrap { overflow-x:auto; } .hp-faq table { width:100%; border-collapse:collapse; text-align:left; } .hp-faq th,.hp-faq td { padding:10px; border-bottom:1px solid #ddd; } .hp-faq caption { text-align:left; margin:12px 0; font-weight:700; } .hp-calculator { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; } .hp-calculator label { font-size:13px; font-weight:600; } .hp-calculator input { display:block; width:100%; box-sizing:border-box; padding:12px; border:1px solid #888; border-radius:10px; font:inherit; margin-top:5px; } .hp-calculator-result { display:block; font-size:24px; font-weight:800; padding:20px 0 0; } @media(max-width:650px) { .hp-calculator { grid-template-columns:1fr; } }
+
+/* Available hours — the only input matching reads.
+   Kept visually quieter than the booking cards above it, because this is setup
+   a Cleaner does once and edits rarely, not work they are being offered. */
+.hc-schedule-windows {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid var(--hc-line, #e6ded7);
+  border-radius: 16px;
+  background: var(--hc-paper, #fff);
+}
+
+.hc-availability-window-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.hc-availability-window-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.hc-availability-window-fields input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--hc-line, #e6ded7);
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 400;
+  background: #fff;
+  color: inherit;
+}
+
+.hc-availability-list {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hc-availability-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 14px;
+  border: 1px solid var(--hc-line, #e6ded7);
+  border-radius: 12px;
+  background: var(--hc-cream, #fbf7f4);
+}
+
+.hc-availability-item-when { font-weight: 600; }
+
+/* A held window belongs to a booking, so the server refuses to withdraw it.
+   Saying "Booked" is more use than a button that would fail. */
+.hc-availability-item-held {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  opacity: .72;
+}
+
+.hc-availability-item-remove {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--hc-line, #e6ded7);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hc-availability-item-remove:hover,
+.hc-availability-item-remove:focus-visible { border-color: currentColor; }
+.hc-availability-item-remove[disabled] { opacity: .6; cursor: default; }
+
+.hc-availability-empty { margin: 12px 0 0; }
+
+/* The bio counter turns from a requirement into a confirmation. */
+.hc-experience-bio-count { margin: 4px 0 16px; font-size: 13px; opacity: .78; }
+.hc-experience-bio-count[data-satisfied="true"] { opacity: 1; font-weight: 600; }
+.hc-experience-bio textarea,
+.hc-experience-rate input,
+.hc-experience-language-other input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--hc-line, #e6ded7);
+  border-radius: 10px;
+  font: inherit;
+  background: #fff;
+  color: inherit;
+}
+.hc-experience-bio textarea { min-height: 96px; resize: vertical; }
+.hc-experience-bio > span,
+.hc-experience-rate > span { display: block; margin-bottom: 6px; font-weight: 600; }
+.hc-experience-bio em { font-style: normal; font-weight: 400; opacity: .72; }
+.hc-experience-rate-note { margin: 4px 0 16px; font-size: 13px; opacity: .78; }
+.hc-experience-about-note { margin: 0 0 14px; opacity: .8; }
+
+.hc-experience-languages,
+.hc-experience-property-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-bottom: 16px;
+}
+
+.hc-experience-languages > p,
+.hc-experience-property-types > p { flex: 1 0 100%; margin: 0 0 4px; }
+
+.hc-experience-languages label,
+.hc-experience-property-types label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.hc-experience-language-other { flex: 1 0 100%; flex-direction: column; align-items: stretch; gap: 6px; }
+.hc-experience-language-other > span { font-weight: 600; }
+
+@media (max-width: 720px) {
+  .hc-availability-window-fields { grid-template-columns: minmax(0, 1fr); }
+  .hc-availability-item { flex-wrap: wrap; }
+}

@@ -237,3 +237,32 @@ assert(profilePreviewScript.includes('addEventListener("keydown"') && profilePre
 assert(profilePreviewScript.includes('aria-disabled') && profilePreviewScript.includes("Finish every profile section to publish"), "An unpublishable profile shows an enabled switch that will fail when used.");
 
 console.log("Cleaner publish-path tests passed: every completion field is collected and read, pounds convert to exact pence, and the publish switch performs an authenticated whole-profile update it can be operated to reach.");
+
+// Available hours are the only input matching reads. The POST endpoint behind
+// them was written, validated and granted, then never called from anywhere in
+// the product — so every Cleaner was unmatchable regardless of how many were
+// recruited, and the page built for it had been redirected away.
+const schedulePage = await readFile(new URL("../public/cleaner-schedule.html", import.meta.url), "utf8");
+const scheduleScript = await readFile(new URL("../public/cleaner-schedule.js", import.meta.url), "utf8");
+assert(/method: "POST"[\s\S]{0,200}cleaner\/availability|cleaner\/availability"[\s\S]{0,200}method: "POST"/.test(scheduleScript), "Nothing in the product creates an availability window, so no Cleaner can be matched.");
+assert(scheduleScript.includes('method: "DELETE"') && scheduleScript.includes("cleaner/availability/"), "A Cleaner cannot withdraw hours they can no longer work.");
+assert(scheduleScript.includes("storedCsrf()"), "Availability changes are sent without the session CSRF token and will be refused.");
+for (const control of ['name="availabilityDate"', 'name="availabilityStart"', 'name="availabilityEnd"']) {
+  assert(schedulePage.includes(control), `The schedule page cannot collect ${control}.`);
+}
+// An overnight shift is ordinary in commercial cleaning; rejecting it as
+// "ends before it starts" would quietly exclude that whole market.
+assert(scheduleScript.includes("24 * 60 * 60_000") && /if \(endAt <= startAt\) endAt = new Date/.test(scheduleScript), "An overnight availability window is rejected instead of rolling into the next morning.");
+// The client bounds must not contradict normalizedAvailabilityWindow, or a
+// Cleaner gets a server error for something the form accepted.
+assert(scheduleScript.includes("30 * 60_000") && scheduleScript.includes("5 * 60_000") && scheduleScript.includes("366 * 24 * 60 * 60_000"), "The availability form does not mirror the server's duration, lead-time and horizon limits.");
+// A held window belongs to a booking and the server refuses to withdraw it.
+assert(scheduleScript.includes('window_.status === "held"') && scheduleScript.includes("Booked"), "A booked window offers a remove button the server will refuse.");
+
+// Holiday mode is stored in the onboarding blob and enforced nowhere. It must
+// not claim otherwise. This is the false-trust-claim limit in CLAUDE.md.
+assert(!schedulePage.includes("Homle will not offer new jobs on this date"), "The schedule page promises holiday enforcement that nothing performs.");
+assert(!/Holiday mode &mdash; pause all new job offers/.test(schedulePage), "Holiday mode still claims to pause offers it cannot pause.");
+assert(schedulePage.includes("remove your available hours"), "The time-off section does not point at the control that actually stops offers.");
+
+console.log("Cleaner availability tests passed: hours can be added and withdrawn against the real endpoint, overnight shifts survive, client bounds mirror the server, booked windows are not offered for removal, and holiday mode no longer claims an enforcement it does not have.");

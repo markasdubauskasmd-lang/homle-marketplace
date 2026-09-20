@@ -12,8 +12,8 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/site.webmanifest">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
-  <link rel="stylesheet" href="/homle-cleaner.css?v=20260807-1">
-  <script src="/cleaner-schedule.js?v=20260913-job-refresh-1" type="module"></script>
+  <link rel="stylesheet" href="/homle-cleaner.css?v=20260920-availability-1">
+  <script src="/cleaner-schedule.js?v=20260920-availability-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
   <script src="/notification-badge.js?v=20260729-1" type="module"></script>
 </head>
@@ -170,22 +170,51 @@
             <div class="hc-week-grid" data-week-grid></div>
           </div>
 
+          <!--
+            The authoritative input to matching. Until this existed, the POST
+            endpoint behind it had no caller anywhere in the product, so no
+            Cleaner could create a window a customer could be matched to, and
+            the section below promised an enforcement that nothing performed.
+          -->
+          <section class="hc-schedule-windows" aria-labelledby="schedule-windows-title">
+            <div class="hc-schedule-time-off-head">
+              <div>
+                <span class="hc-schedule-time-off-kicker">WHEN YOU CAN WORK</span>
+                <h2 id="schedule-windows-title">Your available hours</h2>
+                <p>These are the only times Homle can offer you work. Add a window for each period you are free.</p>
+              </div>
+            </div>
+            <form class="hc-schedule-window-form" data-availability-form>
+              <div class="hc-availability-window-fields">
+                <label><span>Date</span><input type="date" name="availabilityDate" required></label>
+                <label><span>From</span><input type="time" name="availabilityStart" step="900" required></label>
+                <label><span>To</span><input type="time" name="availabilityEnd" step="900" required></label>
+              </div>
+              <div class="hc-schedule-time-off-actions">
+                <p data-availability-status role="status" aria-live="polite">Loading your available hours&hellip;</p>
+                <button class="hc-btn" type="submit" data-availability-submit>Add these hours</button>
+              </div>
+            </form>
+            <ul class="hc-availability-list" data-availability-list></ul>
+            <p class="hc-availability-empty" data-availability-empty hidden>You have no available hours yet, so you cannot be offered work. Add your first window above.</p>
+          </section>
+
           <section class="hc-schedule-time-off" aria-labelledby="schedule-time-off-title">
             <div class="hc-schedule-time-off-head">
               <div>
                 <span class="hc-schedule-time-off-kicker">AVAILABILITY CONTROL</span>
                 <h2 id="schedule-time-off-title">Holiday mode &amp; time off</h2>
-                <p>Pause new job offers or record a date when you cannot work. Confirmed jobs are not cancelled.</p>
+                <p>A note to yourself about when you would rather not work. Your available hours above are what Homle actually matches against &mdash; remove a window there to stop being offered that time. Confirmed jobs are not cancelled.</p>
               </div>
               <a href="/cleaner/jobs-map">View available jobs</a>
             </div>
             <form class="hc-schedule-time-off-form" data-schedule-time-off-form>
               <div class="hc-availability-limits">
                 <label class="hc-availability-holiday">
-                  <span><strong>Holiday mode &mdash; pause all new job offers</strong></span>
+                  <span><strong>Holiday mode</strong></span>
                   <span class="hc-availability-toggle"><span>No</span><input type="checkbox" name="holidayMode"><i aria-hidden="true"></i></span>
                 </label>
-                <label class="hc-availability-date"><span>Unavailable date</span><input type="date" name="unavailableDate"><small>Homle will not offer new jobs on this date.</small></label>
+                <label class="hc-availability-date"><span>Unavailable date</span><input type="date" name="unavailableDate"><small>Saved as a note. To stop being offered work on a date, remove your available hours for it above.</small></label>
               </div>
               <div class="hc-schedule-time-off-actions">
                 <p data-schedule-time-off-status role="status" aria-live="polite">Loading your saved holiday settings&hellip;</p>
