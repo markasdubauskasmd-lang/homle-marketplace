@@ -330,16 +330,26 @@ export function createMarketplaceRuntime(pool, options = {}) {
     catch (error) { return { name, unavailable: true, reason: error?.code || "unavailable" }; }
   }
   async function assembleAccountExport(actor) {
-    const sections = await Promise.all([
-      exportSection("properties", () => propertyService.listOwnProperties(actor)),
-      exportSection("archivedProperties", () => propertyService.listArchivedOwnProperties(actor)),
-      exportSection("cleaningRequests", () => cleaningRequestService.listOwnRequests(actor)),
-      exportSection("bookings", () => bookingWorkflowService.listParticipantBookings(actor, { limit: 100 })),
-      exportSection("notifications", () => notificationService.listNotifications(actor, { limit: 100 })),
-      exportSection("privacyRequests", () => privacyRequestService.list(actor)),
-      exportSection("cleanerProfile", () => cleanerProfileService.getOwnProfile(actor)),
-      exportSection("cleanerAvailability", () => cleanerProfileService.listOwnAvailability(actor))
-    ]);
+    // Sections are chosen by the roles the account actually holds. Asking for a
+    // Cleaner profile as a Landlord would be refused and reported "unavailable",
+    // which reads as "Homle is holding something it will not show you" — the
+    // opposite of what a subject access response is for. A section that does not
+    // apply is simply absent.
+    const roles = Array.isArray(actor?.roles) ? actor.roles : [];
+    const reads = [
+      ["cleaningRequests", () => cleaningRequestService.listOwnRequests(actor), "landlord"],
+      ["properties", () => propertyService.listOwnProperties(actor), "landlord"],
+      ["archivedProperties", () => propertyService.listArchivedOwnProperties(actor), "landlord"],
+      ["cleanerProfile", () => cleanerProfileService.getOwnProfile(actor), "cleaner"],
+      ["cleanerAvailability", () => cleanerProfileService.listOwnAvailability(actor), "cleaner"],
+      // Both roles hold these.
+      ["bookings", () => bookingWorkflowService.listParticipantBookings(actor, { limit: 100 }), null],
+      ["notifications", () => notificationService.listNotifications(actor, { limit: 100 }), null],
+      ["privacyRequests", () => privacyRequestService.list(actor), null]
+    ];
+    const sections = await Promise.all(
+      reads.filter(([, , role]) => role === null || roles.includes(role)).map(([name, read]) => exportSection(name, read))
+    );
     return Object.freeze({
       generatedAt: new Date().toISOString(),
       accountId: actor.userId,

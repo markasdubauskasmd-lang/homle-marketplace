@@ -167,6 +167,13 @@ console.log("Privacy request tests passed: authenticated validation, safe projec
   for (const ownRead of ["propertyService.listOwnProperties(actor)", "cleaningRequestService.listOwnRequests(actor)", "bookingWorkflowService.listParticipantBookings(actor", "notificationService.listNotifications(actor"]) {
     if (!runtimeSource.includes(ownRead)) throw new Error(`The export does not include ${ownRead}, or reads it by some route other than the owner-scoped service.`);
   }
+  // Sections follow the roles the account holds. Reporting a Landlord's
+  // non-existent Cleaner profile as "unavailable" would read as "Homle is
+  // holding something it will not show you", which is the opposite of what a
+  // subject access response is for.
+  if (!/roles\.includes\(role\)/.test(runtimeSource)) throw new Error("The export asks for sections the account's roles cannot have, and reports the refusal as withheld data.");
+  if (!/\["cleanerProfile"[\s\S]{0,80}"cleaner"\]/.test(runtimeSource)) throw new Error("Cleaner sections are not gated on the cleaner role.");
+  if (!/\["properties"[\s\S]{0,80}"landlord"\]/.test(runtimeSource)) throw new Error("Landlord sections are not gated on the landlord role.");
   // A failing section must not fail the whole response. A partial export inside
   // the statutory month, saying which part is missing, beats a complete one
   // that arrives late.
