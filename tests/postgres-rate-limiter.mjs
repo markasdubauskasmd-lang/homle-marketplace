@@ -37,9 +37,21 @@ databaseDecision = { allowed: false, retry_after_seconds: 0 };
 await assert.rejects(() => limiter.consume({ scope: "login", key: "trusted:client" }), /invalid retry time/);
 assert.throws(() => createPostgresRateLimiter({}, { secret }), /query-capable pool/);
 assert.throws(() => createPostgresRateLimiter(pool, { secret: "short" }), /32-character secret/);
-assert.equal(postgresRateLimitScopes.length, 23);
+assert.equal(postgresRateLimitScopes.length, 25);
 
-const latestScopeMigration = await readFile(new URL("../db/migrations/085_cleaner_address_lookup_rate_limit.sql", import.meta.url), "utf8");
+// Derived from disk rather than naming one migration. Pinning 085 meant that
+// the moment a later migration replaced the policy, this check silently
+// validated a superseded copy instead of the one the database runs -- the exact
+// drift the assertion below exists to prevent.
+const { readdir: readMigrationDirectory } = await import("node:fs/promises");
+const migrationDirectory = new URL("../db/migrations/", import.meta.url);
+let latestScopeMigrationName = null;
+for (const name of (await readMigrationDirectory(migrationDirectory)).filter((entry) => entry.endsWith(".sql")).sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))) {
+  const candidate = await readFile(new URL(name, migrationDirectory), "utf8");
+  if (candidate.includes("request_rate_limits_scope_check CHECK")) latestScopeMigrationName = name;
+}
+assert.ok(latestScopeMigrationName, "No migration defines the rate-limit scope policy.");
+const latestScopeMigration = await readFile(new URL(latestScopeMigrationName, migrationDirectory), "utf8");
 const migration = `${await readFile(new URL("../db/migrations/020_shared_rate_limits.sql", import.meta.url), "utf8")}\n${await readFile(new URL("../db/migrations/021_facebook_pending_identity.sql", import.meta.url), "utf8")}\n${await readFile(new URL("../db/migrations/038_facebook_data_deletion_callback.sql", import.meta.url), "utf8")}\n${await readFile(new URL("../db/migrations/060_apple_sign_in_provider.sql", import.meta.url), "utf8")}\n${latestScopeMigration}`;
 // The latest scope migration must itself carry every reviewed scope so the
 // application allow-list and the database policy cannot drift again.

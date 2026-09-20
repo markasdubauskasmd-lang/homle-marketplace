@@ -726,6 +726,15 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           }
           if (request.method === "POST") {
             const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+            // Every authentication and AI endpoint is limited; these two writes
+            // -- a request, and the invitation below -- were not, so one
+            // authenticated session could create them without bound. Mostly
+            // this catches a broken client rather than an attacker: a retry
+            // loop, a double tap on a slow connection, a page restored from the
+            // background cache. Idempotency stops the same record being made
+            // twice; nothing stopped many different ones, and each is work a
+            // real Cleaner may be asked to answer.
+            await limitPublicRead(request, "marketplace-landlord:cleaning-request");
             const cleaningRequest = await cleaningRequests.createOwnRequest(context.actor, await readJsonObject(request));
             sendJson(response, 201, { ok: true, cleaningRequest });
             return true;
@@ -926,6 +935,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         if (selectedInvitationRequest) {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
           const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          await limitPublicRead(request, "marketplace-landlord:booking");
           const body = await readJsonObject(request);
           const booking = await bookings.inviteCleaner(context.actor, { cleaningRequestId: selectedInvitationRequest[1], cleanerId: body.cleanerId, approvedCustomerPricePence: body.approvedCustomerPricePence });
           sendJson(response, 201, { ok: true, booking });

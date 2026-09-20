@@ -25,7 +25,12 @@ const supportedScopes = Object.freeze([
   "marketplace-landlord:room-reading",
   // Stores nothing, but costs CPU and a rates lookup — see migration 077.
   "marketplace-landlord:scan-preview",
-  "marketplace-cleaner:address-lookup"
+  "marketplace-cleaner:address-lookup",
+  // The two money-path writes. Neither costs provider money; both create work a
+  // real Cleaner may be asked to answer, and neither was bounded — see
+  // migration 119.
+  "marketplace-landlord:cleaning-request",
+  "marketplace-landlord:booking"
 ]);
 
 function secretKey(value) {
