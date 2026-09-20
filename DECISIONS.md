@@ -115,3 +115,22 @@ existing `/admin/funnel` page beside the account-derived lanes already there.
 Do not add a visitor identifier, and do not make this a "session" — the moment
 it can follow one person it needs consent, and the cookie policy has to change
 first.
+
+**D12 — The funnel stops at the authorised payment, not at the confirmed
+booking.**
+D11 listed "booking confirmed" among the client calls. It was dropped while
+building D11, because no browser can count it honestly: a booking becomes
+confirmed when a Cleaner accepts, which happens after the customer has closed
+the page. Counting it from a later dashboard render would either double-count
+on every reload or need a per-visitor store to deduplicate — and a per-visitor
+store is exactly the identifier D11 forbids.
+
+Nothing is lost. The account-derived lane on the same Administrator screen
+already counts confirmed bookings exactly, from the bookings themselves, and
+has since before any of this existed. A visitor stage that could only ever read
+zero would have been worse than no stage at all.
+
+The two lanes are rendered side by side and deliberately not merged: the
+account lane begins at somebody who already has an account, the visitor lane
+begins at somebody who merely arrived, and presenting them as one funnel would
+claim they count the same population.

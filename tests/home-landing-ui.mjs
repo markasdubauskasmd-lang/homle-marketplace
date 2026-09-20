@@ -37,7 +37,10 @@ for (const file of ["archivo-wght-latin.woff2", "archivo-wght-latin-ext.woff2", 
 
 /* ── The design is actually wired in ────────────────── */
 
-assert(page.includes('<body class="ci-body">') && page.includes('href="/landing-1571bff0.css"') && page.includes('src="/landing-a97a6ca6.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
+// Matched on the body element carrying the scoped class, not on the exact
+// opening tag: the tag also carries instrumentation attributes, and an
+// adjacency match would fail on markup whose behaviour is unchanged.
+assert(/<body[^>]*\sclass="ci-body"/.test(page) && page.includes('href="/landing-1571bff0.css"') && page.includes('src="/landing-a97a6ca6.js"'), "The landing page does not load its content-addressed scoped stylesheet and scroll script.");
 assert(page.includes('<link rel="sitemap" type="application/xml" href="/sitemap.xml">'), "The public landing page does not advertise Homlle's canonical sitemap.");
 assert(page.includes('<link rel="canonical" href="https://homlle.com/">') && page.includes('<meta property="og:url" content="https://homlle.com/">'), "The public landing page does not declare the exact canonical production URL.");
 for (const metadata of [
@@ -243,7 +246,9 @@ for (const truthfulPromise of [
 ]) {
   assert(page.includes(truthfulPromise), `The landing page lost the grounded promise: ${truthfulPromise}.`);
 }
-assert(page.includes('<a class="ci-btn-lg" href="/signup?intent=book" data-home-manual-entry>Create account to book</a>') && page.includes('<a class="ci-btn-ghost" href="/login" data-home-signed-out-only>Log in</a>'), "The manual-booking account actions no longer name their actual destinations clearly.");
+// The destination and the words a visitor reads are what matter here, not the
+// order of the attributes between them; the element also carries instrumentation.
+assert(/<a class="ci-btn-lg"[^>]*\shref="\/signup\?intent=book"[^>]*\sdata-home-manual-entry>Create account to book<\/a>/.test(page) && page.includes('<a class="ci-btn-ghost" href="/login" data-home-signed-out-only>Log in</a>'), "The manual-booking account actions no longer name their actual destinations clearly.");
 assert(!page.includes('href="/signup?intent=book">Sign in') && !page.includes('href="/login">Already registered?</a>'), "The manual-booking account actions are misleading users about whether they will create an account or log in.");
 assert((page.match(/data-book-entry/g) || []).length >= 2 && (page.match(/data-cleaner-entry/g) || []).length >= 1, "The redesign dropped the role-aware booking or cleaner entry hooks home.js drives.");
 assert(page.includes('class="ci-signup-menu" data-signup-menu') && page.includes('aria-label="Choose how you want to use Homle"'), "The landing header does not expose an accessible two-role Sign up menu.");

@@ -4,6 +4,7 @@ import { bindJourneyRadioGroups } from "./journey-radio-keyboard.js?v=20260907-1
 import { defaultPricingConfig, normalizedPricingConfig } from "./pricing-config.js?v=20260808-1";
 import { quoteInputFromScan, quoteRooms } from "./pricing-engine.js?v=20260906-1";
 import { createPriceAnimator, formatPence, showPriceDelta } from "./price-animator.js?v=20260808-1";
+import { recordFunnel } from "./funnel.js?v=20260920-1";
 
 import {
   journeySteps,
@@ -643,6 +644,18 @@ el.skipScan.addEventListener("click", () => {
   show("results");
 });
 
+// Funnel steps, counted once each per visit (DECISIONS.md D11). This document
+// re-renders every step whenever it is shown, so an ungated call would count
+// the number of times somebody went back rather than the number of people who
+// got this far. Anonymous and cookieless: nothing below carries a property, a
+// request or an account.
+const countedFunnelSteps = new Set();
+function countFunnelStep(metric) {
+  if (countedFunnelSteps.has(metric)) return;
+  countedFunnelSteps.add(metric);
+  recordFunnel(metric, { audience: "customer", surface: "app" });
+}
+
 /* ── Step 3: results ────────────────────────────────── */
 function renderResults() {
   if (state.restoredScan) {
@@ -651,6 +664,7 @@ function renderResults() {
     void refreshScanReview();
   }
   const scanned = Boolean(state.draft.rooms.length || state.draft.transcript);
+  if (scanned) countFunnelStep("funnel.scan.completed");
   el.resultsEyebrow.textContent = scanned ? "Scan complete" : "Your checklist";
   el.resultsTitle.innerHTML = scanned ? "Here’s what<br>we found." : "What needs<br>cleaning?";
   el.resultsIntro.textContent = scanned ? "Check and edit the checklist below. Nothing is booked yet." : "Write one task per line, starting with the room name. Nothing is booked yet.";
@@ -1138,6 +1152,7 @@ async function createOrRecoverProperty(csrf) {
       })
     });
     if (result.property?.propertyId !== propertyDraftId) throw new Error("The saved property could not be verified.");
+    countFunnelStep("funnel.property.added");
     state.properties.push(result.property);
     setRequestScopeValue("propertyId", result.property.propertyId);
     saveDraft();
@@ -1316,6 +1331,10 @@ function renderReviewPrice(review) {
     });
   }
   priceAnimator.set(quote.totalPence);
+  // Counted where a real number is actually on screen, not where the review
+  // step opened: a scan that cannot be priced returns above, and counting it
+  // here would report a price the customer never saw.
+  countFunnelStep("funnel.price.shown");
 
   // The duration, not a second price. Two numbers that both look like money is
   // how a customer ends up unsure which one they are paying.
@@ -2322,6 +2341,9 @@ async function sendCleanerInvitation(csrf, requestId, cleanerId, approvedCustome
     body: JSON.stringify({ cleanerId, approvedCustomerPricePence })
   });
   if (Number(result.booking?.customerPricePence) !== approvedCustomerPricePence) throw new Error("The saved Cleaner invitation total could not be verified.");
+  // The last step the customer takes before paying: a time and a Cleaner are
+  // now committed to a booking record.
+  countFunnelStep("funnel.slot.chosen");
   return result;
 }
 

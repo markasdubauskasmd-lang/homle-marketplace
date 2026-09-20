@@ -1,4 +1,4 @@
-import { funnelWindow, percentLabel, stagePercent } from "./admin-funnel-model.js";
+import { funnelWindow, percentLabel, stagePercent, visitorCounts, visitorShare } from "./admin-funnel-model.js";
 import { createRequestJson } from "./request-json.js";
 
 const requestJson = createRequestJson({ failureMessage: "The funnel report could not be loaded." });
@@ -80,8 +80,60 @@ function laneCard(report, definition) {
   return card;
 }
 
+/**
+ * The anonymous visitor lane.
+ *
+ * Rendered as counts rather than as a strict funnel, because it is not one:
+ * somebody can arrive straight onto an instrumented page part-way along, so a
+ * later stage can honestly exceed an earlier one. The share bar compares each
+ * stage with the first, which is a proportion and not a claim that everybody
+ * passed through it.
+ *
+ * Returns null when telemetry is unconfigured or its read failed. The lane is
+ * then simply absent, rather than the page being.
+ */
+function visitorCard(visitors) {
+  let counts;
+  try { counts = visitorCounts(visitors); }
+  catch { counts = null; }
+  if (!counts) return null;
+  const cohort = counts[0].count;
+  const card = document.createElement("article"); card.className = "funnel-lane";
+  const title = document.createElement("h2"); title.textContent = "Visitors";
+  const copy = document.createElement("p");
+  copy.textContent = "Anonymous, cookieless page counts. A different population from the lanes above, which begin at an account that already exists.";
+  const list = document.createElement("ol");
+  list.append(...counts.map(({ label, count }) => {
+    const row = document.createElement("li");
+    const heading = document.createElement("div");
+    const name = document.createElement("strong"); name.textContent = label;
+    const amount = document.createElement("span"); amount.textContent = String(count);
+    heading.append(name, amount);
+    const meter = document.createElement("div");
+    meter.className = "funnel-meter";
+    meter.setAttribute("role", "progressbar");
+    meter.setAttribute("aria-label", label);
+    meter.setAttribute("aria-valuemin", "0");
+    meter.setAttribute("aria-valuemax", "100");
+    const share = visitorShare(count, cohort);
+    meter.setAttribute("aria-valuenow", String(share ?? 0));
+    const fill = document.createElement("i"); fill.style.setProperty("--funnel-progress", `${share ?? 0}%`);
+    meter.append(fill);
+    const detail = document.createElement("small");
+    detail.textContent = share == null ? "Nothing counted yet" : `${share}% of page views`;
+    row.append(heading, meter, detail);
+    return row;
+  }));
+  const note = document.createElement("aside");
+  note.textContent = "No visitor, session or account is identified, and no cookie is set. Only pages carrying the counter are included, so someone arriving deeper in is counted from where they arrived.";
+  card.append(title, copy, list, note);
+  return card;
+}
+
 function render(report) {
   reportRoot.replaceChildren(...laneDefinitions.map((definition) => laneCard(report, definition)));
+  const visitors = visitorCard(report.visitors);
+  if (visitors) reportRoot.append(visitors);
   const formatter = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" });
   document.querySelector("[data-funnel-cohort]").textContent = `Cohorts run from ${formatter.format(new Date(report.cohortStartAt))} to ${formatter.format(new Date(report.cohortEndAt))}. Records from the latest ${report.maturityHours} hours are excluded.`;
   document.querySelector("[data-funnel-generated]").textContent = `Snapshot generated ${formatter.format(new Date(report.generatedAt))}.`;

@@ -616,6 +616,11 @@
       "order": 123,
       "file": "123_payment_notice_event_binding.sql",
       "sha256": "b5000d9cf7d11b13fb643ddac27c36ed4a70873ccd427a90d785a1beafc55896"
+    },
+    {
+      "order": 124,
+      "file": "124_public_funnel_telemetry.sql",
+      "sha256": "16a6e5ef85071226cc692eef1d7a1199cd999fc9100a401697cf8dbd3ae36f13"
     }
   ],
   "grantFiles": [

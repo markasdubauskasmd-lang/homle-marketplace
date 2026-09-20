@@ -3,6 +3,7 @@ import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { accountReadyPresentation, availableAccountMethodLabel, unavailableEmailActionPresentation } from "./account-ready-model.js?v=20260805-1";
 import { storedCsrf } from "./session-csrf.js";
 import { accountIntentWorkspaceActivation, accountWorkspaceDestination } from "./workspace-access.js?v=20260728-2";
+import { recordFunnel } from "./funnel.js?v=20260920-1";
 
 const modes = Object.freeze({
   "/login": { form: "login", title: "Sign in to Homle", lead: "Use your verified account to open the correct private workspace." },
@@ -88,6 +89,16 @@ if (bookingIntent && ["login", "signup"].includes(selectedMode.form)) {
 } else if (cleanerIntent && ["login", "signup"].includes(selectedMode.form)) {
   document.title = `${selectedMode.form === "signup" ? "Create a Cleaner profile" : "Sign in as a Cleaner"} — Homle`;
 }
+
+// The funnel step, counted anonymously (DECISIONS.md D11). This document also
+// serves login, verification and recovery, so it declares no page surface and
+// counts only what it can attribute honestly: somebody who opened the signup
+// form, and somebody whose signup was accepted.
+//
+// The audience is read from the entry intent the visitor already chose, never
+// from the address bar or anything typed into the form.
+const funnelAudience = cleanerIntent ? "cleaner" : bookingIntent ? "customer" : "unknown";
+if (selectedMode.form === "signup") recordFunnel("funnel.signup.started", { audience: funnelAudience, surface: "signup" });
 
 function clearCompletedIntent() {
   try { clearAccountIntent(sessionStorage); } catch {}
@@ -430,6 +441,7 @@ async function submitAccountForm(event) {
       form.querySelector("fieldset").disabled = true;
     } else if (kind === "signup") {
       await post("/api/marketplace/auth/signup", { ...body, ...(accountIntent ? { intent: accountIntent } : {}) });
+      recordFunnel("funnel.signup.completed", { audience: funnelAudience, surface: "signup" });
       showFeedback("If the address can be registered, a private verification link is on its way.", "success");
       form.reset();
     } else if (kind === "verify") {

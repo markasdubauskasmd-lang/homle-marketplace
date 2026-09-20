@@ -1,4 +1,5 @@
 import { scanRates, scanReleaseRates } from "./scan-telemetry.mjs";
+import { funnelBatch } from "./funnel-telemetry.mjs";
 import { measureFromReference, measurementLabel, referenceScale } from "./room-measurement.mjs";
 import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
@@ -156,6 +157,10 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const administratorVerification = dependencies?.administratorVerificationService;
   const administratorCoverage = dependencies?.administratorCoverageService;
   const administratorFunnel = dependencies?.administratorFunnelService;
+  // Optional: absent means the visitor beacon answers 503 and the
+  // account-derived funnel report is unaffected. Analytics is never a reason a
+  // deployment cannot take a booking.
+  const funnelTelemetry = dependencies?.funnelTelemetry || null;
   const landlordCare = dependencies?.landlordCareService;
   const privacyRequests = dependencies?.privacyRequestService;
   const payments = dependencies?.paymentService || null;
@@ -299,7 +304,21 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { roles: ["administrator"] });
           const report = await administratorFunnel.get(context.actor, { windowDays: url.searchParams.get("windowDays") });
-          sendJson(response, 200, { ok: true, ...report });
+          // The visitor counts are read alongside the account-derived report,
+          // not folded into it: the report is built from accounts and bookings
+          // and so begins at somebody who already signed up, while these begin
+          // at somebody who arrived. Merging them would imply the two lanes
+          // count the same population, and they do not.
+          //
+          // A failed or absent telemetry read reports `null` rather than
+          // failing the page. The funnel report is the thing an administrator
+          // opened this for; losing the visitor lane should not lose it too.
+          let visitors = null;
+          if (funnelTelemetry) {
+            try { visitors = await funnelTelemetry.snapshot(context.actor, report.windowDays); }
+            catch (error) { onUnexpectedError(error); }
+          }
+          sendJson(response, 200, { ok: true, ...report, visitors });
           return true;
         }
         if (pathname === "/api/marketplace/admin/cleaner-verifications") {
@@ -527,6 +546,44 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { roles: ["cleaner", "landlord"] });
           const records = await bookings.listParticipantBookings(context.actor, { limit: url.searchParams.get("limit") });
           sendJson(response, 200, { ok: true, bookings: records });
+          return true;
+        }
+        // The visitor funnel. Anonymous on purpose: the questions it answers --
+        // does anybody arrive, does the letting-agent pitch move them, where do
+        // they stop -- are all about people who have no account yet, so there is
+        // nobody to authenticate.
+        //
+        // Anonymous does not mean unguarded. The origin check keeps this to
+        // Homle's own pages, the rate limit is the only thing standing between
+        // one machine and an aggregate table, and every name and label is
+        // checked against the allowlist in `funnel-telemetry.mjs` before it is
+        // counted -- and restated at the database in migration 124, so this
+        // cannot become a channel for arbitrary strings.
+        //
+        // No CSRF token and none needed: there is no session to ride and the
+        // write touches no account, so a forged request can at worst inflate a
+        // counter that the rate limit already bounds.
+        if (pathname === "/api/marketplace/funnel-events") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          security.requireOrigin(request);
+          await limitPublicRead(request, "marketplace-public:funnel-events");
+          const body = await readJsonObject(request);
+          const events = funnelBatch(body?.events);
+          let stored = 0;
+          if (funnelTelemetry && events.length) {
+            // A storage failure is reported to monitoring and not to the
+            // visitor. Their page is waiting on this response and nothing they
+            // are doing depends on it; failing their journey because an
+            // analytics write failed would be the wrong trade in every case.
+            try { stored = await funnelTelemetry.recordBatch(events); }
+            catch (error) { onUnexpectedError(error); }
+          }
+          // `accepted` is how many of the submitted names survived the
+          // allowlist, so a client can tell that a name it sent was dropped
+          // rather than silently believing it is measured. `stored` is how many
+          // events the database actually kept, which is lower when telemetry is
+          // unconfigured or the write failed.
+          sendJson(response, 202, { ok: true, accepted: events.length, stored });
           return true;
         }
         if (pathname === "/api/marketplace/cleaners") {

@@ -34,7 +34,11 @@ const supportedScopes = Object.freeze([
   // Platform-wide daily ceilings on metered provider spend, keyed on a constant
   // so every instance shares one bucket — see migration 120.
   "marketplace-platform:room-reading-daily",
-  "marketplace-platform:scan-summary-daily"
+  "marketplace-platform:scan-summary-daily",
+  // The anonymous visitor beacon. There is no session behind it, so this is the
+  // only thing bounding what one machine can write into the funnel aggregate —
+  // see migration 124.
+  "marketplace-public:funnel-events"
 ]);
 
 function secretKey(value) {

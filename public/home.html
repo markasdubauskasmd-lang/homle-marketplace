@@ -34,9 +34,10 @@
   <link rel="stylesheet" href="/landing-1571bff0.css">
   <script src="/landing-a97a6ca6.js" type="module"></script>
   <script src="/home.js?v=20260906-1" type="module"></script>
+  <script src="/funnel.js?v=20260920-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
 </head>
-<body class="ci-body">
+<body class="ci-body" data-funnel-surface="landing" data-funnel-audience="unknown">
   <a class="ci-skip" href="#ci-scan">Skip to content</a>
 
   <div class="ci-root" data-ci-root>
@@ -50,14 +51,14 @@
         <div class="ci-nav-links">
           <a href="#ci-scan">Scanner</a>
           <a href="#ci-manual">Book manually</a>
-        <a href="/for-landlords">Landlords &amp; letting agents</a>
+        <a data-funnel-cta data-funnel-audience="landlord" href="/for-landlords">Landlords &amp; letting agents</a>
         </div>
         <div class="ci-nav-actions">
           <a class="ci-login" href="/login" data-account-entry hidden>Log in</a>
           <details class="ci-signup-menu" data-signup-menu>
             <summary class="ci-signup">Sign up</summary>
             <div class="ci-signup-panel" aria-label="Choose how you want to use Homle">
-              <a href="/signup?intent=book" data-book-entry data-entry-label-fixed>
+              <a data-funnel-cta href="/signup?intent=book" data-book-entry data-entry-label-fixed>
                 <strong>Book cleaning</strong>
                 <span>For homes, landlords and businesses</span>
               </a>
@@ -279,7 +280,7 @@
               <p class="ci-tick"><span></span>Nothing is booked or charged until you approve</p>
             </div>
             <div class="ci-manual-cta">
-              <a class="ci-btn-lg" href="/signup?intent=book" data-home-manual-entry>Create account to book</a>
+              <a class="ci-btn-lg" data-funnel-cta href="/signup?intent=book" data-home-manual-entry>Create account to book</a>
               <a class="ci-btn-ghost" href="/login" data-home-signed-out-only>Log in</a>
             </div>
           </div>
@@ -405,7 +406,7 @@
 
           <span class="ci-join-btn" data-join data-at=".3">
             <span class="ci-join-tail" aria-hidden="true"></span>
-            <a class="ci-btn-join" href="/signup?intent=book" data-book-entry data-entry-label-fixed data-home-workspace-entry>Create your Homle account</a>
+            <a class="ci-btn-join" data-funnel-cta href="/signup?intent=book" data-book-entry data-entry-label-fixed data-home-workspace-entry>Create your Homle account</a>
           </span>
 
           <p class="ci-join-foot" data-home-signed-out-only>Already with us? <a href="/login">Log in</a></p>

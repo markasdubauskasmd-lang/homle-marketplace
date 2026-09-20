@@ -85,6 +85,7 @@ import { createAdministratorVerificationService } from "./administrator-verifica
 import { createAdministratorCoverageRepository } from "./administrator-coverage-repository.mjs";
 import { createAdministratorCoverageService } from "./administrator-coverage-service.mjs";
 import { createAdministratorFunnelRepository } from "./administrator-funnel-repository.mjs";
+import { createFunnelTelemetryRepository } from "./funnel-telemetry-repository.mjs";
 import { createAdministratorFunnelService } from "./administrator-funnel-service.mjs";
 import { createLandlordCareRepository } from "./landlord-care-repository.mjs";
 import { createLandlordCareService } from "./landlord-care-service.mjs";
@@ -309,6 +310,12 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const administratorCoverageService = createAdministratorCoverageService(administratorCoverageRepository);
   const administratorFunnelRepository = createAdministratorFunnelRepository(database);
   const administratorFunnelService = createAdministratorFunnelService(administratorFunnelRepository);
+  // Visitor-side funnel counts, which the report above cannot see: it is built
+  // from accounts and bookings, so it begins at the first person who already
+  // signed up. Everything before that -- who arrived, who pressed anything --
+  // was invisible. Anonymous and cookieless by construction; see D11 and the
+  // header of `funnel-telemetry.mjs`.
+  const funnelTelemetryRepository = options.funnelTelemetry || createFunnelTelemetryRepository(database);
   const landlordCareRepository = createLandlordCareRepository(database);
   const landlordCareService = createLandlordCareService(landlordCareRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
@@ -361,7 +368,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     });
   }
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository, { assembleExport: assembleAccountExport });
-  const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
+  const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, funnelTelemetry: funnelTelemetryRepository, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
     clientKey: options.clientKey,
     onUnexpectedError: options.onUnexpectedError,
     pricingConfiguration: (actor) => pricingConfigurationRepository.activeConfig(actor),
@@ -474,6 +481,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     administratorCoverageService,
     administratorFunnelRepository,
     administratorFunnelService,
+    funnelTelemetry: funnelTelemetryRepository,
     landlordCareRepository,
     landlordCareService,
     privacyRequestRepository,

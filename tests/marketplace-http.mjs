@@ -1147,3 +1147,95 @@ console.log("Room-reading connection cancellation checks passed.");
   }
 }
 console.log("Room-reading HTTP streaming checks passed: early delivery, final success/failure and cancellation.");
+
+/* ── The anonymous visitor funnel beacon ───────────────────────────────── */
+
+// There is no session behind this route by design: the questions it answers are
+// about people who have no account yet. That makes the origin check and the
+// rate limit the only things standing between one machine and an aggregate
+// table, so both are asserted rather than assumed.
+{
+  const funnelOrigin = { origin: "http://127.0.0.1:4173", "content-type": "application/json" };
+  const recorded = [];
+  const funnelTelemetry = {
+    async recordBatch(events) { recorded.push(events); return events.reduce((total, event) => total + event.count, 0); },
+    async snapshot(actor, windowDays) { return { windowDays, counters: {}, totals: { "funnel.landing.viewed": 12 } }; }
+  };
+  const funnelRouter = createMarketplaceHttpRouter({ ...dependencies, funnelTelemetry }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+
+  // Accepted with no cookie, no CSRF token and no account.
+  const beacon = await dispatch(funnelRouter, "POST", "/api/marketplace/funnel-events", {
+    headers: funnelOrigin,
+    body: { events: [{ metric: "funnel.landing.viewed", dimensions: { surface: "for-landlords", audience: "landlord" } }] }
+  });
+  assert(beacon.response.statusCode === 202 && beacon.body.accepted === 1 && beacon.body.stored === 1,
+    `The anonymous funnel beacon refused an honest visit: ${beacon.response.statusCode} ${JSON.stringify(beacon.body)}`);
+  assert(recorded.at(-1)[0].dimensions.surface === "for-landlords", "The funnel beacon lost its bounded dimensions.");
+
+  // An unlisted name is dropped and the rest of the page still counts, so one
+  // stale client cannot make a visit vanish.
+  const mixed = await dispatch(funnelRouter, "POST", "/api/marketplace/funnel-events", {
+    headers: funnelOrigin,
+    body: { events: [{ metric: "funnel.landing.cta" }, { metric: "pageview", dimensions: { path: "/landlord/book?propertyId=8f2" } }] }
+  });
+  assert(mixed.body.accepted === 1 && !JSON.stringify(recorded.at(-1)).includes("propertyId"),
+    `An unlisted funnel event survived the route: ${JSON.stringify(recorded.at(-1))}`);
+
+  // Another origin cannot write into the aggregate.
+  const foreign = await dispatch(funnelRouter, "POST", "/api/marketplace/funnel-events", {
+    headers: { origin: "https://wrong.example", "content-type": "application/json" },
+    body: { events: [{ metric: "funnel.landing.viewed" }] }
+  });
+  assert(foreign.response.statusCode === 403, `The funnel beacon accepted a foreign origin: ${foreign.response.statusCode}`);
+
+  // And it is bounded by its own reviewed scope.
+  const previousScope = rateLimitedScope;
+  rateLimitedScope = "marketplace-public:funnel-events";
+  const limited = await dispatch(funnelRouter, "POST", "/api/marketplace/funnel-events", {
+    headers: funnelOrigin, body: { events: [{ metric: "funnel.landing.viewed" }] }
+  });
+  assert(limited.response.statusCode === 429, `The funnel beacon ignored its rate limit: ${limited.response.statusCode}`);
+  rateLimitedScope = previousScope;
+
+  assert((await dispatch(funnelRouter, "GET", "/api/marketplace/funnel-events", { headers: funnelOrigin })).response.statusCode === 405,
+    "The funnel beacon answered a method other than POST.");
+
+  // A storage failure is reported to monitoring and never to the visitor: their
+  // page is waiting on this and nothing they are doing depends on it.
+  unexpectedError = null;
+  const failingRouter = createMarketplaceHttpRouter({
+    ...dependencies,
+    funnelTelemetry: { async recordBatch() { throw new Error("aggregate write failed"); }, async snapshot() { return null; } }
+  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+  const survived = await dispatch(failingRouter, "POST", "/api/marketplace/funnel-events", {
+    headers: funnelOrigin, body: { events: [{ metric: "funnel.landing.viewed" }] }
+  });
+  assert(survived.response.statusCode === 202 && survived.body.stored === 0,
+    `A failed analytics write reached the visitor: ${survived.response.statusCode}`);
+  assert(unexpectedError?.message === "aggregate write failed", "A failed analytics write was swallowed without reaching monitoring.");
+  unexpectedError = null;
+
+  // The administrator report carries the visitor lane, and keeps working
+  // without it. Losing analytics must not lose the report somebody opened the
+  // page for.
+  const withVisitors = await dispatch(funnelRouter, "GET", "/api/marketplace/admin/funnel", { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(withVisitors.response.statusCode === 200 && withVisitors.body.visitors.totals["funnel.landing.viewed"] === 12,
+    "The Administrator funnel lost its visitor lane.");
+  const brokenVisitors = createMarketplaceHttpRouter({
+    ...dependencies,
+    funnelTelemetry: { async recordBatch() { return 0; }, async snapshot() { throw new Error("snapshot failed"); } }
+  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+  const withoutVisitors = await dispatch(brokenVisitors, "GET", "/api/marketplace/admin/funnel", { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(withoutVisitors.response.statusCode === 200 && withoutVisitors.body.visitors === null && withoutVisitors.body.onboarding,
+    "A failed visitor read took the whole Administrator funnel report with it.");
+  unexpectedError = null;
+
+  // With telemetry unconfigured the beacon is still a well-formed no-op rather
+  // than a 500 on somebody's landing page.
+  const withoutTelemetry = await dispatch(router, "POST", "/api/marketplace/funnel-events", {
+    headers: funnelOrigin, body: { events: [{ metric: "funnel.landing.viewed" }] }
+  });
+  assert(withoutTelemetry.response.statusCode === 202 && withoutTelemetry.body.stored === 0,
+    "An unconfigured funnel beacon did not degrade quietly.");
+}
+console.log("Funnel beacon HTTP checks passed: anonymous acceptance, origin and rate-limit bounds, dropped unlisted events, and degradation that never reaches the visitor or the report.");
