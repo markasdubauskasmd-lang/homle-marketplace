@@ -506,7 +506,17 @@ try {
   const [robotsText, sitemapText] = await Promise.all([robotsResponse.text(), sitemapResponse.text()]);
   assert(robotsResponse.ok && robotsResponse.headers.get("content-type") === "text/plain; charset=utf-8" && robotsResponse.headers.get("cache-control") === "no-cache" && robotsText.includes("Sitemap: https://homlle.com/sitemap.xml") && ["/admin", "/api/", "/bookings/", "/cleaner/", "/landlord/", "/login", "/signup", "/onboarding", "/settings", "/notifications", "/opportunity"].every((route) => robotsText.includes(`Disallow: ${route}`)) && !robotsText.includes("onrender.com"), "The public crawler policy is missing, cache-unsafe, points at the preview host or permits a private marketplace surface.");
   const sitemapLocations = [...sitemapText.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
-  assert(sitemapResponse.ok && sitemapResponse.headers.get("content-type") === "application/xml; charset=utf-8" && sitemapResponse.headers.get("cache-control") === "no-cache" && JSON.stringify(sitemapLocations) === JSON.stringify(["https://homlle.com/"]) && !sitemapText.includes("onrender.com"), "The canonical sitemap is missing, cache-unsafe, exposes a private/noindex route or advertises the preview host.");
+  assert(sitemapResponse.ok && sitemapResponse.headers.get("content-type") === "application/xml; charset=utf-8" && sitemapResponse.headers.get("cache-control") === "no-cache" && JSON.stringify(sitemapLocations) === JSON.stringify(["https://homlle.com/", "https://homlle.com/for-landlords"]) && !sitemapText.includes("onrender.com"), "The canonical sitemap is missing, cache-unsafe, exposes a private/noindex route or advertises the preview host.");
+  const landlordPage = await fetch(`${base}/for-landlords`);
+  const landlordPageText = await landlordPage.text();
+  assert(landlordPage.ok && landlordPageText.includes("letting agents") && landlordPageText.includes("<link rel=\"canonical\" href=\"https://homlle.com/for-landlords\">") && landlordPageText.includes('property="og:title"') && !landlordPageText.includes('name="robots" content="noindex"'), "The landlord and letting-agent page is missing, uncanonicalised or de-indexed. It is the only page addressing the stated main growth channel.");
+  // Homle is a pilot. A page aimed at somebody with a portfolio must say what
+  // it cannot do before they move properties across, not after.
+  for (const limitation of ["No consolidated invoicing", "No agency sub-accounts", "No bulk booking"]) {
+    assert(landlordPageText.includes(limitation), `The landlord page omits the "${limitation}" limitation a letting agent would discover in week one.`);
+  }
+  const homePage = await fetch(`${base}/`);
+  assert((await homePage.text()).includes("/for-landlords"), "Nothing on the homepage reaches the landlord and letting-agent page.");
   const faviconFallback = await fetch(`${base}/favicon.ico`, { redirect: "manual" });
   assert(faviconFallback.status === 308 && faviconFallback.headers.get("location") === "/homle-logo-128-4f82ebad.png" && faviconFallback.headers.get("cache-control") === "no-cache", "The conventional favicon path does not redirect to the approved compact Homle icon with a revalidating cache boundary.");
   const removedCleanerPreviewAsset = await fetch(`${base}/cleaner-application-preview.js?v=smoke-test`);

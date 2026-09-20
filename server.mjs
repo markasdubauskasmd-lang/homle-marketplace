@@ -5562,6 +5562,11 @@ async function serveNotFoundDocument(request, response, cspNonce = "") {
 async function serveFile(requestPath, response, cspNonce = "") {
   const routes = {
     "/": "home.html",
+    // The stated main growth channel is landlords and letting agents with
+    // several properties, and the scrollytelling homepage addresses one person
+    // with one home. A separate page keeps that pitch out of the pinned-scroll
+    // acts and, unlike the homepage, gives the channel something indexable.
+    "/for-landlords": "for-landlords.html",
     "/login": "account.html",
     "/signup": "account.html",
     "/verify-email": "account.html",
