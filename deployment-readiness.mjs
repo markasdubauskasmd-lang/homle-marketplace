@@ -115,6 +115,27 @@ export function validateProductionDeployment(env = process.env, options = {}) {
     errors.push("BOOKING_TRAVEL_COST_PER_KM_PENCE prices travel by distance, so GEOCODING_PROVIDER must be postcodes-io or google-maps. Without it no Cleaner can ever be matched.");
   }
 
+  // The same class of trap, one layer down. The database trigger added in
+  // migration 025 refuses to let a Cleaner move a booking to en-route, arrived
+  // or cleaning-in-progress without a verified current payment authorization.
+  // That trigger is unconditional and correct — it is what stops work starting
+  // unpaid — but with payments disabled no payment row can exist, so no job can
+  // ever start. The marketplace boots healthy, takes bookings, matches Cleaners,
+  // and then fails at the moment somebody tries to begin work.
+  //
+  // Weakening the trigger would be the wrong repair: a deployment that cannot
+  // take payment should not be taking bookings from real customers either.
+  // Refuse the combination at the gate instead.
+  //
+  // Exempted while the deployment is restricted to approved staging accounts,
+  // matching the object-storage check above. A restricted rehearsal environment
+  // is allowed to be partial — the operator is the only person who can reach
+  // it, and they will meet the wall themselves rather than a customer meeting
+  // it on their behalf.
+  if (marketplace.marketplace.requested && !marketplace.payments.requested && !marketplace.launchApproval.stagingAccountsRestricted) {
+    errors.push("An enabled public marketplace requires PAYMENTS_ENABLED=true. The job-start payment gate in migration 025 means a Cleaner can never begin work without an authorization, so bookings would be taken and then stall.");
+  }
+
   return Object.freeze({
     ok: errors.length === 0,
     mode: marketplace.marketplace.requested ? "marketplace" : marketplace.authentication.requested ? "authentication" : "public-site",
