@@ -63,3 +63,39 @@ body.customer-document .legal-main a { color: var(--customer-accent); }
   body.customer-document .account-main { padding: 24px 16px; }
   body.customer-document .account-card { width: 100%; }
 }
+
+/* Tables in a legal document. Added for the cookie policy, which lists each
+   cookie, its purpose and its lifetime — three columns that genuinely are
+   tabular and read worse as prose. Kept to the document's own type and rules
+   so it does not arrive looking like a different page. */
+.customer-document table {
+  width: 100%;
+  margin: 18px 0 26px;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.customer-document th,
+.customer-document td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--cd-rule, rgba(26, 26, 26, .16));
+}
+
+.customer-document th {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.customer-document td code {
+  font-size: 13.5px;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .customer-document table { font-size: 14px; }
+  .customer-document th,
+  .customer-document td { padding: 8px 6px; }
+  .customer-document th { white-space: normal; }
+}

@@ -5579,6 +5579,7 @@ async function serveFile(requestPath, response, cspNonce = "") {
     // with one home. A separate page keeps that pitch out of the pinned-scroll
     // acts and, unlike the homepage, gives the channel something indexable.
     "/for-landlords": "for-landlords.html",
+    "/cookies": "cookies.html",
     "/login": "account.html",
     "/signup": "account.html",
     "/verify-email": "account.html",
