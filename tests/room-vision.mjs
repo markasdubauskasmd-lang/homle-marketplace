@@ -316,7 +316,6 @@ assert(await rejects(async () => createAnthropicRoomVision({ apiKey: "k", client
 // The prompt must forbid the one thing a photograph cannot support.
 const { default: source } = await import("node:fs").then((fs) => ({ default: fs.readFileSync(new URL("../src/marketplace/room-vision.mjs", import.meta.url), "utf8") }));
 const { default: marketplaceHttpSource } = await import("node:fs").then((fs) => ({ default: fs.readFileSync(new URL("../src/marketplace/marketplace-http.mjs", import.meta.url), "utf8") }));
-assert(/pathname === "\/api\/marketplace\/landlord\/room-reading"[\s\S]{0,1200}readJsonObject\(request, maximumRoomPhotoBodyBytes\)/.test(marketplaceHttpSource), "The room-reading route still uses the ordinary 64 KB JSON limit, so a resized phone photo can be rejected before vision runs.");
 assert(source.includes("Never estimate floor area"), "The reader is not told to refuse measurements it cannot take from a photograph.");
 assert(source.includes("Do not describe people"), "The reader is not told to leave people and identifying detail out of a photograph of someone's home.");
 assert(source.includes("Use consistent UK object names across different views"), "Independent walking reads are not asked to use stable object names, so one tap can become duplicate faucet and tap rows.");
@@ -354,6 +353,10 @@ const roomReadingRoute = marketplaceHttpSource.slice(
   marketplaceHttpSource.indexOf('pathname === "/api/marketplace/landlord/room-reading"'),
   marketplaceHttpSource.indexOf('pathname === "/api/marketplace/pricing/scan-ruleset"')
 );
+// Scoped to the route rather than to a character window. A fixed distance made
+// this fail when a comment was added, which says nothing about the limit and
+// trains people to widen the number instead of reading it.
+assert(roomReadingRoute.includes("readJsonObject(request, maximumRoomPhotoBodyBytes)"), "The room-reading route still uses the ordinary 64 KB JSON limit, so a resized phone photo can be rejected before vision runs.");
 assert(roomReadingRoute.includes("const readingStartedAt = Date.now()")
   && /finally \{[\s\S]{0,200}observeScan\("scan\.reading\.latency_ms", \{ durationMs: Date\.now\(\) - readingStartedAt \}\)/.test(roomReadingRoute),
   "Room-reading latency is defined but no longer observed on both success and failure paths.");
