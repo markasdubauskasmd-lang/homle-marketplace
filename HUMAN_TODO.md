@@ -148,6 +148,28 @@ know, and setting one falsely is the kind of thing that ends a company.
 | `CUSTOMER_TERMS_READY` | Approved privacy, cancellation, re-clean/refund and marketplace terms |
 | `PUBLIC_MARKETPLACE_APPROVED` | Your explicit decision to open to the public |
 
+### Data protection — decisions only you can make
+
+`docs/DATA_RETENTION_AND_ERASURE.md` has the full analysis. The short version:
+
+- **A "delete my account" cannot be a delete.** Of the 40 foreign keys pointing
+  at an account, 27 refuse the deletion outright, and the ones in the payment
+  layer refuse it for anybody who has ever paid or been paid. Erasure has to be
+  anonymise-in-place, keeping the financial and two-party records.
+- **You must confirm the retention periods with a solicitor** — six years for
+  financial records, two years after the working relationship for right-to-work
+  evidence. Those are the standard UK positions, not advice.
+- **Register with the ICO** as a data controller if you have not (£40–£60/year
+  for most small businesses).
+- **Decide four things** listed at the end of that document: what a tombstoned
+  account is called in the other party's history, what happens to a deletion
+  request during a live booking, the retention policy for room-scan photographs
+  specifically, and sign-off on the periods.
+
+Until those are settled, a request is tracked with its statutory deadline on the
+administrator desk and the erasure itself is done by hand. That answers a request
+inside the month, which is what the law requires, but it does not scale.
+
 ### Legal documents needing a solicitor
 
 Drafts will be produced in this repo and marked clearly as drafts. **They are
