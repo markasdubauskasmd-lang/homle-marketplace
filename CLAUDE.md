@@ -123,9 +123,17 @@ Two heavy Chromium suites fail on a small container and pass in GitHub CI.
 Confirm against CI before chasing either; a failure here on a 4-core box is
 slowness, not a defect.
 
-- `tests/customer-tracking-style.mjs` — reproducible. The harness caps every CDP
-  call at 30 s (`tools/browser-harness.mjs`) and this test snapshots every CSS
-  property of every element at two viewports.
+- `tests/customer-tracking-style.mjs` — reproducible, and it **hangs rather
+  than merely running slowly**: it does not finish at a 300-second ceiling on
+  an idle container, so `HOMLE_BROWSER_TIMEOUT_MS` does not rescue it. The
+  cause is the payload, not the clock. The snapshot returns every CSS property
+  of every element *and* both pseudo-elements, in one `Runtime.evaluate` — on
+  this page that is hundreds of thousands of key/value pairs serialised across
+  CDP in a single response, at two viewports. The fix, if it is ever needed
+  here, is to page that snapshot rather than return it whole; that keeps every
+  assertion intact, which loosening the comparison would not. Left alone for
+  now because the change cannot be validated against the CI baseline it exists
+  to protect. See PROGRESS.md Q11.
 - `tests/shared-customer-motion.mjs` — intermittent, roughly one run in two.
   Fails as `TimeoutError: Transition was aborted because of timeout in DOM
   update` while measuring view-transition fades.
