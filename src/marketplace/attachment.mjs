@@ -277,6 +277,7 @@ export async function createMarketplaceAttachment(options = {}) {
   // capture and transfer every payment, and stamped them on the audit record.
   let settlementTimer = null;
   let expiryTimer = null;
+  let expiryReady = false;
   const settlementUserId = platformSettlementUserId(env);
   const settlementRequested = paymentSettlementEnabled(env);
   let settlementReady = false;
@@ -339,6 +340,10 @@ export async function createMarketplaceAttachment(options = {}) {
           expiry.runOnce().catch((error) => adapters.onUnexpectedError(error));
         }, 900_000);
         expiryTimer.unref?.();
+        // Reported for the same reason settlement is: an operator asking
+        // whether unpaid bookings are being ended should not have to read the
+        // logs to find out.
+        expiryReady = true;
       } catch (error) {
         adapters.onUnexpectedError(error);
       }
@@ -351,6 +356,7 @@ export async function createMarketplaceAttachment(options = {}) {
     ready: true,
     reason: "ready",
     settlementReady,
+    expiryReady,
     authenticationHttpReady: runtime.authenticationHttpReady === true,
     authenticationCapabilities,
     emailReady: Boolean(emailDelivery),

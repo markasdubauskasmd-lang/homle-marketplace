@@ -4976,6 +4976,12 @@ async function getAdminConfig(request, response) {
     // should not have to read the logs to find out — the answer is either true
     // here or it is not running.
     settlementReady: marketplaceAttachment.settlementReady === true,
+    // Whether unpaid bookings are being ended, which is the loop that gives a
+    // Cleaner back a day they would otherwise lose to a job that can never
+    // start. It rides the same gate as settlement, so a false here with
+    // settlement true means the loop refused to build and said so to
+    // monitoring.
+    expiryReady: marketplaceAttachment.expiryReady === true,
     // This contains no credential or connection detail. Operators set it only
     // when the database provider has imposed a deletion date, so the private
     // launch desk cannot mistake temporary connectivity for durable storage.

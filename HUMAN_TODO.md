@@ -126,8 +126,17 @@ one number in `db/migrations/125_unpaid_booking_expiry.sql` and the reasoning is
 in `DECISIONS.md` D13 — but change it in the migration, not by hand in the
 database, or the next deployment will undo it.
 
+**One thing it deliberately will not do.** It never cancels a booking whose
+slot is already in the past, because those never received a payment reminder
+and the rule is that nobody loses a booking without a warning. If you have old
+confirmed-but-unpaid bookings, they stay as they are. Cancelling months of
+historical records and emailing both parties about each one is your call to
+make deliberately, not something that should happen as a side effect of
+switching settlement on.
+
 **Rehearse it too.** In the same test-mode run, make one booking and simply do
-not pay. Confirm that it is cancelled and that both accounts are notified, then
+not pay. Note that nothing is cancelled until a payment reminder has been out
+for two hours, so this is not instant. Confirm that it is cancelled and that both accounts are notified, then
 check that the Cleaner can be invited for that time again — their slot is
 blocked by the booking's own status, so cancelling it is what releases them.
 

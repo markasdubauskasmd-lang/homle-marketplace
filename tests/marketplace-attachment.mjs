@@ -281,7 +281,78 @@ assert.equal(paymentAttachment.paymentsReady, true);
 assert.equal(paymentAdapterVerified, 1);
 assert.equal(paymentProviderConfiguration.secretKey, paymentEnvironment.STRIPE_SECRET_KEY);
 assert.equal(paymentProviderConfiguration.webhookSecret, paymentEnvironment.STRIPE_WEBHOOK_SECRET);
+// Settlement was not requested here, so neither loop may be running.
+assert.equal(paymentAttachment.settlementReady, false);
+assert.equal(paymentAttachment.expiryReady, false);
 await paymentAttachment.close();
+
+/* ── Unpaid-booking expiry must never run with payments off ────────────── */
+
+// This is the single most important property of that loop. With payments
+// disabled, no booking can ever hold an authorization -- and migration 025
+// deliberately lets jobs start without one -- so an expiry pass would look at
+// every confirmed booking in the system and see an unpaid one. It is tied to
+// the settlement gate precisely so the two cannot get out of step, and this is
+// what stops a future edit quietly untying them.
+const settlementUserId = "11111111-1111-4111-8111-111111111111";
+async function attachWithSettlement(environmentOverrides, { administrator = true, paymentService = true } = {}) {
+  const reported = [];
+  const attached = await createMarketplaceAttachment({
+    env: Object.freeze({ ...paymentEnvironment, ...environmentOverrides }),
+    adapters: { ...adapters, onUnexpectedError: (error) => reported.push(error) },
+    async createPool() { return { async end() {}, async query() { return { rows: [{ ok: administrator }] }; } }; },
+    async createRealtimePool() { return { async end() {} }; },
+    async probeDatabase() {},
+    async probeRealtimeDatabase() { return { listenReady: true }; },
+    createRealtimeSignalSource() { return { async close() {} }; },
+    async createEmailDelivery() { return { async verify() {}, async send() {}, async close() {} }; },
+    async createObjectStorage() { return { async verify() {}, async createUploadUrl() {}, async headObject() {}, async inspectAndSanitizeImage() {}, async createReadUrl() {}, async deleteObject() {}, async close() {} }; },
+    createClientKeyResolver() { return trustedClientKey; },
+    createRateLimiter() { return sharedRateLimiter; },
+    async createPaymentProvider() {
+      return { name: "stripe", async verify() { return { ready: true, testMode: true }; }, async createPayoutAccount() {}, async retrievePayoutAccount() {}, async createPayoutOnboardingLink() {} };
+    },
+    createRuntime() {
+      return {
+        router, authenticationHttpReady: true, paymentReady: true, matchingReady: true,
+        paymentService: paymentService
+          ? { async listForAdministrator() { return { operations: [] }; }, async capture() {}, async transfer() {}, async cancel() {} }
+          : null,
+        unpaidBookingRepository: { async listExpirable() { return []; }, async expire() { return { bookingId: "", expired: false, reason: "" }; } }
+      };
+    }
+  });
+  return { attached, reported };
+}
+
+{
+  const { attached } = await attachWithSettlement({ WORKER_PAYMENT_SETTLEMENT_ENABLED: "true", PLATFORM_SETTLEMENT_USER_ID: settlementUserId });
+  assert.equal(attached.settlementReady, true, "Settlement did not start for a verified administrator.");
+  assert.equal(attached.expiryReady, true, "Unpaid-booking expiry did not start alongside settlement.");
+  await attached.close();
+}
+{
+  // Payments off: the whole gate must refuse, so expiry never runs.
+  const { attached, reported } = await attachWithSettlement(
+    { PAYMENTS_ENABLED: "false", STRIPE_SECRET_KEY: "", STRIPE_PUBLISHABLE_KEY: "", STRIPE_WEBHOOK_SECRET: "", WORKER_PAYMENT_SETTLEMENT_ENABLED: "true", PLATFORM_SETTLEMENT_USER_ID: settlementUserId },
+    { paymentService: false }
+  );
+  assert.equal(attached.expiryReady, false, "Unpaid-booking expiry ran on a deployment with payments switched off, where every confirmed booking looks unpaid.");
+  assert.equal(attached.settlementReady, false);
+  assert.ok(reported.some((error) => /payments are not attached/.test(error.message)), "A refused settlement gate was not reported to monitoring.");
+  await attached.close();
+}
+{
+  // A configured account that does not actually hold the role stops both.
+  const { attached, reported } = await attachWithSettlement(
+    { WORKER_PAYMENT_SETTLEMENT_ENABLED: "true", PLATFORM_SETTLEMENT_USER_ID: settlementUserId },
+    { administrator: false }
+  );
+  assert.equal(attached.expiryReady, false, "Unpaid-booking expiry ran under an account that does not hold the administrator role.");
+  assert.equal(attached.settlementReady, false);
+  assert.ok(reported.some((error) => /not an active administrator account/.test(error.message)));
+  await attached.close();
+}
 
 let unsafeReleased = 0;
 await assert.rejects(probeMarketplaceDatabase({

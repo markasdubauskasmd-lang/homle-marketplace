@@ -626,6 +626,11 @@
       "order": 125,
       "file": "125_unpaid_booking_expiry.sql",
       "sha256": "ad00b9b23919c161699a0a2a0c1159aa013d30faf3d01ce422e2b2dcbd42a9bb"
+    },
+    {
+      "order": 126,
+      "file": "126_booking_cancellation_status_cast.sql",
+      "sha256": "a7402bd9e6bc4f743d9deba00584ffd8416901ac3947abe5d1d25680e76290dd"
     }
   ],
   "grantFiles": [

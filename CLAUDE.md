@@ -107,7 +107,14 @@ finishes green, and silently skips the majority of the checks; that is exactly
 how a broken landing-page assertion survived a "full" run in this session.
 
 For auth, payment or database changes, add a test that **fails before** and
-**passes after**. Keep commits small and name them by outcome, matching the
+**passes after**.
+
+**A migration that adds a database function needs an entry in `db/integration/`
+that executes it**, wired into `tools/postgres-integration-runner.mjs`. A
+JavaScript fake and a string match against the migration source both pass
+against a function that cannot run at all: two cancellation functions inserted
+a text value into an enum column, threw on the only path where they acted, and
+every test covering them stayed green. See DECISIONS.md D14. Keep commits small and name them by outcome, matching the
 existing history.
 
 ### Known environment quirks

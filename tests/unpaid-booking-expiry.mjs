@@ -74,6 +74,34 @@ function paymentService(behaviour = () => {}) {
     `An already-cancelled hold blocked the expiry: ${JSON.stringify(outcome)}`);
 }
 
+// A cancel whose provider outcome is UNKNOWN resolves rather than throwing:
+// `runCommand` returns a recovery record when the provider timed out or the
+// attempt window was lost. Counting that as a release is the same money-losing
+// mistake in a quieter form -- once the booking leaves `confirmed`,
+// `begin_payment_command` refuses every further cancel, so the ordinary route
+// back to the customer's money is closed.
+{
+  const store = repository({ due: [{ bookingId, scheduledStartAt: startAt, paymentId }] });
+  const payments = paymentService(() => ({ commandId: "c-1", paymentId, kind: "cancel", status: "dispatched", recoveryRequired: true, recoveryReason: "provider-timeout" }));
+  const reported = [];
+  const worker = createUnpaidBookingWorker({ repository: store, payments, actor: administrator, onUnexpectedError: (error) => reported.push(error) });
+
+  const outcome = await worker.runOnce();
+  assert(!store.calls.some((call) => call.kind === "expire"),
+    "A booking was cancelled after a release whose provider outcome was unknown, closing the route back to the customer's money.");
+  assert(outcome.failed === 1 && outcome.released === 0 && outcome.expired === 0, `An uncertain release was counted as success: ${JSON.stringify(outcome)}`);
+  assert(reported[0]?.code === "payment-release-uncertain", `An uncertain release was not reported for recovery: ${reported[0]?.code}`);
+}
+
+// A cancel that resolves normally is a real release.
+{
+  const store = repository({ due: [{ bookingId, scheduledStartAt: startAt, paymentId }] });
+  const payments = paymentService(() => ({ commandId: "c-2", paymentId, kind: "cancel", status: "succeeded", recoveryRequired: false }));
+  const worker = createUnpaidBookingWorker({ repository: store, payments, actor: administrator });
+  const outcome = await worker.runOnce();
+  assert(outcome.released === 1 && outcome.expired === 1, `A completed release did not expire the booking: ${JSON.stringify(outcome)}`);
+}
+
 /* ── A booking with no payment attempt needs no provider call ──────────── */
 
 {
@@ -143,7 +171,23 @@ function paymentService(behaviour = () => {}) {
   const worker = createUnpaidBookingWorker({ repository: store, payments, actor: administrator, onUnexpectedError: (error) => reported.push(error) });
   const outcome = await worker.runOnce();
   assert(outcome.failed === 1 && reported.length === 1, `A paused pass reported once per booking: ${JSON.stringify(outcome)}`);
-  assert(!store.calls.some((call) => call.kind === "expire"), "A booking was ended while money movement was paused.");
+  assert(outcome.considered === 3 && outcome.expired === 0, "The pass continued past a paused provider.");
+}
+
+// The pause is observable only by attempting a command, so a booking with no
+// hold at all is not affected by one. That is correct rather than an oversight:
+// ending such a booking moves no money, and leaving a Cleaner's day blocked
+// through a maintenance window would be a cost with no matching risk. Asserted
+// so the behaviour is a decision on the record rather than an accident.
+{
+  const store = repository({
+    due: [{ bookingId, scheduledStartAt: startAt, paymentId: null }]
+  });
+  const payments = paymentService(() => { throw Object.assign(new Error("paused"), { code: "payment-command-writes-paused" }); });
+  const worker = createUnpaidBookingWorker({ repository: store, payments, actor: administrator });
+  const outcome = await worker.runOnce();
+  assert(outcome.expired === 1 && outcome.failed === 0,
+    `A holdless booking was blocked by a money-movement pause it cannot be affected by: ${JSON.stringify(outcome)}`);
 }
 
 /* ── The actor and the bounds ──────────────────────────────────────────── */

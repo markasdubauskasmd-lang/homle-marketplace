@@ -82,7 +82,24 @@ export function createUnpaidBookingWorker(options = {}) {
             try {
               // Stable key, so a pass that dies after the provider call and
               // before the booking update does not cancel twice on the retry.
-              await payments.cancel(actor, { paymentId: booking.paymentId, idempotencyKey: `expire_unpaid_${booking.paymentId}` });
+              const release = await payments.cancel(actor, { paymentId: booking.paymentId, idempotencyKey: `expire_unpaid_${booking.paymentId}` });
+              // A cancel whose provider outcome is unknown RESOLVES rather than
+              // throwing: `runCommand` returns a recovery record when the
+              // provider timed out, errored off-deadline, or the attempt window
+              // was lost. Treating that as a release is the same mistake in a
+              // quieter form -- the booking would leave `confirmed`, and from
+              // there `begin_payment_command` refuses every further cancel, so
+              // the ordinary route back to the customer's money is closed and
+              // only an administrator running recovery can reopen it. Unknown
+              // is not released, so the booking stays alive.
+              if (release?.recoveryRequired === true) {
+                throw Object.assign(new Error("The provider outcome for this authorization is unknown, so the booking was left alive for recovery."), {
+                  code: "payment-release-uncertain",
+                  paymentId: booking.paymentId,
+                  commandId: release.commandId ?? null,
+                  recoveryReason: release.recoveryReason ?? null
+                });
+              }
               released += 1;
             } catch (error) {
               // The attempt reached a state that cannot be cancelled between

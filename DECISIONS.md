@@ -170,3 +170,37 @@ migration 115 settled: `begin_payment_command` will not cancel a hold on a
 booking that has already left `confirmed`. If the release fails the booking is
 left alive and the failure reported, because a booking still holding somebody's
 money is safer alive than cancelled with the money stranded.
+
+**D14 — A database function is not covered until something has executed it.**
+Review found that `cancel_booking_as_landlord` (migration 115) and
+`expire_unpaid_booking` (migration 125) both declared the previous booking
+status as `text` and inserted it into an enum column. PostgreSQL has no
+assignment cast from text to an enum, so both threw on the one path where they
+would act. Reproduced against PostgreSQL 16 with every migration applied.
+
+The consequence was the exact failure both functions were written to prevent.
+Both callers release the customer's card hold first, because
+`begin_payment_command` will not cancel a hold on a booking that has already
+left `confirmed`. So the live sequence was: return the money, fail to cancel
+the booking, leave the Cleaner's slot blocked. For the expiry loop it would
+have repeated every fifteen minutes, for ever.
+
+Every test covering those functions passed throughout, because every one of
+them was either a JavaScript fake or a string match against the migration
+source, and neither can see a type error. That is the actual lesson, and it is
+now a rule: **a migration that adds a function gets an entry in
+`db/integration/` that executes it.** `booking-cancellation-verification.sql`
+does that for both, runs inside the existing PostgreSQL integration runner, and
+fails against the pre-126 schema with the original error — verified in both
+directions rather than assumed.
+
+Two related repairs came from the same review. The expiry queue had no lower
+bound, so a same-day booking was eligible for cancellation the moment it was
+confirmed, before either reminder could fire — the twelve-hour deadline's whole
+justification is that the customer has already been warned, and that was untrue
+for any booking made inside the window. Expiry now requires a payment reminder
+sent at least two hours earlier, read from the reminders themselves so it
+cannot drift out of step with the schedule that sends them. And a cancel whose
+provider outcome is *unknown* resolves rather than throwing; the worker counted
+that as a release. It no longer does, because a booking that leaves `confirmed`
+on an uncertain release has its ordinary route back to the money closed.
