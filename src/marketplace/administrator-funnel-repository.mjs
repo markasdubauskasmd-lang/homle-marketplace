@@ -1,6 +1,7 @@
 const mapped = Object.freeze({
   "administrator-required": [403, "administrator-required", "A Homle Administrator account is required."],
-  "invalid-funnel-window": [422, "invalid-funnel-window", "Choose a supported funnel window."]
+  "invalid-funnel-window": [422, "invalid-funnel-window", "Choose a supported funnel window."],
+  "invalid-revenue-window": [422, "invalid-revenue-window", "Choose a supported revenue window."]
 });
 
 function mapError(error) {
@@ -11,6 +12,14 @@ function mapError(error) {
 export function createAdministratorFunnelRepository(database) {
   if (!database || typeof database.withUserTransaction !== "function") throw new TypeError("The marketplace database boundary is required.");
   return Object.freeze({
+    revenue(actor, windowDays) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.get_administrator_revenue($1::integer) AS result", [windowDays]);
+          return result.rows[0]?.result;
+        } catch (error) { throw mapError(error); }
+      });
+    },
     get(actor, input) {
       return database.withUserTransaction(actor, async (client) => {
         try {

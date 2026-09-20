@@ -646,6 +646,11 @@
       "order": 129,
       "file": "129_administrator_account_status.sql",
       "sha256": "7613724181c2976be164a33e7ed12e075f4eaea45099ac8f67b0becc8e1fa142"
+    },
+    {
+      "order": 130,
+      "file": "130_administrator_revenue_summary.sql",
+      "sha256": "48b7b471216411da4a9fbe47297c50b9821f9eacffbdbd039cf8ce8c6bce5023"
     }
   ],
   "grantFiles": [

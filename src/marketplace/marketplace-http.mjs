@@ -306,6 +306,15 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, ...report });
           return true;
         }
+        // What the money did. Deliberately a separate read from the funnel
+        // report, which states outright that it excludes monetary data and
+        // still does.
+        if (pathname === "/api/marketplace/admin/revenue") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          sendJson(response, 200, { ok: true, revenue: await administratorFunnel.revenue(context.actor, { windowDays: url.searchParams.get("windowDays") }) });
+          return true;
+        }
         if (pathname === "/api/marketplace/admin/funnel") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { roles: ["administrator"] });

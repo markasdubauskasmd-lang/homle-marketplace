@@ -174,3 +174,54 @@ export function shortPaymentBookingReference(value) {
   if (!uuidPattern.test(value || "")) return "Booking";
   return `BKG-${value.slice(0, 8).toUpperCase()}`;
 }
+
+// The revenue summary shown on the payments desk.
+//
+// It is contribution, not profit: the provider's own fees, the AI provider,
+// hosting and anybody's time are all outside this ledger. The screen says so,
+// because a number labelled "profit" that is not profit is the kind of thing a
+// business plans against for a year before noticing.
+const revenueWindows = new Set([7, 30, 90, 365]);
+
+export function revenueWindow(value) {
+  const selected = Number(value);
+  if (!Number.isInteger(selected) || !revenueWindows.has(selected)) throw new TypeError("Choose a 7, 30, 90 or 365 day window.");
+  return selected;
+}
+
+export function poundsLabel(pence) {
+  const amount = Number(pence);
+  if (!Number.isSafeInteger(amount)) throw new TypeError("That amount is unavailable.");
+  // Negative is real and must show as negative: an over-transferred booking is
+  // the one figure here worth acting on, and rendering it as zero or as its
+  // absolute value would hide exactly that.
+  const negative = amount < 0;
+  const formatted = (Math.abs(amount) / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${negative ? "−" : ""}£${formatted}`;
+}
+
+/**
+ * The lines of the summary, in the order they make sense read downwards.
+ *
+ * Each carries its own note rather than relying on the reader to know what
+ * "transferred" means, because the whole point of this panel is that somebody
+ * who is not an accountant can tell whether the month went well.
+ */
+export function revenueLines(revenue) {
+  if (!revenue || typeof revenue !== "object") throw new TypeError("The revenue summary is unavailable.");
+  const lines = [
+    ["Customers charged", revenue.capturedPence, `${revenue.capturedCount} payment${revenue.capturedCount === 1 ? "" : "s"} captured in this window.`],
+    ["Refunded", revenue.refundedPence, `${revenue.refundedCount} payment${revenue.refundedCount === 1 ? "" : "s"} partly or fully returned.`],
+    ["Kept from customers", revenue.netCustomerPence, "Charged less refunded."],
+    ["Paid to Cleaners", revenue.transferredPence, "Only transfers the provider has confirmed. Money still in flight is not counted."],
+    ["Platform contribution", revenue.platformTakePence, "Kept from customers less paid to Cleaners. This is contribution, not profit: provider fees, the AI provider, hosting and time are not in this ledger."],
+    ["Contribution pricing intended", revenue.plannedContributionPence, "What the prices were set to keep for these bookings. A persistent gap from the line above is the number worth acting on."]
+  ];
+  return Object.freeze(lines.map(([label, pence, note]) => Object.freeze({ label, amount: poundsLabel(pence), note })));
+}
+
+export function revenueWarning(revenue) {
+  const awaiting = Number(revenue?.awaitingTransferCount);
+  if (!Number.isInteger(awaiting) || awaiting < 1) return "";
+  return `${awaiting} captured payment${awaiting === 1 ? " has" : "s have"} no confirmed transfer yet, so ${awaiting === 1 ? "that Cleaner has" : "those Cleaners have"} not been paid. Until ${awaiting === 1 ? "it settles" : "they settle"}, the contribution above is higher than what Homle will actually keep.`;
+}

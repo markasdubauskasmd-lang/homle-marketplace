@@ -344,3 +344,35 @@ The lookup takes an exact email or id and is not a directory. An Administrator
 suspending an account already knows who they are looking for; free-text search
 across everyone who ever signed up is a different feature with a different
 privacy question behind it.
+
+**D18 — Revenue is reported as contribution, on the payments desk, and never on
+the funnel.**
+Every figure needed to answer "is this making anything" already existed per
+booking and nothing summed them, so the platform could say how many bookings
+completed and not what they were worth.
+
+Three choices in how it is reported:
+
+**It reuses migration 121's definitions exactly** — net customer is captured
+minus refunded, transferred counts only reconciled transfer commands, platform
+take is the difference. Two ways of computing what the platform kept is how a
+business ends up with two answers and trusts neither. "Reconciled only" is the
+one that matters: a transfer still pending with the provider has not left the
+platform balance, and counting it would report a Cleaner as paid before they
+were.
+
+**It is called contribution, not profit, and the screen says why.** Provider
+fees, the AI provider, hosting and anybody's time are all outside this ledger.
+A figure labelled profit that is not profit is the kind of thing a business
+plans against for a year before noticing. The contribution pricing *intended*
+is shown beside what the ledger actually holds, because a persistent gap
+between the two is the number worth acting on.
+
+**It lives on the payments desk, not the funnel.** The funnel report states
+outright that it excludes monetary data, and that statement is still true — a
+test now asserts it. Adding money there would have made a published claim false
+to save building one panel.
+
+A negative platform take is preserved rather than clamped. It is exactly what
+an over-transferred booking looks like, and it is the single figure here most
+worth seeing.

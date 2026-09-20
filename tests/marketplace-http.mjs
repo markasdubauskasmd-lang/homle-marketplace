@@ -1497,3 +1497,39 @@ console.log("Cleaner application review HTTP checks passed: administrator-only r
     "An unattached account service still answered a lookup.");
 }
 console.log("Account suspension HTTP checks passed: administrator-only lookup and suspension, CSRF-bound, read-only refused, and unattached service left unhandled.");
+
+/* ── The revenue summary ───────────────────────────────────────────────── */
+
+{
+  const revenueCalls = [];
+  const revenueRouter = createMarketplaceHttpRouter({
+    ...dependencies,
+    administratorFunnelService: {
+      ...administratorFunnelService,
+      async revenue(actor, input) {
+        revenueCalls.push({ actor, input });
+        return { windowDays: Number(input.windowDays) || 30, generatedAt: "2026-09-20T03:00:00.000Z", capturedCount: 1, refundedCount: 0, awaitingTransferCount: 0, capturedPence: 12000, refundedPence: 0, netCustomerPence: 12000, transferredPence: 8400, platformTakePence: 3600, plannedContributionPence: 3600 };
+      }
+    }
+  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+
+  const revenue = await dispatch(revenueRouter, "GET", "/api/marketplace/admin/revenue?windowDays=90", { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(revenue.response.statusCode === 200 && revenue.body.revenue.platformTakePence === 3600,
+    `An Administrator could not read the revenue summary: ${revenue.response.statusCode}`);
+  assert(revenueCalls[0].input.windowDays === "90" && revenueCalls[0].actor.roles.includes("administrator"),
+    "The revenue read lost its window or its actor.");
+
+  const landlordRevenue = await dispatch(revenueRouter, "GET", "/api/marketplace/admin/revenue", { headers: { cookie: authHeaders.cookie } });
+  assert(landlordRevenue.response.statusCode === 403, `A Landlord read the platform revenue: ${landlordRevenue.response.statusCode}`);
+  const anonymousRevenue = await dispatch(revenueRouter, "GET", "/api/marketplace/admin/revenue", {});
+  assert(anonymousRevenue.response.statusCode === 401, `A signed-out visitor read the platform revenue: ${anonymousRevenue.response.statusCode}`);
+  assert((await dispatch(revenueRouter, "POST", "/api/marketplace/admin/revenue", { headers: administratorAuthHeaders, body: {} })).response.statusCode === 405,
+    "The revenue route accepted a write.");
+
+  // The funnel report is a separate read and still carries no money, which is
+  // what its own published privacy scope says.
+  const stillMoneyFree = await dispatch(revenueRouter, "GET", "/api/marketplace/admin/funnel", { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(stillMoneyFree.response.statusCode === 200 && !/Pence/.test(JSON.stringify(stillMoneyFree.body.onboarding || {})),
+    "The funnel report grew monetary data, contradicting its own stated scope.");
+}
+console.log("Revenue summary HTTP checks passed: administrator-only, window passed through, read-only, and the funnel report still carries no money.");

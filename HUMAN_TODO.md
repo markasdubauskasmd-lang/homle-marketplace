@@ -198,6 +198,15 @@ What it deliberately will not do, so you are not surprised:
 - **It will not let you suspend yourself, or the last Administrator account.**
   Both of those would lock you out of the only screen that can undo it.
 
+**`/admin/payments` now adds up the money.** Pick a window and it shows what
+customers were charged, what was refunded, what Cleaners were actually paid and
+what Homle kept. Two things to read carefully: it says **contribution, not
+profit** — Stripe's own fees, the AI provider, hosting and your time are not in
+this ledger — and it only counts transfers the provider has confirmed, so a
+warning appears when Cleaners are still owed. It also shows what your pricing
+*intended* to keep; a persistent gap between that and the actual figure is the
+thing worth investigating, not a single booking's difference.
+
 **Before you rely on it:** create a second Administrator account. The
 last-Administrator guard means that with only one, you cannot suspend it — 
 which is correct, but it also means you have no way to lock out a compromised

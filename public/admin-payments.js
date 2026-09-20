@@ -1,4 +1,4 @@
-import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentDisputeHeld, paymentDisputeStatusLabel, paymentRecoveryHeld, paymentRecoveryReasonLabel, paymentNextAction, paymentStatusLabel, shortPaymentBookingReference, shortPaymentReference } from "./admin-payments-model.js";
+import { adminPaymentBookingFilter, adminPaymentFilter, adminPaymentQueue, paymentActionLabel, paymentActionPayload, paymentDisputeHeld, paymentDisputeStatusLabel, paymentRecoveryHeld, paymentRecoveryReasonLabel, paymentNextAction, paymentStatusLabel, revenueLines, revenueWarning, revenueWindow, shortPaymentBookingReference, shortPaymentReference } from "./admin-payments-model.js";
 import { storedCsrf } from "./session-csrf.js";
 
 const pageSize = 50;
@@ -257,6 +257,44 @@ function renderQueue() {
   next.disabled = queue.payments.length < queue.limit;
 }
 
+const revenueWindowControl = document.querySelector("[data-admin-revenue-window]");
+const revenueList = document.querySelector("[data-admin-revenue-lines]");
+const revenueWarningNode = document.querySelector("[data-admin-revenue-warning]");
+const revenueGenerated = document.querySelector("[data-admin-revenue-generated]");
+
+// Rendered separately from the payment queue and allowed to fail on its own.
+// An Administrator opened this screen to act on a payment; losing the summary
+// must not lose the queue as well.
+async function loadRevenue() {
+  if (!revenueList) return;
+  revenueList.setAttribute("aria-busy", "true");
+  try {
+    const windowDays = revenueWindow(revenueWindowControl.value);
+    const { revenue } = await requestJson(`/api/marketplace/admin/revenue?windowDays=${windowDays}`);
+    revenueList.replaceChildren(...revenueLines(revenue).map((line) => {
+      const wrap = document.createElement("div");
+      const term = document.createElement("dt"); term.textContent = line.label;
+      const value = document.createElement("dd"); value.textContent = line.amount;
+      const note = document.createElement("small"); note.textContent = line.note;
+      wrap.append(term, value, note);
+      return wrap;
+    }));
+    const warning = revenueWarning(revenue);
+    revenueWarningNode.textContent = warning;
+    revenueWarningNode.hidden = !warning;
+    revenueGenerated.textContent = `Counted by when the money was taken. Snapshot ${new Date(revenue.generatedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}.`;
+  } catch (error) {
+    revenueList.replaceChildren();
+    revenueWarningNode.hidden = false;
+    revenueWarningNode.textContent = `The revenue summary could not be loaded (${error.message}). The payment queue below is unaffected.`;
+    revenueGenerated.textContent = "";
+  } finally {
+    revenueList.setAttribute("aria-busy", "false");
+  }
+}
+
+revenueWindowControl?.addEventListener("change", () => { void loadRevenue(); });
+
 async function loadQueue(offset = 0) {
   const revision = ++queueRevision;
   const query = selectedBookingId
@@ -273,6 +311,7 @@ async function loadQueue(offset = 0) {
   return true;
 }
 
+
 async function load() {
   if (loading) return;
   loading = true;
@@ -284,6 +323,7 @@ async function load() {
     gate.hidden = true;
     workspace.hidden = false;
     await loadQueue(0);
+    await loadRevenue();
   } catch (error) {
     if (error.statusCode === 401) showGate("Sign in as a Homle Administrator", "Payment operations are not available without an authenticated Administrator account.", { kind: "authentication", signIn: true });
     else if (error.statusCode === 403) showGate("Administrator account required", "This account is not authorised to operate booking payments.", { kind: "authentication", signIn: true });

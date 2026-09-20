@@ -52,6 +52,7 @@ const scripts = Object.freeze({
   bookingCancellation: "booking-cancellation-verification.sql",
   cleanerApplicationReview: "cleaner-application-review-verification.sql",
   accountStatus: "account-status-verification.sql",
+  revenueSummary: "revenue-summary-verification.sql",
   rls: "marketplace-rls-behaviour.sql",
   acceptA: "accept-booking-a.sql",
   acceptB: "accept-booking-b.sql",
@@ -353,6 +354,9 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     // last-Administrator protection, session revocation, audit -- all live in
     // the function, so they are asserted by running it.
     runPsqlSync({ label: "Account status control test", file: scripts.accountStatus, environment: ownerEnvironment, command, execute });
+    // The arithmetic is the whole feature, so it runs against money that was
+    // actually captured, refunded and transferred.
+    runPsqlSync({ label: "Revenue summary test", file: scripts.revenueSummary, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Job-start payment gate test", file: scripts.paymentGate, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Participant lifecycle rehearsal setup", file: scripts.participantLifecycleSetup, environment: ownerEnvironment, command, execute });
     const realtimeProof = await executeRealtimeProbe({
