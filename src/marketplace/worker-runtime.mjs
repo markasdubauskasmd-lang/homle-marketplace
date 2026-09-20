@@ -3,6 +3,7 @@ import { createAutomaticDispatchWorker } from "./automatic-dispatch-worker.mjs";
 import { createEmailNotificationRepository } from "./email-notification-repository.mjs";
 import { createEmailNotificationWorker } from "./email-notification-worker.mjs";
 import { createMaintenanceRepository } from "./maintenance-repository.mjs";
+import { createPaymentSettlementWorker } from "./payment-settlement-worker.mjs";
 import { createMarketplaceMaintenanceJobs } from "./maintenance-worker.mjs";
 import { createWorkerSupervisor } from "./worker-supervisor.mjs";
 
@@ -39,6 +40,24 @@ export function createMarketplaceWorkerRuntime(pool, options = {}) {
       requirePayoutReady: options.requirePayoutReady === true
     });
     jobs.push(Object.freeze({ name: "automatic-dispatch", intervalMs: integer(options.dispatchIntervalMs, 1000, 3_600_000, 60_000, "Automatic-dispatch interval"), runOnce: () => worker.runOnce() }));
+  }
+
+  // Settlement only composes when the caller supplies both a payment service
+  // and a genuine platform administrator actor. Neither can be conjured from
+  // configuration, which is deliberate: the database resolves the
+  // administrator role from the account, so there is no environment variable
+  // that can assert it.
+  if (options.paymentSettlement) {
+    const worker = createPaymentSettlementWorker({
+      payments: options.paymentSettlement.payments,
+      actor: options.paymentSettlement.actor,
+      batchLimit: integer(options.settlementBatchLimit, 1, 100, 25, "Settlement batch limit"),
+      onUnexpectedError: options.onUnexpectedError
+    });
+    // Five minutes, not every minute. Nothing is time-critical inside the
+    // seven-day authorization window, and a capture loop that wakes constantly
+    // is a loop that retries a provider refusal constantly.
+    jobs.push(Object.freeze({ name: "payment-settlement", intervalMs: integer(options.settlementIntervalMs, 1000, 3_600_000, 300_000, "Settlement interval"), runOnce: () => worker.runOnce() }));
   }
 
   return createWorkerSupervisor(jobs, {

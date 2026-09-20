@@ -47,3 +47,34 @@ while the test still passed on a `null` match, or crash it. The source comment a
 together. Correct fix is to restate the constraint against `.hub-cta`, which
 actually replaced it, then retire both. Deferred: it is cosmetic, and nothing
 about it blocks a paid booking.
+
+**D7 — Automatic settlement reuses the administrator command path rather than a
+worker-role SQL path.** Every guard that makes capture and transfer safe —
+booking completed, payment authorized, no dispute or reconciliation hold,
+verified payout destination, one live command per kind — lives in
+`begin_payment_command`. A parallel settlement path in SQL would duplicate all of
+it, and money movement is the last place in this codebase that should have two
+implementations able to drift. The cost is that the worker needs a real
+administrator account to act as, because the database resolves the role from the
+account; that is `PLATFORM_SETTLEMENT_USER_ID`, and it is a feature rather than a
+workaround — no environment variable can assert a role.
+
+**D8 — Cancelling a booking charges nothing.** The money is only ever authorized,
+never captured, before a clean happens, so releasing an uncaptured hold costs the
+platform nothing and returns the customer's money immediately. A cancellation fee
+is a pricing decision needing `PRICING_POLICY_APPROVED` and approved customer
+terms; it is recorded in `HUMAN_TODO.md` rather than invented.
+
+**D9 — A failed hold release blocks the cancellation instead of stranding money.**
+`begin_payment_command` refuses a cancel unless the booking is still `confirmed`,
+so the hold must be released first. If that release fails, cancelling anyway
+produces a state with no exit: the payment can then never be cancelled, captured
+or refunded by anyone, and no job sweeps it. A provider outage delaying a
+cancellation is recoverable; money nobody can move is not.
+
+**D10 — Test guards strip comments before matching source.** Three separate
+guards in this session fired on the prose explaining them rather than on code —
+the publication guard on a documented PEM header, the example-booking guard on a
+comment naming the fixtures, the settlement guard on a comment naming the SQL
+function. A guard that matches its own explanation teaches the next person to
+delete the explanation. Strip comments, or describe rather than quote.

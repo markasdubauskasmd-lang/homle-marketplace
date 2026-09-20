@@ -47,6 +47,32 @@ For the test path (should already be set — verify):
 For live money, later, all of these must be true in fact before they are set:
 - `PUBLIC_PAYMENTS_APPROVED`, `PAYMENT_ACCOUNT_VERIFIED`, `REFUND_PROCESS_READY`.
 
+### 2a. Automatic settlement — switch on after one rehearsal
+
+Capture and payout used to need you to open `/admin/payments` and click twice
+for **every single job**. That does not scale, and it is worse than slow: Stripe
+releases an uncaptured authorization after about a week, so a missed click does
+not delay the money, it loses it.
+
+A settlement worker now does both on a five-minute schedule. It is off by
+default and needs two settings:
+
+1. `PLATFORM_SETTLEMENT_USER_ID` — the account id of an administrator the
+   platform acts as. Use the administrator created by
+   `pnpm run provision:administrator`; the database resolves the role from the
+   account, so this cannot be faked with a config value.
+2. `WORKER_PAYMENT_SETTLEMENT_ENABLED=true`.
+
+**Rehearse before switching it on.** Run one full test-mode booking to
+completion and confirm on `/admin/payments` that the capture and the transfer
+both appear, with the cleaner receiving the expected share and the platform
+keeping the rest. The administrator queue stays authoritative and still works by
+hand, so you can leave settlement off indefinitely if you would rather approve
+each one yourself while volume is low.
+
+The worker will not touch a payment flagged for reconciliation or dispute
+review — those stay for a human, which is the whole point of the flag.
+
 ---
 
 ## 3. Recruit the first real cleaner — ⚠️ DO NOT START YET
