@@ -306,7 +306,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const administratorBookingRepository = createAdministratorBookingRepository(database);
   const administratorBookingService = createAdministratorBookingService(administratorBookingRepository);
   const administratorVerificationRepository = createAdministratorVerificationRepository(database);
-  const administratorVerificationService = createAdministratorVerificationService(administratorVerificationRepository);
+  const administratorVerificationService = createAdministratorVerificationService(administratorVerificationRepository, { dataEncryptionSecret: env.DATA_ENCRYPTION_KEY });
   const administratorCoverageRepository = createAdministratorCoverageRepository(database, { requirePayoutReady: paymentService !== null });
   const administratorCoverageService = createAdministratorCoverageService(administratorCoverageRepository);
   const administratorFunnelRepository = createAdministratorFunnelRepository(database);

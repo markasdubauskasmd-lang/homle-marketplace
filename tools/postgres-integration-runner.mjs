@@ -50,6 +50,7 @@ const scripts = Object.freeze({
   scanRetentionVoiceAddon: "scan-retention-voice-addon-behaviour.sql",
   scanGroundTruth: "scan-ground-truth-behaviour.sql",
   bookingCancellation: "booking-cancellation-verification.sql",
+  cleanerApplicationReview: "cleaner-application-review-verification.sql",
   rls: "marketplace-rls-behaviour.sql",
   acceptA: "accept-booking-a.sql",
   acceptB: "accept-booking-b.sql",
@@ -342,6 +343,11 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     // while every JavaScript test covering them stayed green -- a fake and a
     // string match cannot see a type error.
     runPsqlSync({ label: "Booking cancellation and unpaid-expiry test", file: scripts.bookingCancellation, environment: ownerEnvironment, command, execute });
+    // Owner-run and self-contained. It asserts the conditions that make a
+    // widening of access to identity documents acceptable -- Administrator
+    // only, submitted applications only, audited every time -- by running the
+    // function rather than by reading it.
+    runPsqlSync({ label: "Cleaner application review test", file: scripts.cleanerApplicationReview, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Job-start payment gate test", file: scripts.paymentGate, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Participant lifecycle rehearsal setup", file: scripts.participantLifecycleSetup, environment: ownerEnvironment, command, execute });
     const realtimeProof = await executeRealtimeProbe({

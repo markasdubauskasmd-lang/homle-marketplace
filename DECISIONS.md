@@ -269,3 +269,41 @@ v1 is refused rather than silently reinterpreted.
 What is still a founder decision: *when* to refund and *how much*. That is
 operating policy, it is in `HUMAN_TODO.md`, and no code here decides it — the
 Administrator types the amount.
+
+**D16 — The person approving a Cleaner can see the application, and every look
+is recorded.**
+Approving a Cleaner is the decision that puts a stranger in a customer's home.
+It was being made against a name, two status strings and a public flag: the
+submitted application is encrypted per section and had no administrator read
+path at all. The most consequential decision in the product was the least
+informed one.
+
+This is a deliberate widening of access to somebody's identity documents, so
+the conditions are enforced in the database function rather than left to the
+caller:
+
+* Administrator only, checked there and not merely at the route.
+* Only an application that has actually been **submitted**. Someone halfway
+  through typing their passport number into a draft has not asked anybody to
+  look at it.
+* **Every read writes an audit row**, including a repeated one. A second look
+  is a second event; collapsing them would let the trail describe repeated
+  curiosity as a single visit. It has to be answerable later — to the Cleaner,
+  and to a regulator asking who saw what.
+* The function returns ciphertext and cannot read what it hands back. The key
+  belongs to the application, so a database backup is not a pile of identity
+  documents.
+
+Two choices in the screen follow from the audit, not from taste. The review is
+behind an explicit per-cleaner button rather than loaded with the queue,
+because opening a page must not record an Administrator as having examined
+twenty people's documents. And a section that fails to decrypt is shown as
+unreadable rather than hidden — silently dropping it would let an incomplete
+application look complete, which is the exact failure this exists to stop.
+
+Document **contents** are deliberately not shown; only type, filename, size,
+checksum and expiry. A queue page should not pull a stack of passport scans
+into memory as a side effect of being opened, and the screen says plainly that
+the files themselves still need checking, because an Administrator who believes
+they have seen a passport when they have seen a filename is worse off than one
+who knows they have not. Serving the files themselves is follow-up work.

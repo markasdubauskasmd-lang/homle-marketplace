@@ -81,6 +81,7 @@ const bookingPaymentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern
 const adminPaymentCommandPath = new RegExp(`^/api/marketplace/admin/payments/(${uuidPattern})/(capture|cancel|refund|transfer)$`);
 const adminRequestMatchingReadinessPath = new RegExp(`^/api/marketplace/admin/cleaning-requests/(${uuidPattern})/matching-readiness$`);
 const adminCleanerVerificationPath = new RegExp(`^/api/marketplace/admin/cleaner-verifications/(${uuidPattern})$`);
+const adminCleanerApplicationPath = new RegExp(`^/api/marketplace/admin/cleaner-verifications/(${uuidPattern})/application$`);
 const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
 const bookingDisputePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/dispute$`);
 const adminDisputePath = new RegExp(`^/api/marketplace/admin/disputes/(${uuidPattern})$`);
@@ -320,6 +321,21 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             catch (error) { onUnexpectedError(error); }
           }
           sendJson(response, 200, { ok: true, ...report, visitors });
+          return true;
+        }
+        // The evidence behind a vetting decision. Approving a Cleaner is what
+        // puts a stranger in a customer's home, and it was being done against a
+        // name and two status strings. Administrator-only, refused for an
+        // application nobody has submitted, and audited at the database on
+        // every read -- looking at somebody's identity documents is an event,
+        // not a page view.
+        const selectedCleanerApplication = pathname.match(adminCleanerApplicationPath);
+        if (selectedCleanerApplication) {
+          if (!administratorVerification) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const application = await administratorVerification.getApplication(context.actor, selectedCleanerApplication[1]);
+          sendJson(response, 200, { ok: true, application });
           return true;
         }
         if (pathname === "/api/marketplace/admin/cleaner-verifications") {

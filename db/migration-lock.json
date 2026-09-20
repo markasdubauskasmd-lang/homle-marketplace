@@ -636,6 +636,11 @@
       "order": 127,
       "file": "127_administrator_dispute_read.sql",
       "sha256": "9d88842b846cfbfb1f3071dea44a73ce887e22b46c4f3b873fc86224507f3a12"
+    },
+    {
+      "order": 128,
+      "file": "128_administrator_cleaner_application_read.sql",
+      "sha256": "48311f648d27ca9a30e029fff5a8951d8bf99baf434d04c8eb2daedc852089a9"
     }
   ],
   "grantFiles": [

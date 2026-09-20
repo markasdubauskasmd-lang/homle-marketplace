@@ -1402,3 +1402,41 @@ console.log("Funnel beacon HTTP checks passed: anonymous acceptance, origin and 
   }
 }
 console.log("Case-desk refund checks passed: server-resolved payment, money before the final decision, review-start refused, replay idempotent and a changed amount refused, uncertainty never reported as sent, and a failed refund leaves the case open.");
+
+/* ── The Administrator's read of a submitted application ───────────────── */
+
+{
+  const applicationCleanerId = "66666666-6666-4666-8666-666666666666";
+  const applicationPath = `/api/marketplace/admin/cleaner-verifications/${applicationCleanerId}/application`;
+  const reads = [];
+  const reviewRouter = createMarketplaceHttpRouter({
+    ...dependencies,
+    administratorVerificationService: {
+      ...administratorVerificationService,
+      async getApplication(actor, cleanerId) {
+        reads.push({ actor, cleanerId });
+        return { cleanerId, sections: [{ section: "identity", status: "submitted", readable: true, data: { fullName: "A Cleaner" }, schemaVersion: 1, completedAt: null, updatedAt: null }], documents: [] };
+      }
+    }
+  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+
+  const reviewed = await dispatch(reviewRouter, "GET", applicationPath, { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(reviewed.response.statusCode === 200 && reviewed.body.application.sections[0].data.fullName === "A Cleaner",
+    `An Administrator could not read a submitted application: ${reviewed.response.statusCode}`);
+  assert(reads[0].actor.roles.includes("administrator") && reads[0].cleanerId === applicationCleanerId,
+    "The application read lost its actor or read a different cleaner.");
+
+  // Nobody else, and nothing but a read.
+  const landlordRead = await dispatch(reviewRouter, "GET", applicationPath, { headers: { cookie: authHeaders.cookie } });
+  assert(landlordRead.response.statusCode === 403, `A Landlord read a Cleaner's identity evidence: ${landlordRead.response.statusCode}`);
+  const anonymousRead = await dispatch(reviewRouter, "GET", applicationPath, {});
+  assert(anonymousRead.response.statusCode === 401, `A signed-out visitor read a Cleaner's identity evidence: ${anonymousRead.response.statusCode}`);
+  const written = await dispatch(reviewRouter, "POST", applicationPath, { headers: administratorAuthHeaders, body: {} });
+  assert(written.response.statusCode === 405, "The application review path accepted a write.");
+
+  // The queue route must keep working and must not be shadowed by the new one.
+  const queueStill = await dispatch(reviewRouter, "GET", `/api/marketplace/admin/cleaner-verifications/${applicationCleanerId}`, { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(queueStill.response.statusCode !== 200 || !queueStill.body.application,
+    "The single-verification route now returns an application, so the two paths have been confused.");
+}
+console.log("Cleaner application review HTTP checks passed: administrator-only read, denied to landlords and signed-out visitors, read-only, and the verification routes stay distinct.");

@@ -6,7 +6,11 @@ const mapped = Object.freeze({
   "invalid-identity-check-status": [422, "invalid-identity-check-status", "Choose a supported identity check status."],
   "invalid-background-check-status": [422, "invalid-background-check-status", "Choose a supported background check status."],
   "no-verification-change-supplied": [422, "no-verification-change-supplied", "Supply an identity or background check status to change."],
-  "cleaner-profile-not-found": [404, "cleaner-profile-not-found", "That cleaner profile was not found."]
+  "cleaner-profile-not-found": [404, "cleaner-profile-not-found", "That cleaner profile was not found."],
+  "cleaner-not-found": [404, "cleaner-not-found", "That cleaner profile was not found."],
+  // A draft is not under review. Someone halfway through typing their passport
+  // number has not asked anybody to look at it.
+  "cleaner-application-not-submitted": [409, "cleaner-application-not-submitted", "This cleaner has not submitted an application to review."]
 });
 
 function mapError(error) {
@@ -21,6 +25,14 @@ export function createAdministratorVerificationRepository(database) {
       return database.withUserTransaction(actor, async (client) => {
         try {
           const result = await client.query("SELECT tideway_private.list_cleaner_verification_queue($1::text,$2::integer,$3::integer) AS result", [input.view, input.limit, input.offset]);
+          return result.rows[0]?.result;
+        } catch (error) { throw mapError(error); }
+      });
+    },
+    getApplication(actor, cleanerId) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.get_cleaner_application_for_administrator($1::uuid) AS result", [cleanerId]);
           return result.rows[0]?.result;
         } catch (error) { throw mapError(error); }
       });
