@@ -84,16 +84,26 @@ for (const [result, expected, why] of [
   assert(adminNavigationVerdict(result) === expected, `The Administrator navigation answers "${adminNavigationVerdict(result)}" for ${why}; it must answer "${expected}".`);
 }
 
-// One list for eleven desks. They each hard-coded their own and had drifted
-// into nine shapes, between three and seven destinations, with
+// One list for every desk. They each hard-coded their own and had drifted into
+// nine shapes, between three and seven destinations, with
 // /admin/scan-operations reachable only by typing the URL.
+//
+// Derived from the server's own route table rather than restated, so a desk
+// added to one and not the other is a failure here instead of a page nobody
+// can find. The count assertion this replaced had to be edited by hand every
+// time a desk was added, which is the same drift in a smaller form.
+const adminRoutes = [...(await readFile(new URL("../server.mjs", import.meta.url), "utf8"))
+  .matchAll(/"(\/admin(?:\/[a-z-]+)?)": "admin[a-z-]*\.html"/g)].map((match) => match[1]);
 const adminDesks = [...adminNavigation.matchAll(/\{ href: "(\/admin[^"]*)", label: "([^"]+)" \}/g)].map((m) => m[1]);
-assert(adminDesks.length === 11, `The shared Administrator navigation lists ${adminDesks.length} desks; there are eleven admin routes.`);
-for (const desk of ["/admin", "/admin/bookings", "/admin/cases", "/admin/support", "/admin/verifications", "/admin/coverage", "/admin/funnel", "/admin/payments", "/admin/pricing", "/admin/scan-pricing", "/admin/scan-operations"]) {
-  assert(adminDesks.includes(desk), `The shared Administrator navigation omits ${desk}, so it is reachable only by typing the URL.`);
+assert(adminRoutes.length >= 11, `Only ${adminRoutes.length} Administrator routes were found in the server route table; the pattern that finds them has drifted.`);
+for (const route of adminRoutes) {
+  assert(adminDesks.includes(route), `The shared Administrator navigation omits ${route}, so it is reachable only by typing the URL.`);
+}
+for (const desk of adminDesks) {
+  assert(adminRoutes.includes(desk), `The shared Administrator navigation offers ${desk}, which the server does not serve.`);
 }
 // `/admin` is a prefix of every other desk, so a startsWith test would mark the
-// control desk current on all eleven.
+// control desk current on all of them.
 assert(adminNavigation.includes("destination.href === currentPath"), "The Administrator navigation matches the current desk by prefix, which marks the control desk current everywhere.");
 
 console.log(`Non-Cleaner link integrity tests passed: ${checkedReferences} local route and asset references across ${pages.length} shipped pages resolve without entering the Cleaner workspace.`);
