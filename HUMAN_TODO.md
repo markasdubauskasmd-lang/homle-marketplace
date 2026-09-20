@@ -75,45 +75,43 @@ review — those stay for a human, which is the whole point of the flag.
 
 ---
 
-## 3. Recruit the first real cleaner — ⚠️ DO NOT START YET
+## 3. Recruit the first real cleaner — ✅ NOW UNBLOCKED
 
-**Read this before you contact anybody.** An earlier version of this file told
-you to go and recruit a cleaner now. That was wrong, and acting on it would have
-wasted a real person's time and your credibility with them.
+**This section was blocked and is not any more.** An earlier version told you to
+go and recruit somebody immediately; that was wrong, because a cleaner could not
+then be onboarded to the point of being bookable. Two product gaps caused it,
+both now fixed:
 
-A cleaner currently **cannot be onboarded to the point of being bookable**, for
-two reasons found in the 20 September audit, both in code and both mine to fix:
+1. **A cleaner could never publish a profile.** Publishing needs 100%
+   completion, and four of the nine required fields were written by no page in
+   the product, capping it near 56%. The publish control was inert. Both fixed —
+   onboarding now collects all four and the switch performs a real update.
+2. **A cleaner could not create a bookable availability window.** The API was
+   correct and had no caller anywhere. The schedule page now adds and withdraws
+   real windows, which is the only thing matching reads.
 
-1. **A cleaner can never publish their profile.** Publishing requires 100%
-   completion, but four of the nine required fields — biography, price,
-   languages, and the residential/commercial preference — are not written by any
-   page in the product. The ceiling is about 56%. The publish control itself is
-   inert: it is marked read-only and has no handler behind it.
-2. **A cleaner cannot create a bookable availability window.** The API exists and
-   is correct, but no page calls it, and the page built for it is redirected
-   away. What the schedule screen saves goes into a different store that the
-   matcher never reads.
+Recruiting now produces a cleaner who can actually be matched. The steps:
 
-So the live directory returning zero cleaners is **not** purely a recruitment
-problem, which is what this file previously implied. It is a product gap sitting
-behind a recruitment problem. Recruiting first would produce a vetted, willing
-cleaner who then cannot be matched to any job.
-
-These are tracked as C1 and C2 in `PROGRESS.md` and are now the top of the queue.
-**This section unblocks once they ship** — you will be told.
-
-When it does unblock, the steps are:
 1. Find and vet one cleaner: right to work, references, DBS if you are claiming
    it (do not claim it until it is done), and public liability cover.
 2. Have them complete the real application at `/cleaner/apply` on the live site.
 3. Approve them in the Administrator desk once screening is genuinely complete.
-4. Have them add real future availability and complete Stripe Connect Express
-   onboarding.
-5. Only then set `CLEANER_SUPPLY_READY` = `true`.
+4. Have them finish their profile — introduction, hourly rate, languages and
+   property types are on the Experience step — and then **publish it** from
+   My Profile. An unpublished profile is invisible to matching.
+5. Have them add **available hours** on their Schedule. Holiday mode is a note to
+   themselves; the hours are the control that decides what they are offered.
+6. Have them complete Stripe Connect Express onboarding, or they cannot accept
+   paid work.
+7. Only then set `CLEANER_SUPPLY_READY` = `true`.
 
-The Administrator funnel already separates applications from complete screenings
-from approved cleaners with confirmed availability, so it will tell you exactly
-which gate you are on.
+The Administrator funnel separates genuine applications from complete
+screenings, from approved cleaners, from approved cleaners with confirmed future
+availability — so it will tell you exactly which gate you are on.
+
+One caveat while transactional email is off (section 1): a cleaner can only sign
+up with Google, because email verification cannot be sent. Worth knowing before
+you ask somebody to register.
 
 ---
 
