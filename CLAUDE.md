@@ -103,10 +103,19 @@ For auth, payment or database changes, add a test that **fails before** and
 **passes after**. Keep commits small and name them by outcome, matching the
 existing history.
 
-### Known environment quirk
+### Known environment quirks
 
-`tests/customer-tracking-style.mjs` times out on a small container. The harness
-caps every CDP call at 30 s (`tools/browser-harness.mjs`) and that test snapshots
-every CSS property of every element at two viewports. It passes in GitHub CI. A
-failure there on a 4-core box is slowness, not a defect — confirm against CI
-before chasing it.
+Two heavy Chromium suites fail on a small container and pass in GitHub CI.
+Confirm against CI before chasing either; a failure here on a 4-core box is
+slowness, not a defect.
+
+- `tests/customer-tracking-style.mjs` — reproducible. The harness caps every CDP
+  call at 30 s (`tools/browser-harness.mjs`) and this test snapshots every CSS
+  property of every element at two viewports.
+- `tests/shared-customer-motion.mjs` — intermittent, roughly one run in two.
+  Fails as `TimeoutError: Transition was aborted because of timeout in DOM
+  update` while measuring view-transition fades.
+
+Do not "fix" either by loosening the assertion. If local flakiness becomes
+costly, make the harness timeout configurable so a slow machine reports
+slowness instead of a false failure.

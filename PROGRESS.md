@@ -15,14 +15,16 @@ limits + the real stack), then this file, then `DECISIONS.md` and
 |---|---|
 | `pnpm install --frozen-lockfile` | Passes; 57 packages, lock verified by SHA-256 |
 | `pnpm run check` (lint/typecheck equivalent, see D3) | **Green**, 606 files |
-| `pnpm test` | Green except one environment-bound timeout, below |
+| `pnpm test` | Green except two environment-bound browser timeouts, below |
 | CI on base commit | Green (Actions run 1489) |
-| Migrations | 114, all locked in `db/migration-lock.json` |
+| Migrations | 114 at audit; now 116, all locked in `db/migration-lock.json` |
 | Live site | **Unverifiable from this container** — network policy refuses `CONNECT homlle.com:443` with 403 |
 
-`tests/customer-tracking-style.mjs` times out locally: the CDP harness caps calls
-at 30 s and that test snapshots every CSS property of every element at two
-viewports. Passes in GitHub CI. Environment, not defect.
+Two heavy Chromium suites fail locally and pass in GitHub CI — see the
+environment-quirks note in `CLAUDE.md`. `tests/customer-tracking-style.mjs`
+fails reproducibly; `tests/shared-customer-motion.mjs` fails about one run in
+two. Neither is a defect, and neither should be "fixed" by loosening an
+assertion.
 
 ---
 
@@ -39,15 +41,15 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 
 | ID | Task | Status |
 |---|---|---|
-| C1 | **A cleaner can never publish a profile.** `cleaner-profile.mjs:111` refuses `isPublic` below 100% completion, but four of the nine fields `profileCompletionPercent` requires (`:77-90`) — biography ≥40 chars, price, languages, residential/commercial preference — are written by **no page in `public/`**; every writer passes the existing value through. Ceiling ≈56%. The publish switch is inert: `cleaner-public-profile.html:253` is `aria-readonly="true"` and `cleaner-public-profile.js:187-191` only reads it. `isPublic: true` appears nowhere in the codebase. | **NEXT** |
-| C2 | **A cleaner cannot create a matchable availability window.** `POST /api/marketplace/cleaner/availability` exists and validates correctly (`marketplace-http.mjs:646-664`), but all 14 front-end references are reads. The page built for it is unreachable — `server.mjs:5694` 308-redirects `/cleaner/availability` → `/cleaner/jobs-map`, so `public/cleaner-availability.js` is dead code. The schedule screen saves a weekly blob into the encrypted onboarding section that the matcher never reads. | **NEXT** |
-| C3 | **"Holiday mode" is a false trust claim.** `cleaner-dashboard.html:281-292` promises "Homle will not offer new jobs on this date". `holidayMode`/`unavailableDate` appear nowhere in `src/`, `db/migrations/` or `server.mjs` — it is enforced nowhere and offers keep arriving. Breaches CLAUDE.md hard limit 3. Either enforce it or stop promising it. | TODO |
+| C1 | ✅ **DONE** `6ffd24a2` — **A cleaner can never publish a profile.** `cleaner-profile.mjs:111` refuses `isPublic` below 100% completion, but four of the nine fields `profileCompletionPercent` requires (`:77-90`) — biography ≥40 chars, price, languages, residential/commercial preference — are written by **no page in `public/`**; every writer passes the existing value through. Ceiling ≈56%. The publish switch is inert: `cleaner-public-profile.html:253` is `aria-readonly="true"` and `cleaner-public-profile.js:187-191` only reads it. `isPublic: true` appeared nowhere in the codebase. | ✅ |
+| C2 | ✅ **DONE** `d8ea572b` — **A cleaner cannot create a matchable availability window.** `POST /api/marketplace/cleaner/availability` exists and validates correctly (`marketplace-http.mjs:646-664`), but all 14 front-end references are reads. The page built for it is unreachable — `server.mjs:5694` 308-redirects `/cleaner/availability` → `/cleaner/jobs-map`, so `public/cleaner-availability.js` is dead code. The schedule screen saved a weekly blob into the encrypted onboarding section that the matcher never reads. | ✅ |
+| C3 | ✅ **DONE** `d8ea572b` — **"Holiday mode" was a false trust claim.** `cleaner-dashboard.html:281-292` promises "Homle will not offer new jobs on this date". `holidayMode`/`unavailableDate` appear nowhere in `src/`, `db/migrations/` or `server.mjs` — it is enforced nowhere and offers keep arriving. Breached CLAUDE.md hard limit 3. Now described as the note it is, pointing at available hours, which do stop offers. Enforcing it against matching is follow-up. | ✅ |
 
 ### P0b — blocks a paid booking
 
 | ID | Task | Status |
 |---|---|---|
-| M1 | **No route to cancel a confirmed booking.** `domain.mjs:56` permits `confirmed:cancelled` for a landlord but no HTTP route exists. A customer cannot cancel or release their card hold. Also strands the refund path, which requires a cancelled/completed/disputed booking. | **IN PROGRESS** — migration 115 written |
+| M1 | **No route to cancel a confirmed booking.** `domain.mjs:56` permits `confirmed:cancelled` for a landlord but no HTTP route exists. A customer cannot cancel or release their card hold. Also strands the refund path, which requires a cancelled/completed/disputed booking. | ✅ **DONE** `ca3fbac9`, reviewed and repaired in `9a739c34` |
 | M2 | **Capture and payout are manual admin clicks.** `payment-service.mjs:286` requires the administrator role; the only route is admin-gated. A human must click Transfer for every job, and the Stripe hold expires in ~7 days. The brief requires no manual steps. | TODO |
 | M3 | **Migration 025 requires an authorized payment before a job can start, unconditionally**, while `PAYMENTS_ENABLED` defaults false. A deployment with payments off is a marketplace where no cleaner can ever start work. | TODO |
 | M4 | **Five-day authorization window** (`022:113`) means no pay-at-booking. A booking three weeks out cannot be paid for when it is made. | TODO |
@@ -125,5 +127,22 @@ coverage is 71/71. The real gaps are narrower:
 
 ## Next step
 
-M1 — add the landlord booking-cancellation route, with the card hold released on
-cancel, behind the existing payment capability gate.
+**M2 — remove the manual admin click from capture and payout.** Every capture
+and every transfer currently requires an administrator to open `/admin/payments`
+and press a button, per booking (`payment-service.mjs:286`). The Stripe hold
+expires in about seven days, so a missed click loses the money. The brief
+requires no manual steps, and this is the largest remaining one.
+
+Then M3 (migration 025 makes payments non-optional at the database layer while
+`PAYMENTS_ENABLED` defaults false, so a payments-off deployment cannot start any
+job), then L1 (GDPR fulfilment), then G1 (landlords and letting agents are
+absent from the landing page).
+
+## Note on reviews
+
+M1 was implemented, tested green, committed — and was then found by review to
+have never released a card hold at all, because it read a field the payment
+projection does not carry. The tests passed because they asserted a substring
+against code that never ran. Two lessons now encoded in the suite: assert call
+**order** where ordering is a correctness property, and assert against the
+**shape the projection actually returns**, not against source text.
