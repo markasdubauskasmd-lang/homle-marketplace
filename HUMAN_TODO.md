@@ -47,35 +47,33 @@ For the test path (should already be set — verify):
 For live money, later, all of these must be true in fact before they are set:
 - `PUBLIC_PAYMENTS_APPROVED`, `PAYMENT_ACCOUNT_VERIFIED`, `REFUND_PROCESS_READY`.
 
-### 2a. Automatic settlement — ⚠️ BUILT BUT NOT YET RUNNABLE
+### 2a. Automatic settlement — switch on after one rehearsal
 
-**Do not try to switch this on yet. It will do nothing.** An earlier version of
-this section told you to set two environment variables; that was wrong and is
-corrected here.
-
-Capture and payout currently need you to open `/admin/payments` and click twice
+Capture and payout otherwise need you to open `/admin/payments` and click twice
 for **every single job**. That does not scale, and it is worse than slow: Stripe
 releases an uncaptured authorization after about a week, so a missed click does
 not delay the money, it loses it.
 
-The settlement worker that does both automatically is written and tested. It is
-**not yet composed into any running process**, so the flag has nothing to
-enable. The reason is a real design question rather than an oversight: the
-background worker connects with the restricted `tideway_worker` credential,
-which deliberately has no table grants and cannot execute the payment command
-functions. Making settlement run needs one of:
+A settlement worker now does both on a five-minute schedule, inside the web
+process. It is off by default and needs two settings in the Render dashboard:
 
-- granting the worker role execute rights on the payment commands, which widens
-  a deliberately narrow credential; or
-- running settlement inside the web process with the application credential; or
-- giving it a third, separately-credentialled pool.
+1. `PLATFORM_SETTLEMENT_USER_ID` — the account id of an administrator the
+   platform acts as. Use the administrator created by
+   `pnpm run provision:administrator`. The database resolves the role from the
+   account, so a wrong id fails safely rather than granting anything.
+2. `WORKER_PAYMENT_SETTLEMENT_ENABLED=true`.
 
-That is a decision about how much the restricted worker is allowed to do, and it
-is recorded in `PROGRESS.md` as the next step rather than guessed at here.
+**Rehearse before relying on it.** Run one full test-mode booking to completion
+and confirm on `/admin/payments` that both the capture and the transfer appear,
+with the cleaner receiving the expected share and the platform keeping the rest.
 
-**Until then, keep clicking.** The administrator queue is authoritative and
-works. At one cleaner and a handful of bookings that is entirely manageable; it
-is the thing to fix before volume arrives, not after.
+It will not touch a payment flagged for reconciliation or dispute review —
+those stay for a human, which is the point of the flag — and the administrator
+queue remains authoritative, so you can leave settlement off indefinitely and
+keep approving each one by hand while volume is low.
+
+If you enable it without setting the account id, it reports that to monitoring
+rather than failing silently.
 
 ---
 

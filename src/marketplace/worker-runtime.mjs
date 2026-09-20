@@ -42,11 +42,12 @@ export function createMarketplaceWorkerRuntime(pool, options = {}) {
     jobs.push(Object.freeze({ name: "automatic-dispatch", intervalMs: integer(options.dispatchIntervalMs, 1000, 3_600_000, 60_000, "Automatic-dispatch interval"), runOnce: () => worker.runOnce() }));
   }
 
-  // Settlement only composes when the caller supplies both a payment service
-  // and a genuine platform administrator actor. Neither can be conjured from
-  // configuration, which is deliberate: the database resolves the
-  // administrator role from the account, so there is no environment variable
-  // that can assert it.
+  // Settlement normally runs in the web process, where the application
+  // credential lives — this worker connects as `tideway_worker`, which has no
+  // grants on the payment commands. The hook stays because a future standalone
+  // settlement service would use it, and because the tests construct it
+  // directly; it is inert unless a caller supplies a payment service, and
+  // nothing in this repository does.
   if (options.paymentSettlement) {
     const worker = createPaymentSettlementWorker({
       payments: options.paymentSettlement.payments,

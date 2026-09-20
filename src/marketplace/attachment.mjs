@@ -11,6 +11,7 @@ import { createS3ObjectStorage } from "./s3-object-storage.mjs";
 import { createTransactionalEmailDelivery } from "./email-delivery.mjs";
 import { createStripePaymentProvider } from "./stripe-payment-provider.mjs";
 import { createTrustedClientKeyResolver } from "./trusted-client-key.mjs";
+import { createPaymentSettlementWorker, paymentSettlementEnabled, platformSettlementUserId } from "./payment-settlement-worker.mjs";
 
 function enabledState(env) {
   const value = String(env.MARKETPLACE_ENABLED || "").trim().toLowerCase();
@@ -261,11 +262,47 @@ export async function createMarketplaceAttachment(options = {}) {
     apple: runtime.appleSignInReady === true,
     facebook: runtime.facebookLoginReady === true
   });
+  // Settlement runs here, in the web process, rather than in the background
+  // worker. The worker connects as `tideway_worker`, which deliberately has no
+  // table grants and cannot execute the payment commands; widening that
+  // credential so a scheduled job could move money is a worse trade than
+  // running the job where the application credential already lives.
+  //
+  // The actor's `roles` only satisfy the service-layer check. The database
+  // resolves the administrator role from the account itself, so a misconfigured
+  // id fails there and the worker reports it — it cannot grant itself anything.
+  let settlementTimer = null;
+  const settlementUserId = platformSettlementUserId(env);
+  const settlementRequested = paymentSettlementEnabled(env);
+  let settlementReady = false;
+  if (settlementRequested && runtime.paymentService && settlementUserId) {
+    const settlement = createPaymentSettlementWorker({
+      payments: runtime.paymentService,
+      actor: { userId: settlementUserId, roles: ["administrator"] },
+      onUnexpectedError: adapters.onUnexpectedError
+    });
+    const runSettlement = () => {
+      settlement.runOnce().catch((error) => adapters.onUnexpectedError(error));
+    };
+    settlementTimer = setInterval(runSettlement, 300_000);
+    settlementTimer.unref?.();
+    settlementReady = true;
+  } else if (settlementRequested) {
+    // Asked for and not composed is a configuration mistake that would
+    // otherwise be invisible until somebody noticed money had stopped moving.
+    adapters.onUnexpectedError(new TypeError(
+      settlementUserId
+        ? "Automatic payment settlement is enabled but payments are not attached, so nothing will settle."
+        : "Automatic payment settlement is enabled but PLATFORM_SETTLEMENT_USER_ID is not set, so nothing will settle."
+    ));
+  }
+
   let closed = false;
   return Object.freeze({
     enabled: true,
     ready: true,
     reason: "ready",
+    settlementReady,
     authenticationHttpReady: runtime.authenticationHttpReady === true,
     authenticationCapabilities,
     emailReady: Boolean(emailDelivery),
@@ -284,6 +321,7 @@ export async function createMarketplaceAttachment(options = {}) {
       if (closed) return;
       closed = true;
       const failures = [];
+      if (settlementTimer) { clearInterval(settlementTimer); settlementTimer = null; }
       try { await realtimeSignalSource.close?.(); } catch (error) { failures.push(error); }
       try { await emailDelivery?.close(); } catch (error) { failures.push(error); }
       try { await objectStorage?.close(); } catch (error) { failures.push(error); }

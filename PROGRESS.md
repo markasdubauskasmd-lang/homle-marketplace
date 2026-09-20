@@ -50,7 +50,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 | ID | Task | Status |
 |---|---|---|
 | M1 | **No route to cancel a confirmed booking.** `domain.mjs:56` permits `confirmed:cancelled` for a landlord but no HTTP route exists. A customer cannot cancel or release their card hold. Also strands the refund path, which requires a cancelled/completed/disputed booking. | ✅ **DONE** `ca3fbac9`, reviewed and repaired in `9a739c34` |
-| M2 | 🟡 **BUILT, NOT COMPOSED** `b055895f` — worker written and tested; **not wired into any running process**, so the flag enables nothing. The background worker uses the restricted `tideway_worker` credential, which has no grants on the payment command functions. Needs a decision: widen the worker role, run settlement in the web process with the app credential, or give it a third pool. **Capture and payout are still manual admin clicks.** `payment-service.mjs:286` requires the administrator role; the only route is admin-gated. A human must click Transfer for every job, and the Stripe hold expires in ~7 days. The brief requires no manual steps. | TODO |
+| M2 | ✅ **DONE** `b055895f`, composed in the web process — **capture and payout were manual admin clicks.** The background worker's `tideway_worker` credential has no grants on the payment commands, so settlement runs where the application credential already lives rather than widening a deliberately narrow role. `payment-service.mjs:286` requires the administrator role; the only route is admin-gated. A human must click Transfer for every job, and the Stripe hold expires in ~7 days. The brief requires no manual steps. | TODO |
 | M3 | ✅ **DONE** `e2741e51` — **Migration 025 requires an authorized payment before a job can start, unconditionally**, while `PAYMENTS_ENABLED` defaults false. A deployment with payments off is a marketplace where no cleaner can ever start work. | TODO |
 | M4 | **Five-day authorization window** (`022:113`) means no pay-at-booking. A booking three weeks out cannot be paid for when it is made. | TODO |
 | M5 | **No-shows entirely unimplemented** — no code, schema or tests. Only prose in a preview FAQ. | TODO |
@@ -127,14 +127,7 @@ coverage is 71/71. The real gaps are narrower:
 
 ## Next step
 
-**M2a — compose the settlement worker.** It is written, tested and unreachable:
-`worker-attachment.mjs` never passes `paymentSettlement`, and the worker pool's
-`tideway_worker` credential cannot execute `begin_payment_command` anyway. Pick
-one of the three options above and wire it, then rehearse one full test-mode
-booking end to end. This is the single largest remaining manual step in the
-money path.
-
-Then **M5 — no-shows.** Entirely unimplemented — no code, schema or tests, only prose in a
+**M5 — no-shows.** Entirely unimplemented — no code, schema or tests, only prose in a
 preview FAQ describing a reliability score that does not exist. Decide what a
 no-show *is* first (how long after the slot, who reports it, what it costs
 whom), because that is a policy question the founder owns, then build it.

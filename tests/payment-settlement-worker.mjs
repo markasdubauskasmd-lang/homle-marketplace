@@ -119,8 +119,21 @@ const workerSource = await readFile(new URL("../src/marketplace/payment-settleme
 // explanation rather than keep it.
 const workerCode = workerSource.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 assert(!/\bquery\(|begin_payment_command|\bpool\b/.test(workerCode), "The settlement worker talks to the database directly instead of reusing the audited payment commands.");
+// Composed where the application credential lives. The background worker
+// connects as `tideway_worker`, which deliberately has no grants on the payment
+// commands, so settlement scheduled there would be dead code -- which is
+// exactly what it was until this test existed.
+const attachmentSource = await readFile(new URL("../src/marketplace/attachment.mjs", import.meta.url), "utf8");
+assert(attachmentSource.includes("createPaymentSettlementWorker("), "Nothing constructs the settlement worker, so the flag enables nothing.");
+assert(/payments: runtime\.paymentService/.test(attachmentSource), "Settlement is not given the attached payment service.");
+assert(/setInterval\(runSettlement/.test(attachmentSource), "Settlement is constructed but never scheduled.");
+// A timer that keeps the process alive turns a clean shutdown into a hang.
+assert(/settlementTimer\.unref\?\.\(\)/.test(attachmentSource), "The settlement timer holds the process open.");
+assert(/clearInterval\(settlementTimer\)/.test(attachmentSource), "Shutting the marketplace down leaves the settlement timer running.");
+// Enabled-but-not-composed would otherwise be invisible until somebody noticed
+// money had stopped moving.
+assert(/settlementRequested\)\s*\{[\s\S]{0,400}onUnexpectedError\(/.test(attachmentSource), "Settlement asked for and not composed fails silently.");
 const runtimeSource = await readFile(new URL("../src/marketplace/worker-runtime.mjs", import.meta.url), "utf8");
-assert(runtimeSource.includes("options.paymentSettlement") && runtimeSource.includes("payment-settlement"), "Automatic settlement is not composed into the worker runtime.");
 assert(/paymentSettlement[\s\S]{0,400}actor: options\.paymentSettlement\.actor/.test(runtimeSource), "The settlement job does not receive an explicit platform actor.");
 
 console.log("Payment settlement worker tests passed: completed bookings capture and pay out without a manual click, keys are stable against retries, capture and transfer never share a pass, held and unflagged payments are left alone, one refusal does not stop the batch, and the audited command path is the only route to the money.");
