@@ -50,11 +50,11 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 | ID | Task | Status |
 |---|---|---|
 | M1 | **No route to cancel a confirmed booking.** `domain.mjs:56` permits `confirmed:cancelled` for a landlord but no HTTP route exists. A customer cannot cancel or release their card hold. Also strands the refund path, which requires a cancelled/completed/disputed booking. | ✅ **DONE** `ca3fbac9`, reviewed and repaired in `9a739c34` |
-| M2 | **Capture and payout are manual admin clicks.** `payment-service.mjs:286` requires the administrator role; the only route is admin-gated. A human must click Transfer for every job, and the Stripe hold expires in ~7 days. The brief requires no manual steps. | TODO |
-| M3 | **Migration 025 requires an authorized payment before a job can start, unconditionally**, while `PAYMENTS_ENABLED` defaults false. A deployment with payments off is a marketplace where no cleaner can ever start work. | TODO |
+| M2 | ✅ **DONE** `b055895f` — **Capture and payout were manual admin clicks.** `payment-service.mjs:286` requires the administrator role; the only route is admin-gated. A human must click Transfer for every job, and the Stripe hold expires in ~7 days. The brief requires no manual steps. | TODO |
+| M3 | ✅ **DONE** `e2741e51` — **Migration 025 requires an authorized payment before a job can start, unconditionally**, while `PAYMENTS_ENABLED` defaults false. A deployment with payments off is a marketplace where no cleaner can ever start work. | TODO |
 | M4 | **Five-day authorization window** (`022:113`) means no pay-at-booking. A booking three weeks out cannot be paid for when it is made. | TODO |
 | M5 | **No-shows entirely unimplemented** — no code, schema or tests. Only prose in a preview FAQ. | TODO |
-| M6 | **No payment-outcome emails**: no receipt, capture, refund, failed-payment or cancellation mail. Receipts are pull-only (customer must click). | TODO |
+| M6 | ✅ **DONE** `98b6a1f8` — **No payment-outcome emails**: no receipt, capture, refund, failed-payment or cancellation mail. Receipts are pull-only (customer must click). | TODO |
 | M7 | **No settlement reconciliation.** Platform fee is an arithmetic residual with no `application_fee_amount`; nothing proves captured − transferred − refunded = expected contribution. | TODO |
 | M8 | **Failed payments have no dunning**, no retry schedule, no auto-cancel, no notification. | TODO |
 
@@ -62,7 +62,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 
 | ID | Task | Status |
 |---|---|---|
-| L1 | **GDPR export/deletion is intake-only.** `privacy-request-service.mjs` has only `list` and `request`; migration 035 inserts a row and never touches user data. No admin fulfilment queue, no export artefact, no SLA. Hard UK GDPR blocker (Art. 15/17, one-month deadline). | TODO |
+| L1 | 🟡 **PARTLY DONE** `dc1389d5`, `df6275fd` — queue, deadlines and audited progression shipped; erasure analysed in `docs/DATA_RETENTION_AND_ERASURE.md` and awaiting founder/solicitor decisions. Export generation still to build. **GDPR export/deletion was intake-only.** `privacy-request-service.mjs` has only `list` and `request`; migration 035 inserts a row and never touches user data. No admin fulfilment queue, no export artefact, no SLA. Hard UK GDPR blocker (Art. 15/17, one-month deadline). | TODO |
 | L2 | **No Cookie Policy**, and the privacy notice does not disclose the session/auth cookies actually set. | TODO |
 | L3 | Terms, Privacy and the 9 Cleaner Agreement PDFs are self-declared drafts with operator identity unfilled. Signing is hard-blocked in code. Needs a solicitor — `HUMAN_TODO.md` §5. | FOUNDER |
 
@@ -70,7 +70,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 
 | ID | Task | Status |
 |---|---|---|
-| G1 | **Landing page does not address landlords or letting agents at all.** Zero portfolio/multi-property/agency copy, no section, no CTA. The only trace is a subtitle inside a collapsed dropdown. This is the stated main growth channel. | TODO |
+| G1 | ✅ **DONE** `455ede5e` — **Landing page did not address landlords or letting agents at all.** Zero portfolio/multi-property/agency copy, no section, no CTA. The only trace is a subtitle inside a collapsed dropdown. This is the stated main growth channel. | TODO |
 | G2 | Cleaner audience gets two links and no pitch — no earnings, flexibility or how-it-works copy. | TODO |
 | G3 | **SEO: one indexable page.** 49 of 50 pages have no canonical or OG tag; sitemap has a single URL, test-locked; Terms and Privacy are `noindex`. No service or area landing pages. | TODO |
 | G4 | **No analytics of any kind** and no funnel conversion events. CSP `script-src 'self'` would block a vendor tag today. Admin funnel report exists but is aggregate, post-signup, no attribution. | TODO |
@@ -127,16 +127,17 @@ coverage is 71/71. The real gaps are narrower:
 
 ## Next step
 
-**M2 — remove the manual admin click from capture and payout.** Every capture
-and every transfer currently requires an administrator to open `/admin/payments`
-and press a button, per booking (`payment-service.mjs:286`). The Stripe hold
-expires in about seven days, so a missed click loses the money. The brief
-requires no manual steps, and this is the largest remaining one.
+**H1 — rate-limit booking and request creation.** `marketplace-http.mjs:475` and
+`:696` call `security.protect` with no scope. Every auth and AI endpoint is
+limited; the two money-path writes are not, so an authenticated session can
+create bookings without bound. Needs a new scope in the `request_rate_limits`
+CHECK constraint.
 
-Then M3 (migration 025 makes payments non-optional at the database layer while
-`PAYMENTS_ENABLED` defaults false, so a payments-off deployment cannot start any
-job), then L1 (GDPR fulfilment), then G1 (landlords and letting agents are
-absent from the landing page).
+Then **H2** (no cumulative Anthropic spend cap — per-call ceilings exist, nothing
+stops sustained traffic running a large bill), **M5** (no-shows are entirely
+unimplemented), **M7** (nothing reconciles captured − transferred − refunded
+against the expected platform fee), and the **L1 export generation** now that the
+data inventory exists.
 
 ## Note on reviews
 
