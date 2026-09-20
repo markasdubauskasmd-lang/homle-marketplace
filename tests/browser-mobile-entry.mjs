@@ -218,7 +218,12 @@ try {
   assert(closing.cleanerHref === "/cleaner/onboarding", `Cleaners cannot open dedicated onboarding from the landing page: ${closing.cleanerHref}.`);
   assert(closing.login.href === "/login" && closing.login.height >= 44,
     `The closing Log in link is missing or too small to tap: ${JSON.stringify(closing.login)}.`);
-  assert(closing.footerLinks.length === 6 && closing.footerLinks.some((link) => link.href === "/landlord/help") && closing.footerLinks.every((link) => link.height >= 44),
+  // Named destinations rather than a bare count, which said nothing about which
+  // link had gone and broke when the Cookie Policy was published and linked
+  // here -- a correct change that this read as a regression.
+  assert(closing.footerLinks.length === 7
+    && ["/landlord/help", "/privacy", "/terms", "/cookies"].every((href) => closing.footerLinks.some((link) => link.href === href))
+    && closing.footerLinks.every((link) => link.height >= 44),
     `The mobile footer links are missing or too small to tap: ${JSON.stringify(closing.footerLinks)}.`);
 
 
@@ -353,7 +358,10 @@ try {
         return {footerLinks:[...document.querySelectorAll(".ci-footer-links a")].map(el=>{const r=el.getBoundingClientRect();return {text:el.textContent.trim(),left:r.left,right:r.right,top:r.top,bottom:r.bottom};}),
           width:innerWidth,height:innerHeight,number:{text:number.textContent,width:box.width,background:style.backgroundColor}};
       `);
-      assert(footerState.footerLinks.length===6,"Homepage footer links missing");
+      // Seven since the Cookie Policy was published and linked here. This check
+      // is about the links being present and on screen at every width, not
+      // about the list never growing.
+      assert(footerState.footerLinks.length===7,"Homepage footer links missing");
       assert(footerState.footerLinks.every(r=>r.left>=0&&r.right<=footerState.width&&r.top>=0&&r.bottom<=footerState.height),"Homepage footer links clipped at "+viewport.width);
       if(viewport.width>720) assert(footerState.number.width>5&&footerState.number.background==="rgba(0, 0, 0, 0)","Illustrative hour count inherited the decorative dot style");
       await writeFile(new URL("home-footer-"+viewport.width+"-"+(reduce?"reduced":"normal")+".png",captureRoot),await browser.screenshot());

@@ -5,7 +5,7 @@ limits + the real stack), then this file, then `DECISIONS.md` and
 `HUMAN_TODO.md`.
 
 **Branch:** `claude/great-mendel-7ozvur` · **Base:** `main` at `f38cb82` (#557)
-**Last updated:** 20 September 2026 · 35 commits ahead of `main`
+**Last updated:** 20 September 2026 · 43 commits ahead of `main`
 
 ---
 
@@ -74,7 +74,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 | G1 | ✅ **DONE** `455ede5e` — **Landing page did not address landlords or letting agents at all.** Zero portfolio/multi-property/agency copy, no section, no CTA. The only trace is a subtitle inside a collapsed dropdown. This is the stated main growth channel. | TODO |
 | G2 | Cleaner audience gets two links and no pitch — no earnings, flexibility or how-it-works copy. | TODO |
 | G3 | 🟡 **PARTLY DONE** `455ede5e` — two indexable pages now, both with canonical and OG tags, sitemap updated. The remaining 48 are private or deliberately `noindex`, so the real gap is the absence of service and area landing pages rather than missing tags. **SEO: was one indexable page.** 49 of 50 pages have no canonical or OG tag; sitemap has a single URL, test-locked; Terms and Privacy are `noindex`. No service or area landing pages. | TODO |
-| G4 | **No analytics of any kind** and no funnel conversion events. Approach decided and specified — see DECISIONS.md D11: first-party and cookieless, copying the proven `scan_telemetry_hourly` pattern, so no CSP change and no consent banner are needed and the published cookie policy stays true. | TODO — specified |
+| G4 | ✅ **DONE** `75ac9006` — migration 124 `public_funnel_hourly`, an anonymous origin-checked rate-limited beacon, instrumentation on the landing pages, signup, property, scan, price, slot and payment authorization, and a visitor lane beside the account-derived lanes on `/admin/funnel`. The vocabulary is stated in the browser, the server and the database, and a test asserts the three agree. D12 records why it stops at the authorized payment. **Was: no analytics of any kind** and no funnel conversion events. | ✅ |
 | G5 | Cookie consent banner — **not needed** given D11: a cookieless first-party endpoint sets nothing requiring consent. It becomes required only if analytics ever gains a visitor identifier, and the cookie policy must change before it does. | N/A under D11 |
 
 ### P3 — quality, now unblocked
@@ -105,7 +105,7 @@ coverage is 71/71. The real gaps are narrower:
 | H3 | ✅ **DONE** `5d9b2478` — **No 500 HTML page.** `server.mjs:5967` returns JSON only and never consults `wantsHtmlDocument`, so a browser hitting a server fault gets the unstyled-JSON experience the 404 work existed to remove. | TODO |
 | H4 | ✅ **DONE** `7a50dd4c` — **No structured request log** — no request id, latency, or method/path/status line. Error events exist with no request trail to correlate against. | TODO |
 | H5 | `FORCE ROW LEVEL SECURITY` is absent on all 60 tables. Low risk (the app connects as a non-owner) but cheap to close. | TODO |
-| H6 | **45 test files are never executed** by `pnpm test`/`pnpm run check`, including `payment-disputes.mjs` and `dispute-parent-identity.mjs` on the refund/dispute money path. A written-but-unrun test is hard-limit 7 by another route. | TODO |
+| H6 | ✅ **ALREADY CLOSED** — re-audited and the finding was wrong. `tests/verification-coverage.mjs` already asserts that every one of the 256 test files is executed by `pnpm run check` or `pnpm test`, expanding the script graph including `pre`/`post` hooks and then walking the import graph outward from the directly executed suites. `payment-disputes.mjs` and `dispute-parent-identity.mjs` both run. The 43 files not named in a script are reached by import from a suite that is; the original audit counted names in `package.json` and missed that. | ✅ |
 
 ### P1c — admin gaps (Phase 3 audit)
 
@@ -125,20 +125,27 @@ coverage is 71/71. The real gaps are narrower:
 - `04db97fa` Ignore `artifacts/` and `test-artifacts/`
 - `b6947338` Retire the Cleaner Dashboard freeze; add `CLAUDE.md`, `DECISIONS.md`, `HUMAN_TODO.md`
 - `a5822711` Remove invented example jobs from the empty Cleaner calendar
+- `d824ab39` Report whether settlement is actually running, not just enabled
+- `75ac9006` **G4 analytics** — the funnel, counted without following anybody
+  along it (see D11 and D12)
 
 ## Next step
 
-**M5 — no-shows**, once the policy questions in `HUMAN_TODO.md` §6 are
-answered. What counts as a no-show is a decision about somebody's money, not a
-technical one, so the mechanism waits on it. Entirely unimplemented — no code, schema or tests, only prose in a
-preview FAQ describing a reliability score that does not exist. Decide what a
-no-show *is* first (how long after the slot, who reports it, what it costs
-whom), because that is a policy question the founder owns, then build it.
-Then **M7** (nothing reconciles captured − transferred
-− refunded against the expected platform fee), **H4** (no structured request
-log, so error events have no request trail to correlate against), and the **L1
-export generation**, now unblocked by the data inventory in
-`docs/DATA_RETENTION_AND_ERASURE.md`.
+**Q4 — Landlord/Cleaner design convergence.** The largest remaining item and
+the last one that is neither blocked on a founder decision nor already done.
+
+Blocked on a decision only the founder can make, and therefore not next:
+
+* **M5 no-shows** — what a no-show *is* (how long after the slot, who reports
+  it, what it costs whom) is a decision about somebody's money. `HUMAN_TODO.md`
+  §6 asks the questions; the mechanism waits on the answers.
+* **L1 erasure automation** — `HUMAN_TODO.md` §5 and
+  `docs/DATA_RETENTION_AND_ERASURE.md`. A hard delete is impossible anyway (27
+  of 40 foreign keys refuse it), so this is anonymise-in-place against a
+  retention policy that has to be approved first.
+* **L3 legal documents** — needs a solicitor.
+* **Q6 closing 40 dead pull requests** — outward-facing, so it waits for the
+  founder's word (`HUMAN_TODO.md` §8).
 
 ## Note on reviews
 

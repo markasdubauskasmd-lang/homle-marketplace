@@ -269,3 +269,41 @@ journey is simply Google-only plus email/password.
   `data/scan-benchmark/` — is recorded in `LAUNCH_READINESS.md` under P2-4. It
   matters because a control that always cries wolf is a control people learn to
   bypass, and this one exists for the worst day.
+
+---
+
+## 9. Analytics — nothing for you to do, but here is where to look
+
+Nothing to sign up for, nothing to pay for, nothing to switch on. Homle now
+counts its own funnel, first-party and cookieless. There is no vendor account
+behind it and no tag to paste anywhere.
+
+**Where to read it:** `/admin/funnel`, signed in as an Administrator. Two sets
+of numbers side by side:
+
+* the existing lanes, built from accounts and bookings, which begin at somebody
+  who already has an account;
+* a new **Visitors** lane, which begins at somebody who merely arrived — page
+  views, calls to action pressed, signups opened and finished, properties
+  added, scans finished, prices shown, slots chosen, payments authorised.
+
+They are shown separately and not added together, because they count different
+populations.
+
+**The question this exists to answer:** the stated growth channel is letting
+agents and landlords with several properties. Every count carries an
+*audience* label, so `/for-landlords` can be compared with the general landing
+page directly. If that channel is not converting, this is where it will show
+first.
+
+**Why there is no cookie banner.** Nothing is stored that could identify
+anybody: no cookie, no visitor id, no IP address, no referrer, no campaign tag,
+no URL, and nothing timed more precisely than the hour. Rows are deleted after
+ninety days. That is exactly why no consent is needed, and it is what the
+published Cookie Policy already says.
+
+**The one thing to watch for.** If anyone ever proposes adding a visitor id, a
+"session", campaign tracking or a third-party tag, the Cookie Policy becomes
+untrue and a consent banner becomes legally required. The policy has to change
+before the code does — not after. This is written into the code comments, the
+migration and the tests, so it should be hard to do by accident.

@@ -92,12 +92,19 @@ real-world harm to real people or breaks the law.
 ## Validate every change
 
 ```
-pnpm run check    # syntax + safety across 607 files (this is the lint/typecheck)
-pnpm test         # full suite; pretest runs the freeze and publication gates first
+pnpm run check    # syntax + safety across every file on disk (the lint/typecheck)
+pnpm test         # full suite
 ```
 
 There is no separate build, lint or typecheck step — the project is plain ES
 modules, and `node --check` over every file on disk is the equivalent.
+
+**Run those two commands, not a hand-assembled chain of `node tests/…`.** Most
+of this repo's verification lives in the `pretest`, `posttest`, `precheck` and
+`postcheck` hooks — `posttest` alone pulls in dozens of suites, including all
+the browser ones. A chain that names the main suites by hand looks thorough,
+finishes green, and silently skips the majority of the checks; that is exactly
+how a broken landing-page assertion survived a "full" run in this session.
 
 For auth, payment or database changes, add a test that **fails before** and
 **passes after**. Keep commits small and name them by outcome, matching the
