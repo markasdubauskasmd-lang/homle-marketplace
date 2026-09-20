@@ -13,3 +13,10 @@ backups/
 
 # V8 coverage output from `npm run coverage`, written and removed per run.
 .coverage-tmp/
+
+# Browser screenshots written by the test suite. Regenerated on every run, so a
+# dirty tree after `npm test` was otherwise routine — which trips the
+# clean-worktree check in `npm run prepush:safety` and invites a careless
+# `git add -A` to commit several megabytes of generated PNGs.
+artifacts/
+test-artifacts/

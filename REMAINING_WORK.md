@@ -108,8 +108,11 @@ by the v2 dashboard rebuild.
 positives, not the four the August audit recorded:
 
 - `src/marketplace/config.mjs`, `tests/authentication-activation-readiness.mjs`
-  and now `LAUNCH_READINESS.md` — all match on the literal marker
-  `-----BEGIN PRIVATE KEY-----` with no key material behind it;
+  and now `LAUNCH_READINESS.md` — all match on the literal PKCS#8 PEM header
+  with no key material behind it. (The guard matches that header wherever it
+  appears, including in prose, which is why this file deliberately describes it
+  rather than quoting it — otherwise documenting the false positive creates
+  another one.)
 - `data/scan-benchmark/README.md`, `.../synthetic-seed.json` and now
   `.../PHOTO-EVALUATION.md` — synthetic by construction and deliberately tracked.
 
