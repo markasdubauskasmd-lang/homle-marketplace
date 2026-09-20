@@ -5,7 +5,7 @@ limits + the real stack), then this file, then `DECISIONS.md` and
 `HUMAN_TODO.md`.
 
 **Branch:** `claude/great-mendel-7ozvur` · **Base:** `main` at `f38cb82` (#557)
-**Last updated:** 20 September 2026 · 28 commits ahead of `main`
+**Last updated:** 20 September 2026 · 35 commits ahead of `main`
 
 ---
 
@@ -14,10 +14,11 @@ limits + the real stack), then this file, then `DECISIONS.md` and
 | Check | Result |
 |---|---|
 | `pnpm install --frozen-lockfile` | Passes; 57 packages, lock verified by SHA-256 |
-| `pnpm run check` (lint/typecheck equivalent, see D3) | **Green**, 606 files |
-| `pnpm test` | Green except two environment-bound browser timeouts, below |
+| `pnpm run check` (lint/typecheck equivalent, see D3) | **Green**, 608 files |
+| `pnpm test` main chain | **Green**, 180 suites |
+| `pnpm test` post-hooks | **Green**, 40 suites, except the two browser timeouts below |
 | CI on base commit | Green (Actions run 1489) |
-| Migrations | 114 at audit; now 116, all locked in `db/migration-lock.json` |
+| Migrations | 114 at audit; now 123, all locked in `db/migration-lock.json` |
 | Live site | **Unverifiable from this container** — network policy refuses `CONNECT homlle.com:443` with 403 |
 
 Two heavy Chromium suites fail locally and pass in GitHub CI — see the
