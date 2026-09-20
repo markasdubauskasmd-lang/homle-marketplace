@@ -16,6 +16,7 @@ const landlordRepeatPath = new RegExp(`^/api/marketplace/landlord/bookings/(${uu
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
 const bookingResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/response$`);
 const bookingCancellationPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cancel$`);
+const adminPrivacyRequestPath = new RegExp(`^/api/marketplace/admin/privacy-requests/(${uuidPattern})/progress$`);
 const requestInvitationPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitations$`);
 const requestInvitationQuotePath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitation-quote$`);
 const requestMatchesPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/matches$`);
@@ -435,6 +436,28 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
             ? await privacyRequests.request(context.actor, await readJsonObject(request))
             : await privacyRequests.list(context.actor);
           sendJson(response, mutation && result.created === true ? 201 : 200, { ok: true, ...(mutation ? { privacyRequest: result } : { privacyRequests: result }) });
+          return true;
+        }
+        // The administrator side of data protection. Intake has existed since
+        // migration 035 and nothing could read it, so a statutory request was
+        // written to a table nobody looked at while the one-month clock ran.
+        if (pathname === "/api/marketplace/admin/privacy-requests") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const queue = await privacyRequests.listForAdministrator(context.actor, {
+            view: requestUrl.searchParams.get("view"),
+            limit: requestUrl.searchParams.get("limit"),
+            offset: requestUrl.searchParams.get("offset")
+          });
+          sendJson(response, 200, { ok: true, queue });
+          return true;
+        }
+        const selectedPrivacyProgress = pathname.match(adminPrivacyRequestPath);
+        if (selectedPrivacyProgress) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const privacyRequest = await privacyRequests.recordProgress(context.actor, selectedPrivacyProgress[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, privacyRequest });
           return true;
         }
         if (pathname === "/api/marketplace/landlord/care-summary") {

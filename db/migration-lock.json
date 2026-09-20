@@ -586,6 +586,11 @@
       "order": 117,
       "file": "117_payment_outcome_notices.sql",
       "sha256": "f36d65560cea171f0073e1cd2f200dd3d82b45c1a6f8a0414c56be6a781625f9"
+    },
+    {
+      "order": 118,
+      "file": "118_privacy_request_fulfilment.sql",
+      "sha256": "f24c191ccb9614265b5cfb7c4d9b9a9522e4a6a116723ed200f1493f4594e761"
     }
   ],
   "grantFiles": [
