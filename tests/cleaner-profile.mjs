@@ -212,6 +212,12 @@ for (const control of ['name="biography"', 'name="hourlyRate"', 'name="languages
   assert(registrationPage.includes(control), `Cleaner onboarding cannot collect ${control}, so a profile can never reach 100% and never be published.`);
 }
 assert(/minlength="40"/.test(registrationPage), "The biography control does not state the 40-character minimum the completion check enforces.");
+// These four are required to PUBLISH, not required to CONTINUE. Marking them
+// `required` blocks the onboarding form from submitting at all, which stops a
+// cleaner moving to the next step and adds friction exactly where drop-off is
+// worst. The completion meter and the publish gate already say what is missing.
+const aboutSection = registrationPage.slice(registrationPage.indexOf("hc-experience-about"), registrationPage.indexOf("hc-experience-property-types"));
+assert(!/\brequired\b/.test(aboutSection), "The About-you fields block onboarding from continuing. They gate publishing, not progress.");
 // Reading the controls is what matters; a field that exists but is never read
 // leaves completion exactly where it was.
 for (const read of ["form.elements.biography", "ratePenceFrom", "selectedLanguages", "propertyTypePreferences"]) {
