@@ -62,7 +62,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 
 | ID | Task | Status |
 |---|---|---|
-| L1 | 🟡 **PARTLY DONE** `dc1389d5`, `df6275fd` — queue, deadlines and audited progression shipped; erasure analysed in `docs/DATA_RETENTION_AND_ERASURE.md` and awaiting founder/solicitor decisions. Export generation still to build. **GDPR export/deletion was intake-only.** `privacy-request-service.mjs` has only `list` and `request`; migration 035 inserts a row and never touches user data. No admin fulfilment queue, no export artefact, no SLA. Hard UK GDPR blocker (Art. 15/17, one-month deadline). | TODO |
+| L1 | 🟡 **MOSTLY DONE** `dc1389d5`, `df6275fd`, export added — queue with statutory deadlines, audited progression, and a downloadable subject access response assembled from the requester's own authenticated reads. **Erasure remains manual** pending the founder/solicitor decisions in `docs/DATA_RETENTION_AND_ERASURE.md`; a hard delete is impossible anyway (27 of 40 foreign keys refuse it). **GDPR export/deletion was intake-only.** `privacy-request-service.mjs` has only `list` and `request`; migration 035 inserts a row and never touches user data. No admin fulfilment queue, no export artefact, no SLA. Hard UK GDPR blocker (Art. 15/17, one-month deadline). | TODO |
 | L2 | ✅ **DONE** `75c50e9a` — **No Cookie Policy**, and the privacy notice does not disclose the session/auth cookies actually set. | TODO |
 | L3 | Terms, Privacy and the 9 Cleaner Agreement PDFs are self-declared drafts with operator identity unfilled. Signing is hard-blocked in code. Needs a solicitor — `HUMAN_TODO.md` §5. | FOUNDER |
 

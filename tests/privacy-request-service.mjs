@@ -132,3 +132,49 @@ console.log("Privacy request tests passed: authenticated validation, safe projec
 
   console.log("Data-protection fulfilment tests passed: an administrator can see outstanding requests with their statutory deadline, move one through its lifecycle, and cannot refuse one without a recorded reason or reopen one already answered.");
 }
+
+// The subject access response itself. The queue made a request visible and
+// answerable; this is what actually answers it.
+{
+  const { readFile } = await import("node:fs/promises");
+  const { createPrivacyRequestService: buildExportService } = await import("../src/marketplace/privacy-request-service.mjs");
+  const customer = { userId: "44444444-4444-4444-8444-444444444444", roles: ["landlord"] };
+  const baseRepository = { async list() { return []; }, async request() { return { requestId: "55555555-5555-4555-8555-555555555555", requestType: "export", status: "requested", createdAt: "2026-09-01T09:00:00.000Z" }; } };
+
+  let sawActor = null;
+  const withExport = buildExportService(baseRepository, {
+    assembleExport: async (actor) => { sawActor = actor; return { generatedAt: "2026-09-20T10:00:00.000Z", accountId: actor.userId, sections: { properties: [] } }; }
+  });
+  const document = await withExport.buildExport(customer);
+  if (document.accountId !== customer.userId || sawExportActorWrong(sawActor, customer)) throw new Error("The export was not assembled for the requesting account.");
+  function sawExportActorWrong(seen, expected) { return !seen || seen.userId !== expected.userId; }
+
+  let refused = false;
+  try { await withExport.buildExport({}); } catch { refused = true; }
+  if (!refused) throw new Error("An unauthenticated caller could download an export.");
+
+  // A deployment without the assembler must say so rather than return an empty
+  // document that looks like "Homle holds nothing about you".
+  const withoutExport = buildExportService(baseRepository);
+  let unavailable = false;
+  try { await withoutExport.buildExport(customer); } catch (error) { unavailable = error?.code === "export-unavailable"; }
+  if (!unavailable) throw new Error("A deployment with no export assembler returns something rather than admitting it cannot.");
+
+  const runtimeSource = await readFile(new URL("../src/marketplace/runtime.mjs", import.meta.url), "utf8");
+  // Assembled from the requester's own authenticated reads, so it cannot
+  // contain a field those screens would not and cannot reach another person's
+  // records — the projections already decided both, and they are tested.
+  for (const ownRead of ["propertyService.listOwnProperties(actor)", "cleaningRequestService.listOwnRequests(actor)", "bookingWorkflowService.listParticipantBookings(actor", "notificationService.listNotifications(actor"]) {
+    if (!runtimeSource.includes(ownRead)) throw new Error(`The export does not include ${ownRead}, or reads it by some route other than the owner-scoped service.`);
+  }
+  // A failing section must not fail the whole response. A partial export inside
+  // the statutory month, saying which part is missing, beats a complete one
+  // that arrives late.
+  if (!/exportSection[\s\S]{0,200}unavailable: true/.test(runtimeSource)) throw new Error("One failing section takes the whole subject access response down with it.");
+  // Downloaded, not emailed: a complete personal record must not be sent to an
+  // address nobody re-verified.
+  const httpSource = await readFile(new URL("../src/marketplace/marketplace-http.mjs", import.meta.url), "utf8");
+  if (!/privacy-requests\/export"[\s\S]{0,400}Content-Disposition/.test(httpSource)) throw new Error("The export is not delivered as a download.");
+  if (/privacy-requests\/export"[\s\S]{0,400}emailDelivery/.test(httpSource)) throw new Error("The export is emailed rather than downloaded.");
+  console.log("Data export tests passed: a signed-in person can download their own record, assembled from their own authenticated reads, with a failing section admitted rather than silently omitted and nothing emailed.");
+}

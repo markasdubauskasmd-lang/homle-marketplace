@@ -184,9 +184,12 @@ know, and setting one falsely is the kind of thing that ends a company.
   request during a live booking, the retention policy for room-scan photographs
   specifically, and sign-off on the periods.
 
-Until those are settled, a request is tracked with its statutory deadline on the
-administrator desk and the erasure itself is done by hand. That answers a request
-inside the month, which is what the law requires, but it does not scale.
+A subject access request (someone asking for their data) is now answerable
+without you: they can download their own record from their settings, and the
+administrator desk shows any outstanding request with its one-month deadline.
+Erasure is the part still done by hand, and those four decisions are what
+unblock automating it. That answers a request inside
+the month, which is what the law requires.
 
 ### Legal documents needing a solicitor
 

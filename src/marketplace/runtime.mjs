@@ -312,7 +312,45 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const landlordCareRepository = createLandlordCareRepository(database);
   const landlordCareService = createLandlordCareService(landlordCareRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
-  const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
+  // A subject access response, assembled from the requester's own authenticated
+  // reads rather than from a second, parallel definition of "their data".
+  //
+  // That is the whole design. Every read below is the same owner-scoped service
+  // the product uses to show somebody their own screens, so the export cannot
+  // include a field those screens would not, cannot drift as the schema moves,
+  // and cannot accidentally reach another person's records — the projections
+  // already decided all three, and they are tested.
+  //
+  // A failing section is reported as unavailable rather than failing the whole
+  // export. A partial response delivered inside the statutory month, saying
+  // plainly which part is missing, is worth more than a complete one that
+  // arrives late or not at all.
+  async function exportSection(name, read) {
+    try { return { name, data: await read() }; }
+    catch (error) { return { name, unavailable: true, reason: error?.code || "unavailable" }; }
+  }
+  async function assembleAccountExport(actor) {
+    const sections = await Promise.all([
+      exportSection("properties", () => propertyService.listOwnProperties(actor)),
+      exportSection("archivedProperties", () => propertyService.listArchivedOwnProperties(actor)),
+      exportSection("cleaningRequests", () => cleaningRequestService.listOwnRequests(actor)),
+      exportSection("bookings", () => bookingWorkflowService.listParticipantBookings(actor, { limit: 100 })),
+      exportSection("notifications", () => notificationService.listNotifications(actor, { limit: 100 })),
+      exportSection("privacyRequests", () => privacyRequestService.list(actor)),
+      exportSection("cleanerProfile", () => cleanerProfileService.getOwnProfile(actor)),
+      exportSection("cleanerAvailability", () => cleanerProfileService.listOwnAvailability(actor))
+    ]);
+    return Object.freeze({
+      generatedAt: new Date().toISOString(),
+      accountId: actor.userId,
+      // Said plainly, because a person reading their own export should not have
+      // to work out why their payment history is summarised rather than
+      // itemised, or why the other party's messages are not here.
+      note: "This is the data Homle holds that is yours, assembled from your own account. It does not include another person's records, security material such as password or session data, or Homle's internal pricing and matching workings. Financial records are retained under UK tax law and are summarised on your bookings rather than exported separately.",
+      sections: Object.fromEntries(sections.map((section) => [section.name, section.unavailable ? { unavailable: true, reason: section.reason } : section.data]))
+    });
+  }
+  const privacyRequestService = createPrivacyRequestService(privacyRequestRepository, { assembleExport: assembleAccountExport });
   const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
     clientKey: options.clientKey,
     onUnexpectedError: options.onUnexpectedError,

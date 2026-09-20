@@ -75,7 +75,7 @@ function privacyRequest(value) {
   return Object.freeze(result);
 }
 
-export function createPrivacyRequestService(repository) {
+export function createPrivacyRequestService(repository, options = {}) {
   if (!repository || typeof repository.list !== "function" || typeof repository.request !== "function") throw new TypeError("A complete account privacy-request repository is required.");
   return Object.freeze({
     async list(actor) {
@@ -89,6 +89,22 @@ export function createPrivacyRequestService(repository) {
       const requestType = String(input.requestType || "").trim().toLowerCase();
       if (!requestTypes.has(requestType)) throw new TypeError("Choose data export or account deletion.");
       return privacyRequest(await repository.request(actor, { requestId: uuid(input.requestId, "privacy request retry id"), requestType }));
+    },
+    /**
+     * A subject access response the requester can download.
+     *
+     * Assembled from their own authenticated reads, so it contains exactly what
+     * the product would show them and cannot drift into a second definition of
+     * "their data". Delivered by download rather than by email, because a
+     * complete personal record is the last thing that should be sent to an
+     * address in a header nobody re-verified.
+     */
+    async buildExport(actor) {
+      actorAccount(actor);
+      if (typeof options.assembleExport !== "function") {
+        throw Object.assign(new Error("Data export is not available on this deployment."), { statusCode: 503, code: "export-unavailable" });
+      }
+      return options.assembleExport(actor);
     },
     /**
      * The administrator queue.

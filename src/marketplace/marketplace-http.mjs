@@ -452,6 +452,18 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, mutation && result.created === true ? 201 : 200, { ok: true, ...(mutation ? { privacyRequest: result } : { privacyRequests: result }) });
           return true;
         }
+        // Downloaded, never emailed. A complete personal record is the last
+        // thing that should be sent to an address nobody re-verified, and the
+        // session has already proven who is asking.
+        if (pathname === "/api/marketplace/privacy-requests/export") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          const document = await privacyRequests.buildExport(context.actor);
+          sendJson(response, 200, { ok: true, export: document }, {
+            "Content-Disposition": `attachment; filename="homle-data-export-${new Date().toISOString().slice(0, 10)}.json"`
+          });
+          return true;
+        }
         // The administrator side of data protection. Intake has existed since
         // migration 035 and nothing could read it, so a statutory request was
         // written to a table nobody looked at while the one-month clock ran.
