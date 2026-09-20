@@ -394,7 +394,7 @@ function openBookCleanChooser() {
     if (remembered && properties.some((property) => property.propertyId === remembered)) bookCleanPropertyId = remembered;
   } catch {}
   bookCleanStep.textContent = properties.length
-    ? "Step 1 of 2 · choose a place"
+    ? "Step 1 of 2 · choose a property"
     : "Add your first place, then choose Scan or Manual.";
   renderBookCleanChooser();
   if (!bookCleanDialog.open) bookCleanDialog.showModal();
@@ -1219,11 +1219,19 @@ function loadPrepareWizard() {
  * builder underneath the Properties panel rather than replacing the view, which
  * is the behaviour that was already here.
  */
+// Two words for two things. "Place" was a third word for one of them: the URL
+// said properties, the sidebar said Bookings, the section said YOUR PLACES and
+// the button said Add a place — all on one screen. Properties is a location,
+// Bookings is work. Nothing is a place.
+//
+// `places` and `requests` are legacy routes kept so old bookmarks resolve
+// rather than 404. They now describe the screen they actually land on instead
+// of the screen they used to be.
 const workspaceTabCopy = {
   home: { title: "Hello, {name}", subtitle: "Let’s keep your property spotless." },
   properties: { title: "Properties", subtitle: "The locations saved privately to your account." },
-  bookings: { title: "Bookings", subtitle: "Your homes and properties." },
-  places: { title: "Bookings", subtitle: "Your homes and properties." },
+  bookings: { title: "Bookings", subtitle: "Your cleans, and the properties they belong to." },
+  places: { title: "Properties", subtitle: "The locations saved privately to your account." },
   messages: { title: "Messages", subtitle: "Talk to the Cleaner working on your property." },
   account: { title: "Your account", subtitle: "Details, security, payments and preferences — one place, opened as needed." },
   payments: { title: "Payments", subtitle: "What each booking costs, and where its authorisation has reached." },
@@ -1772,7 +1780,7 @@ function renderProperties() {
   // row ragged. It opens the same property editor the heading button does.
   const add = element("button", "ld-prop-add");
   add.type = "button";
-  add.append(cloneIcon("add"), element("span", "ld-prop-add-title", "Add a place"), element("span", "ld-prop-add-copy", "Four facts, then scan"));
+  add.append(cloneIcon("add"), element("span", "ld-prop-add-title", "Add a property"), element("span", "ld-prop-add-copy", "Four facts, then scan"));
   add.addEventListener("click", () => openPropertyEditor());
   propertyList.append(add);
   const hasSoleProperty = properties.length === 1;
@@ -4858,7 +4866,7 @@ bookCleanDialog?.addEventListener("click", (event) => {
 });
 onDialogDismissal(bookCleanDialog, () => {
   bookCleanPropertyId = "";
-  if (bookCleanStep) bookCleanStep.textContent = "Step 1 of 2 · choose a place";
+  if (bookCleanStep) bookCleanStep.textContent = "Step 1 of 2 · choose a property";
 });
 matchOutcomeChangeTime?.addEventListener("click", () => prepareAnotherTime(matchOutcomeRequestId));
 matchOutcomeBack?.addEventListener("click", () => showMatchOutcomeStep("result"));
