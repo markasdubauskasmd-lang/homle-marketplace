@@ -339,6 +339,20 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, recovery });
           return true;
         }
+        // Where the platform fee went. Automatic settlement moves money without
+        // anybody watching the numbers, so the arithmetic needs somewhere to be
+        // checked.
+        if (pathname === "/api/marketplace/admin/payments/reconciliation") {
+          if (!payments) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const reconciliation = await payments.settlementReconciliation(context.actor, {
+            staleTransferHours: requestUrl.searchParams.get("staleTransferHours"),
+            limit: requestUrl.searchParams.get("limit")
+          });
+          sendJson(response, 200, { ok: true, reconciliation });
+          return true;
+        }
         const selectedAdminPaymentCommand = pathname.match(adminPaymentCommandPath);
         if (selectedAdminPaymentCommand) {
           if (!payments) return false;

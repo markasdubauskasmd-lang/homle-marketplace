@@ -344,6 +344,27 @@ export function createPaymentService(repository, provider, options = {}) {
       const record = await repository.getByBooking(actor, uuid(bookingId, "booking id"));
       return record ? publicPayment(record) : null;
     },
+    /**
+     * Where the platform fee went.
+     *
+     * The fee is an arithmetic residual — captured, less what was transferred
+     * to the Cleaner — with no `application_fee_amount` anywhere. That was
+     * checkable by eye while an administrator pressed both buttons. Automatic
+     * settlement removes that person, so this is what replaces them.
+     *
+     * Reports only. An accounting discrepancy is exactly the situation where an
+     * automatic correction turns one wrong number into two.
+     */
+    async settlementReconciliation(actor, input = {}) {
+      requireRole(actor, "administrator");
+      if (typeof repository.settlementReconciliation !== "function") throw new TypeError("Settlement reconciliation is unavailable.");
+      const report = object(await repository.settlementReconciliation(actor, {
+        staleTransferHours: boundedInteger(input.staleTransferHours, 1, 8760, 72, "Stale transfer window"),
+        limit: boundedInteger(input.limit, 1, 500, 100, "Reconciliation page size")
+      }));
+      if (!report || !Array.isArray(report.drift)) throw new Error("The settlement reconciliation report is unavailable.");
+      return Object.freeze({ ...report, drift: Object.freeze(report.drift), testMode: true });
+    },
     async listForAdministrator(actor, input = {}) {
       requireRole(actor, "administrator");
       const bookingId = input.bookingId == null || input.bookingId === "" ? null : uuid(String(input.bookingId).trim(), "booking id");

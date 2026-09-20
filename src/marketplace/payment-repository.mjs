@@ -1,4 +1,6 @@
 const mappedErrors = Object.freeze({
+  "administrator-required": [403, "administrator-required", "An Administrator account is required to read settlement reconciliation."],
+  "invalid-reconciliation-window": [422, "invalid-reconciliation-window", "That reconciliation window is outside the supported range."],
   "payment-attempt-parameters-changed": [409, "payment-attempt-parameters-changed", "This payment action needs an outcome check before it can continue."],
   "payment-reconciliation-required": [409, "payment-reconciliation-required", "Check the provider outcome before starting another payment action."],
   "invalid-payment-attempt": [422, "invalid-payment-attempt", "The payment attempt could not be verified."],
@@ -186,6 +188,14 @@ export function createPaymentRepository(database) {
           values
         );
         return Object.freeze(result.rows[0]?.result || { accepted: false, duplicate: false });
+      });
+    },
+    settlementReconciliation(actor, input) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT tideway_private.settlement_reconciliation($1::integer,$2::integer) AS result", [input.staleTransferHours, input.limit]);
+          return result.rows[0]?.result;
+        } catch (error) { throw mapError(error); }
       });
     }
   });

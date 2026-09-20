@@ -231,3 +231,41 @@ console.log("Payment service tests passed: server-frozen and resumable authoriza
   receiptRecord.amountCapturedPence = 12000; providerFailure = true;
   await assert.rejects(service.getReceiptForBooking(landlord, bookingId), error => error.statusCode === 503 && error.code === "receipt-unavailable" && !error.message.includes("private"));
 }
+
+// Where the platform fee went. Homle's fee is an arithmetic residual — captured
+// money, less what was transferred to the Cleaner, with no
+// `application_fee_amount` anywhere. That was checkable by eye while an
+// administrator pressed both buttons; automatic settlement removed that person.
+{
+  const { readFile: readReconciliationSource } = await import("node:fs/promises");
+  const reconciliationMigration = await readReconciliationSource(new URL("../db/migrations/121_settlement_reconciliation.sql", import.meta.url), "utf8");
+  for (const required of ["settlement_reconciliation", "administrator-required", "invalid-reconciliation-window", "over-transferred", "awaiting-transfer", "totalPlatformTakePence", "GRANT EXECUTE"]) {
+    if (!reconciliationMigration.includes(required)) throw new Error(`The settlement reconciliation migration omitted ${required}.`);
+  }
+  // Only a reconciled transfer has actually left the platform balance. Counting
+  // a pending command would report a shortfall that does not exist.
+  if (!/command\.status = 'reconciled'/.test(reconciliationMigration)) throw new Error("Reconciliation counts transfers that have not settled with the provider.");
+  // It must never move money. An accounting discrepancy is exactly where an
+  // automatic correction turns one wrong number into two.
+  for (const forbidden of ["UPDATE booking_payments", "INSERT INTO payment_commands", "UPDATE bookings"]) {
+    if (reconciliationMigration.includes(forbidden)) throw new Error(`Reconciliation performs ${forbidden}; it must only report.`);
+  }
+  if (!/LANGUAGE plpgsql STABLE/.test(reconciliationMigration)) throw new Error("Reconciliation is not declared read-only.");
+  // A drift kind that can never fire is noise in a report people have to trust.
+  // `refunded > captured` is already impossible by table constraint, and
+  // "kept less than nothing" is the same condition as over-transferred.
+  for (const dead of ["refund-exceeds", "negative-take"]) {
+    if (reconciliationMigration.includes(dead)) throw new Error(`Reconciliation reports "${dead}", which can never occur.`);
+  }
+  // Refunds legitimately break `captured - transferred = planned contribution`,
+  // so asserting that equality would fire on ordinary refunds and train
+  // everybody to ignore the report.
+  if (/planned_contribution_pence\s*(<>|!=|=)\s*/.test(reconciliationMigration.replace(/'plannedContributionPence', reported\.planned_contribution_pence/g, ""))) {
+    throw new Error("Reconciliation asserts an equality that ordinary refunds break.");
+  }
+
+  const httpReconciliationSource = await readReconciliationSource(new URL("../src/marketplace/marketplace-http.mjs", import.meta.url), "utf8");
+  if (!/admin\/payments\/reconciliation"[\s\S]{0,300}roles: \["administrator"\]/.test(httpReconciliationSource)) throw new Error("The reconciliation route is missing or is not administrator-only.");
+  if (!/reconciliation"\)\s*\{[\s\S]{0,200}request\.method !== "GET"/.test(httpReconciliationSource)) throw new Error("The reconciliation route accepts a method other than GET.");
+  console.log("Settlement reconciliation tests passed: an administrator can see over-transfers and unpaid captures with platform totals, counted only from transfers that actually settled, from a read-only report that moves no money and raises no alert that ordinary refunds would trigger.");
+}
