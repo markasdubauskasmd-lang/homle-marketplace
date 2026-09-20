@@ -631,6 +631,11 @@
       "order": 126,
       "file": "126_booking_cancellation_status_cast.sql",
       "sha256": "a7402bd9e6bc4f743d9deba00584ffd8416901ac3947abe5d1d25680e76290dd"
+    },
+    {
+      "order": 127,
+      "file": "127_administrator_dispute_read.sql",
+      "sha256": "9d88842b846cfbfb1f3071dea44a73ce887e22b46c4f3b873fc86224507f3a12"
     }
   ],
   "grantFiles": [

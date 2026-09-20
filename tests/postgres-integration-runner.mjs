@@ -48,6 +48,7 @@ assert.match(sources.get("booking-cancellation-verification.sql"), /cancel_booki
 assert.match(sources.get("booking-cancellation-verification.sql"), /an unwarned booking was expired/);
 assert.match(sources.get("booking-cancellation-verification.sql"), /did not notify both the customer and the Cleaner/);
 assert.match(sources.get("booking-cancellation-verification.sql"), /a booking that had been paid for was cancelled/);
+assert.match(sources.get("booking-cancellation-verification.sql"), /a non-Administrator read the booking-case queue/);
 assert.match(sources.get("booking-cancellation-verification.sql"), /ROLLBACK/);
 assert.match(sources.get("matching-self-exclusion.sql"), /A landlord was recommended as a cleaner for their own request/);
 assert.match(sources.get("matching-self-exclusion.sql"), /The independent eligible cleaner was not recommended/);

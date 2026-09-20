@@ -46,7 +46,7 @@ for (const category of ["quality", "damage", "access", "safety", "conduct", "pay
   assert(Object.isFrozen(policy) && Object.isFrozen(policy.evidence), `${category} guidance must remain immutable.`);
 }
 assert.match(casePolicyForCategory("safety").boundary, /not an emergency service/i);
-assert.match(casePolicyForCategory("payment").boundary, /does not capture, cancel, refund or transfer/i);
+assert.match(casePolicyForCategory("payment").boundary, /may refund the booking.s own payment; it never captures, cancels or transfers money/i);
 
 for (const invalid of [
   () => adminCaseQueue({ disputes: [{ ...example, disputeId: "bad" }], limit: 50, offset: 0 }),
@@ -76,7 +76,12 @@ assert(page.includes("Evidence first. Minimum private data. No remedy without an
 assert(page.includes("Property addresses, access instructions and contact details stay out of this queue") && !page.includes("data-dispute-id"), "The queue markup invites unnecessary private record exposure.");
 assert(page.includes("data-admin-case-dialog") && page.includes("issues a refund only if I enter one below") && page.includes('name="refundAmountPounds"') && page.includes('name="refundAuthorised"'), "The audited resolution confirmation is missing its external-action boundary.");
 assert(script.includes('requestJson("/api/marketplace/account")') && script.includes("roles?.includes(\"administrator\")") && script.includes("/api/marketplace/admin/disputes?") && script.includes('method: "PATCH"'), "The screen is not bound to the authenticated Administrator case API.");
-assert(script.includes('record.status === "reviewing"') && script.includes("Review related test payment") && script.includes("/admin/payments?bookingId=") && !script.includes("refund("), "A case does not expose a separate read-only payment handoff after review starts, or the case screen began moving money itself.");
+// The screen moves money now, so the old "it never calls refund(" guard is
+// retired rather than left to pass on a spelling accident. What matters
+// instead is that it cannot do so without an authorised amount, and that the
+// read-only handoff to the payments desk survives for everything else.
+assert(script.includes('record.status === "reviewing"') && script.includes("Review related test payment") && script.includes("/admin/payments?bookingId="), "A case no longer exposes the read-only payment handoff after review starts.");
+assert(script.includes("refundAuthorised") && script.includes("refundAmountPounds"), "The case screen can no longer send an authorised refund.");
 assert(script.includes('"X-CSRF-Token": csrf'), "Case reads or mutations lost their session, CSRF or no-store boundary.");
 assert(script.includes("textContent") && script.includes("replaceChildren") && !script.includes("innerHTML") && !script.includes("document.cookie") && !script.includes("localStorage"), "Private case text can enter an unsafe render/storage path.");
 assert(script.includes("casePolicyForCategory") && script.includes('data.get("policyVersion")') && script.includes('data.get("evidenceReviewed")'), "The category guidance or resolution assurances are not carried into the server request.");

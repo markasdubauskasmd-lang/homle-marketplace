@@ -1243,9 +1243,11 @@ console.log("Funnel beacon HTTP checks passed: anonymous acceptance, origin and 
 /* ── A refund issued from the case desk ────────────────────────────────── */
 
 // Resolving a case and refunding the customer it decided for used to be two
-// screens on two desks, and the second was easy to forget. The decision and
-// the money it implies should not be separated by an act of memory.
+// screens on two desks, and the second was easy to forget.
 {
+  const casePath = "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const caseBookingId = "55555555-5555-4555-8555-555555555555";
+  const capturedPaymentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
   const resolution = {
     status: "resolved",
     resolutionNote: "The evidence was reviewed and a partial refund was agreed.",
@@ -1255,68 +1257,148 @@ console.log("Funnel beacon HTTP checks passed: anonymous acceptance, origin and 
     sensitiveDataMinimised: true,
     noUnrecordedActionConfirmed: true
   };
-  const casePath = "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
-  // A resolution with no refund field moves no money at all. Absent is not the
-  // same as zero.
-  const withoutRefund = await dispatch(router, "PATCH", casePath, { headers: administratorAuthHeaders, body: resolution });
-  assert(withoutRefund.response.statusCode === 200 && withoutRefund.body.refund === null,
-    `A case with no refund reported one: ${withoutRefund.response.statusCode} ${JSON.stringify(withoutRefund.body)}`);
+  // A dedicated router with its own stubs, so the refund is asserted against a
+  // payment that has actually been captured. The shared stub reports nothing
+  // captured, which the real `begin_payment_command` would refuse outright --
+  // asserting a successful refund against it proves routing and nothing else.
+  function caseRouter({ refund, ledger = [] } = {}) {
+    const recorded = [];
+    const router = createMarketplaceHttpRouter({
+      ...dependencies,
+      disputeService: {
+        ...disputeService,
+        async getForAdministrator(actor, disputeId) {
+          recorded.push({ kind: "dispute-read", actor, disputeId });
+          return { disputeId, bookingId: caseBookingId, category: "quality", description: "The agreed cleaning scope was not completed.", status: "reviewing", resolutionNote: null, resolutionOutcome: null, createdAt: "2026-07-15T19:05:00.000Z", resolvedAt: null };
+        },
+        async review(actor, disputeId, input) {
+          recorded.push({ kind: "dispute-review", actor, disputeId, input });
+          return { disputeId, bookingId: caseBookingId, category: "quality", description: "The agreed cleaning scope was not completed.", status: input.status, resolutionNote: input.resolutionNote || null, resolutionOutcome: input.resolutionOutcome || null, createdAt: "2026-07-15T19:05:00.000Z", resolvedAt: input.status === "resolved" ? "2026-07-15T20:00:00.000Z" : null };
+        }
+      },
+      paymentService: {
+        ...paymentService,
+        async getForBooking(actor, bookingId) {
+          recorded.push({ kind: "payment-get", actor, bookingId });
+          return { paymentId: capturedPaymentId, bookingId, status: "captured", amountPence: 12_000, currency: "gbp", amountCapturedPence: 12_000, amountRefundedPence: 0, requiresCustomerAction: false, clientSecret: null };
+        },
+        async refund(actor, input) {
+          recorded.push({ kind: "refund", actor, input });
+          // A real command ledger refuses a key reused with a different
+          // amount, which is the guard the key shape exists to lean on.
+          const previous = ledger.find((entry) => entry.idempotencyKey === input.idempotencyKey);
+          if (previous && previous.amountPence !== input.amountPence) {
+            throw Object.assign(new Error("A different amount was already sent under this key."), { statusCode: 409, code: "payment-command-idempotency-conflict" });
+          }
+          if (!previous) ledger.push({ idempotencyKey: input.idempotencyKey, amountPence: input.amountPence });
+          if (typeof refund === "function") return refund(input);
+          return { commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: input.paymentId, kind: "refund", status: "succeeded", recoveryRequired: false };
+        }
+      }
+    }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+    return { router, recorded };
+  }
 
-  // With an authorised amount, the refund goes through the ordinary guarded
-  // command against the payment the SERVER resolved from the case -- never a
-  // booking or payment id the client supplied.
-  const before = calls.length;
-  const withRefund = await dispatch(router, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
-  const issued = calls.slice(before);
-  const refundCall = issued.find((call) => call.kind === "payment-admin-refund");
-  assert(withRefund.response.statusCode === 200 && withRefund.body.refund?.issued === true && withRefund.body.refund.amountPence === 4500,
-    `The case desk did not issue the authorised refund: ${JSON.stringify(withRefund.body.refund)}`);
-  assert(refundCall?.input.amountPence === 4500, "The refund was sent for a different amount than the one authorised.");
-  assert(refundCall.input.paymentId === "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "The refund was not sent against the payment the server resolved from the case.");
-  assert(issued.find((call) => call.kind === "payment-get")?.bookingId === "55555555-5555-4555-8555-555555555555",
-    "The payment was looked up from something other than the resolved case's own booking.");
-  // Stable per case and amount, so a retried request cannot refund twice and a
-  // changed amount is refused by the command ledger rather than quietly sent.
-  assert(refundCall.input.idempotencyKey === "case_refund_bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb_4500",
-    `The case refund used an unstable idempotency key: ${refundCall.input.idempotencyKey}`);
-  // The decision is recorded BEFORE the money moves, which is the opposite of
-  // the cancellation path and for the opposite reason: nothing here closes a
-  // door, so a recorded decision with a retryable refund beats money returned
-  // with no decision behind it.
-  assert(issued.findIndex((call) => call.kind === "dispute-review") < issued.findIndex((call) => call.kind === "payment-admin-refund"),
-    "The refund was sent before the decision it funds was recorded.");
+  // A resolution with no refund field moves no money. Absent is not zero.
+  {
+    const { router: caseOnly, recorded } = caseRouter();
+    const withoutRefund = await dispatch(caseOnly, "PATCH", casePath, { headers: administratorAuthHeaders, body: resolution });
+    assert(withoutRefund.response.statusCode === 200 && withoutRefund.body.refund === null,
+      `A case with no refund reported one: ${JSON.stringify(withoutRefund.body.refund)}`);
+    assert(!recorded.some((call) => call.kind === "refund"), "A case with no refund still called the payment service.");
+  }
 
-  // An amount with no explicit authorisation never reaches the payment service,
-  // and never resolves the case either.
-  const unauthorisedBefore = calls.length;
-  const unauthorised = await dispatch(router, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500 } });
-  assert(unauthorised.response.statusCode >= 400, `An unauthorised refund amount was accepted: ${unauthorised.response.statusCode}`);
-  assert(!calls.slice(unauthorisedBefore).some((call) => call.kind === "payment-admin-refund" || call.kind === "dispute-review"),
-    "An unauthorised refund amount still moved money or resolved the case.");
+  // With an authorised amount, the refund is sent against the payment the
+  // SERVER resolved from the case's own booking -- never a client-supplied id.
+  {
+    const { router: refunding, recorded } = caseRouter();
+    const withRefund = await dispatch(refunding, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    const refundCall = recorded.find((call) => call.kind === "refund");
+    assert(withRefund.response.statusCode === 200 && withRefund.body.refund?.issued === true && withRefund.body.refund.amountPence === 4500,
+      `The case desk did not issue the authorised refund: ${JSON.stringify(withRefund.body.refund)}`);
+    assert(refundCall?.input.paymentId === capturedPaymentId && refundCall.input.amountPence === 4500,
+      "The refund was sent for the wrong payment or amount.");
+    assert(recorded.find((call) => call.kind === "payment-get")?.bookingId === caseBookingId,
+      "The payment was looked up from something other than the resolved case's own booking.");
+    // The money moves BEFORE the decision is recorded. Resolving with the
+    // outcome `completed` lets settlement transfer the Cleaner's pay within
+    // minutes, and a transferred payment can never be refunded again -- so the
+    // opposite order could strand the refund with no route back.
+    assert(recorded.findIndex((call) => call.kind === "refund") < recorded.findIndex((call) => call.kind === "dispute-review"),
+      "The case was resolved before the refund it funds was sent, which can close the refund window for good.");
+  }
 
-  // The superseded version-1 promise is refused by the dispute service, which
-  // owns the handling standard; that is asserted in tests/dispute-service.mjs
-  // against the real implementation rather than here against a stub.
+  // Merely starting a review must never move money. This path carries no
+  // handling-standard attestation at all, because the dispute service only
+  // checks it when resolving.
+  {
+    const { router: reviewing, recorded } = caseRouter();
+    const started = await dispatch(reviewing, "PATCH", casePath, { headers: administratorAuthHeaders, body: { status: "reviewing", refundAmountPence: 9900, refundAuthorised: true } });
+    assert(started.response.statusCode === 422 && started.body.code === "refund-requires-resolution",
+      `Starting a review issued a refund with no attestation: ${started.response.statusCode} ${JSON.stringify(started.body)}`);
+    assert(!recorded.some((call) => call.kind === "refund" || call.kind === "dispute-review"),
+      "A refund on a review-start reached the payment service or changed the case.");
+  }
 
-  // A refund that fails leaves the decision recorded and says so plainly,
-  // rather than a 500 that hides which half happened.
-  const failingRouter = createMarketplaceHttpRouter({
-    ...dependencies,
-    paymentService: { ...paymentService, async refund() { throw Object.assign(new Error("Stripe refused"), { code: "payment-not-refundable" }); } }
-  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
-  const failed = await dispatch(failingRouter, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
-  assert(failed.response.statusCode === 200 && failed.body.dispute.resolutionOutcome === "cancelled" && failed.body.refund.issued === false && failed.body.refund.error === "payment-not-refundable",
-    `A failed case refund did not report which half happened: ${JSON.stringify(failed.body.refund)}`);
-  unexpectedError = null;
+  // A resubmitted form is idempotent, and a CHANGED amount is refused by the
+  // command ledger rather than sent as a second real refund. The key is keyed
+  // on the case alone for exactly this reason: `review` succeeds on an
+  // identical replay, so this line is reachable twice.
+  {
+    const ledger = [];
+    const { router: first } = caseRouter({ ledger });
+    await dispatch(first, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    const { router: replay, recorded: replayCalls } = caseRouter({ ledger });
+    const again = await dispatch(replay, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    assert(again.response.statusCode === 200, "An identical resubmission was refused.");
+    assert(replayCalls.find((call) => call.kind === "refund").input.idempotencyKey === "case_refund_bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "The case refund key varies, so a resubmission with a different amount would be a second real refund.");
+    const { router: changed, recorded: changedCalls } = caseRouter({ ledger });
+    const different = await dispatch(changed, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 5000, refundAuthorised: true } });
+    assert(different.response.statusCode === 409, `A changed refund amount was sent as a second refund: ${different.response.statusCode}`);
+    assert(!changedCalls.some((call) => call.kind === "dispute-review"), "A refused refund still resolved the case.");
+  }
 
-  // With payments unconfigured, a refund request is refused BEFORE anything is
-  // resolved. Leaving an Administrator with a final decision they cannot fund
-  // would be the worst of both outcomes.
-  const noPaymentsBefore = calls.length;
-  const refused = await dispatch(noPaymentRouter, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
-  assert(refused.response.statusCode === 503, `A refund was accepted with payments unconfigured: ${refused.response.statusCode}`);
-  assert(!calls.slice(noPaymentsBefore).some((call) => call.kind === "dispute-review"),
-    "A case was resolved with a refund that could never be sent.");
+  // An amount with no explicit authorisation never reaches the payment service
+  // and never resolves the case.
+  {
+    const { router: unauthorisedRouter, recorded } = caseRouter();
+    const unauthorised = await dispatch(unauthorisedRouter, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500 } });
+    assert(unauthorised.response.statusCode >= 400, `An unauthorised refund amount was accepted: ${unauthorised.response.statusCode}`);
+    assert(!recorded.some((call) => call.kind === "refund" || call.kind === "dispute-review"),
+      "An unauthorised refund amount still moved money or resolved the case.");
+  }
+
+  // A refund that fails stops the whole request, so no case is ever marked
+  // final claiming money moved when it did not.
+  {
+    const { router: failing, recorded } = caseRouter({ refund: () => { throw Object.assign(new Error("Stripe refused"), { statusCode: 409, code: "payment-not-refundable" }); } });
+    const failed = await dispatch(failing, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    assert(failed.response.statusCode === 409 && failed.body.code === "payment-not-refundable",
+      `A failed case refund did not surface its reason: ${failed.response.statusCode} ${JSON.stringify(failed.body)}`);
+    assert(!recorded.some((call) => call.kind === "dispute-review"), "A case was resolved after its refund failed.");
+    unexpectedError = null;
+  }
+
+  // An uncertain provider outcome is never reported as issued. A recovery
+  // record means the refund may never have reached the provider, and "sent" is
+  // the surest way to have somebody send it twice.
+  {
+    const { router: uncertainRouter } = caseRouter({ refund: () => ({ commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: capturedPaymentId, kind: "refund", status: "provider-pending", recoveryRequired: true }) });
+    const uncertain = await dispatch(uncertainRouter, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    assert(uncertain.body.refund.uncertain === true && uncertain.body.refund.issued === false,
+      `An unconfirmed refund was reported as sent: ${JSON.stringify(uncertain.body.refund)}`);
+  }
+
+  // With payments unconfigured, a refund is refused before anything is read or
+  // resolved.
+  {
+    const noPaymentsBefore = calls.length;
+    const refused = await dispatch(noPaymentRouter, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    assert(refused.response.statusCode === 503, `A refund was accepted with payments unconfigured: ${refused.response.statusCode}`);
+    assert(!calls.slice(noPaymentsBefore).some((call) => call.kind === "dispute-review"),
+      "A case was resolved with a refund that could never be sent.");
+  }
 }
-console.log("Case-desk refund checks passed: server-resolved payment, stable idempotency, decision recorded before money moves, explicit authorisation required, and both failure halves reported honestly.");
+console.log("Case-desk refund checks passed: server-resolved payment, money before the final decision, review-start refused, replay idempotent and a changed amount refused, uncertainty never reported as sent, and a failed refund leaves the case open.");

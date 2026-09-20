@@ -218,17 +218,43 @@ second implementation.
 
 Three choices worth stating:
 
-**The decision is recorded before the money moves**, which is the opposite of
-the booking-cancellation path. There the order is forced: releasing a hold
-after the booking leaves `confirmed` is impossible, so cancelling first would
-strand the money. Here nothing closes a door — the refund guard accepts a
-booking that is disputed, completed or cancelled — so the question is only
-which half is worse to be left holding. A recorded decision with a refund that
-can still be sent beats money returned with no decision behind it.
+**The money moves before the decision is recorded.** This started out the
+other way round, on the reasoning that nothing about resolving closes the door
+on a later refund. Review proved that wrong, and for the common outcome.
+Resolving with `completed` moves the booking out of `disputed`, which makes
+`can_transfer` true; the settlement loop then pays the Cleaner within about
+five minutes, and migration 113 refuses every refund on a transferred payment
+for good. So a refund that failed at the moment of resolution could not be
+retried afterwards either — while the screen was telling the Administrator to
+send it from the payments desk, where it would also be refused. The window was
+five minutes wide and closed silently.
+
+Refunding first inverts the failure mode into a benign one: a refund that
+succeeds and a resolution that then fails leaves the money returned, the case
+open and the booking still `disputed` — a state an Administrator can simply
+finish. A refund that fails stops the request, so no case is ever marked final
+claiming money moved when it did not. Reading the case before acting is why
+migration 127 exists.
 
 **The payment is resolved server-side from the case's own booking.** The client
 never says which payment to refund; if it could, an Administrator could be
 induced to refund a different booking entirely.
+
+**The idempotency key is the case, not the case and the amount.** With the
+amount in it, a changed amount was a different key, a different command and a
+second real refund — and `review_booking_dispute` returns success when a case
+is replayed with an identical note and outcome, so a resubmitted form reaches
+the refund a second time. An earlier version of this entry claimed the ledger
+refused a changed amount; that was the one case it could not refuse, because
+its conflict check fires on key *reuse*. Keyed on the case alone, an identical
+replay is idempotent and a changed amount is refused, which is what this always
+claimed to do.
+
+**A refund only ever accompanies a final decision.** It was parsed from the
+body independently of the status, and the handling standard is only checked
+when resolving — so `{status:"reviewing", refundAmountPence, refundAuthorised}`
+refunded a customer with no attestation of any kind and no decision recorded.
+Merely starting a review could move money.
 
 **The attestation is version 2, with a new field name.** Version 1 asked the
 Administrator to confirm the decision performed "no payment or external

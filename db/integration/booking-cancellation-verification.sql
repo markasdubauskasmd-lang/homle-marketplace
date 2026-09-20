@@ -163,7 +163,27 @@ BEGIN
     RAISE EXCEPTION 'a booking that had been paid for was cancelled';
   END IF;
 
-  RAISE NOTICE 'Booking cancellation verification passed: Landlord cancellation and unpaid expiry both execute, are idempotent, warn before expiring, notify both parties, and leave a paid booking alone.';
+  /* ── The Administrator case read (migration 127) ── */
+
+  -- It exists so the case desk can find a case's booking BEFORE resolving it,
+  -- which is what lets a refund be sent while the booking is still disputed.
+  PERFORM set_config('app.user_id', landlord_id::text, true);
+  PERFORM set_config('app.user_roles', 'landlord', true);
+  BEGIN
+    PERFORM tideway_private.get_booking_dispute_for_administrator(gen_random_uuid());
+    RAISE EXCEPTION 'a non-Administrator read the booking-case queue';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+
+  PERFORM set_config('app.user_id', administrator_id::text, true);
+  PERFORM set_config('app.user_roles', 'administrator', true);
+  BEGIN
+    PERFORM tideway_private.get_booking_dispute_for_administrator(gen_random_uuid());
+    RAISE EXCEPTION 'an unknown booking case was reported as found';
+  EXCEPTION WHEN no_data_found THEN NULL;
+  END;
+
+  RAISE NOTICE 'Booking cancellation verification passed: Landlord cancellation and unpaid expiry both execute, are idempotent, warn before expiring, notify both parties, and leave a paid booking alone; the Administrator case read is role-gated and reports a missing case.';
 END $$;
 
 ROLLBACK;

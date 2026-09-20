@@ -15,7 +15,7 @@ const casePolicies = Object.freeze({
     priority: "Standard review",
     summary: "Compare the accepted scope with timestamped task progress and available before-and-after evidence.",
     evidence: Object.freeze(["Accepted room-by-room checklist", "Task updates and Cleaner notes", "Relevant before-and-after photos", "Booking messages about agreed scope"]),
-    boundary: "Do not promise a re-clean, discount or refund. Record only the booking outcome; any approved remedy remains a separate decision."
+    boundary: "Do not promise a re-clean or a discount. A refund may be issued with this resolution when one is warranted; any other remedy remains a separate decision."
   }),
   damage: Object.freeze({
     priority: "Priority review",
@@ -45,7 +45,7 @@ const casePolicies = Object.freeze({
     priority: "Standard review",
     summary: "Compare only Homle's provider-neutral payment status with the accepted booking amount and outcome.",
     evidence: Object.freeze(["Accepted customer total", "Provider-neutral authorization status", "Recorded booking outcome", "Existing payment-action audit references"]),
-    boundary: "Do not enter card, bank or provider-secret data. This case resolution does not capture, cancel, refund or transfer money."
+    boundary: "Do not enter card, bank or provider-secret data. This resolution may refund the booking's own payment; it never captures, cancels or transfers money."
   }),
   other: Object.freeze({
     priority: "Triage required",
@@ -134,9 +134,21 @@ export function adminCaseReviewPayload() {
  */
 export function caseRefundAmount(value) {
   const supplied = value?.refundAmountPounds;
-  if (supplied == null || String(supplied).trim() === "") return null;
-  const pounds = Number(supplied);
+  if (supplied == null) return null;
+  // `String([45])` is "45", so an array would otherwise pass the shape check
+  // below as an ordinary amount.
+  if (typeof supplied !== "string" && typeof supplied !== "number") throw new TypeError("Enter the refund as an amount in pounds.");
+  // A decimal amount, and nothing else. Bare `Number()` accepts "0x10" as 16,
+  // "1e3" as 1000, `[45]` as 45 and `true` as 1 -- and the server-side twin
+  // deliberately refuses anything that is not already a number, so a loose
+  // reading here is two halves disagreeing about what an amount is.
+  const text = String(supplied).trim();
+  if (text === "") return null;
+  if (!/^\d+(?:\.\d{1,2})?$/.test(text)) throw new TypeError("Enter the refund as an amount in pounds, to at most two decimal places.");
+  const pounds = Number(text);
   if (!Number.isFinite(pounds) || pounds <= 0) throw new TypeError("Enter the refund as an amount in pounds.");
+  // Rounded off a string with at most two decimals, so this is exact: the
+  // float never has a third place to round away from what was typed.
   const amountPence = Math.round(pounds * 100);
   if (!Number.isInteger(amountPence) || amountPence < 1 || amountPence > maximumCaseRefundPence) {
     throw new TypeError("That refund amount is outside the supported range.");
