@@ -74,8 +74,8 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 | G1 | ✅ **DONE** `455ede5e` — **Landing page did not address landlords or letting agents at all.** Zero portfolio/multi-property/agency copy, no section, no CTA. The only trace is a subtitle inside a collapsed dropdown. This is the stated main growth channel. | TODO |
 | G2 | Cleaner audience gets two links and no pitch — no earnings, flexibility or how-it-works copy. | TODO |
 | G3 | 🟡 **PARTLY DONE** `455ede5e` — two indexable pages now, both with canonical and OG tags, sitemap updated. The remaining 48 are private or deliberately `noindex`, so the real gap is the absence of service and area landing pages rather than missing tags. **SEO: was one indexable page.** 49 of 50 pages have no canonical or OG tag; sitemap has a single URL, test-locked; Terms and Privacy are `noindex`. No service or area landing pages. | TODO |
-| G4 | **No analytics of any kind** and no funnel conversion events. CSP `script-src 'self'` would block a vendor tag today. Admin funnel report exists but is aggregate, post-signup, no attribution. | TODO |
-| G5 | Cookie consent banner — not required yet (cookies are strictly necessary) but becomes mandatory the moment G4 lands. Do G5 with G4. | TODO |
+| G4 | **No analytics of any kind** and no funnel conversion events. Approach decided and specified — see DECISIONS.md D11: first-party and cookieless, copying the proven `scan_telemetry_hourly` pattern, so no CSP change and no consent banner are needed and the published cookie policy stays true. | TODO — specified |
+| G5 | Cookie consent banner — **not needed** given D11: a cookieless first-party endpoint sets nothing requiring consent. It becomes required only if analytics ever gains a visitor identifier, and the cookie policy must change before it does. | N/A under D11 |
 
 ### P3 — quality, now unblocked
 

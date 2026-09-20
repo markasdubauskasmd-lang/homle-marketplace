@@ -86,3 +86,32 @@ the publication guard on a documented PEM header, the example-booking guard on a
 comment naming the fixtures, the settlement guard on a comment naming the SQL
 function. A guard that matches its own explanation teaches the next person to
 delete the explanation. Strip comments, or describe rather than quote.
+
+**D11 — Analytics will be first-party and cookieless, not a third-party tag.**
+The brief asks for analytics with conversion events on the booking funnel. Three
+things constrain how: the CSP is `script-src 'self'` and `connect-src 'self'`,
+so a vendor tag is blocked without weakening it; an analytics cookie needs PECR
+consent, which means a banner; and the cookie policy published in `75c50e9a`
+states plainly that there is no advertising, tracking or analytics cookie and
+that the page changes before one appears.
+
+A first-party, cookieless event endpoint satisfies the brief and all three:
+no CSP change, no consent banner, no cross-site identifier, and the published
+promise stays true. It is also better data — server-side events cannot be
+blocked by an ad blocker, which is a large share of exactly the audience Homle
+is selling to.
+
+The pattern already exists and is proven: `tideway_private.scan_telemetry_hourly`
+(migration 101) is an hourly aggregate with a fixed metric vocabulary, bounded
+dimensions, no account, session or request key, and 90-day deletion on write. A
+sibling table with a funnel vocabulary is the shape to copy — not an extension
+of that table, whose dimensions and admin page are scanner-specific.
+
+Scope for whoever picks this up: a `public_funnel_hourly` aggregate; a
+rate-limited `POST` accepting only an allowlisted event name and no identifier;
+client calls at the landing CTAs, signup, property added, scan completed, price
+shown, slot chosen, payment authorised and booking confirmed; and a read on the
+existing `/admin/funnel` page beside the account-derived lanes already there.
+Do not add a visitor identifier, and do not make this a "session" — the moment
+it can follow one person it needs consent, and the cookie policy has to change
+first.
