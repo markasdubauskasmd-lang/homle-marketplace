@@ -1,15 +1,16 @@
 /* Presentation-only grouping for the redesigned account Updates page.
  *
- * This deliberately stays outside notification-inbox-model.js because that
- * shared model is part of the frozen Cleaner workspace. Event copy, actions and
- * Cleaner behaviour remain exactly as deployed; only this non-Cleaner view
- * gains day groups and visual tones.
+ * Tones live here rather than in notification-inbox-model.js so the shared
+ * model stays a plain copy table. That separation began as a way to leave the
+ * then-frozen Cleaner workspace untouched; the freeze was retired on
+ * 20 September 2026, and the split is kept because it is the better shape, not
+ * because it is still required.
  */
 
 const tones = Object.freeze({
-  action: new Set(["payment-window-opened", "payment-action-required", "unexpected-task-approval-requested", "review-requested", "new-booking-request"]),
+  action: new Set(["payment-window-opened", "payment-action-required", "payment-failed", "unexpected-task-approval-requested", "review-requested", "new-booking-request"]),
   alert: new Set(["issue-reported", "issue-photo-added", "dispute-opened", "dispute-reviewing", "cleaner-declined", "cleaner-invitation-expired", "booking-cancelled"]),
-  success: new Set(["booking-confirmed", "cleaning-completed", "booking-completed", "review-submitted", "dispute-resolved"]),
+  success: new Set(["payment-captured", "payment-refunded", "booking-confirmed", "cleaning-completed", "booking-completed", "review-submitted", "dispute-resolved"]),
   journey: new Set(["cleaner-start-journey", "cleaner-started-travelling", "cleaner-nearby", "cleaner-arrived"]),
   progress: new Set(["cleaning-started", "cleaning-paused", "cleaning-resumed", "cleaning-progress-update", "job-photo-added", "unexpected-task-decision"]),
   message: new Set(["booking-message"])

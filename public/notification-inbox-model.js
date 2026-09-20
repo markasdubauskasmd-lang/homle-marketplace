@@ -8,6 +8,12 @@ const copy = Object.freeze({
   "booking-cancelled": ["Booking cancelled", "The customer cancelled this booking. You do not need to travel to the property.", "View booking"],
   "payment-window-opened": ["Payment is now open", "You can now authorize the exact total for your confirmed clean.", "Authorize booking total"],
   "payment-action-required": ["Payment step needed", "Confirm payment authorisation before the clean so the Cleaner can start on time.", "Complete payment step"],
+  // A customer was charged, refunded or declined and heard nothing at all.
+  // Amounts deliberately live on the booking's own authenticated pages: a
+  // notification that repeats a figure is a second place for it to be wrong.
+  "payment-captured": ["Payment taken", "Your payment for this clean has been taken. Your receipt is on the booking.", "View receipt"],
+  "payment-refunded": ["Refund on its way", "A refund was issued for this booking. It can take a few days to reach your account.", "View booking"],
+  "payment-failed": ["Payment could not be taken", "Your card was not charged. Check the payment step so the clean can go ahead.", "Retry payment"],
   "booking-reminder": ["Your clean is coming up", "The confirmed clean starts within 24 hours.", "Review booking"],
   "cleaner-start-journey": ["Your clean starts soon", "Payment is ready. Open the job when you are ready to set off.", "Open active job"],
   "cleaner-started-travelling": ["Cleaner is on the way", "Live journey updates are now available for this booking.", "Track arrival"],

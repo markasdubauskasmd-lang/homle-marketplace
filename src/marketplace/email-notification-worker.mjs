@@ -9,6 +9,13 @@ const eventCopy = Object.freeze({
   "cleaner-invitation-expired": ["Cleaning invitation expired", "The Cleaner invitation expired without a response."],
   "payment-window-opened": ["Payment is now open for your clean", "You can now confirm payment authorization for the exact booking total in Homle."],
   "payment-action-required": ["Payment step needed before your clean", "Confirm payment authorisation in Homle before the clean so the Cleaner can start on time. You will review the exact total before continuing."],
+  // A customer charged, refunded or declined used to hear nothing at all. No
+  // figures here: the exact amounts live on the booking's own authenticated
+  // pages, and an email that repeats one is a second place for it to be wrong.
+  "payment-captured": ["Payment taken for your clean", "Your payment for this booking has been taken. Your receipt is on the booking in Homle."],
+  "payment-refunded": ["Refund issued for your booking", "A refund was issued for this booking. It can take a few days to reach your account. The details are on the booking in Homle."],
+  "payment-failed": ["Your payment could not be taken", "Your card was not charged. Open the payment step in Homle so the clean can go ahead."],
+  "booking-cancelled": ["Booking cancelled", "This booking was cancelled. You do not need to travel to the property."],
   "booking-reminder": ["Your confirmed clean is coming up", "The confirmed clean starts within 24 hours. Review the private booking in Homle."],
   "cleaner-start-journey": ["Your confirmed clean starts soon", "The booking is payment-ready. Open Homle when you are ready to set off and share only your current journey location."],
   "cleaner-started-travelling": ["Cleaner started travelling", "The Cleaner started their journey for the confirmed booking."],
@@ -66,7 +73,7 @@ function notificationActionPath(record) {
   if (record.eventType === "new-booking-request") return "/cleaner/dashboard";
   if (record.eventType === "cleaner-declined") return "/landlord/dashboard";
   if (record.eventType === "cleaner-invitation-expired") return record.payload?.matchingReopened === true ? "/landlord/dashboard" : "/cleaner/dashboard";
-  if (["payment-window-opened", "payment-action-required"].includes(record.eventType)) return "/landlord/dashboard";
+  if (["payment-window-opened", "payment-action-required", "payment-failed", "payment-captured", "payment-refunded"].includes(record.eventType)) return "/landlord/dashboard";
   return `/bookings/${record.bookingId.toLowerCase()}`;
 }
 

@@ -73,6 +73,16 @@ const disputeMigration = await readFile(new URL("../db/migrations/033_audited_bo
 const paymentReminderMigration = await readFile(new URL("../db/migrations/041_due_payment_readiness_notifications.sql", import.meta.url), "utf8");
 const paymentScheduleMigration = await readFile(new URL("../db/migrations/043_two_stage_payment_reminders.sql", import.meta.url), "utf8");
 const visitReminderMigration = await readFile(new URL("../db/migrations/044_confirmed_visit_reminders.sql", import.meta.url), "utf8");
+// Every migration, read once, so the allow-list check below can find whichever
+// one currently owns the function rather than trusting a hard-coded number.
+const migrationSources = new Map();
+{
+  const { readdir } = await import("node:fs/promises");
+  const directory = new URL("../db/migrations/", import.meta.url);
+  for (const name of await readdir(directory)) {
+    if (name.endsWith(".sql")) migrationSources.set(name, await readFile(new URL(name, directory), "utf8"));
+  }
+}
 const suppressionMigration = await readFile(new URL("../db/migrations/099_resend_email_suppression.sql", import.meta.url), "utf8");
 const deploymentVerification = await readFile(new URL("../db/integration/deployment-verification.sql", import.meta.url), "utf8");
 const runtimeGrants = await readFile(new URL("../db/runtime-role-grants.sql", import.meta.url), "utf8");
@@ -97,8 +107,23 @@ for (const required of ["CREATE FUNCTION tideway_private.queue_due_booking_visit
 assert(!visitReminderMigration.includes("UPDATE booking_payments") && !visitReminderMigration.includes("INSERT INTO booking_payments") && !visitReminderMigration.includes("UPDATE bookings"), "Confirmed-visit reminders can change money or booking state.");
 assert(workerGrants.includes("queue_due_booking_visit_reminders(integer)") && !runtimeGrants.includes("queue_due_booking_visit_reminders(integer)"), "Confirmed-visit reminders escaped their function-only worker boundary.");
 
-const queuedEventBlock = visitReminderMigration.match(/CREATE OR REPLACE FUNCTION tideway_private\.queue_email_for_in_app_notification\(\)[\s\S]*?NEW\.event_type IN \(([\s\S]*?)\) THEN/);
-assert(queuedEventBlock, "The latest notification migration no longer exposes a verifiable email event allowlist.");
+// Derived from disk rather than read out of one named migration. This was
+// pinned to 044, which stopped being the latest definition the moment another
+// migration replaced the function — at which point the check silently compared
+// the worker's copy against a superseded allow-list instead of the one the
+// database actually runs.
+const migrationDirectory = new URL("../db/migrations/", import.meta.url);
+const { readdir } = await import("node:fs/promises");
+const allowlistOwner = (await readdir(migrationDirectory))
+  .filter((name) => name.endsWith(".sql"))
+  .sort((a, b) => Number.parseInt(a, 10) - Number.parseInt(b, 10))
+  .reduce((latest, name) => {
+    const source = migrationSources.get(name);
+    return source && /CREATE (?:OR REPLACE )?FUNCTION tideway_private\.queue_email_for_in_app_notification\(\)/.test(source) ? { name, source } : latest;
+  }, null);
+assert(allowlistOwner, "No migration defines the email event allowlist.");
+const queuedEventBlock = allowlistOwner.source.match(/CREATE (?:OR REPLACE )?FUNCTION tideway_private\.queue_email_for_in_app_notification\(\)[\s\S]*?NEW\.event_type IN \(([\s\S]*?)\) THEN/);
+assert(queuedEventBlock, `The latest notification migration (${allowlistOwner.name}) no longer exposes a verifiable email event allowlist.`);
 const queuedEmailEvents = [...queuedEventBlock[1].matchAll(/'([a-z][a-z0-9-]+)'/g)].map((match) => match[1]).sort();
 assert(JSON.stringify(queuedEmailEvents) === JSON.stringify(Object.keys(notificationEmailEventCopy).sort()), "A database-queued email event has no worker copy, or worker copy is unreachable from the outbox.");
 for (const safeCaseField of ["disputeId", "status", "outcome"]) assert(disputeMigration.includes(`'${safeCaseField}'`) && safePayloadKeys.includes(safeCaseField), `Private case notifications lost their safe ${safeCaseField} projection.`);
@@ -146,3 +171,36 @@ await emailWorkerRepository.complete(notificationId, leaseToken, "sent");
 assert(claimedEmail[0].notificationId === notificationId && workerPoolCalls[0].queryText.includes("claim_due_email_notifications") && workerPoolCalls[1].queryText.includes("complete_email_notification") && workerPoolCalls.every((call) => !call.queryText.includes("landlord@example.com")), "Email worker repository bypassed its narrow functions or interpolated recipient data.");
 
 console.log("Notification tests passed: account-only inbox, race-safe read actions, strict payload redaction, signed suppression callbacks and leased retrying email outbox.");
+
+// Payment outcomes were the one thing Homle never told a customer about. It
+// sent twenty-eight kinds of notification and not one covered being charged,
+// refunded or declined; receipts existed but were pull-only, so the first time
+// most people would look for one is while querying the charge with their bank.
+{
+  const { readFile } = await import("node:fs/promises");
+  const outcomeMigration = await readFile(new URL("../db/migrations/117_payment_outcome_notices.sql", import.meta.url), "utf8");
+  for (const required of ["queue_payment_outcome_notice", "payment_outcome_notice", "AFTER INSERT ON payment_status_history", "'payment-captured'", "'payment-refunded'", "'payment-failed'", "ON CONFLICT (idempotency_key) DO NOTHING"]) {
+    if (!outcomeMigration.includes(required)) throw new Error(`The payment-outcome notice migration omitted ${required}.`);
+  }
+  // A partial refund can legitimately happen more than once on one payment, so
+  // keying on payment plus status would silently drop the second notice.
+  if (!outcomeMigration.includes("'payment-status:' || NEW.id")) throw new Error("Payment outcome notices are keyed so a second partial refund would be dropped.");
+  // Intermediate states are machinery. Telling somebody their payment is
+  // 'processing' invites them to act on something about to resolve itself.
+  if (/WHEN 'processing'|WHEN 'authorized'/.test(outcomeMigration)) throw new Error("Intermediate payment states are being announced to customers.");
+  for (const event of ["payment-captured", "payment-refunded", "payment-failed"]) {
+    if (!new RegExp(`'${event}'[^\\n]*`).test(outcomeMigration.split("queue_email_for_in_app_notification")[1] || "")) throw new Error(`${event} is not fanned out to email, so a receipt only exists behind a login.`);
+  }
+  const workerCopy = await readFile(new URL("../src/marketplace/email-notification-worker.mjs", import.meta.url), "utf8");
+  const inboxCopy = await readFile(new URL("../public/notification-inbox-model.js", import.meta.url), "utf8");
+  for (const event of ["payment-captured", "payment-refunded", "payment-failed", "booking-cancelled"]) {
+    if (!workerCopy.includes(`"${event}":`)) throw new Error(`${event} has no email subject or body, so it would send an empty message.`);
+    if (!inboxCopy.includes(`"${event}":`)) throw new Error(`${event} falls back to a generic inbox line that does not say what happened.`);
+  }
+  // Amounts belong on the booking's own authenticated pages. An email that
+  // repeats a figure is a second place for it to be wrong, and a worse place
+  // because it cannot be corrected once sent.
+  const paymentEmailCopy = workerCopy.slice(workerCopy.indexOf('"payment-captured"'), workerCopy.indexOf('"booking-reminder"'));
+  if (/£|pence|\d+\.\d{2}/.test(paymentEmailCopy)) throw new Error("A payment email states an amount, which cannot be corrected once sent.");
+  console.log("Payment outcome notice tests passed: capture, refund and failure reach the customer by email and in the inbox, keyed per transition so repeated partial refunds are not dropped, without restating an amount.");
+}
