@@ -4970,6 +4970,12 @@ async function getAdminConfig(request, response) {
     authenticationReady: accountAttachment.authenticationHttpReady,
     providers: accountAttachment.authenticationCapabilities,
     paymentsReady: marketplaceAttachment.paymentsReady,
+    // Whether completed bookings are settling on their own, or whether somebody
+    // still has to press capture and transfer for every job. Enabled-but-refused
+    // is reported to monitoring, but an operator checking whether it is on
+    // should not have to read the logs to find out — the answer is either true
+    // here or it is not running.
+    settlementReady: marketplaceAttachment.settlementReady === true,
     // This contains no credential or connection detail. Operators set it only
     // when the database provider has imposed a deletion date, so the private
     // launch desk cannot mistake temporary connectivity for durable storage.
