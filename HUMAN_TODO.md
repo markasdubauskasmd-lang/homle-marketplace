@@ -190,7 +190,28 @@ expect).
 
 ---
 
-## 6. Social sign-in providers (optional, not blocking)
+## 6. No-show policy — needed before the code can exist
+
+A no-show is the one part of the money path with no implementation at all, and
+it cannot be built until you decide what one *is*. Four questions, all of which
+cost somebody money whichever way they go:
+
+1. **How long after the slot start does a cleaner become a no-show?** Fifteen
+   minutes is common; too short punishes traffic, too long wastes a customer's
+   morning.
+2. **Who reports it, and does the other side get to dispute it?** A one-sided
+   report is open to abuse in both directions.
+3. **What happens to the money?** The authorization is held, not captured. Is
+   the customer refunded in full, charged a cancellation fee, or rebooked at no
+   cost? Does the cleaner lose anything for a no-show they caused?
+4. **What happens if the *customer* is the no-show** — nobody home, no access?
+   The cleaner has travelled and lost the slot.
+
+Write the answers down and they become the specification. Until then the
+honest position is that Homle has no no-show handling, which is fine at one
+cleaner and one customer and stops being fine quickly.
+
+## 7. Social sign-in providers (optional, not blocking)
 
 Google is configured and working. To add the others:
 
@@ -205,7 +226,7 @@ journey is simply Google-only plus email/password.
 
 ---
 
-## 7. Repository housekeeping needing your word
+## 8. Repository housekeeping needing your word
 
 - **40 open pull requests are all dead.** Every one is from 9–10 September and
   contains no change that is not already in `main` (verified: `git diff
