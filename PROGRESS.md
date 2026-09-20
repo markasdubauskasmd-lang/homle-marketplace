@@ -55,7 +55,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 | M4 | **Five-day authorization window** (`022:113`) means no pay-at-booking. A booking three weeks out cannot be paid for when it is made. | TODO |
 | M5 | **No-shows entirely unimplemented** — no code, schema or tests. Only prose in a preview FAQ. | TODO |
 | M6 | ✅ **DONE** `98b6a1f8` — **No payment-outcome emails**: no receipt, capture, refund, failed-payment or cancellation mail. Receipts are pull-only (customer must click). | TODO |
-| M7 | **No settlement reconciliation.** Platform fee is an arithmetic residual with no `application_fee_amount`; nothing proves captured − transferred − refunded = expected contribution. | TODO |
+| M7 | ✅ **DONE** `f55d8768` — **No settlement reconciliation.** Platform fee is an arithmetic residual with no `application_fee_amount`; nothing proves captured − transferred − refunded = expected contribution. | TODO |
 | M8 | **Failed payments have no dunning**, no retry schedule, no auto-cancel, no notification. | TODO |
 
 ### P1 — legal and trust exposure
@@ -102,7 +102,7 @@ coverage is 71/71. The real gaps are narrower:
 | H1 | ✅ **DONE** `971373f2` — **Booking and request creation had no rate limit.** `marketplace-http.mjs:475` and `:696` call `security.protect` with no scope. Every auth and AI endpoint is limited; the two money-path writes are not. | TODO |
 | H2 | ✅ **DONE** `534fa8b3` — **No cumulative Anthropic spend cap.** Per-call token ceilings, a 30 s timeout, `maxRetries: 1` and a cheap-model-by-default escalation guard all exist, but nothing stops sustained legitimate-looking traffic running a large bill. The brief asks for a spend cap specifically. | TODO |
 | H3 | ✅ **DONE** `5d9b2478` — **No 500 HTML page.** `server.mjs:5967` returns JSON only and never consults `wantsHtmlDocument`, so a browser hitting a server fault gets the unstyled-JSON experience the 404 work existed to remove. | TODO |
-| H4 | **No structured request log** — no request id, latency, or method/path/status line. Error events exist with no request trail to correlate against. | TODO |
+| H4 | ✅ **DONE** `7a50dd4c` — **No structured request log** — no request id, latency, or method/path/status line. Error events exist with no request trail to correlate against. | TODO |
 | H5 | `FORCE ROW LEVEL SECURITY` is absent on all 60 tables. Low risk (the app connects as a non-owner) but cheap to close. | TODO |
 | H6 | **45 test files are never executed** by `pnpm test`/`pnpm run check`, including `payment-disputes.mjs` and `dispute-parent-identity.mjs` on the refund/dispute money path. A written-but-unrun test is hard-limit 7 by another route. | TODO |
 
@@ -127,7 +127,9 @@ coverage is 71/71. The real gaps are narrower:
 
 ## Next step
 
-**M5 — no-shows.** Entirely unimplemented — no code, schema or tests, only prose in a
+**M5 — no-shows**, once the policy questions in `HUMAN_TODO.md` §6 are
+answered. What counts as a no-show is a decision about somebody's money, not a
+technical one, so the mechanism waits on it. Entirely unimplemented — no code, schema or tests, only prose in a
 preview FAQ describing a reliability score that does not exist. Decide what a
 no-show *is* first (how long after the slot, who reports it, what it costs
 whom), because that is a policy question the founder owns, then build it.
