@@ -74,18 +74,26 @@ function serviceAreas(value) {
   });
 }
 
-export function profileCompletionPercent(profile) {
-  const checks = [
-    profile.biography.length >= 40,
-    profile.services.length > 0,
-    profile.hourlyRatePence != null || profile.fixedPriceOptions.length > 0 || profile.services.some((service) => service.pricePence != null),
-    profile.travelRadiusKm != null,
-    profile.serviceAreas.some(area => area.role !== "excluded"),
-    profile.yearsExperience != null,
-    profile.languages.length > 0,
-    profile.equipmentSupplied.length + profile.productsSupplied.length > 0,
-    profile.residentialPreference || profile.commercialPreference
+// Named so a refusal can say which section is missing. A published Cleaner who
+// clears a required field gets an error about publishing when they thought they
+// were editing equipment, and "complete every section" does not tell them which
+// one they just emptied.
+function completionChecks(profile) {
+  return [
+    ["an introduction of at least 40 characters", profile.biography.length >= 40],
+    ["at least one service", profile.services.length > 0],
+    ["a price", profile.hourlyRatePence != null || profile.fixedPriceOptions.length > 0 || profile.services.some((service) => service.pricePence != null)],
+    ["how far you will travel", profile.travelRadiusKm != null],
+    ["at least one area you cover", profile.serviceAreas.some(area => area.role !== "excluded")],
+    ["your years of experience", profile.yearsExperience != null],
+    ["at least one language", profile.languages.length > 0],
+    ["the equipment or products you bring", profile.equipmentSupplied.length + profile.productsSupplied.length > 0],
+    ["whether you clean homes, commercial premises or both", profile.residentialPreference || profile.commercialPreference]
   ];
+}
+
+export function profileCompletionPercent(profile) {
+  const checks = completionChecks(profile).map(([, satisfied]) => satisfied);
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
 
@@ -108,7 +116,10 @@ export function normalizedCleanerProfile(input = {}) {
   delete normalized.fixedPriceOptionsRaw;
   normalized.profileCompletionPercent = profileCompletionPercent(normalized);
   normalized.isPublic = input.isPublic === true;
-  if (normalized.isPublic && normalized.profileCompletionPercent !== 100) throw new TypeError("Complete every required profile section before publishing.");
+  if (normalized.isPublic && normalized.profileCompletionPercent !== 100) {
+    const missing = completionChecks(normalized).filter(([, satisfied]) => !satisfied).map(([label]) => label);
+    throw new TypeError(`Your profile is published, so it still needs ${missing.join(", ")}. Add ${missing.length === 1 ? "it" : "them"} back, or hide your profile first.`);
+  }
   return normalized;
 }
 

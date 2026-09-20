@@ -91,6 +91,11 @@ import { createLandlordCareService } from "./landlord-care-service.mjs";
 import { createFavouriteCleanerRepository } from "./favourite-cleaner-repository.mjs";
 import { createFavouriteCleanerService } from "./favourite-cleaner-service.mjs";
 
+// The payment statuses a cancel command can still act on. Mirrors the guard in
+// db/migrations/113_payment_command_recovery.sql; the database owns the real
+// decision and this only avoids calling it when the answer is obviously no.
+const releasablePaymentStatuses = new Set(["creating", "requires-customer-action", "processing", "authorized"]);
+
 // Whether travel is charged by distance rather than as a flat fee. A blank or
 // zero per-kilometre rate keeps the flat-fee path, which needs no distance and
 // so no geocoding provider.
@@ -244,9 +249,25 @@ export function createMarketplaceRuntime(pool, options = {}) {
     releaseAuthorization: paymentService
       ? async (actor, bookingId) => {
         const payment = await paymentService.getForBooking(actor, bookingId);
-        if (!payment) return Object.freeze({ released: false, message: "No payment had been taken, so there is nothing to release.", code: "no-payment" });
-        if (payment.canCancel !== true) return Object.freeze({ released: false, message: "Your booking is cancelled. This payment needs a Homle review before the money moves, and support has been notified.", code: "cancel-unavailable" });
-        await paymentService.cancel(actor, { paymentId: payment.paymentId, idempotencyKey: `booking_cancel_${bookingId}` });
+        // `getForBooking` answers for any booking the caller owns, with a
+        // synthetic `not-started` record when no payment row exists, so a null
+        // paymentId — not a null record — is what "nothing was taken" looks
+        // like here.
+        if (!payment || payment.paymentId == null) return Object.freeze({ released: false, message: "No payment had been taken, so there is nothing to release.", code: "no-payment" });
+        // Mirrors the statuses begin_payment_command accepts for a cancel. A
+        // payment already captured, refunded or cancelled has nothing to
+        // release and must not be treated as a failure.
+        if (!releasablePaymentStatuses.has(payment.status)) return Object.freeze({ released: false, message: "There was no card hold left to release.", code: "nothing-to-release" });
+        try {
+          await paymentService.cancel(actor, { paymentId: payment.paymentId, idempotencyKey: `booking_cancel_${bookingId}` });
+        } catch (error) {
+          // The database owns the real guard, and it can legitimately refuse
+          // for reasons this projection cannot see. A refusal means there is
+          // nothing to release; anything else is a genuine failure and must
+          // stop the cancellation rather than strand the money.
+          if (error?.code === "payment-not-cancellable") return Object.freeze({ released: false, message: "There was no card hold left to release.", code: "nothing-to-release" });
+          throw error;
+        }
         return Object.freeze({ released: true, message: "Your card hold has been released. You have not been charged.", code: "released" });
       }
       : undefined

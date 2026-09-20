@@ -576,6 +576,11 @@
       "order": 115,
       "file": "115_landlord_booking_cancellation.sql",
       "sha256": "63ed2e68485e082f01eff3061fe12fd5099fff71de647573f3db8dddcc6e228c"
+    },
+    {
+      "order": 116,
+      "file": "116_booking_cancellation_notice.sql",
+      "sha256": "0b875631821842bafdea6bd8fb9758738ff844de61ddc8201a4e88fa39c64e63"
     }
   ],
   "grantFiles": [

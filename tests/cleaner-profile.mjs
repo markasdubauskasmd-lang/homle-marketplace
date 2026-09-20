@@ -38,7 +38,7 @@ const completeInput = {
 };
 const completeProfile = normalizedCleanerProfile(completeInput);
 assert(completeProfile.profileCompletionPercent === 100 && completeProfile.isPublic && completeProfile.serviceAreas[0].outwardPostcode === "SW1A" && completeProfile.services.length === 2 && !Object.hasOwn(completeProfile, "currentAvailabilityStatus") && !Object.hasOwn(completeProfile, "profilePhotoUrl"), "A complete cleaner profile did not reach publishable canonical state or retained a client-controlled availability/photo field.");
-assert(throws(() => normalizedCleanerProfile({ biography: "Short", isPublic: true }), "Complete every required") && throws(() => normalizedCleanerProfile({ ...completeInput, services: [{ serviceCode: "invented", pricingModel: "quote" }] }), "supported and unique") && throws(() => normalizedCleanerProfile({ ...completeInput, serviceAreas: [{ outwardPostcode: "London" }] }), "Outward postcode"), "Incomplete, invented-service or vague-area cleaner data was accepted.");
+assert(throws(() => normalizedCleanerProfile({ biography: "Short", isPublic: true }), "an introduction of at least 40 characters") && throws(() => normalizedCleanerProfile({ ...completeInput, services: [{ serviceCode: "invented", pricingModel: "quote" }] }), "supported and unique") && throws(() => normalizedCleanerProfile({ ...completeInput, serviceAreas: [{ outwardPostcode: "London" }] }), "Outward postcode"), "Incomplete, invented-service or vague-area cleaner data was accepted.");
 
 const serviceCalls = [];
 const publicRows = [{

@@ -8,7 +8,7 @@
 
 const tones = Object.freeze({
   action: new Set(["payment-window-opened", "payment-action-required", "unexpected-task-approval-requested", "review-requested", "new-booking-request"]),
-  alert: new Set(["issue-reported", "issue-photo-added", "dispute-opened", "dispute-reviewing", "cleaner-declined", "cleaner-invitation-expired"]),
+  alert: new Set(["issue-reported", "issue-photo-added", "dispute-opened", "dispute-reviewing", "cleaner-declined", "cleaner-invitation-expired", "booking-cancelled"]),
   success: new Set(["booking-confirmed", "cleaning-completed", "booking-completed", "review-submitted", "dispute-resolved"]),
   journey: new Set(["cleaner-start-journey", "cleaner-started-travelling", "cleaner-nearby", "cleaner-arrived"]),
   progress: new Set(["cleaning-started", "cleaning-paused", "cleaning-resumed", "cleaning-progress-update", "job-photo-added", "unexpected-task-decision"]),

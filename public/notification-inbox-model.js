@@ -3,6 +3,9 @@ const copy = Object.freeze({
   "cleaner-declined": ["Cleaner response received", "The invited Cleaner declined. Homle can continue matching.", "View request"],
   "booking-confirmed": ["Booking confirmed", "The Cleaner accepted the date, scope and agreed price.", "View booking"],
   "cleaner-invitation-expired": ["Invitation expired", "The Cleaner invitation expired without a response.", "View request"],
+  // Without its own entry this fell back to "Booking updated", which does not
+  // tell a Cleaner the job they had planned their day around is off.
+  "booking-cancelled": ["Booking cancelled", "The customer cancelled this booking. You do not need to travel to the property.", "View booking"],
   "payment-window-opened": ["Payment is now open", "You can now authorize the exact total for your confirmed clean.", "Authorize booking total"],
   "payment-action-required": ["Payment step needed", "Confirm payment authorisation before the clean so the Cleaner can start on time.", "Complete payment step"],
   "booking-reminder": ["Your clean is coming up", "The confirmed clean starts within 24 hours.", "Review booking"],

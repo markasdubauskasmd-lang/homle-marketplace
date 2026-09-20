@@ -2,7 +2,9 @@ function mappedDatabaseError(error) {
   const messages = {
     "request-not-found": [404, "request-not-found", "The cleaning request was not found."],
     "property-not-found": [409, "property-not-found", "The request property is no longer available."],
-    "booking-not-found": [404, "booking-not-found", "The booking invitation was not found."],
+    // Reached from invitations and from cancellation, so it cannot say
+    // "invitation" without being wrong half the time.
+    "booking-not-found": [404, "booking-not-found", "That booking was not found."],
     "request-not-matchable": [409, "request-not-matchable", "This cleaning request is no longer available for matching."],
     "cleaner-not-eligible": [409, "cleaner-not-eligible", "This cleaner is not currently eligible for invitations."],
     "cleaner-account-inactive": [409, "cleaner-not-eligible", "This cleaner is not currently eligible for invitations."],
@@ -18,6 +20,12 @@ function mappedDatabaseError(error) {
     "cleaner-schedule-conflict": [409, "schedule-conflict", "Another confirmed job now overlaps this booking."],
     "invalid-booking-economics": [409, "invalid-booking-economics", "The private booking terms do not satisfy the approved budget and margin rules."],
     "invalid-response-window": [409, "invalid-response-window", "The cleaner response window is no longer valid."],
+    // Without these two, the expected refusals of a cancellation — a job whose
+    // Cleaner is already on the way, or an account that is not the owner — fall
+    // through as a bare Error, become a 500 the UI cannot render, and page the
+    // on-call through onUnexpectedError.
+    "booking-not-cancellable": [409, "booking-not-cancellable", "This booking can no longer be cancelled. If a Cleaner is on the way or the work has started, open a case instead."],
+    "landlord-required": [403, "landlord-required", "A Landlord account is required to cancel a booking."],
     "booking-participant-required": [403, "booking-participant-required", "A Cleaner or Landlord account is required to view booking summaries."],
     "invalid-booking-summary-limit": [400, "invalid-booking-summary-limit", "The booking summary limit is outside the supported range."]
   };

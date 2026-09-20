@@ -260,16 +260,39 @@ const unpaidWorkflow = createBookingWorkflowService(cancelRepository, {
 const unpaidCancellation = await unpaidWorkflow.cancelBooking(landlord, bookingId, {});
 assert(unpaidCancellation.booking.status === "cancelled" && unpaidCancellation.holdRelease.code === "no-payment", "Cancelling a booking with no payment did not succeed cleanly.");
 
-// The booking is genuinely cancelled even when the provider call fails. Telling
-// the customer their cancellation did not work, when it did, would send them
-// back to cancel a booking that no longer exists.
-const failingWorkflow = createBookingWorkflowService(cancelRepository, {
-  pricingPolicy: policy,
-  releaseAuthorization: async () => { throw Object.assign(new Error("provider unavailable"), { code: "provider-unavailable" }); }
-});
-const failedRelease = await failingWorkflow.cancelBooking(landlord, bookingId, {});
-assert(failedRelease.booking.status === "cancelled" && failedRelease.holdRelease.released === false && failedRelease.holdRelease.code === "provider-unavailable", "A failed hold release either un-cancelled the booking or hid the failure.");
-assert(!failedRelease.holdRelease.message.toLowerCase().includes("charged you") && failedRelease.holdRelease.message.includes("not a charge"), "The failed-release message does not tell the customer a hold is not a charge.");
+// Ordering is not a style choice here. begin_payment_command refuses a cancel
+// unless the booking is still `confirmed`, so the hold must be released before
+// the booking moves. Cancelling first strands the money: the payment can then
+// never be cancelled (wrong booking status), captured (needs `completed`) or
+// refunded (needs a captured payment), by anyone, with no sweeper to recover it.
+const orderCalls = [];
+const orderedWorkflow = createBookingWorkflowService(
+  { ...fakeRepository, async cancelBooking() { orderCalls.push("cancel-booking"); return cancelledRecord; } },
+  { pricingPolicy: policy, releaseAuthorization: async () => { orderCalls.push("release-hold"); return { released: true, code: "released", message: "released" }; } }
+);
+await orderedWorkflow.cancelBooking(landlord, bookingId, {});
+assert(orderCalls[0] === "release-hold" && orderCalls[1] === "cancel-booking", `The card hold must be released before the booking is cancelled, or the database refuses the release and the money is stranded. Order was ${orderCalls.join(" then ")}.`);
+
+// A genuine release failure must leave the booking alone. Cancelling anyway is
+// what produces the unrecoverable state above.
+const failedCalls = [];
+const failingWorkflow = createBookingWorkflowService(
+  { ...fakeRepository, async cancelBooking() { failedCalls.push("cancel-booking"); return cancelledRecord; } },
+  { pricingPolicy: policy, releaseAuthorization: async () => { throw Object.assign(new Error("provider unavailable"), { code: "provider-unavailable" }); } }
+);
+assert(await rejectsCode(() => failingWorkflow.cancelBooking(landlord, bookingId, {}), "hold-release-failed"), "A failed hold release did not stop the cancellation, so the payment is stranded with no way to cancel, capture or refund it.");
+assert(failedCalls.length === 0, "The booking was cancelled even though the card hold could not be released.");
+assert(await rejects(() => failingWorkflow.cancelBooking(landlord, bookingId, {}), "Nothing has changed"), "The customer is not told their booking is untouched after a failed cancellation.");
+
+// The release path must not depend on a field the Landlord projection does not
+// carry. `publicPayment` exposes nine keys and `canCancel` is not one of them —
+// reading it returns undefined, which silently skipped every release.
+const runtimeReleaseSource = runtimeSource.slice(runtimeSource.indexOf("releaseAuthorization:"), runtimeSource.indexOf("releaseAuthorization:") + 2200);
+assert(!runtimeReleaseSource.includes("canCancel"), "The hold release reads `canCancel`, which the Landlord payment projection does not carry, so it never releases anything.");
+assert(runtimeReleaseSource.includes("payment.paymentId == null") && runtimeReleaseSource.includes("releasablePaymentStatuses"), "The hold release does not decide releasability from fields the projection actually carries.");
+assert(runtimeReleaseSource.includes('error?.code === "payment-not-cancellable"'), "A database refusal to cancel a payment is treated as a failure rather than as nothing to release.");
+const paymentServiceSource = await readFile(new URL("../src/marketplace/payment-service.mjs", import.meta.url), "utf8");
+assert(!/function publicPayment[\s\S]{0,900}canCancel/.test(paymentServiceSource), "publicPayment now carries canCancel; the release path should use it directly rather than mirroring the status list.");
 
 // Payments are optional; a deployment without them must still be cancellable.
 const noPaymentsWorkflow = createBookingWorkflowService(cancelRepository, { pricingPolicy: policy });
@@ -288,5 +311,17 @@ for (const permitted of ["draft", "searching-for-cleaner", "cleaner-invited", "p
 const httpSource = await readFile(new URL("../src/marketplace/marketplace-http.mjs", import.meta.url), "utf8");
 assert(httpSource.includes("bookingCancellationPath") && /bookingCancellationPath[\s\S]{0,400}roles: \["landlord"\]/.test(httpSource), "The cancellation route is missing or is not restricted to the Landlord who owns the booking.");
 assert(runtimeSource.includes("releaseAuthorization") && runtimeSource.includes("paymentService.cancel(actor,"), "Cancelling a booking does not release the customer's card hold.");
+// The two expected refusals must reach the customer as 409/403, not as a 500
+// that also pages the on-call through onUnexpectedError.
+const repositorySource = await readFile(new URL("../src/marketplace/booking-repository.mjs", import.meta.url), "utf8");
+for (const mapped of ["booking-not-cancellable", "landlord-required"]) assert(repositorySource.includes(`"${mapped}":`), `${mapped} is unmapped, so an expected cancellation refusal becomes a 500 and an alert.`);
+assert(!repositorySource.includes("The booking invitation was not found."), "booking-not-found still says 'invitation', which is wrong for a cancellation.");
+// A cancelled job the Cleaner is not told about is a wasted morning.
+const cancellationNotice = await readFile(new URL("../db/migrations/116_booking_cancellation_notice.sql", import.meta.url), "utf8");
+assert(cancellationNotice.includes("'booking-cancelled'") && cancellationNotice.includes("queue_email_for_in_app_notification"), "booking-cancelled is not on the email fan-out allow-list, so the Cleaner is never emailed.");
+const inboxCopy = await readFile(new URL("../public/notification-inbox-model.js", import.meta.url), "utf8");
+assert(inboxCopy.includes('"booking-cancelled"'), "The Cleaner's inbox shows a generic 'Booking updated' line that never says the job is off.");
+const inboxTone = await readFile(new URL("../public/notification-inbox-view-model.js", import.meta.url), "utf8");
+assert(/alert: new Set\(\[[^\]]*booking-cancelled/.test(inboxTone), "A cancelled booking renders as a neutral update rather than an alert.");
 
 console.log("Booking workflow tests passed: server-owned two-floor profitable terms, frozen scope, authoritative property/coverage/pay/availability eligibility, decline/retry history, idempotent responses, concurrent overlap protection and customer cancellation that releases the card hold.");
