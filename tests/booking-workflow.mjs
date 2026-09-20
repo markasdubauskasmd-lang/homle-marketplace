@@ -228,4 +228,65 @@ assert(serviceAreaRepairMigration.includes("request_outward_postcode") && servic
 for (const required of ["target_contribution_pence", "bookings_target_contribution_check", "proposed_target_contribution_pence", "planned_contribution<proposed_target_contribution_pence", "termsFingerprint", "REVOKE ALL ON FUNCTION tideway_private.invite_cleaner"]) assert(contributionFloorMigration.includes(required), `The booking minimum-contribution migration omitted ${required}.`);
 assert(grants.includes("invite_cleaner(uuid, uuid, uuid, timestamptz, integer, integer, integer, integer, integer, integer, integer, integer, integer)") && !grants.includes("GRANT EXECUTE ON FUNCTION tideway_private.invite_cleaner(uuid, uuid, uuid, timestamptz, integer, integer, integer, integer, integer, integer, integer, integer) TO tideway_app"), "The runtime role did not move exclusively to the two-floor invitation function.");
 
-console.log("Booking workflow tests passed: server-owned two-floor profitable terms, frozen scope, authoritative property/coverage/pay/availability eligibility, decline/retry history, idempotent responses and concurrent overlap protection.");
+// Booking cancellation. `confirmed:cancelled` was a permitted Landlord
+// transition with no database function and no route behind it, so a customer
+// could not cancel and could not get their card hold released — which also
+// stranded refunds, because a refund requires a cancelled, completed or
+// disputed booking.
+const cancelledRecord = { id: bookingId, cleaning_request_id: requestId, landlord_user_id: landlord.userId, cleaner_user_id: cleaner.userId, status: "cancelled", scheduled_start_at: candidate.requested_start_at, scheduled_end_at: candidate.requested_end_at, cleaner_response_deadline: quote.responseDeadline, customer_price_pence: quote.customerPricePence, cleaner_pay_pence: quote.cleanerPayPence, scope_fingerprint: "a".repeat(64), terms_fingerprint: "b".repeat(64), scope_snapshot: { tasks: [] }, responded_at: now.toISOString(), confirmed_at: null, expired_at: null };
+const cancelCalls = [];
+const cancelRepository = { ...fakeRepository, async cancelBooking(actor, suppliedBookingId, reason) { cancelCalls.push({ actor, suppliedBookingId, reason }); return cancelledRecord; } };
+
+const releasingWorkflow = createBookingWorkflowService(cancelRepository, {
+  pricingPolicy: policy,
+  releaseAuthorization: async () => ({ released: true, message: "Your card hold has been released. You have not been charged.", code: "released" })
+});
+const cancellation = await releasingWorkflow.cancelBooking(landlord, bookingId, { reason: "Plans changed" });
+assert(cancellation.booking.status === "cancelled" && cancellation.holdRelease.released === true, "Cancelling a booking did not cancel it or did not release the card hold.");
+assert(cancelCalls.length === 1 && cancelCalls[0].reason === "Plans changed" && cancelCalls[0].suppliedBookingId === bookingId, "The cancellation reason or booking identity did not reach the repository.");
+
+// Only the customer cancels this way. A Cleaner who wants out declines the
+// invitation or raises a dispute; letting them cancel would let them drop
+// confirmed work without either record being made.
+assert(await rejects(() => releasingWorkflow.cancelBooking(cleaner, bookingId, {}), "Landlord account is required"), "A Cleaner was allowed to cancel a Landlord's booking.");
+assert(await rejects(() => releasingWorkflow.cancelBooking(landlord, "not-a-uuid", {}), "booking id"), "A malformed booking id was accepted for cancellation.");
+
+// A booking cancelled before the payment window ever opened has no hold to
+// release. That is ordinary, not a failure.
+const unpaidWorkflow = createBookingWorkflowService(cancelRepository, {
+  pricingPolicy: policy,
+  releaseAuthorization: async () => ({ released: false, message: "No payment had been taken, so there is nothing to release.", code: "no-payment" })
+});
+const unpaidCancellation = await unpaidWorkflow.cancelBooking(landlord, bookingId, {});
+assert(unpaidCancellation.booking.status === "cancelled" && unpaidCancellation.holdRelease.code === "no-payment", "Cancelling a booking with no payment did not succeed cleanly.");
+
+// The booking is genuinely cancelled even when the provider call fails. Telling
+// the customer their cancellation did not work, when it did, would send them
+// back to cancel a booking that no longer exists.
+const failingWorkflow = createBookingWorkflowService(cancelRepository, {
+  pricingPolicy: policy,
+  releaseAuthorization: async () => { throw Object.assign(new Error("provider unavailable"), { code: "provider-unavailable" }); }
+});
+const failedRelease = await failingWorkflow.cancelBooking(landlord, bookingId, {});
+assert(failedRelease.booking.status === "cancelled" && failedRelease.holdRelease.released === false && failedRelease.holdRelease.code === "provider-unavailable", "A failed hold release either un-cancelled the booking or hid the failure.");
+assert(!failedRelease.holdRelease.message.toLowerCase().includes("charged you") && failedRelease.holdRelease.message.includes("not a charge"), "The failed-release message does not tell the customer a hold is not a charge.");
+
+// Payments are optional; a deployment without them must still be cancellable.
+const noPaymentsWorkflow = createBookingWorkflowService(cancelRepository, { pricingPolicy: policy });
+const noPaymentsCancellation = await noPaymentsWorkflow.cancelBooking(landlord, bookingId, {});
+assert(noPaymentsCancellation.booking.status === "cancelled" && noPaymentsCancellation.holdRelease === null, "A deployment without payments attached could not cancel a booking.");
+
+const cancellationMigration = await readFile(new URL("../db/migrations/115_landlord_booking_cancellation.sql", import.meta.url), "utf8");
+for (const required of ["cancel_booking_as_landlord", "landlord-required", "booking-not-found", "booking-not-cancellable", "previous_status", "booking_status_history", "cleaning_request_status_history", "journey_started_at IS NOT NULL", "ON CONFLICT (idempotency_key) DO NOTHING", "GRANT EXECUTE"]) assert(cancellationMigration.includes(required), `The cancellation migration omitted ${required}.`);
+// Ownership is proven by the lookup rather than a separate check that could
+// drift from it, and the permitted statuses must match domain.mjs exactly.
+assert(cancellationMigration.includes("booking.landlord_user_id = actor_id"), "Cancellation does not bind the booking to the acting Landlord.");
+assert(cancellationMigration.includes("IF booking_record.status = 'cancelled' THEN") && cancellationMigration.includes("RETURN booking_record;"), "Cancelling twice is treated as an error rather than the outcome the customer already asked for.");
+assert(cancellationMigration.indexOf("previous_status := booking_record.status") < cancellationMigration.indexOf("UPDATE bookings"), "The status history would record 'cancelled' moving to itself.");
+const domainSource = await readFile(new URL("../src/marketplace/domain.mjs", import.meta.url), "utf8");
+for (const permitted of ["draft", "searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "confirmed"]) assert(domainSource.includes(`"${permitted}:cancelled"`) && cancellationMigration.includes(`'${permitted}'`), `The cancellable statuses in the migration and domain.mjs disagree about ${permitted}.`);
+const httpSource = await readFile(new URL("../src/marketplace/marketplace-http.mjs", import.meta.url), "utf8");
+assert(httpSource.includes("bookingCancellationPath") && /bookingCancellationPath[\s\S]{0,400}roles: \["landlord"\]/.test(httpSource), "The cancellation route is missing or is not restricted to the Landlord who owns the booking.");
+assert(runtimeSource.includes("releaseAuthorization") && runtimeSource.includes("paymentService.cancel(actor,"), "Cancelling a booking does not release the customer's card hold.");
+
+console.log("Booking workflow tests passed: server-owned two-floor profitable terms, frozen scope, authoritative property/coverage/pay/availability eligibility, decline/retry history, idempotent responses, concurrent overlap protection and customer cancellation that releases the card hold.");

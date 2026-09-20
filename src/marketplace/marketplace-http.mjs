@@ -15,6 +15,7 @@ const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][
 const landlordRepeatPath = new RegExp(`^/api/marketplace/landlord/bookings/(${uuidPattern})/repeat-scope$`);
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
 const bookingResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/response$`);
+const bookingCancellationPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cancel$`);
 const requestInvitationPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitations$`);
 const requestInvitationQuotePath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitation-quote$`);
 const requestMatchesPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/matches$`);
@@ -929,6 +930,18 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
           const booking = await bookings.respondToInvitation(context.actor, selectedBookingResponse[1], await readJsonObject(request));
           sendJson(response, 200, { ok: true, booking });
+          return true;
+        }
+        // A customer who cannot cancel has to phone somebody, and their money
+        // stays held until the authorization expires. `confirmed:cancelled` has
+        // been a permitted Landlord transition since the booking model was
+        // written; this is the route that finally reaches it.
+        const selectedBookingCancellation = pathname.match(bookingCancellationPath);
+        if (selectedBookingCancellation) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const outcome = await bookings.cancelBooking(context.actor, selectedBookingCancellation[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, booking: outcome.booking, holdRelease: outcome.holdRelease });
           return true;
         }
         const selectedCompletion = pathname.match(bookingCompletionPath);

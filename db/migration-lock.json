@@ -571,6 +571,11 @@
       "order": 114,
       "file": "114_payment_event_parent_identity.sql",
       "sha256": "86c27160a9a466c053d78f995a8323b9cf8f6f0f09b0e0de3de7a1a6441948dc"
+    },
+    {
+      "order": 115,
+      "file": "115_landlord_booking_cancellation.sql",
+      "sha256": "63ed2e68485e082f01eff3061fe12fd5099fff71de647573f3db8dddcc6e228c"
     }
   ],
   "grantFiles": [

@@ -101,6 +101,14 @@ export function createBookingRepository(database) {
           return result.rows[0];
         } catch (error) { throw mappedDatabaseError(error); }
       });
+    },
+    cancelBooking(actor, bookingId, reason) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT (tideway_private.cancel_booking_as_landlord($1::uuid, $2::text)).*", [bookingId, reason]);
+          return result.rows[0];
+        } catch (error) { throw mappedDatabaseError(error); }
+      });
     }
   });
 }

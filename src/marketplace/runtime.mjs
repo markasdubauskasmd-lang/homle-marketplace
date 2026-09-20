@@ -232,7 +232,24 @@ export function createMarketplaceRuntime(pool, options = {}) {
     pricingPolicy: bookingPricingPolicy,
     getPlatformEconomics: async (actor) => (await pricingConfigurationRepository.economicsForRuntime(actor)) || defaultPricingEconomics,
     requirePayoutReady: paymentService !== null,
-    getPayoutReadiness: cleanerPayoutService ? (actor) => cleanerPayoutService.getStatus(actor) : undefined
+    getPayoutReadiness: cleanerPayoutService ? (actor) => cleanerPayoutService.getStatus(actor) : undefined,
+    // Cancelling a booking must give the customer their money back. The hold is
+    // an uncaptured authorization, so releasing it is a cancel command, not a
+    // refund — there is nothing to refund yet. `cancel` already permits the
+    // Landlord role; until now no route reached it.
+    //
+    // A booking with no payment, or one whose payment can no longer be
+    // cancelled, is not an error: plenty of bookings are cancelled before the
+    // payment window ever opens.
+    releaseAuthorization: paymentService
+      ? async (actor, bookingId) => {
+        const payment = await paymentService.getForBooking(actor, bookingId);
+        if (!payment) return Object.freeze({ released: false, message: "No payment had been taken, so there is nothing to release.", code: "no-payment" });
+        if (payment.canCancel !== true) return Object.freeze({ released: false, message: "Your booking is cancelled. This payment needs a Homle review before the money moves, and support has been notified.", code: "cancel-unavailable" });
+        await paymentService.cancel(actor, { paymentId: payment.paymentId, idempotencyKey: `booking_cancel_${bookingId}` });
+        return Object.freeze({ released: true, message: "Your card hold has been released. You have not been charged.", code: "released" });
+      }
+      : undefined
   });
   const matchingRepository = createMatchingRepository(database);
   const matchingService = createMatchingService(matchingRepository, { pricingPolicy: bookingPricingPolicy, requirePayoutReady: paymentService !== null });
