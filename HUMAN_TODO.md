@@ -259,3 +259,13 @@ journey is simply Google-only plus email/password.
   mostly training videos under `public/training-safety-v04/` and
   `public/training-working-guide-v04/`. Decide whether those belong in git or in
   object storage.
+- **The publication guard also reports six false positives** and so never
+  passes. Three files match on a PKCS#8 header appearing in prose or a test
+  placeholder with no key behind it; three are synthetic scanner fixtures that
+  are deliberately tracked. It was left alone on purpose: narrowing a guard
+  whose job is stopping customer data reaching a public repository is your
+  decision, not one to make in passing. The recommended narrowing — match actual
+  key material rather than the header alone, and exempt
+  `data/scan-benchmark/` — is recorded in `LAUNCH_READINESS.md` under P2-4. It
+  matters because a control that always cries wolf is a control people learn to
+  bypass, and this one exists for the worst day.
