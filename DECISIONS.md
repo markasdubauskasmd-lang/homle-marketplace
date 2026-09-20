@@ -134,3 +134,39 @@ The two lanes are rendered side by side and deliberately not merged: the
 account lane begins at somebody who already has an account, the visitor lane
 begins at somebody who merely arrived, and presenting them as one funnel would
 claim they count the same population.
+
+**D13 — An unpaid booking is cancelled twelve hours before its slot, behind the
+same gate as settlement.**
+The brief requires failed payments to be handled with no manual step. The
+reminders already existed — one when the five-day authorization window opens
+(migration 043), one twenty-four hours before the slot, and an outcome email
+when an authorization fails (117/123). What did not exist was an ending. A
+booking nobody paid for stayed `confirmed` indefinitely, and migration 025
+would never have let the job start.
+
+The cost of that falls on the Cleaner, not on the platform: their calendar is
+held for a job that cannot legally begin, and nobody tells them. With almost no
+supply in the pilot, that is the most expensive silent failure in the system.
+
+**Twelve hours** before the slot, because the customer has already had two
+notices and twelve more hours after the last one is a real chance to pay, while
+leaving the Cleaner half a day's notice rather than a doorstep. Bookings already
+past their start with nothing authorized are ended too; they were never going to
+happen.
+
+**No cancellation fee.** Nothing was ever authorized, so there is nothing to
+charge and no approved customer terms to charge it under. That stays a founder
+decision in `HUMAN_TODO.md`, exactly as it does for a Landlord cancellation.
+
+**Behind the settlement gate, not a flag of its own.** It needs the same
+verified platform administrator, and — decisively — it must never run where
+payments are switched off. There, no booking has an authorization because none
+can, and migration 025 deliberately lets jobs start without one; an expiry loop
+in that world would cancel every confirmed booking in the system. One condition
+is safer than two that can disagree.
+
+**The hold is released before the booking is cancelled**, which is the ordering
+migration 115 settled: `begin_payment_command` will not cancel a hold on a
+booking that has already left `confirmed`. If the release fails the booking is
+left alive and the failure reported, because a booking still holding somebody's
+money is safer alive than cancelled with the money stranded.

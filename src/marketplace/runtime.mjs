@@ -86,6 +86,7 @@ import { createAdministratorCoverageRepository } from "./administrator-coverage-
 import { createAdministratorCoverageService } from "./administrator-coverage-service.mjs";
 import { createAdministratorFunnelRepository } from "./administrator-funnel-repository.mjs";
 import { createFunnelTelemetryRepository } from "./funnel-telemetry-repository.mjs";
+import { createUnpaidBookingRepository } from "./unpaid-booking-repository.mjs";
 import { createAdministratorFunnelService } from "./administrator-funnel-service.mjs";
 import { createLandlordCareRepository } from "./landlord-care-repository.mjs";
 import { createLandlordCareService } from "./landlord-care-service.mjs";
@@ -316,6 +317,12 @@ export function createMarketplaceRuntime(pool, options = {}) {
   // was invisible. Anonymous and cookieless by construction; see D11 and the
   // header of `funnel-telemetry.mjs`.
   const funnelTelemetryRepository = options.funnelTelemetry || createFunnelTelemetryRepository(database);
+  // The queue of bookings that reached their payment deadline unpaid. Read and
+  // acted on by the expiry loop composed in attachment.mjs, for the same reason
+  // settlement is: the background worker's credential cannot execute a payment
+  // command, and widening it would be a worse trade than running the loop where
+  // the application credential already lives.
+  const unpaidBookingRepository = createUnpaidBookingRepository(database);
   const landlordCareRepository = createLandlordCareRepository(database);
   const landlordCareService = createLandlordCareService(landlordCareRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
@@ -482,6 +489,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     administratorFunnelRepository,
     administratorFunnelService,
     funnelTelemetry: funnelTelemetryRepository,
+    unpaidBookingRepository,
     landlordCareRepository,
     landlordCareService,
     privacyRequestRepository,

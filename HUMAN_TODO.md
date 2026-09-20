@@ -93,6 +93,44 @@ It will not touch a payment flagged for reconciliation or dispute review, and
 the administrator queue remains authoritative, so you can leave settlement off
 and keep approving each one by hand while volume is low.
 
+### 2b. Turning settlement on also turns on unpaid-booking expiry
+
+Read this before you set `WORKER_PAYMENT_SETTLEMENT_ENABLED=true`, because the
+same switch starts a second loop that **cancels bookings**.
+
+Every fifteen minutes it looks for bookings that are twelve hours or less from
+their start time with no authorised payment, releases any half-finished card
+hold, cancels the booking and the request, and tells both the customer and the
+Cleaner. Bookings already past their start with nothing authorised are ended
+too.
+
+**Why it has to exist.** Without it, a booking nobody paid for stayed
+`confirmed` for ever. The job could never legally start — the database refuses
+to begin one without an authorised payment — but the Cleaner's calendar stayed
+blocked for it and nobody ever told them. With as little supply as the pilot
+has, a Cleaner losing a working day to a job that was never going to happen is
+the most expensive thing that can quietly go wrong.
+
+**Why it is on the same switch.** It must never run with payments off. In that
+mode no booking has an authorisation because none can be created, and the
+database deliberately lets jobs start without one — so the loop would look at
+every confirmed booking in the system and see an unpaid one. Tying it to the
+same condition as settlement means the two cannot get out of step.
+
+**What you may want to change, and cannot yet.** Nothing is charged for an
+expired booking, because nothing was ever authorised and there are no approved
+customer terms for a cancellation fee. Same blocker as §5. Twelve hours is a
+judgement, not a rule: the customer has already had a notice five days out and
+another twenty-four hours before the slot. If you want longer or shorter, it is
+one number in `db/migrations/125_unpaid_booking_expiry.sql` and the reasoning is
+in `DECISIONS.md` D13 — but change it in the migration, not by hand in the
+database, or the next deployment will undo it.
+
+**Rehearse it too.** In the same test-mode run, make one booking and simply do
+not pay. Confirm that it is cancelled and that both accounts are notified, then
+check that the Cleaner can be invited for that time again — their slot is
+blocked by the booking's own status, so cancelling it is what releases them.
+
 ---
 
 ## 3. Recruit the first real cleaner — ✅ NOW UNBLOCKED

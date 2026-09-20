@@ -57,7 +57,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 | M5 | **No-shows entirely unimplemented** — no code, schema or tests. Only prose in a preview FAQ. | TODO |
 | M6 | ✅ **DONE** `98b6a1f8` — **No payment-outcome emails**: no receipt, capture, refund, failed-payment or cancellation mail. Receipts are pull-only (customer must click). | TODO |
 | M7 | ✅ **DONE** `f55d8768` — **No settlement reconciliation.** Platform fee is an arithmetic residual with no `application_fee_amount`; nothing proves captured − transferred − refunded = expected contribution. | TODO |
-| M8 | **Failed payments have no dunning**, no retry schedule, no auto-cancel, no notification. | TODO |
+| M8 | ✅ **DONE** `pending` — migration 125 ends a booking nobody paid for twelve hours before its slot, releasing any live hold first, cancelling the request, and telling both sides so the Cleaner gets their day back. Re-audited: the dunning half already existed (migrations 041, 043, 117, 123 — two staged reminders and a failed-payment email). The missing piece was the ending. See D13. **Was: failed payments have no dunning**, no retry schedule, no auto-cancel, no notification. | ✅ |
 
 ### P1 — legal and trust exposure
 
@@ -89,6 +89,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 | Q6 | Close the 40 dead PRs (all verified to contain nothing not in `main`) | FOUNDER — outward-facing |
 | Q7 | `.scan-hero` CSS — not dead, see D6; retire with `.hub-cta` together | DEFERRED |
 | Q8 | Publication guard: 6 false positives + 122 MB tracked vs 100 MiB limit | TODO |
+| Q9 | **The Cleaner's schedule can never show "Booked".** `public/cleaner-schedule.js:424` branches on an availability window's status being `held`, and **nothing in the codebase ever writes that status** — `grep "'held'"` across `db/migrations/` finds only the CHECK constraint in migration 001. A Cleaner's time is actually blocked by the booking's own status (migration 028 refuses an overlapping invitation while a booking is `pending-cleaner-acceptance` through `awaiting-review`), which the schedule screen never reads. So a booked window still renders as free. Found while verifying that cancelling an unpaid booking releases the Cleaner — it does, but not by the route that page believes. | TODO |
 
 ### P1b — hardening gaps (Phase 4 audit)
 

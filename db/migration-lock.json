@@ -621,6 +621,11 @@
       "order": 124,
       "file": "124_public_funnel_telemetry.sql",
       "sha256": "16a6e5ef85071226cc692eef1d7a1199cd999fc9100a401697cf8dbd3ae36f13"
+    },
+    {
+      "order": 125,
+      "file": "125_unpaid_booking_expiry.sql",
+      "sha256": "ad00b9b23919c161699a0a2a0c1159aa013d30faf3d01ce422e2b2dcbd42a9bb"
     }
   ],
   "grantFiles": [
