@@ -199,3 +199,41 @@ for (const role of ['primary','secondary','excluded']) {
   if(role === 'excluded') assert(p.profileCompletionPercent < 100,'Excluded-only coverage cannot make a profile complete');
 }
 assert(throws(()=>normalizedCleanerProfile({...completeInput,serviceAreas:[{outwardPostcode:'SW1A',role:'unknown'}]}),'valid work-area role'),'Invalid roles must fail');
+
+// Every field profileCompletionPercent requires must be reachable from the
+// product. Four of the nine were passed through unchanged by every page that
+// wrote the profile — biography, a price, languages and the property-type
+// preference — so completion was capped near 56%, `isPublic` could never be
+// accepted, and the public Cleaner directory stayed permanently empty. That was
+// read as a recruitment problem for weeks.
+const registrationPage = await readFile(new URL("../public/cleaner-registration.html", import.meta.url), "utf8");
+const experienceScript = await readFile(new URL("../public/cleaner-experience.js", import.meta.url), "utf8");
+for (const control of ['name="biography"', 'name="hourlyRate"', 'name="languages"', 'name="residentialPreference"', 'name="commercialPreference"']) {
+  assert(registrationPage.includes(control), `Cleaner onboarding cannot collect ${control}, so a profile can never reach 100% and never be published.`);
+}
+assert(/minlength="40"/.test(registrationPage), "The biography control does not state the 40-character minimum the completion check enforces.");
+// Reading the controls is what matters; a field that exists but is never read
+// leaves completion exactly where it was.
+for (const read of ["form.elements.biography", "ratePenceFrom", "selectedLanguages", "propertyTypePreferences"]) {
+  assert(experienceScript.includes(read), `The experience form does not read ${read} into the saved profile.`);
+}
+assert(!/biography: currentProfile\.biography \|\| ""[\s\S]{0,40}hourlyRatePence: currentProfile\.hourlyRatePence/.test(experienceScript), "The experience form is passing the profile straight through again, which is what capped completion.");
+// Pounds in, pence stored, rounded rather than truncated so £12.50 does not
+// become £12.49 through a floating-point remainder.
+assert(experienceScript.includes("Math.round(pounds * 100)"), "The hourly rate is not converted to whole pence safely.");
+
+// A profile that reaches 100% must actually be publishable from the product.
+const profilePreviewPage = await readFile(new URL("../public/cleaner-public-profile.html", import.meta.url), "utf8");
+const profilePreviewScript = await readFile(new URL("../public/cleaner-public-profile.js", import.meta.url), "utf8");
+assert(!profilePreviewPage.includes("aria-readonly"), "The publish switch is still marked read-only, so it cannot be operated.");
+assert(profilePreviewScript.includes("togglePublished") && /method: "PUT"/.test(profilePreviewScript) && profilePreviewScript.includes("storedCsrf()"), "The publish switch does not send an authenticated profile update, so publishing remains impossible.");
+assert(profilePreviewScript.includes("isPublic: next"), "The publish switch does not change the published state.");
+// The endpoint replaces the profile, so sending a bare flag would blank
+// everything else the Cleaner has filled in.
+assert(/\{ \.\.\.currentProfile, isPublic: next \}/.test(profilePreviewScript), "Publishing sends a partial profile and would erase the Cleaner's other answers.");
+// Keyboard operation, because a span is not a button.
+assert(profilePreviewScript.includes('addEventListener("keydown"') && profilePreviewScript.includes('event.key !== " " && event.key !== "Enter"'), "The publish switch cannot be operated from the keyboard.");
+// Below 100% the server refuses. The control must say so rather than failing on use.
+assert(profilePreviewScript.includes('aria-disabled') && profilePreviewScript.includes("Finish every profile section to publish"), "An unpublishable profile shows an enabled switch that will fail when used.");
+
+console.log("Cleaner publish-path tests passed: every completion field is collected and read, pounds convert to exact pence, and the publish switch performs an authenticated whole-profile update it can be operated to reach.");

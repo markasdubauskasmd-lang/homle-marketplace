@@ -99,22 +99,57 @@ function selectedServices(form, currentProfile) {
   return [...preserved, ...managed];
 }
 
+// Money is entered in pounds because that is what a Cleaner thinks in, and
+// stored in pence because that is what everything downstream settles in. Doing
+// the conversion in one place, with a round rather than a truncation, keeps a
+// rate of £12.50 from becoming £12.49 through a floating-point remainder.
+function ratePenceFrom(form, currentProfile) {
+  const entered = String(form.elements.hourlyRate?.value ?? "").trim();
+  if (entered === "") return currentProfile.hourlyRatePence ?? null;
+  const pounds = Number(entered);
+  if (!Number.isFinite(pounds) || pounds <= 0) return currentProfile.hourlyRatePence ?? null;
+  return Math.round(pounds * 100);
+}
+
+function selectedLanguages(form, currentProfile) {
+  const ticked = [...form.querySelectorAll('input[name="languages"]:checked')].map((input) => input.value);
+  const typed = String(form.elements.otherLanguages?.value ?? "")
+    .split(",")
+    .map((language) => language.trim())
+    .filter(Boolean);
+  // A Cleaner who has answered keeps their answer even if it is shorter than
+  // what was there before; only an untouched form falls back.
+  const chosen = [...new Set([...ticked, ...typed])];
+  return chosen.length > 0 ? chosen : (currentProfile.languages || []);
+}
+
+function propertyTypePreferences(form, currentProfile) {
+  const residential = form.elements.residentialPreference;
+  const commercial = form.elements.commercialPreference;
+  // Absent controls mean this form was rendered before the section existed, so
+  // preserve whatever the profile already holds rather than silently clearing.
+  if (!residential && !commercial) {
+    return { residentialPreference: currentProfile.residentialPreference === true, commercialPreference: currentProfile.commercialPreference === true };
+  }
+  return { residentialPreference: residential?.checked === true, commercialPreference: commercial?.checked === true };
+}
+
 function profileUpdate(currentProfile, form) {
   const selectedBucket = form.elements.yearsExperience.value;
   const yearsExperience = selectedBucket === originalYearsBucket && Number.isFinite(currentProfile.yearsExperience)
     ? currentProfile.yearsExperience
     : Number(selectedBucket);
+  const enteredBiography = String(form.elements.biography?.value ?? "").trim();
   return {
-    biography: currentProfile.biography || "",
-    hourlyRatePence: currentProfile.hourlyRatePence,
+    biography: enteredBiography || currentProfile.biography || "",
+    hourlyRatePence: ratePenceFrom(form, currentProfile),
     fixedPriceOptions: currentProfile.fixedPriceOptions || [],
     travelRadiusKm: currentProfile.travelRadiusKm,
     yearsExperience,
-    languages: currentProfile.languages || [],
+    languages: selectedLanguages(form, currentProfile),
     equipmentSupplied: currentProfile.equipmentSupplied || [],
     productsSupplied: currentProfile.productsSupplied || [],
-    residentialPreference: currentProfile.residentialPreference === true,
-    commercialPreference: currentProfile.commercialPreference === true,
+    ...propertyTypePreferences(form, currentProfile),
     services: selectedServices(form, currentProfile),
     serviceAreas: currentProfile.serviceAreas || [],
     isPublic: selectedServiceType(form) === "cleaner" && currentProfile.isPublic === true
@@ -139,7 +174,45 @@ function hydrateExperience(form, currentProfile, experienceData = {}, businessDa
     ? new Set(storedSpecialisms)
     : new Set(serviceType === "cleaner" ? (currentProfile.services || []).map((service) => service.serviceCode) : []);
   form.querySelectorAll('input[name="specialisms"]').forEach((input) => { input.checked = selected.has(input.value); });
+  hydrateAboutYou(form, currentProfile);
   setExperiencePresentation(form, serviceType);
+}
+
+// The bio, rate, languages and property types live on the profile itself rather
+// than in the encrypted onboarding section, because matching and the public
+// directory read them. A returning Cleaner must see what they already saved.
+function hydrateAboutYou(form, currentProfile) {
+  const biography = form.elements.biography;
+  if (biography) biography.value = currentProfile.biography || "";
+  const rate = form.elements.hourlyRate;
+  if (rate) rate.value = Number.isFinite(currentProfile.hourlyRatePence) ? (currentProfile.hourlyRatePence / 100).toFixed(2) : "";
+  const saved = new Set(Array.isArray(currentProfile.languages) ? currentProfile.languages : []);
+  const offered = new Set([...form.querySelectorAll('input[name="languages"]')].map((input) => input.value));
+  form.querySelectorAll('input[name="languages"]').forEach((input) => { input.checked = saved.has(input.value); });
+  const other = form.elements.otherLanguages;
+  // Anything saved that no checkbox offers goes back into the free-text field,
+  // so a language the list does not cover survives a reload.
+  if (other) other.value = [...saved].filter((language) => !offered.has(language)).join(", ");
+  const residential = form.elements.residentialPreference;
+  if (residential) residential.checked = currentProfile.residentialPreference === true;
+  const commercial = form.elements.commercialPreference;
+  if (commercial) commercial.checked = currentProfile.commercialPreference === true;
+  updateBiographyCount(form);
+  if (biography && !biography.dataset.countBound) {
+    biography.dataset.countBound = "true";
+    biography.addEventListener("input", () => updateBiographyCount(form));
+  }
+}
+
+function updateBiographyCount(form) {
+  const counter = form.querySelector("[data-experience-bio-count]");
+  const biography = form.elements.biography;
+  if (!counter || !biography) return;
+  const remaining = 40 - biography.value.trim().length;
+  counter.textContent = remaining > 0
+    ? `${remaining} more character${remaining === 1 ? "" : "s"} needed`
+    : "Long enough to publish.";
+  counter.dataset.satisfied = remaining > 0 ? "false" : "true";
 }
 
 function renderExperienceDocument(input, copyText) {

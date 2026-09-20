@@ -691,6 +691,54 @@
                   </div>
                 </fieldset>
 
+                <!--
+                  These four answers are what a client sees, and until they
+                  existed a profile could not reach 100% and so could never be
+                  published. Every other section passed them through unchanged,
+                  which capped completion at roughly 56% and left the public
+                  directory permanently empty.
+                -->
+                <fieldset class="hc-experience-section hc-experience-about">
+                  <legend>About you and your rate</legend>
+                  <p class="hc-experience-about-note">Clients read this before they choose you. It is the only part of your profile written in your own words.</p>
+                  <label class="hc-experience-bio">
+                    <span>Introduce yourself<em> — at least 40 characters</em></span>
+                    <textarea name="biography" rows="4" maxlength="1200" minlength="40" required
+                      placeholder="What you are good at, how you work, and anything a client should know before booking you."
+                      aria-describedby="experience-bio-count"></textarea>
+                  </label>
+                  <p class="hc-experience-bio-count" id="experience-bio-count" data-experience-bio-count aria-live="polite">40 more characters needed</p>
+
+                  <label class="hc-experience-rate">
+                    <span>Your hourly rate (£)</span>
+                    <input type="number" name="hourlyRate" min="1" max="500" step="0.50" inputmode="decimal" required
+                      aria-describedby="experience-rate-note">
+                  </label>
+                  <p class="hc-experience-rate-note" id="experience-rate-note">This is your rate before Homle’s fee. You can change it at any time, and it never changes a job you have already accepted.</p>
+
+                  <div class="hc-experience-languages" role="group" aria-labelledby="experience-languages-label">
+                    <p id="experience-languages-label"><strong>Languages you speak</strong> — choose at least one</p>
+                    <label><input type="checkbox" name="languages" value="English"><span>English</span></label>
+                    <label><input type="checkbox" name="languages" value="Polish"><span>Polish</span></label>
+                    <label><input type="checkbox" name="languages" value="Romanian"><span>Romanian</span></label>
+                    <label><input type="checkbox" name="languages" value="Portuguese"><span>Portuguese</span></label>
+                    <label><input type="checkbox" name="languages" value="Spanish"><span>Spanish</span></label>
+                    <label><input type="checkbox" name="languages" value="Urdu"><span>Urdu</span></label>
+                    <label><input type="checkbox" name="languages" value="Bengali"><span>Bengali</span></label>
+                    <label><input type="checkbox" name="languages" value="Lithuanian"><span>Lithuanian</span></label>
+                    <label class="hc-experience-language-other">
+                      <span>Another language</span>
+                      <input type="text" name="otherLanguages" maxlength="120" placeholder="Separate with commas">
+                    </label>
+                  </div>
+
+                  <div class="hc-experience-property-types" role="group" aria-labelledby="experience-property-types-label">
+                    <p id="experience-property-types-label"><strong>What will you clean?</strong> — choose at least one</p>
+                    <label><input type="checkbox" name="residentialPreference" value="yes"><span>Homes and flats</span></label>
+                    <label><input type="checkbox" name="commercialPreference" value="yes"><span>Offices and commercial premises</span></label>
+                  </div>
+                </fieldset>
+
                 <fieldset class="hc-experience-section">
                   <legend data-experience-specialisms-title>Cleaner specialisms &mdash; tick all that apply</legend>
                   <p class="hc-sr-only" id="experience-availability-note">Choose every specialism you are confident providing. The list changes when Cleaner or Beautician is selected.</p>

@@ -1,6 +1,7 @@
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260729-6";
+import { storedCsrf } from "./session-csrf.js?v=20260718-1";
 
 const gate = document.querySelector("[data-profile-gate]");
 const gateTitle = document.querySelector("[data-profile-gate-title]");
@@ -61,13 +62,13 @@ function showGate(title, copy, { allowSignIn = false, allowRetry = false } = {})
   view.hidden = true;
 }
 
-async function requestJson(path) {
+async function requestJson(path, options = {}) {
   if (browserOffline()) throw Object.assign(new Error("You are offline."), { code: "browser-offline" });
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 30_000);
   let response;
   try {
-    response = await fetch(path, { headers: { accept: "application/json" }, credentials: "same-origin", cache: "no-store", signal: controller.signal });
+    response = await fetch(path, { ...options, headers: { accept: "application/json", ...(options.headers || {}) }, credentials: "same-origin", cache: "no-store", signal: controller.signal });
   } finally {
     window.clearTimeout(timer);
   }
@@ -155,7 +156,12 @@ function renderReviews(profile) {
     : "No reviews yet — new to Homle. Verified reviews appear after completed bookings.";
 }
 
+// Held so the publish switch can send the whole profile back. The endpoint
+// replaces the record, so posting only `isPublic` would blank everything else.
+let currentProfile = null;
+
 function renderProfile(account, profile) {
+  currentProfile = profile;
   const name = account.displayName || "Cleaner";
   setText("[data-profile-name]", publicDisplayName(name));
   const avatar = document.querySelector("[data-profile-avatar]");
@@ -184,14 +190,80 @@ function renderProfile(account, profile) {
   chips("[data-profile-training]", [], "No training badges earned yet.");
   chips("[data-profile-areas]", areas, "No coverage areas added yet.", (index) => index === 0 ? " is-primary" : "");
   setText("[data-profile-training-count]", "· 0 earned");
-  const visibility = document.querySelector("[data-profile-visibility]");
-  if (visibility) {
-    visibility.dataset.on = String(profile?.isPublic === true);
-    visibility.setAttribute("aria-checked", String(profile?.isPublic === true));
-  }
+  renderVisibility(profile);
   renderBadges(profile);
   renderChecklist(profile);
   renderReviews(profile);
+}
+
+// Publishing is what puts a Cleaner in front of customers, and until now this
+// control was decorative: marked aria-readonly, with nothing listening. A
+// Cleaner could complete everything and still never appear in the directory,
+// which is why it was empty.
+let publishing = false;
+
+function renderVisibility(profile) {
+  const visibility = document.querySelector("[data-profile-visibility]");
+  if (!visibility) return;
+  const isPublic = profile?.isPublic === true;
+  const complete = Number(profile?.profileCompletionPercent) === 100;
+  visibility.dataset.on = String(isPublic);
+  visibility.setAttribute("aria-checked", String(isPublic));
+  // A switch that cannot move must say so rather than silently ignoring a tap.
+  // Below 100% the server refuses to publish, so the honest state is disabled
+  // with the reason attached, not an enabled control that fails on use.
+  const usable = complete || isPublic;
+  visibility.setAttribute("role", "switch");
+  visibility.setAttribute("tabindex", usable && !publishing ? "0" : "-1");
+  visibility.setAttribute("aria-disabled", String(!usable || publishing));
+  visibility.removeAttribute("aria-readonly");
+  visibility.setAttribute("aria-label", isPublic
+    ? "Visible to clients. Turn off to pause new offers."
+    : complete
+      ? "Hidden from clients. Turn on to appear in search and receive offers."
+      : "Hidden from clients. Finish every profile section to publish.");
+  if (!visibility.dataset.publishBound) {
+    visibility.dataset.publishBound = "true";
+    visibility.addEventListener("click", () => togglePublished());
+    visibility.addEventListener("keydown", (event) => {
+      if (event.key !== " " && event.key !== "Enter") return;
+      event.preventDefault();
+      togglePublished();
+    });
+  }
+}
+
+async function togglePublished() {
+  const visibility = document.querySelector("[data-profile-visibility]");
+  if (!visibility || publishing) return;
+  if (visibility.getAttribute("aria-disabled") === "true") {
+    showFeedback("Finish every section of your profile before publishing it.", "error");
+    return;
+  }
+  const next = visibility.getAttribute("aria-checked") !== "true";
+  publishing = true;
+  renderVisibility({ ...currentProfile, isPublic: currentProfile?.isPublic === true });
+  showFeedback(next ? "Publishing your profile…" : "Hiding your profile…");
+  try {
+    // The whole profile is sent back because the endpoint replaces it. Sending
+    // only isPublic would blank every other field.
+    const result = await requestJson("/api/marketplace/cleaner/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": storedCsrf() },
+      body: JSON.stringify({ ...currentProfile, isPublic: next })
+    });
+    currentProfile = result.profile || { ...currentProfile, isPublic: next };
+    showFeedback(next
+      ? "Your profile is live. Clients can find you and you can receive job offers."
+      : "Your profile is hidden. You will not receive new offers; work you have already accepted is unchanged.");
+  } catch (error) {
+    showFeedback(error?.code === "browser-offline"
+      ? "You are offline, so your profile visibility was not changed."
+      : error?.message || "Your profile visibility could not be changed. Try again.", "error");
+  } finally {
+    publishing = false;
+    renderVisibility(currentProfile);
+  }
 }
 
 async function loadProfile() {
