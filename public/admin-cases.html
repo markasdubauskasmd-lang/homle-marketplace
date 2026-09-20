@@ -39,13 +39,13 @@
 
     <div data-admin-private-workspace data-admin-cases-workspace hidden>
       <div class="booking-dashboard-heading">
-        <div><p class="eyebrow">Marketplace trust and safety</p><h1>Booking cases</h1><p>Review problems raised by a booking participant, record a clear decision and preserve the audit trail. This screen never refunds, charges or pays anyone.</p></div>
+        <div><p class="eyebrow">Marketplace trust and safety</p><h1>Booking cases</h1><p>Review problems raised by a booking participant, record a clear decision and preserve the audit trail. A resolution may return money to the customer who paid, and never charges anyone or pays a Cleaner.</p></div>
         <button class="button button-outline" type="button" data-admin-cases-refresh>Refresh queue</button>
       </div>
 
       <aside class="admin-case-policy-banner" aria-labelledby="admin-case-policy-heading">
-        <div><p class="eyebrow">Review safeguard v1</p><h2 id="admin-case-policy-heading">Evidence first. Minimum private data. No automatic remedy.</h2></div>
-        <p>Each case includes category-specific review guidance. A final decision is blocked until the Administrator confirms the evidence, privacy and no-payment boundaries. Response targets, refunds, re-cleans, compensation and external escalation still require separately approved operating policy.</p>
+        <div><p class="eyebrow">Review safeguard v2</p><h2 id="admin-case-policy-heading">Evidence first. Minimum private data. No remedy without an explicit amount.</h2></div>
+        <p>Each case includes category-specific review guidance. A final decision is blocked until the Administrator confirms the evidence and privacy boundaries. A resolution may issue a refund against the booking’s own payment; re-cleans, compensation beyond a refund, response targets and external escalation still require separately approved operating policy.</p>
       </aside>
 
       <dl class="booking-dashboard-stats" aria-label="Current page summary">
@@ -101,11 +101,19 @@
         <textarea name="resolutionNote" rows="6" minlength="20" maxlength="5000" required placeholder="Summarise the evidence reviewed, the decision and any separately required follow-up."></textarea>
         <small>20–5,000 characters. Do not paste passwords, payment credentials or unnecessary personal information.</small>
       </label>
-      <label class="checkbox admin-case-confirmation"><input type="checkbox" name="confirmed" required><span>I understand this changes the booking’s recorded outcome. It does not issue a refund, capture payment, pay a Cleaner or contact either participant.</span></label>
+      <label class="checkbox admin-case-confirmation"><input type="checkbox" name="confirmed" required><span>I understand this changes the booking’s recorded outcome, and issues a refund only if I enter one below.</span></label>
       <label class="checkbox admin-case-confirmation"><input type="checkbox" name="evidenceReviewed" required><span>I reviewed the relevant booking evidence and named the sources used in the resolution note.</span></label>
       <label class="checkbox admin-case-confirmation"><input type="checkbox" name="sensitiveDataMinimised" required><span>I kept unnecessary personal information, property access details and payment data out of the resolution note.</span></label>
-      <label class="checkbox admin-case-confirmation"><input type="checkbox" name="noExternalActionConfirmed" required><span>I understand this screen performs no refund, payment, contact, suspension, insurance or emergency action.</span></label>
-      <input type="hidden" name="policyVersion" value="tideway-case-response-v1">
+      <label class="checkbox admin-case-confirmation"><input type="checkbox" name="noUnrecordedActionConfirmed" required><span>Nothing was done about this case beyond what is recorded here. This screen still performs no contact, suspension, insurance or emergency action.</span></label>
+      <fieldset class="admin-case-refund">
+        <legend>Refund (optional)</legend>
+        <p>Leave empty if this decision returns no money. A refund is sent to the card that paid for the booking and can never exceed what was taken and not already returned.</p>
+        <label>Refund amount, in pounds
+          <input type="number" name="refundAmountPounds" min="0.01" max="10000" step="0.01" inputmode="decimal" placeholder="e.g. 45.00">
+        </label>
+        <label class="checkbox admin-case-confirmation"><input type="checkbox" name="refundAuthorised"><span>I authorise this exact refund amount.</span></label>
+      </fieldset>
+      <input type="hidden" name="policyVersion" value="tideway-case-response-v2">
       <div class="account-feedback" data-admin-case-dialog-feedback role="alert" hidden></div>
       <div class="settings-dialog-actions">
         <button class="button" type="submit" data-admin-case-submit>Record resolution</button>

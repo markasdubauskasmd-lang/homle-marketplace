@@ -34,7 +34,7 @@ assert(Object.isFrozen(queue) && Object.isFrozen(queue.disputes) && Object.isFro
 assert.equal(adminCaseFilter(" REVIEWING "), "reviewing");
 assert.equal(adminCaseFilter(""), "");
 assert.deepEqual(adminCaseReviewPayload(), { status: "reviewing" });
-const assurance = { policyVersion: caseResponsePolicyVersion, evidenceReviewed: true, sensitiveDataMinimised: true, noExternalActionConfirmed: true };
+const assurance = { policyVersion: caseResponsePolicyVersion, evidenceReviewed: true, sensitiveDataMinimised: true, noUnrecordedActionConfirmed: true };
 assert.equal(caseResponsePolicyVersion, serverPolicyVersion, "The browser and server handling-standard versions drifted.");
 assert.deepEqual(adminCaseResolutionPayload({ resolutionOutcome: "cancelled", resolutionNote: "Evidence reviewed and the booking outcome was cancelled.", confirmed: true, ...assurance }), { status: "resolved", resolutionOutcome: "cancelled", resolutionNote: "Evidence reviewed and the booking outcome was cancelled.", ...assurance });
 assert.equal(shortBookingReference(example.bookingId), "BKG-55555555");
@@ -71,10 +71,10 @@ const [page, script, model, styles, server, pilotAdmin, packageJson] = await Pro
   readFile(new URL("../package.json", import.meta.url), "utf8")
 ]);
 
-assert(page.includes("Marketplace trust and safety") && page.includes("This screen never refunds, charges or pays anyone") && page.includes("data-admin-cases-workspace hidden"), "The case screen lost its truthful operating boundary or fail-closed workspace.");
-assert(page.includes("Evidence first. Minimum private data. No automatic remedy.") && page.includes('name="evidenceReviewed"') && page.includes('name="sensitiveDataMinimised"') && page.includes('name="noExternalActionConfirmed"'), "The case screen lost its handling-standard guidance or mandatory assurances.");
+assert(page.includes("Marketplace trust and safety") && page.includes("A resolution may return money to the customer who paid, and never charges anyone or pays a Cleaner") && page.includes("data-admin-cases-workspace hidden"), "The case screen lost its truthful operating boundary or fail-closed workspace.");
+assert(page.includes("Evidence first. Minimum private data. No remedy without an explicit amount.") && page.includes('name="evidenceReviewed"') && page.includes('name="sensitiveDataMinimised"') && page.includes('name="noUnrecordedActionConfirmed"'), "The case screen lost its handling-standard guidance or mandatory assurances.");
 assert(page.includes("Property addresses, access instructions and contact details stay out of this queue") && !page.includes("data-dispute-id"), "The queue markup invites unnecessary private record exposure.");
-assert(page.includes("data-admin-case-dialog") && page.includes("does not issue a refund, capture payment, pay a Cleaner or contact either participant"), "The audited resolution confirmation is missing its external-action boundary.");
+assert(page.includes("data-admin-case-dialog") && page.includes("issues a refund only if I enter one below") && page.includes('name="refundAmountPounds"') && page.includes('name="refundAuthorised"'), "The audited resolution confirmation is missing its external-action boundary.");
 assert(script.includes('requestJson("/api/marketplace/account")') && script.includes("roles?.includes(\"administrator\")") && script.includes("/api/marketplace/admin/disputes?") && script.includes('method: "PATCH"'), "The screen is not bound to the authenticated Administrator case API.");
 assert(script.includes('record.status === "reviewing"') && script.includes("Review related test payment") && script.includes("/admin/payments?bookingId=") && !script.includes("refund("), "A case does not expose a separate read-only payment handoff after review starts, or the case screen began moving money itself.");
 assert(script.includes('"X-CSRF-Token": csrf'), "Case reads or mutations lost their session, CSRF or no-store boundary.");

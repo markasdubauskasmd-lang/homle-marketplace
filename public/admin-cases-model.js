@@ -2,7 +2,13 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 const allowedStatuses = Object.freeze(["open", "reviewing", "resolved", "closed"]);
 const allowedCategories = Object.freeze(["quality", "damage", "access", "safety", "conduct", "payment", "other"]);
 const controlCharacters = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
-export const caseResponsePolicyVersion = "tideway-case-response-v1";
+// Mirrors src/marketplace/case-response-policy.mjs. Version 2 because the case
+// desk can now issue the refund its own decision calls for, so v1's promise
+// that this screen "performs no payment action" stopped being true. An
+// attestation that is routinely untrue is worse than none, and a client still
+// sending v1 is refused rather than silently reinterpreted.
+export const caseResponsePolicyVersion = "tideway-case-response-v2";
+export const maximumCaseRefundPence = 1_000_000;
 
 const casePolicies = Object.freeze({
   quality: Object.freeze({
@@ -119,6 +125,25 @@ export function adminCaseReviewPayload() {
   return Object.freeze({ status: "reviewing" });
 }
 
+/**
+ * The refund this resolution issues, in pence, or null for none.
+ *
+ * Entered in pounds, because that is what the Administrator is reading off the
+ * booking, and converted here so no part of the UI has to remember which unit
+ * it is holding. A blank field is no refund, not a zero one.
+ */
+export function caseRefundAmount(value) {
+  const supplied = value?.refundAmountPounds;
+  if (supplied == null || String(supplied).trim() === "") return null;
+  const pounds = Number(supplied);
+  if (!Number.isFinite(pounds) || pounds <= 0) throw new TypeError("Enter the refund as an amount in pounds.");
+  const amountPence = Math.round(pounds * 100);
+  if (!Number.isInteger(amountPence) || amountPence < 1 || amountPence > maximumCaseRefundPence) {
+    throw new TypeError("That refund amount is outside the supported range.");
+  }
+  return amountPence;
+}
+
 export function adminCaseResolutionPayload(value) {
   const input = object(value, "Booking case resolution");
   const resolutionOutcome = String(input.resolutionOutcome || "").trim().toLowerCase();
@@ -127,7 +152,9 @@ export function adminCaseResolutionPayload(value) {
   if (input.policyVersion !== caseResponsePolicyVersion) throw new TypeError("Review the current booking-case handling standard before resolving this case.");
   if (input.evidenceReviewed !== true) throw new TypeError("Confirm that the relevant booking evidence was reviewed and named in the resolution note.");
   if (input.sensitiveDataMinimised !== true) throw new TypeError("Confirm that unnecessary personal, access and payment data was kept out of the resolution note.");
-  if (input.noExternalActionConfirmed !== true) throw new TypeError("Confirm that this decision does not perform a payment or external action.");
+  if (input.noUnrecordedActionConfirmed !== true) throw new TypeError("Confirm that nothing was done beyond what is recorded here.");
+  const refundAmountPence = caseRefundAmount(input);
+  if (refundAmountPence !== null && input.refundAuthorised !== true) throw new TypeError("Authorise the exact refund amount before resolving this case.");
   return Object.freeze({
     status: "resolved",
     resolutionOutcome,
@@ -135,7 +162,11 @@ export function adminCaseResolutionPayload(value) {
     policyVersion: caseResponsePolicyVersion,
     evidenceReviewed: true,
     sensitiveDataMinimised: true,
-    noExternalActionConfirmed: true
+    noUnrecordedActionConfirmed: true,
+    // Absent and zero are different things on purpose: absent means this
+    // decision moves no money. Only included when a refund is actually being
+    // made, so a blank field can never be mistaken for a nil refund.
+    ...(refundAmountPence === null ? {} : { refundAmountPence, refundAuthorised: true })
   });
 }
 

@@ -67,6 +67,24 @@ function setBusy(button, busy, label) {
   if (label) button.textContent = label;
 }
 
+function refundFailed(result) {
+  return result?.refund != null && result.refund.issued !== true;
+}
+
+function caseUpdateMessage(payload, result) {
+  if (payload.status === "reviewing") return "The case is now under review.";
+  const refund = result?.refund;
+  if (refund == null) return "The audited resolution was recorded. No payment action was taken.";
+  const amount = `£${(Number(refund.amountPence || 0) / 100).toFixed(2)}`;
+  if (refund.issued !== true) {
+    return `The resolution was recorded, but the ${amount} refund was NOT sent (${refund.error || "unknown reason"}). Send it from the payments desk; the decision is already final.`;
+  }
+  if (refund.recoveryRequired === true) {
+    return `The resolution was recorded and the ${amount} refund was sent, but the provider's result is not yet confirmed. Check the payments desk before sending it again.`;
+  }
+  return `The audited resolution was recorded and a ${amount} refund was sent to the card that paid for this booking.`;
+}
+
 async function updateCase(disputeId, payload, button) {
   if (updating) return;
   const csrf = storedCsrf();
@@ -77,10 +95,14 @@ async function updateCase(disputeId, payload, button) {
   showFeedback(feedback, "");
   let saved = false;
   try {
-    await requestJson(`/api/marketplace/admin/disputes/${encodeURIComponent(disputeId)}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(payload) });
+    const result = await requestJson(`/api/marketplace/admin/disputes/${encodeURIComponent(disputeId)}`, { method: "PATCH", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(payload) });
     saved = true;
     await loadQueue(queue.offset);
-    showFeedback(feedback, payload.status === "reviewing" ? "The case is now under review." : "The audited resolution was recorded. No payment action was taken.", "success");
+    // A refund can fail after the decision is recorded, and that is the half an
+    // Administrator most needs to hear about: the case is final, the money is
+    // not sent, and it has to be sent from the payments desk. Reported as a
+    // warning rather than a success, and never silently folded into "recorded".
+    showFeedback(feedback, caseUpdateMessage(payload, result), refundFailed(result) ? "error" : "success");
   } catch (error) {
     showFeedback(feedback, saved ? "The decision was recorded, but the queue could not refresh. Refresh before taking another action." : error.statusCode === 409 ? "This case changed in another session. Refresh and review the latest status." : error.message, saved ? "success" : "error");
     if (saved) return;
@@ -229,7 +251,9 @@ dialogForm.addEventListener("submit", async (event) => {
       policyVersion: data.get("policyVersion"),
       evidenceReviewed: data.get("evidenceReviewed") === "on",
       sensitiveDataMinimised: data.get("sensitiveDataMinimised") === "on",
-      noExternalActionConfirmed: data.get("noExternalActionConfirmed") === "on"
+      noUnrecordedActionConfirmed: data.get("noUnrecordedActionConfirmed") === "on",
+      refundAmountPounds: data.get("refundAmountPounds"),
+      refundAuthorised: data.get("refundAuthorised") === "on"
     });
     dialogSubmit.disabled = dialogCancel.disabled = true;
     dialogSubmit.textContent = "Recording…";

@@ -204,3 +204,42 @@ cannot drift out of step with the schedule that sends them. And a cancel whose
 provider outcome is *unknown* resolves rather than throwing; the worker counted
 that as a release. It no longer does, because a booking that leaves `confirmed`
 on an uncertain release has its ordinary route back to the money closed.
+
+**D15 — The case desk issues its own refund, and the attestation changed with
+it.**
+Resolving a dispute and refunding the customer it decided for were two screens
+on two desks. The second was easy to forget, and a decision that implies money
+should not be separated from the money by an act of memory.
+
+A resolution may now carry a refund, sent through the existing guarded `refund`
+command — every ledger guard, the idempotency record and the administrator
+role-binding are unchanged, because money movement is the last place to grow a
+second implementation.
+
+Three choices worth stating:
+
+**The decision is recorded before the money moves**, which is the opposite of
+the booking-cancellation path. There the order is forced: releasing a hold
+after the booking leaves `confirmed` is impossible, so cancelling first would
+strand the money. Here nothing closes a door — the refund guard accepts a
+booking that is disputed, completed or cancelled — so the question is only
+which half is worse to be left holding. A recorded decision with a refund that
+can still be sent beats money returned with no decision behind it.
+
+**The payment is resolved server-side from the case's own booking.** The client
+never says which payment to refund; if it could, an Administrator could be
+induced to refund a different booking entirely.
+
+**The attestation is version 2, with a new field name.** Version 1 asked the
+Administrator to confirm the decision performed "no payment or external
+action". That stops being true the moment this screen can refund, and an
+attestation that is routinely untrue is worse than none because people learn to
+tick it. It is now `noUnrecordedActionConfirmed` — nothing happened beyond what
+is written down — and a refund additionally needs `refundAuthorised` for that
+exact amount. The rename is deliberate: someone reading an old audit record
+should be able to tell which promise was actually made. A client still sending
+v1 is refused rather than silently reinterpreted.
+
+What is still a founder decision: *when* to refund and *how much*. That is
+operating policy, it is in `HUMAN_TODO.md`, and no code here decides it — the
+Administrator types the amount.

@@ -805,7 +805,7 @@ const moderatedReview = await dispatch(router, "POST", "/api/marketplace/admin/r
 assert(moderatedReview.response.statusCode === 200 && calls.at(-1).kind === "review-moderate" && calls.at(-1).actor.roles.includes("administrator"), "Administrator review moderation route lost role or CSRF binding.");
 const disputeQueue = await dispatch(router, "GET", "/api/marketplace/admin/disputes?status=open&limit=25", { headers: { cookie: authHeaders.cookie } });
 const missingDisputeCsrf = await dispatch(router, "PATCH", "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": "application/json; charset=utf-8" }, body: { status: "reviewing" } });
-const reviewedDispute = await dispatch(router, "PATCH", "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { headers: authHeaders, body: { status: "resolved", resolutionNote: "The evidence was reviewed and the booking has been cancelled.", resolutionOutcome: "cancelled", policyVersion: "tideway-case-response-v1", evidenceReviewed: true, sensitiveDataMinimised: true, noExternalActionConfirmed: true } });
+const reviewedDispute = await dispatch(router, "PATCH", "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { headers: authHeaders, body: { status: "resolved", resolutionNote: "The evidence was reviewed and the booking has been cancelled.", resolutionOutcome: "cancelled", policyVersion: "tideway-case-response-v2", evidenceReviewed: true, sensitiveDataMinimised: true, noUnrecordedActionConfirmed: true } });
 assert(missingDisputeCsrf.response.statusCode === 403 && missingDisputeCsrf.body.code === "csrf-rejected", "Administrator case mutation accepted a missing CSRF token.");
 assert(disputeQueue.response.statusCode === 200 && calls.at(-2).kind === "dispute-list" && calls.at(-2).input.status === "open" && reviewedDispute.response.statusCode === 200 && reviewedDispute.body.dispute.resolutionOutcome === "cancelled" && calls.at(-1).kind === "dispute-review" && calls.at(-1).actor.roles.includes("administrator"), "Administrator booking-case queue or audited resolution route lost its role, query or CSRF boundary.");
 const supportQueue = await dispatch(router, "GET", "/api/marketplace/admin/support-requests?status=open&category=room-scan&limit=50", { headers: { cookie: authHeaders.cookie } });
@@ -1239,3 +1239,84 @@ console.log("Room-reading HTTP streaming checks passed: early delivery, final su
     "An unconfigured funnel beacon did not degrade quietly.");
 }
 console.log("Funnel beacon HTTP checks passed: anonymous acceptance, origin and rate-limit bounds, dropped unlisted events, and degradation that never reaches the visitor or the report.");
+
+/* ── A refund issued from the case desk ────────────────────────────────── */
+
+// Resolving a case and refunding the customer it decided for used to be two
+// screens on two desks, and the second was easy to forget. The decision and
+// the money it implies should not be separated by an act of memory.
+{
+  const resolution = {
+    status: "resolved",
+    resolutionNote: "The evidence was reviewed and a partial refund was agreed.",
+    resolutionOutcome: "cancelled",
+    policyVersion: "tideway-case-response-v2",
+    evidenceReviewed: true,
+    sensitiveDataMinimised: true,
+    noUnrecordedActionConfirmed: true
+  };
+  const casePath = "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+
+  // A resolution with no refund field moves no money at all. Absent is not the
+  // same as zero.
+  const withoutRefund = await dispatch(router, "PATCH", casePath, { headers: administratorAuthHeaders, body: resolution });
+  assert(withoutRefund.response.statusCode === 200 && withoutRefund.body.refund === null,
+    `A case with no refund reported one: ${withoutRefund.response.statusCode} ${JSON.stringify(withoutRefund.body)}`);
+
+  // With an authorised amount, the refund goes through the ordinary guarded
+  // command against the payment the SERVER resolved from the case -- never a
+  // booking or payment id the client supplied.
+  const before = calls.length;
+  const withRefund = await dispatch(router, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+  const issued = calls.slice(before);
+  const refundCall = issued.find((call) => call.kind === "payment-admin-refund");
+  assert(withRefund.response.statusCode === 200 && withRefund.body.refund?.issued === true && withRefund.body.refund.amountPence === 4500,
+    `The case desk did not issue the authorised refund: ${JSON.stringify(withRefund.body.refund)}`);
+  assert(refundCall?.input.amountPence === 4500, "The refund was sent for a different amount than the one authorised.");
+  assert(refundCall.input.paymentId === "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "The refund was not sent against the payment the server resolved from the case.");
+  assert(issued.find((call) => call.kind === "payment-get")?.bookingId === "55555555-5555-4555-8555-555555555555",
+    "The payment was looked up from something other than the resolved case's own booking.");
+  // Stable per case and amount, so a retried request cannot refund twice and a
+  // changed amount is refused by the command ledger rather than quietly sent.
+  assert(refundCall.input.idempotencyKey === "case_refund_bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb_4500",
+    `The case refund used an unstable idempotency key: ${refundCall.input.idempotencyKey}`);
+  // The decision is recorded BEFORE the money moves, which is the opposite of
+  // the cancellation path and for the opposite reason: nothing here closes a
+  // door, so a recorded decision with a retryable refund beats money returned
+  // with no decision behind it.
+  assert(issued.findIndex((call) => call.kind === "dispute-review") < issued.findIndex((call) => call.kind === "payment-admin-refund"),
+    "The refund was sent before the decision it funds was recorded.");
+
+  // An amount with no explicit authorisation never reaches the payment service,
+  // and never resolves the case either.
+  const unauthorisedBefore = calls.length;
+  const unauthorised = await dispatch(router, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500 } });
+  assert(unauthorised.response.statusCode >= 400, `An unauthorised refund amount was accepted: ${unauthorised.response.statusCode}`);
+  assert(!calls.slice(unauthorisedBefore).some((call) => call.kind === "payment-admin-refund" || call.kind === "dispute-review"),
+    "An unauthorised refund amount still moved money or resolved the case.");
+
+  // The superseded version-1 promise is refused by the dispute service, which
+  // owns the handling standard; that is asserted in tests/dispute-service.mjs
+  // against the real implementation rather than here against a stub.
+
+  // A refund that fails leaves the decision recorded and says so plainly,
+  // rather than a 500 that hides which half happened.
+  const failingRouter = createMarketplaceHttpRouter({
+    ...dependencies,
+    paymentService: { ...paymentService, async refund() { throw Object.assign(new Error("Stripe refused"), { code: "payment-not-refundable" }); } }
+  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+  const failed = await dispatch(failingRouter, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+  assert(failed.response.statusCode === 200 && failed.body.dispute.resolutionOutcome === "cancelled" && failed.body.refund.issued === false && failed.body.refund.error === "payment-not-refundable",
+    `A failed case refund did not report which half happened: ${JSON.stringify(failed.body.refund)}`);
+  unexpectedError = null;
+
+  // With payments unconfigured, a refund request is refused BEFORE anything is
+  // resolved. Leaving an Administrator with a final decision they cannot fund
+  // would be the worst of both outcomes.
+  const noPaymentsBefore = calls.length;
+  const refused = await dispatch(noPaymentRouter, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+  assert(refused.response.statusCode === 503, `A refund was accepted with payments unconfigured: ${refused.response.statusCode}`);
+  assert(!calls.slice(noPaymentsBefore).some((call) => call.kind === "dispute-review"),
+    "A case was resolved with a refund that could never be sent.");
+}
+console.log("Case-desk refund checks passed: server-resolved payment, stable idempotency, decision recorded before money moves, explicit authorisation required, and both failure halves reported honestly.");

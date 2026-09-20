@@ -25,7 +25,7 @@ assert.equal((await service.getForBooking(landlord, bookingId)).disputeId, dispu
 const queue = await service.listForAdministrator(admin, { status: "OPEN", limit: "25", offset: "0" });
 assert.equal(queue.disputes[0].openedByRole, "landlord");
 assert.equal(calls.at(-1).input.status, "open");
-const resolutionAssurance = { policyVersion: caseResponsePolicyVersion, evidenceReviewed: true, sensitiveDataMinimised: true, noExternalActionConfirmed: true };
+const resolutionAssurance = { policyVersion: caseResponsePolicyVersion, evidenceReviewed: true, sensitiveDataMinimised: true, noUnrecordedActionConfirmed: true };
 const resolved = await service.review(admin, disputeId, { status: "resolved", resolutionNote: "  The evidence was reviewed and a cancellation was recorded.  ", resolutionOutcome: "CANCELLED", ...resolutionAssurance });
 assert.equal(resolved.resolutionOutcome, "cancelled");
 assert.equal(calls.at(-1).input.resolutionNote, "The evidence was reviewed and a cancellation was recorded.");
@@ -40,11 +40,46 @@ await assert.rejects(service.open(admin, bookingId, { requestId, category: "dama
 await assert.rejects(service.listForAdministrator(landlord), /Administrator/i);
 await assert.rejects(service.review(admin, disputeId, { status: "resolved", resolutionNote: "Too short", resolutionOutcome: "cancelled", ...resolutionAssurance }), /Resolution note/i);
 await assert.rejects(service.review(admin, disputeId, { status: "resolved", resolutionNote: "A complete and valid final case explanation.", resolutionOutcome: "refund", ...resolutionAssurance }), /outcome/i);
-for (const missing of ["policyVersion", "evidenceReviewed", "sensitiveDataMinimised", "noExternalActionConfirmed"]) {
+for (const missing of ["policyVersion", "evidenceReviewed", "sensitiveDataMinimised", "noUnrecordedActionConfirmed"]) {
   const input = { status: "resolved", resolutionNote: "A complete evidence-based final case explanation.", resolutionOutcome: "completed", ...resolutionAssurance };
   delete input[missing];
-  await assert.rejects(service.review(admin, disputeId, input), /standard|evidence|data|minimisation|payment|external/i);
+  await assert.rejects(service.review(admin, disputeId, input), /standard|evidence|data|minimisation|recorded/i);
 }
+
+/* ── A refund issued from the case desk ────────────────────────────────── */
+
+// Resolving a case and refunding the customer it decided for used to be two
+// screens, and the second was easy to forget. A refund is now accepted here --
+// but only with its own explicit authorisation of the exact amount, so it can
+// never happen because a field was left filled in.
+{
+  const withRefund = { status: "resolved", resolutionNote: "Evidence reviewed; a partial refund was agreed.", resolutionOutcome: "cancelled", ...resolutionAssurance };
+  await service.review(admin, disputeId, { ...withRefund, refundAmountPence: 4500, refundAuthorised: true });
+
+  // Unauthorised, malformed, zero, negative and absurd amounts are all refused.
+  for (const refund of [
+    { refundAmountPence: 4500 },
+    { refundAmountPence: 4500, refundAuthorised: false },
+    { refundAmountPence: 0, refundAuthorised: true },
+    { refundAmountPence: -100, refundAuthorised: true },
+    { refundAmountPence: 45.5, refundAuthorised: true },
+    { refundAmountPence: "4500", refundAuthorised: true },
+    { refundAmountPence: 100_000_000, refundAuthorised: true }
+  ]) await assert.rejects(service.review(admin, disputeId, { ...withRefund, ...refund }), /refund/i);
+
+  // Absent is not the same as zero: a resolution with no refund field moves no
+  // money and is perfectly valid.
+  const noRefund = await service.review(admin, disputeId, withRefund);
+  assert.equal(noRefund.resolutionOutcome, "cancelled");
+}
+
+// A page still sending the version-1 promise -- that this screen performs no
+// payment action -- is refused rather than silently reinterpreted under a
+// version where it can.
+await assert.rejects(service.review(admin, disputeId, {
+  status: "resolved", resolutionNote: "A complete evidence-based final case explanation.", resolutionOutcome: "completed",
+  policyVersion: "tideway-case-response-v1", evidenceReviewed: true, sensitiveDataMinimised: true, noExternalActionConfirmed: true
+}), /standard/i);
 
 const databaseCalls = [];
 const database = { async withUserTransaction(actor, operation) { return operation({ async query(text, values) { databaseCalls.push({ actor, text, values }); return { rows: [{ result: base }] }; } }); } };

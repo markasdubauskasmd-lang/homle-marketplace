@@ -1,5 +1,6 @@
 import { scanRates, scanReleaseRates } from "./scan-telemetry.mjs";
 import { funnelBatch } from "./funnel-telemetry.mjs";
+import { caseRefundInstruction } from "./case-response-policy.mjs";
 import { measureFromReference, measurementLabel, referenceScale } from "./room-measurement.mjs";
 import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
@@ -1120,8 +1121,52 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         if (selectedAdminDispute) {
           if (request.method !== "PATCH") return methodNotAllowed(response, ["PATCH"]), true;
           const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
-          const dispute = await disputes.review(context.actor, selectedAdminDispute[1], await readJsonObject(request));
-          sendJson(response, 200, { ok: true, dispute });
+          const body = await readJsonObject(request);
+          // Resolving a case and refunding the customer it decided for used to
+          // be two screens, and the second was easy to forget. The decision and
+          // the money it implies should not be separated by an act of memory.
+          //
+          // Parsed from the same pure function the dispute service re-runs, so
+          // the two cannot disagree about whether a refund was authorised.
+          const refundInstruction = caseRefundInstruction(body);
+          if (refundInstruction && !payments) {
+            // Refused before anything is resolved. Leaving an Administrator
+            // with a final decision they cannot fund would be the worst of
+            // both outcomes.
+            sendJson(response, 503, { ok: false, error: "Payments are not configured on this deployment, so this case cannot issue a refund." });
+            return true;
+          }
+          const dispute = await disputes.review(context.actor, selectedAdminDispute[1], body);
+          let refund = null;
+          if (refundInstruction) {
+            // Deliberately AFTER the case is resolved, which is the opposite of
+            // the cancellation path and for the opposite reason. Nothing here
+            // closes a door: the refund guard accepts a booking that is
+            // disputed, completed or cancelled, so the money can still be sent
+            // from the payments desk afterwards. Given one half must fail
+            // first, a recorded decision with a retryable refund is a better
+            // state to be in than money returned with no decision behind it.
+            try {
+              const payment = await payments.getForBooking(context.actor, dispute.bookingId);
+              if (!payment?.paymentId) throw Object.assign(new Error("This booking has no payment to refund."), { statusCode: 409, code: "payment-not-found" });
+              // Keyed on the case and the exact amount, so a retried request
+              // cannot refund twice and a changed amount is refused by the
+              // command ledger rather than silently sent.
+              const command = await payments.refund(context.actor, {
+                paymentId: payment.paymentId,
+                amountPence: refundInstruction.amountPence,
+                idempotencyKey: `case_refund_${dispute.disputeId}_${refundInstruction.amountPence}`
+              });
+              refund = { issued: true, amountPence: refundInstruction.amountPence, status: command?.status ?? null, recoveryRequired: command?.recoveryRequired === true };
+            } catch (error) {
+              // Reported in the response rather than thrown. A 500 here would
+              // hide which half happened, and the half that happened is the
+              // one an Administrator most needs to know about.
+              onUnexpectedError(error);
+              refund = { issued: false, amountPence: refundInstruction.amountPence, error: error?.code || "refund-failed" };
+            }
+          }
+          sendJson(response, 200, { ok: true, dispute, refund });
           return true;
         }
         const selectedMessages = pathname.match(bookingMessagesPath);

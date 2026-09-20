@@ -115,7 +115,7 @@ coverage is 71/71. The real gaps are narrower:
 |---|---|---|
 | A-1 | **No user administration at all** — no `/admin/users` route, no API. No way to list, search, suspend or delete an account. | TODO |
 | A-2 | **Cleaner approval is made blind.** The vetting queue shows a name and two status strings; the submitted application is AES-encrypted per-cleaner with no administrator read path. An admin approves without seeing the evidence. | TODO |
-| A-3 | **Dispute resolution moves no money** and is not wired to refunds — the UI says so outright. Every resolved dispute needs a separate manual payment action on a different desk. | TODO |
+| A-3 | ✅ **DONE** `pending` — a case resolution can now issue a refund against the booking's own payment, through the same guarded `refund` command the payments desk uses. The payment is resolved server-side from the case's own booking, never from a client-supplied id; the amount needs its own explicit authorisation; the key is stable per case and amount so a retry cannot refund twice; and the decision is recorded before the money moves, so a failed refund leaves a retryable case rather than money returned with no decision behind it. The handling standard moved to `tideway-case-response-v2` because v1's promise that the screen performs no payment action stopped being true — a v1 client is refused, not reinterpreted. **Was: dispute resolution moves no money.** | ✅ |
 | A-4 | **No revenue metrics.** The funnel report deliberately excludes money; per-booking economics exist but are never summed. | TODO |
 | A-5 | No manual job assignment in the marketplace — inviting a cleaner is landlord-only. | TODO |
 

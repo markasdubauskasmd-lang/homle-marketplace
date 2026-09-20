@@ -142,6 +142,32 @@ blocked by the booking's own status, so cancelling it is what releases them.
 
 ---
 
+### 2c. The case desk can now refund — you decide when and how much
+
+Resolving a booking case used to record a decision and nothing else; any refund
+meant opening a second screen, and it was easy to forget. A resolution can now
+send a refund against that booking's own payment.
+
+**What the code decides:** nothing. The Administrator types the amount and
+authorises it explicitly. The refund can never exceed what was actually taken
+and not already returned — the database refuses that — and it goes to the card
+that paid for the booking and nowhere else.
+
+**What you decide, and should write down before the first real case:** when a
+refund is appropriate, how much for a partial failure, and who may approve one.
+That is operating policy, not code, and it is the same blocker as §5: your
+published terms need to say what a customer is entitled to. Until you have
+written it, the screen works and every use is audited, but the judgement is
+entirely the Administrator's.
+
+**One thing to know about failure.** If the refund cannot be sent, the case is
+still resolved and the screen says so in plain terms, telling you to send it
+from the payments desk. That is deliberate — the alternative is money returned
+with no recorded decision behind it — but it means a red message on that screen
+is not cosmetic and must be acted on.
+
+---
+
 ## 3. Recruit the first real cleaner — ✅ NOW UNBLOCKED
 
 **This section was blocked and is not any more.** An earlier version told you to
