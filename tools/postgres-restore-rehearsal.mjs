@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { isDeepStrictEqual } from "node:util";
 import { execFile } from "node:child_process";
 import { mkdtemp, unlink, rmdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,6 +10,7 @@ import { Client } from "pg";
 
 const executeFile = promisify(execFile);
 let phase = "configuration";
+let mismatch = null;
 const sourceName = "ci_tideway_test";
 const targetName = "ci_tideway_restore_test";
 const fixtureSchema = "codex_restore_rehearsal";
@@ -119,6 +121,17 @@ async function snapshot(connection) {
   return { relations, data, functions, policies, schemaGrants, extensions, columns, constraints, indexes, triggers, views, defaultPrivileges };
 }
 
+function compareSnapshots(actual, expected) {
+  for (const category of Object.keys(expected)) {
+    if (isDeepStrictEqual(actual[category], expected[category])) continue;
+    const index = expected[category].findIndex((row, i) => !isDeepStrictEqual(actual[category][i], row));
+    const left = actual[category][index], right = expected[category][index];
+    mismatch = { category, actualCount: actual[category].length, expectedCount: expected[category].length, index,
+      fields: [...new Set([...Object.keys(left || {}), ...Object.keys(right || {})])].filter(key => !isDeepStrictEqual(left?.[key], right?.[key])) };
+    throw new Error('Restore catalog/data mismatch');
+  }
+}
+
 async function mustDeny(connection, sql, values = []) {
   await connection.query("BEGIN");
   let denied = false;
@@ -135,7 +148,7 @@ export async function runRestoreRehearsal(env = process.env) {
     const version = await command(binary, ["--version"], binaryEnv);
     assert(/\(PostgreSQL\) 16\./.test(version.stdout), "PostgreSQL16 dump/restore binaries are required");
   }
-  const admin = client(urls.admin), source = client(urls.owner);
+  const admin = client(urls.admin), source = client(urls.owner), sourceReader = client(urls.admin, sourceName);
   const connections = [];
   let sourceSeeded = false, directory, dumpPath;
   try {
@@ -156,14 +169,15 @@ export async function runRestoreRehearsal(env = process.env) {
     // Hold an exported snapshot so pg_dump and all source fingerprints observe
     // the same committed data. No production connection or object storage used.
     phase = "source-snapshot";
-    await source.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
-    const exported = (await source.query("SELECT pg_export_snapshot() AS snapshot")).rows[0].snapshot;
-    const before = await snapshot(source);
+    await sourceReader.connect(); connections.push(sourceReader); await assertRole(sourceReader, "postgres", sourceName, true);
+    await sourceReader.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const exported = (await sourceReader.query("SELECT pg_export_snapshot() AS snapshot")).rows[0].snapshot;
+    const before = await snapshot(sourceReader);
     directory = await mkdtemp(path.join(tmpdir(), "homlle-restore-ci-"));
     dumpPath = path.join(directory, "source.dump");
     phase = "dump";
     await command("pg_dump", ["--format=custom", "--file", dumpPath, "--snapshot", exported, "--dbname", sourceName], binaryEnv);
-    await source.query("ROLLBACK");
+    await sourceReader.query("ROLLBACK");
     phase = "create-disposable-destination";
     await admin.query(`CREATE DATABASE ${quote(targetName)} OWNER tideway_owner TEMPLATE template0`);
     // Ownership, ACLs and SECURITY DEFINER owners must be restored verbatim.
@@ -172,9 +186,11 @@ export async function runRestoreRehearsal(env = process.env) {
     phase = "restored-snapshot";
     const restored = client(urls.owner, targetName);
     await restored.connect(); connections.push(restored); await assertRole(restored, "tideway_owner", targetName);
-    assert.deepEqual(await snapshot(restored), before, "Restored data/security/catalog snapshot differs from source");
+    const restoredReader = client(urls.admin, targetName);
+    await restoredReader.connect(); connections.push(restoredReader); await assertRole(restoredReader, "postgres", targetName, true);
+    compareSnapshots(await snapshot(restoredReader), before);
     phase = "source-unchanged";
-    assert.deepEqual(await snapshot(source), before, "Source changed during the isolated restore rehearsal");
+    compareSnapshots(await snapshot(sourceReader), before);
     phase = "restored-runtime-permissions";
     const app = client(urls.app, targetName), worker = client(urls.worker, targetName);
     await app.connect(); connections.push(app); await assertRole(app, "tideway_app", targetName);
@@ -195,6 +211,7 @@ export async function runRestoreRehearsal(env = process.env) {
     // Cleanup only fixture objects/accounts created by this run in the exact
     // allowlisted source. Never drop or replace an existing database.
     try {
+      if (connections.includes(sourceReader)) await sourceReader.query("ROLLBACK");
       if (connections.includes(source)) {
         await source.query("ROLLBACK");
         if (sourceSeeded) {
@@ -219,5 +236,5 @@ export async function runRestoreRehearsal(env = process.env) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { console.log(JSON.stringify(await runRestoreRehearsal())); }
-  catch { console.error("Disposable PostgreSQL restore rehearsal failed at " + phase + "; no production restore was attempted. No credentials or row data logged."); process.exitCode = 1; }
+  catch { console.error("Disposable PostgreSQL restore rehearsal failed at " + phase + "; no production restore was attempted. No credentials or row data logged."); if (mismatch) console.error(JSON.stringify(mismatch)); process.exitCode = 1; }
 }
