@@ -1,3 +1,5 @@
+import strictAssert from "node:assert/strict";
+import { validateEmailLeaseEnvironment } from "../tools/postgres-email-lease.mjs";
 import { readFile } from "node:fs/promises";
 import "./resend-webhook.mjs";
 import { createNotificationRepository } from "../src/marketplace/notification-repository.mjs";
@@ -105,14 +107,15 @@ for (const safeCaseField of ["disputeId", "status", "outcome"]) assert(disputeMi
 
 const leaseToken = "99999999-9999-4999-8999-999999999999";
 const emailCompletions = [];
+let emailFixtureCursor = 0;
 const emailRepository = {
   async claimDue(token, batchLimit, leaseSeconds) {
-    assert(token === leaseToken && batchLimit === 10 && leaseSeconds === 120, "Email worker used an unexpected lease boundary.");
+    assert(token === leaseToken && batchLimit === 1 && leaseSeconds === 120, "Email worker used an unexpected lease boundary.");
     return [
       { notificationId, recipientEmail: "landlord@example.com", recipientName: "Landlord\nExample", eventType: "dispute-resolved", bookingId, payload: { outcome: "cancelled", resolutionNote: "REDACT-ME", exactAddress: "REDACT-ME", latitude: 51.5 }, attemptNumber: 1 },
       { notificationId: "88888888-8888-4888-8888-888888888888", recipientEmail: "landlord@example.com", recipientName: "Landlord", eventType: "cleaner-arrived", bookingId, payload: {}, attemptNumber: 2 },
       { notificationId: "99999999-9999-4999-8999-000000000000", recipientEmail: "landlord@example.com", recipientName: "Landlord", eventType: "invented-event", bookingId, payload: {}, attemptNumber: 1 }
-    ];
+    ].slice(emailFixtureCursor, ++emailFixtureCursor);
   },
   async complete(id, token, outcome, errorCode) { emailCompletions.push({ id, token, outcome, errorCode }); }
 };
@@ -146,3 +149,152 @@ await emailWorkerRepository.complete(notificationId, leaseToken, "sent");
 assert(claimedEmail[0].notificationId === notificationId && workerPoolCalls[0].queryText.includes("claim_due_email_notifications") && workerPoolCalls[1].queryText.includes("complete_email_notification") && workerPoolCalls.every((call) => !call.queryText.includes("landlord@example.com")), "Email worker repository bypassed its narrow functions or interpolated recipient data.");
 
 console.log("Notification tests passed: account-only inbox, race-safe read actions, strict payload redaction, signed suppression callbacks and leased retrying email outbox.");
+
+// Real workers and SQL017's relevant lease semantics under a synthetic clock.
+// Slow provider calls must not age leases for messages that are still waiting.
+for (const competing of [false, true]) {
+  let clock = 0;
+  let aSent = 0;
+  let bResult = null;
+  let serial = 0;
+  const tokens = new Set();
+  const claimedTokens = new Set();
+  const calls = [];
+  const rows = Array.from({ length: 25 }, (_, index) => ({
+    notificationId: "79000000-0000-4000-8000-" + String(index + 1).padStart(12, "0"),
+    recipientEmail: "synthetic@invalid.example", recipientName: "Synthetic", bookingId,
+    eventType: "booking-confirmed", payload: {}, attemptNumber: 0,
+    status: "pending", token: null, until: 0
+  }));
+  const createId = () => {
+    const token = "7a000000-0000-4000-8000-" + String(++serial).padStart(12, "0");
+    tokens.add(token);
+    return token;
+  };
+  const repository = {
+    async claimDue(token, limit, seconds) {
+      strictAssert.equal(limit, 1);
+      strictAssert.equal(seconds, 180);
+      strictAssert.equal(claimedTokens.has(token), false, "A lease token was reused across claims");
+      claimedTokens.add(token);
+      const due = rows.filter(row => row.status === "pending" && row.until <= clock).slice(0, limit);
+      return due.map(row => {
+        row.token = token;
+        row.until = clock + seconds * 1000;
+        row.attemptNumber++;
+        return { ...row };
+      });
+    },
+    async complete(id, token, outcome) {
+      const row = rows.find(row => row.notificationId === id);
+      if (row.status === "sent" && outcome === "sent") return;
+      if (row.status !== "pending" || row.token !== token || row.until <= clock) throw Error("email-notification-lease-lost");
+      strictAssert.equal(outcome, "sent");
+      row.status = "sent";
+      row.token = null;
+      row.until = 0;
+      if (competing && aSent === 18 && !bResult) clock += 10000;
+    }
+  };
+  const workerB = createEmailNotificationWorker(repository, {
+    async send(email) {
+      calls.push(email.idempotencyKey);
+      clock += 100;
+    }
+  }, { appOrigin: "https://homlle.invalid", createId });
+  const workerA = createEmailNotificationWorker(repository, {
+    async send(email) {
+      const row = rows.find(row => row.notificationId === email.idempotencyKey);
+      strictAssert.equal(row.status, "pending");
+      strictAssert.ok(row.until > clock, "Provider call began on an expired lease");
+      calls.push(email.idempotencyKey);
+      aSent++;
+      if (competing && aSent === 19) bResult = await workerB.runOnce();
+      clock += 9500;
+    }
+  }, { appOrigin: "https://homlle.invalid", createId });
+  const result = await workerA.runOnce();
+  strictAssert.equal(result.sent + (bResult?.sent || 0), 25);
+  strictAssert.equal(result.claimed, result.sent);
+  strictAssert.equal(calls.length, 25);
+  strictAssert.equal(new Set(calls).size, 25);
+  strictAssert.ok(rows.every(row => row.status === "sent" && row.attemptNumber === 1));
+  strictAssert.equal(tokens.size, serial, "Every claim needs a freshly generated token");
+  strictAssert.ok(clock > 180000, "Fixture must exceed the old whole-batch lease");
+  if (competing) {
+    strictAssert.equal(result.sent, 19);
+    strictAssert.equal(bResult.sent, 6);
+  }
+}
+
+// Bound each run even when new work keeps arriving. Completion failures must
+// not turn into a provider retry or a fabricated sent receipt.
+{
+  let claims = 0;
+  let sends = 0;
+  let completed = 0;
+  const record = {
+    notificationId, recipientEmail: "synthetic@invalid.example", bookingId,
+    eventType: "booking-confirmed", payload: {}, attemptNumber: 1
+  };
+  const repository = {
+    async claimDue() { claims++; return [record]; },
+    async complete() { completed++; }
+  };
+  const delivery = { async send() { sends++; } };
+  const options = { appOrigin: "https://homlle.invalid", batchLimit: 3 };
+  strictAssert.deepEqual(await createEmailNotificationWorker(repository, delivery, options).runOnce(), {
+    claimed: 3, sent: 3, retried: 0, failed: 0
+  });
+  strictAssert.equal(claims, 3);
+  strictAssert.equal(sends, 3);
+  strictAssert.equal(completed, 3);
+  for (const providerFails of [false, true]) {
+    claims = 0;
+    sends = 0;
+    completed = 0;
+    const failing = {
+      ...repository,
+      async complete() { completed++; throw Error("synthetic-completion-unavailable"); }
+    };
+    const send = {
+      async send() {
+        sends++;
+        if (providerFails) throw Error("synthetic-provider-unavailable");
+      }
+    };
+    await strictAssert.rejects(createEmailNotificationWorker(failing, send, options).runOnce(), /completion-unavailable/);
+    strictAssert.equal(claims, 1);
+    strictAssert.equal(sends, 1);
+    strictAssert.equal(completed, 1);
+  }
+  let invalidSends = 0;
+  await strictAssert.rejects(createEmailNotificationWorker({
+    ...repository, async claimDue() { return [record, record]; }
+  }, { async send() { invalidSends++; } }, options).runOnce(), /invalid single-record/);
+  strictAssert.equal(invalidSends, 0);
+}
+console.log("Email lease regressions passed: slow25-message drain, competing worker, fresh per-record claims, bounded run and completion-failure propagation; single-send exactly-once is not claimed.");
+
+// Validate disposable database boundaries directly, before any connection.
+{
+  const env = {
+    TIDEWAY_DATABASE_TEST_CONFIRMATION: 'RUN TIDEWAY DISPOSABLE DATABASE TESTS',
+    DATABASE_INTEGRATION_OWNER_URL: 'postgres://tideway_owner:synthetic@localhost:5432/ci_tideway_test',
+    DATABASE_INTEGRATION_WORKER_URL: 'postgres://tideway_worker:synthetic@localhost:5432/ci_tideway_test'
+  };
+  strictAssert.equal(validateEmailLeaseEnvironment(env).ownerUrl.hostname, 'localhost');
+  const changes = [
+    { TIDEWAY_DATABASE_TEST_CONFIRMATION: '' },
+    ...['DATABASE_INTEGRATION_OWNER_URL', 'DATABASE_INTEGRATION_WORKER_URL'].flatMap(key => [
+      { [key]: env[key].replace('localhost', 'database.invalid') },
+      { [key]: env[key].replace('/ci_tideway_test', '/production') },
+      { [key]: env[key].replace(/tideway_(owner|worker)/, 'postgres') },
+      { [key]: env[key].replace(':synthetic@', '@') },
+      { [key]: env[key] + '?host=database.invalid' },
+      { [key]: env[key] + '#override' }
+    ]),
+    { DATABASE_INTEGRATION_WORKER_URL: env.DATABASE_INTEGRATION_WORKER_URL.replace(':5432', ':5433') }
+  ];
+  for (const change of changes) strictAssert.throws(() => validateEmailLeaseEnvironment({ ...env, ...change }));
+}

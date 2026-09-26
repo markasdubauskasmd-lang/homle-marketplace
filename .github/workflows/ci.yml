@@ -152,3 +152,10 @@ jobs:
         run: |
           export PATH="/usr/lib/postgresql/16/bin:$PATH"
           node tools/postgres-restore-rehearsal.mjs
+
+      - name: Verify individual email leases with competing workers
+        env:
+          DATABASE_INTEGRATION_OWNER_URL: postgresql://tideway_owner:${{ env.OWNER_PW }}@localhost:5432/ci_tideway_test
+          DATABASE_INTEGRATION_WORKER_URL: postgresql://tideway_worker:${{ env.WORKER_PW }}@localhost:5432/ci_tideway_test
+          TIDEWAY_DATABASE_TEST_CONFIRMATION: RUN TIDEWAY DISPOSABLE DATABASE TESTS
+        run: node tools/postgres-email-lease.mjs
