@@ -233,7 +233,19 @@ export async function createS3ObjectStorage(env = process.env, options = {}) {
     },
     async deleteObject(input) {
       const key = storageKey(input?.storageKey);
-      await send(new sdk.DeleteObjectCommand({ Bucket: selected.bucket, Key: key }));
+      if (closed) throw new TypeError("Private object storage is closed.");
+      const controller = new AbortController();
+      let timer;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error("private-object-delete-timeout"));
+        }, 10_000);
+      });
+      try {
+        await Promise.race([timeout, s3.send(new sdk.DeleteObjectCommand({ Bucket: selected.bucket, Key: key }), { abortSignal: controller.signal })]);
+      } catch (error) { throw operationalFailure(error, onUnexpectedError); }
+      finally { clearTimeout(timer); controller.abort(); }
     },
     close() {
       if (closed) return;

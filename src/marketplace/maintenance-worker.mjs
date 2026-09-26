@@ -31,10 +31,11 @@ function createDrainJob(repository, method, options) {
   });
 }
 
-function createUploadExpiryJob(repository, method, objectStorage, options) {
+function createUploadExpiryJob(repository, method, acknowledge, objectStorage, options) {
+  if (typeof repository?.[acknowledge] !== "function") throw new TypeError(`Marketplace maintenance requires ${acknowledge}.`);
   if (typeof repository?.[method] !== "function") throw new TypeError(`Marketplace maintenance requires ${method}.`);
   if (!objectStorage || typeof objectStorage.deleteObject !== "function") throw new TypeError("Private object storage is required for upload expiry.");
-  const batchLimit = integer(options.batchLimit, 1, 1000, 500, `${options.name} batch limit`);
+  const batchLimit = integer(options.batchLimit, 1, 10, 10, `${options.name} batch limit`);
   return Object.freeze({
     name: options.name,
     intervalMs: options.intervalMs,
@@ -42,13 +43,26 @@ function createUploadExpiryJob(repository, method, objectStorage, options) {
       const batch = result(await repository[method](batchLimit), batchLimit);
       if (!Array.isArray(batch.uploads) || batch.uploads.length !== batch.processedCount) throw new Error("Upload expiry returned invalid object cleanup work.");
       let objectsDeleted = 0;
-      for (const upload of batch.uploads) {
-        const keys = [...new Set([upload.quarantineStorageKey, upload.finalStorageKey].filter(Boolean))];
-        for (const key of keys) {
-          await objectStorage.deleteObject(key);
-          objectsDeleted += 1;
+      const failures = [];
+      let nextUpload = 0;
+      const consume = async () => {
+        while (nextUpload < batch.uploads.length) {
+          const upload = batch.uploads[nextUpload++];
+          try {
+            if (![upload?.quarantineStorageKey, upload?.finalStorageKey].every((key) => typeof key === "string" && key.trim().length > 0)) throw new Error("Expired photo cleanup keys are incomplete.");
+            const keys = [...new Set([upload.quarantineStorageKey, upload.finalStorageKey])];
+            for (const key of keys) {
+              await objectStorage.deleteObject({ storageKey: key });
+              objectsDeleted += 1;
+            }
+            await repository[acknowledge](upload.uploadId);
+          } catch (error) { failures.push(error); }
         }
-      }
+      };
+      // Ten uploads at most, with five concurrent bounded storage requests.
+      // Failed rows remain durable; do not serialize hundreds of timeouts.
+      await Promise.all(Array.from({ length: Math.min(5, batch.uploads.length) }, consume));
+      if (failures.length) throw new AggregateError(failures, "Expired photo cleanup remains pending and will be retried.");
       return Object.freeze({ batches: 1, processed: batch.processedCount, objectsDeleted, moreMayRemain: batch.batchFull });
     }
   });
@@ -71,8 +85,8 @@ export function createMarketplaceMaintenanceJobs(repository, options = {}) {
     createDrainJob(repository, "purgeRoomScans", { name: "room-scan-retention", intervalMs: hourly, batchLimit: 200, defaultLimit: 200, maximumLimit: 2000 })
   ];
   if (options.objectStorage) {
-    jobs.push(createUploadExpiryJob(repository, "expireJobPhotoUploads", options.objectStorage, { name: "job-photo-upload-expiry", intervalMs: minute }));
-    jobs.push(createUploadExpiryJob(repository, "expireRequestPhotoUploads", options.objectStorage, { name: "request-photo-upload-expiry", intervalMs: minute }));
+    jobs.push(createUploadExpiryJob(repository, "expireJobPhotoUploads", "acknowledgeJobPhotoUploadCleanup", options.objectStorage, { name: "job-photo-upload-expiry", intervalMs: minute }));
+    jobs.push(createUploadExpiryJob(repository, "expireRequestPhotoUploads", "acknowledgeRequestPhotoUploadCleanup", options.objectStorage, { name: "request-photo-upload-expiry", intervalMs: minute }));
   }
   return Object.freeze(jobs);
 }

@@ -41,4 +41,7 @@ GRANT EXECUTE ON FUNCTION tideway_private.complete_automatic_dispatch(uuid,uuid,
 GRANT EXECUTE ON FUNCTION tideway_private.release_automatic_dispatch_lease(uuid,uuid,text,timestamptz) TO tideway_worker;
 REVOKE ALL ON TABLE tideway_private.request_rate_limits FROM tideway_worker;
 
+GRANT EXECUTE ON FUNCTION tideway_private.acknowledge_job_photo_upload_cleanup(uuid) TO tideway_worker;
+GRANT EXECUTE ON FUNCTION tideway_private.acknowledge_request_photo_upload_cleanup(uuid) TO tideway_worker;
+
 COMMIT;

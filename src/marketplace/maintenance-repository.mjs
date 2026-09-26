@@ -68,6 +68,14 @@ export function createMaintenanceRepository(pool) {
       const selected = boundedLimit(limit, 5000, "Pending social-identity purge batch limit");
       return scalarResult(await pool.query("SELECT tideway_private.purge_expired_pending_social_identities($1::integer) AS processed_count", [selected]), selected);
     },
+    async acknowledgeJobPhotoUploadCleanup(uploadId) {
+      const result = await pool.query("SELECT tideway_private.acknowledge_job_photo_upload_cleanup($1::uuid) AS acknowledged", [uploadId]);
+      if (result?.rows?.[0]?.acknowledged !== true) throw new Error("Expired job-photo cleanup was not acknowledged.");
+    },
+    async acknowledgeRequestPhotoUploadCleanup(uploadId) {
+      const result = await pool.query("SELECT tideway_private.acknowledge_request_photo_upload_cleanup($1::uuid) AS acknowledged", [uploadId]);
+      if (result?.rows?.[0]?.acknowledged !== true) throw new Error("Expired request-photo cleanup was not acknowledged.");
+    },
     async expireJobPhotoUploads(limit) {
       const selected = boundedLimit(limit, 1000, "Job-photo expiry batch limit");
       return uploadRows(await pool.query("SELECT * FROM tideway_private.expire_due_job_photo_uploads($1::integer)", [selected]), selected);

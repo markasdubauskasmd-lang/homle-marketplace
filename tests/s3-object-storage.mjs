@@ -137,3 +137,34 @@ await assert.rejects(() => failing.verify(), (error) => error.message === "objec
 assert(privateFailure?.message.includes("credential"));
 
 console.log("S3 object-storage tests passed: exact private prefixes, signed checksum/encryption headers, bounded reads, metadata-stripping JPEG re-encode, private reads, cleanup, sanitized failures and idempotent close.");
+
+// Even a provider client that ignores abort must not strand the cleanup job.
+{
+  let signal, finishLate, settle = false, deletionFailure;
+  class HangingDeleteClient extends S3Client {
+    async send(command, options) {
+      assert(command instanceof DeleteObjectCommand);
+      signal = options?.abortSignal;
+      if (settle) return {};
+      return new Promise(resolve => { finishLate = resolve; });
+    }
+  }
+  const bounded = await createS3ObjectStorage(env, { s3ClientModule: { ...s3ClientModule, S3Client: HangingDeleteClient }, presignerModule, sharp, now,
+    onUnexpectedError(error) { deletionFailure = error; } });
+  const started = Date.now();
+  let watchdog;
+  try {
+    await assert.rejects(Promise.race([
+      bounded.deleteObject({ storageKey: quarantineKey }),
+      new Promise((_, reject) => { watchdog = setTimeout(() => reject(Error("Delete failed to observe its deadline")), 12_000); })
+    ]), error => error.message === "object-storage-operation-failed");
+    assert.equal(signal?.aborted, true);
+    assert.equal(deletionFailure?.message, "private-object-delete-timeout");
+    assert(Date.now() - started < 12_000);
+    finishLate({});
+    settle = true;
+    await bounded.deleteObject({ storageKey: quarantineKey });
+  } finally { clearTimeout(watchdog); bounded.close(); }
+  await assert.rejects(bounded.deleteObject({ storageKey: quarantineKey }), /closed/);
+}
+console.log("Storage deletion deadline passed: abort, nonsettling SDK, private failure, late completion and safe retry.");

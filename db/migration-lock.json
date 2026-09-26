@@ -571,6 +571,11 @@
       "order": 114,
       "file": "114_payment_event_parent_identity.sql",
       "sha256": "86c27160a9a466c053d78f995a8323b9cf8f6f0f09b0e0de3de7a1a6441948dc"
+    },
+    {
+      "order": 115,
+      "file": "115_media_expiry_recovery.sql",
+      "sha256": "dc4b7c6b37ff2aaefd5a394736f880d0dbd59d5914b4a3e194b22666050eeac5"
     }
   ],
   "grantFiles": [
@@ -580,7 +585,7 @@
     },
     {
       "file": "worker-role-grants.sql",
-      "sha256": "ad8116f468627ed9d6f8c4351990951c9d3e52fec0fd93c99070f5b6b52549c0"
+      "sha256": "75f4f057c8172875df919fb9d28984ed55ca418c9a2fd013f31b3e213fe95912"
     }
   ]
 }
