@@ -126,14 +126,19 @@ async function snapshot(connection) {
 }
 
 function compareSnapshots(actual, expected) {
+  const differences = [];
   for (const category of Object.keys(expected)) {
     if (isDeepStrictEqual(actual[category], expected[category])) continue;
     const index = expected[category].findIndex((row, i) => !isDeepStrictEqual(actual[category][i], row));
     const left = actual[category][index], right = expected[category][index];
-    mismatch = { category, actualCount: actual[category].length, expectedCount: expected[category].length, index,
+    const detail = { category, actualCount: actual[category].length, expectedCount: expected[category].length, index,
       fields: [...new Set([...Object.keys(left || {}), ...Object.keys(right || {})])].filter(key => !isDeepStrictEqual(left?.[key], right?.[key])) };
-    throw new Error('Restore catalog/data mismatch');
+    // Only repository-defined constraint DDL, never record contents or credentials.
+    if (category === 'constraints') detail.constraint = { schema:right?.schema, relation:right?.relation, name:right?.conname,
+      actualDefinition:String(left?.definition || '').slice(0,4000), expectedDefinition:String(right?.definition || '').slice(0,4000) };
+    differences.push(detail);
   }
+  if (differences.length) { mismatch = {category:differences[0].category, differences}; throw new Error('Restore catalog/data mismatch'); }
 }
 
 async function mustDeny(connection, sql, values = []) {
