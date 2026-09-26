@@ -215,4 +215,120 @@ BEGIN
 END
 $retention$;
 
+
+-- Expired media cleanup is a durable external side effect, not just a status.
+DO $media_cleanup$
+DECLARE kind text; table_name text; count_due integer; result_ids uuid[]; acknowledged boolean;
+  first_id uuid := '7e000000-0000-4000-8000-000000000001';
+  legacy_id uuid := '7e000000-0000-4000-8000-000000000002';
+  completed_id uuid := '7e000000-0000-4000-8000-000000000003';
+  future_id uuid := '7e000000-0000-4000-8000-000000000004';
+  swept_id uuid := '7e000000-0000-4000-8000-000000000005';
+BEGIN
+  FOREACH kind IN ARRAY ARRAY['request','job'] LOOP
+    table_name := CASE kind WHEN 'request' THEN 'cleaning_request_photo_uploads' ELSE 'job_photo_uploads' END;
+    IF has_function_privilege('tideway_app',format('tideway_private.acknowledge_%s_photo_upload_cleanup(uuid)',kind),'EXECUTE')
+      OR NOT has_function_privilege('tideway_worker',format('tideway_private.acknowledge_%s_photo_upload_cleanup(uuid)',kind),'EXECUTE')
+      OR has_table_privilege('tideway_worker',format('public.%s',table_name),'UPDATE')
+    THEN RAISE EXCEPTION 'Cleanup acknowledgment privilege boundary failed'; END IF;
+    IF kind='request' THEN
+      INSERT INTO cleaning_request_photo_uploads(id,cleaning_request_id,requested_by,room_name,note,quarantine_storage_key,final_storage_key,requested_mime_type,requested_byte_size,requested_checksum_sha256,status,expires_at,created_at,cleanup_completed_at)
+      SELECT v.id,'30000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','Kitchen','Synthetic expiry fixture',
+        'quarantine/request-photos/30000000-0000-4000-8000-000000000001/'||v.id,
+        'request-photos/30000000-0000-4000-8000-000000000001/'||v.id||'.jpg','image/jpeg',1000,decode(repeat('ab',32),'hex'),v.status,
+        CASE WHEN v.id=future_id THEN now()+interval '1 hour' ELSE now()-interval '2 days' END,now()-interval '3 days',
+        CASE WHEN v.id=swept_id THEN now()-interval '2 days' ELSE NULL END
+      FROM (VALUES(first_id,'pending'),(legacy_id,'expired'),(completed_id,'completed'),(future_id,'pending'),(swept_id,'expired')) v(id,status);
+    ELSE
+      INSERT INTO job_photo_uploads(id,booking_id,requested_by,photo_type,quarantine_storage_key,final_storage_key,requested_mime_type,requested_byte_size,requested_checksum_sha256,status,expires_at,created_at,cleanup_completed_at)
+      SELECT v.id,'40000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','before',
+        'quarantine/job-photos/40000000-0000-4000-8000-000000000001/'||v.id,
+        'job-photos/40000000-0000-4000-8000-000000000001/'||v.id||'.jpg','image/jpeg',1000,decode(repeat('ab',32),'hex'),v.status,
+        CASE WHEN v.id=future_id THEN now()+interval '1 hour' ELSE now()-interval '2 days' END,now()-interval '3 days',
+        CASE WHEN v.id=swept_id THEN now()-interval '2 days' ELSE NULL END
+      FROM (VALUES(first_id,'pending'),(legacy_id,'expired'),(completed_id,'completed'),(future_id,'pending'),(swept_id,'expired')) v(id,status);
+    END IF;
+    EXECUTE format('SELECT COALESCE(array_agg(upload_id),ARRAY[]::uuid[]) FROM tideway_private.expire_due_%s_photo_uploads(1)',kind) INTO result_ids;
+    IF result_ids IS DISTINCT FROM ARRAY[first_id] THEN RAISE EXCEPTION 'Daily tombstones displaced new cleanup work'; END IF;
+    -- No acknowledgment models worker death after claim or after either delete.
+    EXECUTE format('SELECT COALESCE(array_agg(upload_id ORDER BY upload_id),ARRAY[]::uuid[]) FROM tideway_private.expire_due_%s_photo_uploads(1000)',kind) INTO result_ids;
+    IF NOT (result_ids @> ARRAY[first_id,legacy_id,swept_id]) OR result_ids && ARRAY[completed_id,future_id]
+    THEN RAISE EXCEPTION 'Retry omitted expired work or included valid media'; END IF;
+    EXECUTE format('SELECT tideway_private.acknowledge_%s_photo_upload_cleanup($1)',kind) INTO acknowledged USING first_id;
+    IF NOT acknowledged THEN RAISE EXCEPTION 'Expired cleanup did not acknowledge'; END IF;
+    -- Duplicate acknowledgment is safe; invalid/valid-media IDs never acknowledge.
+    EXECUTE format('SELECT tideway_private.acknowledge_%s_photo_upload_cleanup($1)',kind) INTO acknowledged USING first_id;
+    IF NOT acknowledged THEN RAISE EXCEPTION 'Cleanup acknowledgment is not idempotent'; END IF;
+    EXECUTE format('SELECT tideway_private.acknowledge_%s_photo_upload_cleanup($1)',kind) INTO acknowledged USING completed_id;
+    IF acknowledged THEN RAISE EXCEPTION 'Completed media accepted cleanup acknowledgment'; END IF;
+    EXECUTE format('SELECT COALESCE(array_agg(upload_id),ARRAY[]::uuid[]) FROM tideway_private.expire_due_%s_photo_uploads(1000)',kind) INTO result_ids;
+    IF first_id=ANY(result_ids) OR NOT legacy_id=ANY(result_ids) THEN RAISE EXCEPTION 'Acknowledgment did not isolate failed work'; END IF;
+    -- A late PUT after successful deletion is eventually covered by a resweep.
+    EXECUTE format('UPDATE %I SET cleanup_completed_at=now()-interval ''2 days'' WHERE id=$1',table_name) USING first_id;
+    EXECUTE format('SELECT COALESCE(array_agg(upload_id),ARRAY[]::uuid[]) FROM tideway_private.expire_due_%s_photo_uploads(1000)',kind) INTO result_ids;
+    IF NOT first_id=ANY(result_ids) THEN RAISE EXCEPTION 'Late-write tombstone was never reswept'; END IF;
+    EXECUTE format('SELECT count(*) FROM %I WHERE (id=$1 AND status=''completed'') OR (id=$2 AND status=''pending'')',table_name)
+      INTO count_due USING completed_id,future_id;
+    IF count_due<>2 THEN RAISE EXCEPTION 'Expiry modified completed or unexpired uploads'; END IF;
+  END LOOP;
+END;
+$media_cleanup$;
+
+
+DO $terminal_cleanup$
+DECLARE kind text; table_name text; rows_seen integer; item record; acknowledged boolean; preserved text;
+  completed_id uuid := '7e000000-0000-4000-8000-000000000003';
+  rejected_id uuid := '7e000000-0000-4000-8000-000000000002';
+  future_id uuid := '7e000000-0000-4000-8000-000000000004';
+BEGIN
+  FOREACH kind IN ARRAY ARRAY['request','job'] LOOP
+    table_name:=CASE kind WHEN 'request' THEN 'cleaning_request_photo_uploads' ELSE 'job_photo_uploads' END;
+    IF has_function_privilege('tideway_app',format('tideway_private.claim_%s_photo_terminal_cleanup(integer)',kind),'EXECUTE')
+      OR has_function_privilege('tideway_app',format('tideway_private.acknowledge_%s_photo_terminal_cleanup(uuid,text)',kind),'EXECUTE')
+      OR NOT has_function_privilege('tideway_worker',format('tideway_private.claim_%s_photo_terminal_cleanup(integer)',kind),'EXECUTE')
+      OR NOT has_function_privilege('tideway_worker',format('tideway_private.acknowledge_%s_photo_terminal_cleanup(uuid,text)',kind),'EXECUTE')
+    THEN RAISE EXCEPTION 'Terminal cleanup grant boundary failed'; END IF;
+    -- Reuse only this transaction's synthetic upload rows; never application rows.
+    EXECUTE format('UPDATE %I SET status=''rejected'',rejection_reason=''synthetic-rejection'' WHERE id=$1',table_name) USING rejected_id;
+    EXECUTE format('UPDATE %I SET status=''completed'' WHERE id=$1',table_name) USING future_id;
+    rows_seen:=0;
+    FOR item IN EXECUTE format('SELECT * FROM tideway_private.claim_%s_photo_terminal_cleanup(10)',kind) LOOP
+      rows_seen:=rows_seen+1;
+      IF item.upload_id=completed_id THEN
+        IF item.upload_status IS DISTINCT FROM 'completed' OR cardinality(item.cleanup_keys) IS DISTINCT FROM 1
+          OR item.cleanup_keys[1] NOT LIKE 'quarantine/%' THEN RAISE EXCEPTION 'Completed cleanup exposed valid final media'; END IF;
+      ELSIF item.upload_id=rejected_id THEN
+        IF item.upload_status IS DISTINCT FROM 'rejected' OR cardinality(item.cleanup_keys) IS DISTINCT FROM 2
+          OR item.cleanup_keys[1] NOT LIKE 'quarantine/%' OR item.cleanup_keys[2] LIKE 'quarantine/%'
+        THEN RAISE EXCEPTION 'Rejected cleanup omitted required keys'; END IF;
+      ELSE RAISE EXCEPTION 'Terminal cleanup selected pending/expired/unexpired media'; END IF;
+    END LOOP;
+    IF rows_seen<>2 THEN RAISE EXCEPTION 'Historical terminal uploads were not queued'; END IF;
+    EXECUTE format('SELECT count(*) FROM tideway_private.claim_%s_photo_terminal_cleanup(10)',kind) INTO rows_seen;
+    IF rows_seen<>2 THEN RAISE EXCEPTION 'Unacknowledged terminal cleanup cannot recover after crash'; END IF;
+    EXECUTE format('SELECT tideway_private.acknowledge_%s_photo_terminal_cleanup($1,''rejected'')',kind) INTO acknowledged USING completed_id;
+    IF acknowledged THEN RAISE EXCEPTION 'Wrong terminal state was acknowledged'; END IF;
+    EXECUTE format('SELECT tideway_private.acknowledge_%s_photo_terminal_cleanup($1,''completed'')',kind) INTO acknowledged USING future_id;
+    IF acknowledged THEN RAISE EXCEPTION 'Future upload was acknowledged'; END IF;
+    EXECUTE format('SELECT tideway_private.acknowledge_%s_photo_terminal_cleanup($1,''completed'')',kind) INTO acknowledged USING completed_id;
+    IF acknowledged IS DISTINCT FROM true THEN RAISE EXCEPTION 'Completed quarantine cleanup not acknowledged'; END IF;
+    EXECUTE format('SELECT tideway_private.acknowledge_%s_photo_terminal_cleanup($1,''rejected'')',kind) INTO acknowledged USING rejected_id;
+    IF acknowledged IS DISTINCT FROM true THEN RAISE EXCEPTION 'Rejected cleanup not acknowledged'; END IF;
+    EXECUTE format('SELECT count(*) FROM tideway_private.claim_%s_photo_terminal_cleanup(10)',kind) INTO rows_seen;
+    IF rows_seen<>0 THEN RAISE EXCEPTION 'Acknowledged terminal cleanup immediately reselected'; END IF;
+    EXECUTE format('SELECT status||'':''||rejection_reason FROM %I WHERE id=$1',table_name) INTO preserved USING rejected_id;
+    IF preserved IS DISTINCT FROM 'rejected:synthetic-rejection' THEN RAISE EXCEPTION 'Rejection evidence changed during cleanup'; END IF;
+    EXECUTE format('UPDATE %I SET terminal_cleanup_completed_at=now()-interval ''2 days'' WHERE id IN ($1,$2)',table_name) USING completed_id,rejected_id;
+    EXECUTE format('SELECT count(*) FROM tideway_private.claim_%s_photo_terminal_cleanup(10)',kind) INTO rows_seen;
+    IF rows_seen<>2 THEN RAISE EXCEPTION 'Terminal late-write resweep missing'; END IF;
+    BEGIN
+      EXECUTE format('SELECT * FROM tideway_private.claim_%s_photo_terminal_cleanup(11)',kind);
+      RAISE EXCEPTION 'Terminal cleanup accepted oversized batch';
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      IF SQLERRM<>'invalid-terminal-cleanup-limit' THEN RAISE; END IF;
+    END;
+  END LOOP;
+END;
+$terminal_cleanup$;
+
 ROLLBACK;

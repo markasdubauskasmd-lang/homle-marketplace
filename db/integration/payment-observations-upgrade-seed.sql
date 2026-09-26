@@ -20,18 +20,19 @@ INSERT INTO observation_upgrade_fixture VALUES('reconciler-oid','tideway_private
 DO $seed$
 DECLARE p uuid:='58000000-0000-4000-8000-000000000001'; c uuid; n integer; r jsonb;
 BEGIN
- IF to_regclass('tideway_private.payment_observed_objects') IS NOT NULL THEN RAISE EXCEPTION 'Upgrade seed must run on114 before115'; END IF;
+ IF to_regprocedure('tideway_private.claim_request_photo_terminal_cleanup(integer)') IS NULL THEN RAISE EXCEPTION 'Upgrade seed requires the actual116 schema'; END IF;
+ IF to_regclass('tideway_private.payment_observed_objects') IS NOT NULL THEN RAISE EXCEPTION 'Upgrade seed must run on116 before117'; END IF;
  FOR n IN 2..3 LOOP
  c:=('58000000-0000-4000-8000-00000000000'||n)::uuid;
  PERFORM * FROM tideway_private.begin_booking_payment_command(c,p,'refund',1000,decode(repeat(CASE n WHEN 2 THEN '82' ELSE '83' END,32),'hex'));
  r:=tideway_private.reconcile_payment_provider_event('stripe','evt_upgrade_success_'||n,'refund-succeeded','re_upgrade_original_'||n,p,c,1000,'gbp',now()-interval '2 minutes',repeat('8',64),'pi_upgrade_original','ch_upgrade_original',NULL);
- IF r->>'accepted' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION '114 refund fixture did not apply'; END IF;
+ IF r->>'accepted' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'Pre117 refund fixture did not apply'; END IF;
  IF n=3 THEN
  r:=tideway_private.reconcile_payment_provider_event('stripe','evt_upgrade_failed_3','refund-failed','re_upgrade_original_3',p,c,1000,'gbp',now()-interval '1 minute',repeat('9',64),'pi_upgrade_original','ch_upgrade_original',NULL);
- IF r->>'accepted' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION '114 terminal failure fixture did not apply'; END IF;
+ IF r->>'accepted' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'Pre117 terminal failure fixture did not apply'; END IF;
  END IF;
  END LOOP;
- IF (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000 THEN RAISE EXCEPTION '114 baseline refund balance wrong'; END IF;
+ IF (SELECT amount_refunded_pence FROM booking_payments WHERE id=p) IS DISTINCT FROM 1000 THEN RAISE EXCEPTION 'Pre117 baseline refund balance wrong'; END IF;
 END;
 $seed$;
 COMMIT;

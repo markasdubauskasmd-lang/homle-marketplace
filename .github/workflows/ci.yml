@@ -140,7 +140,8 @@ jobs:
         run: |
           node tools/postgres-integration-runner.mjs
           node tools/postgres-media-delivery.mjs
-      - name: Verify payment observation upgrade from actual migration114
+          node tools/postgres-upload-expiry.mjs
+      - name: Verify payment observation upgrade from actual migration116
         if: ${{ !cancelled() }}
         env:
           PGPASSWORD: postgres
@@ -156,9 +157,9 @@ jobs:
           SQL
           export PGPASSWORD="$OWNER_PW"
           for file in $(ls db/migrations/*.sql | sort); do
-            [ "$(basename "$file")" = '115_external_payment_observations.sql' ] && break
+            [ "$(basename "$file")" = '117_external_payment_observations.sql' ] && break
             psql -v ON_ERROR_STOP=1 -X -h "$PGHOST" -p "$PGPORT" -U tideway_owner -d ci_tideway_upgrade -f "$file"
           done
-          for file in db/integration/payment-observations-upgrade-seed.sql db/migrations/115_external_payment_observations.sql db/integration/payment-observations-upgrade-verify.sql; do
+          for file in db/integration/payment-observations-upgrade-seed.sql db/migrations/117_external_payment_observations.sql db/integration/payment-observations-upgrade-verify.sql; do
             psql -v ON_ERROR_STOP=1 -X -h "$PGHOST" -p "$PGPORT" -U tideway_owner -d ci_tideway_upgrade -f "$file"
           done

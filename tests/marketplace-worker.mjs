@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createS3ObjectStorage } from "../src/marketplace/s3-object-storage.mjs";
 import { readFile } from "node:fs/promises";
 import { createMaintenanceRepository } from "../src/marketplace/maintenance-repository.mjs";
 import { createMarketplaceMaintenanceJobs } from "../src/marketplace/maintenance-worker.mjs";
@@ -76,7 +77,15 @@ assert.ok(queries.every((query) => query.text.includes("$1") && query.values.len
 
 const drainBatches = [{ processedCount: 100, batchFull: true }, { processedCount: 0, batchFull: false }];
 const deletedObjects = [];
+const emptyTerminalRepository = {
+  async claimJobPhotoTerminalCleanup(){return {processedCount:0,batchFull:false,uploads:[]};},
+  async claimRequestPhotoTerminalCleanup(){return {processedCount:0,batchFull:false,uploads:[]};},
+  async acknowledgeJobPhotoTerminalCleanup(){}, async acknowledgeRequestPhotoTerminalCleanup(){}
+};
 const maintenanceJobs = createMarketplaceMaintenanceJobs({
+  ...emptyTerminalRepository,
+  async acknowledgeJobPhotoUploadCleanup() {},
+  async acknowledgeRequestPhotoUploadCleanup() {},
   async expireInvitations() { return drainBatches.shift(); },
   async queuePaymentReadinessReminders() { return { processedCount: 0, batchFull: false }; },
   async queueBookingVisitReminders() { return { processedCount: 0, batchFull: false }; },
@@ -87,8 +96,8 @@ const maintenanceJobs = createMarketplaceMaintenanceJobs({
   async purgeRoomScans() { return { processedCount: 0, batchFull: false }; },
   async expireJobPhotoUploads() { return { processedCount: 1, batchFull: false, uploads: [{ quarantineStorageKey: "q/job", finalStorageKey: "f/job" }] }; },
   async expireRequestPhotoUploads() { return { processedCount: 0, batchFull: false, uploads: [] }; }
-}, { objectStorage: { async deleteObject(key) { deletedObjects.push(key); } } });
-assert.equal(maintenanceJobs.length, 10);
+}, { objectStorage: { async deleteObject({ storageKey }) { deletedObjects.push(storageKey); } } });
+assert.equal(maintenanceJobs.length, 12);
 // Time-based deletion of room scans. Named explicitly rather than counted only,
 // because a retention job silently absent is a retention policy that quietly
 // does not run.
@@ -97,7 +106,7 @@ assert.deepEqual(await maintenanceJobs.find((job) => job.name === "invitation-ex
 assert.deepEqual(await maintenanceJobs.find((job) => job.name === "job-photo-upload-expiry").runOnce(), { batches: 1, processed: 1, objectsDeleted: 2, moreMayRemain: false });
 assert.deepEqual(deletedObjects, ["q/job", "f/job"]);
 
-const zeroRepository = Object.fromEntries(["expireInvitations", "queuePaymentReadinessReminders", "queueBookingVisitReminders", "purgeLocations", "purgeSessions", "purgeRateLimits", "purgePendingSocialIdentities", "purgeRoomScans"].map((name) => [name, async () => ({ processedCount: 0, batchFull: false })]));
+const zeroRepository = Object.assign({}, emptyTerminalRepository, Object.fromEntries(["expireInvitations", "queuePaymentReadinessReminders", "queueBookingVisitReminders", "purgeLocations", "purgeSessions", "purgeRateLimits", "purgePendingSocialIdentities", "purgeRoomScans"].map((name) => [name, async () => ({ processedCount: 0, batchFull: false })])));
 const runtime = createMarketplaceWorkerRuntime({ query() {} }, { createMaintenanceRepository: () => zeroRepository, onUnexpectedError() {} });
 assert.deepEqual(runtime.snapshot().jobs.map((job) => job.name), ["invitation-expiry", "location-expiry", "payment-readiness-reminders", "booking-visit-reminders", "session-expiry", "rate-limit-retention", "social-identity-retention", "room-scan-retention"]);
 await runtime.close();
@@ -176,3 +185,92 @@ assert.equal(verificationPoolClosed, 1);
 }
 
 console.log("Marketplace worker tests passed: exact packaged release, restricted maintenance, non-overlap, monitored recovery, privacy-safe health, optional capabilities, clean shutdown and disposable PostgreSQL verification guard.");
+
+// A bounded batch and five consumers prevent serial timeout accumulation.
+{
+  let active = 0, maximum = 0;
+  const deleted = new Set(), acknowledged = [];
+  const uploads = Array.from({length:8},(_,index)=>({uploadId:String(index),quarantineStorageKey:'q/'+index,finalStorageKey:'f/'+index}));
+  const fixture={...zeroRepository,
+    async expireJobPhotoUploads(limit){assert.equal(limit,10);return {processedCount:uploads.length,batchFull:false,uploads};},
+    async expireRequestPhotoUploads(){return {processedCount:0,batchFull:false,uploads:[]};},
+    async acknowledgeJobPhotoUploadCleanup(id){assert(deleted.has('q/'+id)&&deleted.has('f/'+id));acknowledged.push(id);},
+    async acknowledgeRequestPhotoUploadCleanup(){}
+  };
+  const job=createMarketplaceMaintenanceJobs(fixture,{objectStorage:{async deleteObject({storageKey}){
+    active++;maximum=Math.max(maximum,active);
+    await new Promise(resolve=>setImmediate(resolve));
+    deleted.add(storageKey);active--;
+  }}}).find(job=>job.name==='job-photo-upload-expiry');
+  const result=await job.runOnce();
+  assert.equal(maximum,5);assert.equal(result.objectsDeleted,16);assert.equal(acknowledged.length,8);
+  assert.equal(new Set(acknowledged).size,8);
+}
+
+// Exercise the real storage adapter contract; no network or real credentials.
+{
+  const id = '88888888-8888-4888-8888-888888888888';
+  const request = '55555555-5555-4555-8555-555555555555';
+  const keys = ['quarantine/request-photos/'+request+'/'+id, 'request-photos/'+request+'/'+id+'.jpg'];
+  const deleted = []; let failFinal = true; let failAck = false; let acknowledged = false;
+  class Command { constructor(input) { this.input = input; } }
+  class S3Client { async send(command) { if (failFinal && command.input.Key === keys[1]) throw Error('synthetic outage'); deleted.push(command.input.Key); return {}; } destroy() {} }
+  const sdk = { S3Client, ...Object.fromEntries(['HeadBucketCommand','PutObjectCommand','HeadObjectCommand','GetObjectCommand','DeleteObjectCommand'].map(name => [name, Command])) };
+  const storage = await createS3ObjectStorage({ NODE_ENV:'production', OBJECT_STORAGE_ENDPOINT:'https://objects.invalid.example',OBJECT_STORAGE_BUCKET:'tideway-private-test',OBJECT_STORAGE_REGION:'eu-west-2',OBJECT_STORAGE_ACCESS_KEY_ID:'synthetic-key',OBJECT_STORAGE_SECRET_ACCESS_KEY:'synthetic-secret' }, { s3ClientModule:sdk, presignerModule:{ async getSignedUrl() { throw Error('unused'); } }, sharp() { throw Error('unused'); } });
+  const fixture = { ...zeroRepository,
+    async expireJobPhotoUploads() { return {processedCount:0,batchFull:false,uploads:[]}; },
+    async expireRequestPhotoUploads() { return {processedCount:acknowledged?0:1,batchFull:false,uploads:acknowledged?[]:[{uploadId:id,quarantineStorageKey:keys[0],finalStorageKey:keys[1]}]}; },
+    async acknowledgeJobPhotoUploadCleanup() { throw Error('unused'); },
+    async acknowledgeRequestPhotoUploadCleanup(uploadId) { assert.equal(uploadId,id); if(failAck) throw Error('synthetic database outage'); acknowledged=true; }
+  };
+  const job=createMarketplaceMaintenanceJobs(fixture,{objectStorage:storage}).find(job=>job.name==='request-photo-upload-expiry');
+  await assert.rejects(job.runOnce(), /remains pending/);
+  assert.deepEqual(deleted,[keys[0]]); assert.equal(acknowledged,false);
+  failFinal=false; failAck=true;
+  await assert.rejects(job.runOnce(), /remains pending/);
+  assert.equal(acknowledged,false); assert.deepEqual(deleted.slice(-2),keys);
+  failAck=false;
+  assert.equal((await job.runOnce()).objectsDeleted,2); assert.equal(acknowledged,true);
+  assert.equal((await job.runOnce()).processed,0);
+  // A late provider write is represented by a due tombstone resweep.
+  acknowledged=false;
+  assert.equal((await job.runOnce()).objectsDeleted,2);
+  storage.close();
+}
+
+// One failed object must not strand later uploads from the same batch.
+{
+  const acknowledged=[];
+  const fixture={...zeroRepository,
+    async expireJobPhotoUploads(){return {processedCount:3,batchFull:false,uploads:[
+      {uploadId:'malformed',quarantineStorageKey:'',finalStorageKey:null},
+      {uploadId:'failed',quarantineStorageKey:'q/failed',finalStorageKey:'f/failed'},
+      {uploadId:'healthy',quarantineStorageKey:'q/healthy',finalStorageKey:'f/healthy'}]};},
+    async expireRequestPhotoUploads(){return {processedCount:0,batchFull:false,uploads:[]};},
+    async acknowledgeJobPhotoUploadCleanup(id){acknowledged.push(id);},
+    async acknowledgeRequestPhotoUploadCleanup(){}
+  };
+  const job=createMarketplaceMaintenanceJobs(fixture,{objectStorage:{async deleteObject({storageKey}){if(storageKey==='q/failed')throw Error('synthetic outage');}}}).find(job=>job.name==='job-photo-upload-expiry');
+  await assert.rejects(job.runOnce(),/remains pending/);
+  assert.deepEqual(acknowledged,['healthy']);
+  const rejectedAck=createMaintenanceRepository({async query(){return {rows:[{acknowledged:false}]};}});
+  await assert.rejects(rejectedAck.acknowledgeRequestPhotoUploadCleanup('88888888-8888-4888-8888-888888888888'),/not acknowledged/);
+}
+
+// Terminal cleanup repository preserves explicit DB-selected keys/status and
+// fails closed when acknowledgments fail, without exposing a final-image field.
+{
+  const id='88888888-8888-4888-8888-888888888888',calls=[];
+  const q='quarantine/request-photos/66666666-6666-4666-8666-666666666666/'+id;
+  const repo=createMaintenanceRepository({async query(text,values){calls.push({text,values});return text.includes('acknowledge')?{rows:[{acknowledged:true}]}:{rows:[{upload_id:id,upload_status:'completed',cleanup_keys:[q]}]};}});
+  for(const kind of ['Job','Request']){
+    const result=await repo['claim'+kind+'PhotoTerminalCleanup'](10);
+    assert.deepEqual(result,{processedCount:1,batchFull:false,uploads:[{uploadId:id,status:'completed',cleanupKeys:[q]}]});
+    assert.equal(Object.hasOwn(result.uploads[0],'finalStorageKey'),false);
+    await repo['acknowledge'+kind+'PhotoTerminalCleanup'](id,'completed');
+    assert.deepEqual(calls.at(-1).values,[id,'completed']);assert(calls.at(-1).text.includes('$2::text'));
+  }
+  const failed=createMaintenanceRepository({async query(){return {rows:[{acknowledged:false}]};}});
+  await assert.rejects(failed.acknowledgeJobPhotoTerminalCleanup(id,'rejected'),/not acknowledged/);
+  await assert.rejects(repo.claimRequestPhotoTerminalCleanup(11),/outside/);
+}

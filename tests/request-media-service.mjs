@@ -1,3 +1,5 @@
+import strictAssert from "node:assert/strict";
+import { createMarketplaceMaintenanceJobs } from "../src/marketplace/maintenance-worker.mjs";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createRequestMediaRepository } from "../src/marketplace/request-media-repository.mjs";
@@ -121,3 +123,49 @@ currentTime = new Date("2026-07-16T12:00:00.000Z");
 const corruptService = createRequestMediaService({ ...repository, async getPhotoObject() { return imageRecord; } }, { now: () => currentTime, objectStorage: { async readPrivateImage() { return Buffer.alloc(imageBytes.length); } } });
 assert(await rejects(() => corruptService.getPhotoContent(landlord, requestId, uploadId, privateAccess.expiresAt), "temporarily unavailable"), "Mismatched private bytes escaped integrity verification.");
 console.log("Request-photo revocation: copied account, expired link, withdrawn permission, in-flight withdrawal and byte integrity passed.");
+
+// Reproduce real service completion/rejection with storage deletion failure,
+// then run the actual durable worker. All provider bytes and DB rows synthetic.
+for (const rejected of [false,true]) {
+  let status='pending', failDelete=true, acked=false, failAck=false;
+  const row=upload(); const objects=new Set([row.quarantineStorageKey,row.finalStorageKey]);
+  const deletions=[];
+  const syntheticStorage={...storage,
+    async headObject(){return {mimeType:row.mimeType,byteSize:rejected?1:row.byteSize,checksumSha256:row.checksumSha256};},
+    async deleteObject({storageKey}){deletions.push(storageKey);if(failDelete)throw Error('synthetic storage outage');objects.delete(storageKey);}
+  };
+  const syntheticRepository={...repository,
+    async getUploadForCompletion(){return {...row,status};},
+    async completeUpload(){status='completed';return scan();},
+    async rejectUpload(){status='rejected';}
+  };
+  const actual=createRequestMediaService(syntheticRepository,{objectStorage:syntheticStorage});
+  if(rejected) await strictAssert.rejects(actual.completeUpload(landlord,requestId,uploadId),/does not match/);
+  else strictAssert.equal((await actual.completeUpload(landlord,requestId,uploadId)).photos.length,1);
+  strictAssert.equal(status,rejected?'rejected':'completed');strictAssert.equal(objects.size,2);
+  const empty=async()=>({processedCount:0,batchFull:false,uploads:[]});
+  const maintenance=Object.fromEntries(['expireInvitations','purgeLocations','queuePaymentReadinessReminders','queueBookingVisitReminders','purgeSessions','purgeRateLimits','purgePendingSocialIdentities','purgeRoomScans','expireJobPhotoUploads','expireRequestPhotoUploads','claimJobPhotoTerminalCleanup'].map(name=>[name,empty]));
+  Object.assign(maintenance,{
+    async acknowledgeJobPhotoUploadCleanup(){},async acknowledgeRequestPhotoUploadCleanup(){},async acknowledgeJobPhotoTerminalCleanup(){},
+    async claimRequestPhotoTerminalCleanup(){return {processedCount:acked?0:1,batchFull:false,uploads:acked?[]:[{uploadId,status,cleanupKeys:rejected?[row.quarantineStorageKey,row.finalStorageKey]:[row.quarantineStorageKey]}]};},
+    async acknowledgeRequestPhotoTerminalCleanup(id,observedStatus){strictAssert.equal(id,uploadId);strictAssert.equal(observedStatus,status);if(failAck)throw Error('synthetic ack outage');acked=true;}
+  });
+  const job=createMarketplaceMaintenanceJobs(maintenance,{objectStorage:syntheticStorage}).find(job=>job.name==='request-photo-terminal-cleanup');
+  await strictAssert.rejects(job.runOnce(),/remains pending/);strictAssert.equal(acked,false);
+  failDelete=false;failAck=true;
+  await strictAssert.rejects(job.runOnce(),/remains pending/);strictAssert.equal(acked,false);
+  failAck=false;await job.runOnce();strictAssert.equal(acked,true);
+  strictAssert.equal(objects.has(row.quarantineStorageKey),false);
+  strictAssert.equal(objects.has(row.finalStorageKey),!rejected);
+  strictAssert.equal(deletions.includes(row.finalStorageKey),rejected);
+  // Model a late write and the SQL daily resweep. Valid final remains untouched.
+  objects.add(row.quarantineStorageKey);acked=false;await job.runOnce();
+  strictAssert.equal(objects.has(row.quarantineStorageKey),false);
+  strictAssert.equal(objects.has(row.finalStorageKey),!rejected);
+  // Corrupt completed projection must fail before either delete or acknowledgment.
+  const previousCalls=deletions.length;acked=false;
+  maintenance.claimRequestPhotoTerminalCleanup=async()=>({processedCount:1,batchFull:false,uploads:[{uploadId,status:'completed',cleanupKeys:[row.quarantineStorageKey,row.finalStorageKey]}]});
+  await strictAssert.rejects(job.runOnce(),/remains pending/);
+  strictAssert.equal(deletions.length,previousCalls);strictAssert.equal(acked,false);
+}
+console.log('Terminal media cleanup regression passed: actual service delete failure, durable retry, acknowledgment failure, late write and valid final-image preservation.');

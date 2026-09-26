@@ -574,7 +574,17 @@
     },
     {
       "order": 115,
-      "file": "115_external_payment_observations.sql",
+      "file": "115_media_expiry_recovery.sql",
+      "sha256": "dc4b7c6b37ff2aaefd5a394736f880d0dbd59d5914b4a3e194b22666050eeac5"
+    },
+    {
+      "order": 116,
+      "file": "116_media_terminal_cleanup.sql",
+      "sha256": "64d78b1152090a2e4b04f70bb3c0064cdaece053ad51d76b27941f53d7d12130"
+    },
+    {
+      "order": 117,
+      "file": "117_external_payment_observations.sql",
       "sha256": "53cd53d1e9118c0f9952188aa34174eddb9601a45f237b48222929a5abac2e66"
     }
   ],
@@ -585,7 +595,7 @@
     },
     {
       "file": "worker-role-grants.sql",
-      "sha256": "ad8116f468627ed9d6f8c4351990951c9d3e52fec0fd93c99070f5b6b52549c0"
+      "sha256": "c6a33db6304caa949d9a7ed86818fc1c91195f673f40185b76e2ca959654fcb3"
     }
   ]
 }
