@@ -789,6 +789,14 @@ BEGIN
       AND event.result_code IN ('awaiting-event-parent-identity','payment-event-parent-mismatch','transfer-attempt-identity-unavailable')
     ORDER BY event.received_at,event.provider_event_id LIMIT 1;
   IF FOUND THEN required:=true; held:=true; reason:=identity_reason; END IF;
+  -- Older applied flags are not sufficient to construct an external-object
+  -- anchor. Keep the exact command visible even when its signed event or parent
+  -- proof is absent; a current GET must not remove this historical hold.
+  IF c.command_kind='refund' AND (c.provider_success_applied OR c.provider_terminal_failure)
+    AND NOT EXISTS(SELECT 1 FROM tideway_private.payment_observed_objects anchor
+      WHERE anchor.payment_id=c.payment_id AND anchor.command_id=c.id) THEN
+    required:=true; held:=true; reason:='historical-refund-anchor-unverified';
+  END IF;
   RETURN jsonb_build_object('commandId',c.id,'kind',c.command_kind,'status',c.status,'recoveryReason',reason,
     'checkedAt',latest_checked_at,'recoveryRequired',required,'reviewRequired',held);
 END;

@@ -186,6 +186,47 @@ BEGIN
 END;
 $missing_parent$;
 ROLLBACK TO observations_base;
+DO $historical_anchor_visibility$
+DECLARE p uuid:='50000000-0000-4000-8000-000000000010'; succeeded uuid:='59000000-0000-4000-8000-000000000010';
+ failed uuid:='59000000-0000-4000-8000-000000000011'; r jsonb; state jsonb; c uuid; object_id text; blocked boolean:=false;
+BEGIN
+ -- Owner-only seed models legacy applied flags with missing original proof.
+ -- These are not new provider facts and must not be treated as verified anchors.
+ UPDATE booking_payments SET status='partially-refunded',amount_refunded_pence=1000 WHERE id=p;
+ INSERT INTO payment_commands(id,payment_id,command_kind,amount_pence,status,provider_command_id,idempotency_key_hash,created_by,provider_success_applied,provider_terminal_failure)
+ VALUES(succeeded,p,'refund',1000,'reconciled','re_historical_unverified_success',decode(repeat('9b',32),'hex'),tideway_private.current_user_id(),true,false),
+   (failed,p,'refund',500,'provider-failed','re_historical_unverified_failure',decode(repeat('9c',32),'hex'),tideway_private.current_user_id(),false,true);
+ INSERT INTO tideway_private.payment_provider_events(provider,provider_event_id,event_kind,provider_object_id,payment_id,command_id,amount_pence,currency,occurred_at,payload_hash,processed,result_code,reconciliation_version)
+ VALUES('stripe','evt_historical_without_parent','refund-succeeded','re_historical_unverified_success',p,succeeded,1000,'gbp',now()-interval '1 minute',repeat('f',64),true,'processed',1);
+ FOREACH c IN ARRAY ARRAY[succeeded,failed] LOOP
+   state:=tideway_private.payment_command_recovery_state(c);
+   IF state->>'recoveryRequired' IS DISTINCT FROM 'true' OR state->>'reviewRequired' IS DISTINCT FROM 'true'
+     OR state->>'recoveryReason' IS DISTINCT FROM 'historical-refund-anchor-unverified' THEN RAISE EXCEPTION 'Unanchored historical command disappeared behind applied flags'; END IF;
+ END LOOP;
+ r:=tideway_private.get_administrator_booking_payment_operation('40000000-0000-4000-8000-000000000003');
+ IF r->>'reconciliationReviewRequired' IS DISTINCT FROM 'true' OR r->>'canRefund' IS DISTINCT FROM 'false' OR r->>'canTransfer' IS DISTINCT FROM 'false'
+   OR jsonb_array_length(r->'observations')<>0
+   OR (SELECT count(*) FROM jsonb_array_elements(r->'recoveryCommands') item WHERE item->>'recoveryReason'='historical-refund-anchor-unverified')<>2
+   THEN RAISE EXCEPTION 'Historical hold has no exact administrator command guidance, fabricated observations, or reopened money buttons'; END IF;
+ FOREACH c IN ARRAY ARRAY[succeeded,failed] LOOP
+   object_id:=CASE WHEN c=succeeded THEN 're_historical_unverified_success' ELSE 're_historical_unverified_failure' END;
+   r:=tideway_private.record_payment_command_recovery(c,'found-awaiting-signed-evidence',NULL,object_id,
+     jsonb_build_object('source','stripe-api-discovery','amountPence',CASE WHEN c=succeeded THEN 1000 ELSE 500 END,
+       'currency','gbp','providerPaymentId','pi_payment_ordering','observedStatus',CASE WHEN c=succeeded THEN 'succeeded' ELSE 'failed' END));
+   IF r->>'recoveryRequired' IS DISTINCT FROM 'true' OR r->>'recoveryReason' IS DISTINCT FROM 'historical-refund-anchor-unverified' OR r->>'signedEventsReplayed' IS DISTINCT FROM '0'
+     OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000
+     OR EXISTS(SELECT 1 FROM tideway_private.payment_observed_objects WHERE payment_id=p)
+     OR EXISTS(SELECT 1 FROM tideway_private.payment_event_parent_identities WHERE provider_event_id='evt_historical_without_parent')
+     THEN RAISE EXCEPTION 'Unsigned historical discovery fabricated a parent, anchor, money delta or successful replay'; END IF;
+   state:=tideway_private.payment_command_recovery_state(c);
+   IF state->>'recoveryReason' IS DISTINCT FROM 'historical-refund-anchor-unverified' THEN RAISE EXCEPTION 'Unsigned discovery erased precise historical guidance'; END IF;
+ END LOOP;
+ BEGIN PERFORM * FROM tideway_private.begin_booking_payment_command('59000000-0000-4000-8000-000000000012',p,'refund',500,decode(repeat('9d',32),'hex'));
+ EXCEPTION WHEN SQLSTATE 'P0001' THEN IF SQLERRM<>'payment-reconciliation-required' THEN RAISE; END IF; blocked:=true; END;
+ IF NOT blocked THEN RAISE EXCEPTION 'Historical proof gap allowed a new money request'; END IF;
+END;
+$historical_anchor_visibility$;
+ROLLBACK TO observations_base;
 DO $private_access$
 DECLARE denied boolean:=false;
 BEGIN

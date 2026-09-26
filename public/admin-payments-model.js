@@ -51,6 +51,8 @@ function paymentObservations(value) {
 }
 
 export function paymentRecoveryReasonLabel(reason) {
+  if (reason === "historical-refund-anchor-unverified")
+    return "This earlier refund lacks verified original payment details. Retry delivery of its original signed refund event from Stripe. Checking the current provider record alone cannot verify the historical balance; money actions remain on hold.";
   if (reason === "superseded-before-dispatch")
     return "This action was not sent to Stripe because the payment changed before dispatch. Review the refreshed balance before starting a new action.";
   if (reason === "awaiting-event-parent-identity")

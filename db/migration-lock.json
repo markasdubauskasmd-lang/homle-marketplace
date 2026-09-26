@@ -575,7 +575,7 @@
     {
       "order": 115,
       "file": "115_external_payment_observations.sql",
-      "sha256": "9fe8f73fbba0643140635862e29abb933cfd100bdc3a19a3345b56f2d859d3f4"
+      "sha256": "53cd53d1e9118c0f9952188aa34174eddb9601a45f237b48222929a5abac2e66"
     }
   ],
   "grantFiles": [

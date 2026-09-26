@@ -14,6 +14,7 @@ const record = { paymentId, bookingId, paymentStatus: "captured", bookingStatus:
 const page = (payment = record, offset = 0) => ({ ok: true, payments: [payment], limit: 50, offset, testMode: true });
 const held = { ...record, recoveryCommands: [command], reconciliationReviewRequired: true };
 for (const [reason, explanation] of [
+  ["historical-refund-anchor-unverified", /original signed refund event from Stripe/],
   ["awaiting-event-parent-identity", /Retry its delivery from Stripe/],
   ["payment-event-parent-mismatch", /different payment or payout instructions/],
   ["transfer-attempt-identity-unavailable", /original payout source or destination is unavailable/]
