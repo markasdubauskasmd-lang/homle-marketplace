@@ -22,6 +22,7 @@ const preparedCommands = new Map();
 let idIndex = 0;
 
 const repository = {
+  async replayObservations(actor, selectedPaymentId) { calls.push({ kind: "observation-replay", actor, selectedPaymentId }); return { paymentId: selectedPaymentId, recoveryRequired: true, signedEventsReplayed: 2 }; },
   async getByBooking(actor, selectedBookingId) {
     calls.push({ kind: "get-payment", actor, selectedBookingId });
     return { paymentId, bookingId: selectedBookingId, status: "authorized", amountPence: 12_000, currency: "gbp", amountCapturedPence: 0, amountRefundedPence: 0, providerPaymentId: "pi_test_private" };
@@ -100,6 +101,10 @@ const provider = {
 };
 
 const service = createPaymentService(repository, provider, { publishableKey, createId: () => idIndex++ === 0 ? paymentId : commandIds[idIndex - 2] });
+await assert.rejects(service.replayObservations(landlord, paymentId), error => error.statusCode === 403);
+await assert.rejects(service.replayObservations(cleaner, paymentId), error => error.statusCode === 403);
+assert(!calls.some(call => call.kind === "observation-replay"));
+assert.deepEqual(await service.replayObservations(administrator, paymentId), { paymentId, recoveryRequired: true, signedEventsReplayed: 2 });
 assert.deepEqual(service.getClientConfiguration(landlord), { publishableKey, testMode: true });
 await assert.rejects(async () => service.getClientConfiguration(cleaner), (error) => error.code === "payment-role-required");
 const paymentStatus = await service.getForBooking(landlord, bookingId);
@@ -158,7 +163,7 @@ assert.equal(calls.filter((call) => call.kind === "reconcile").length, reconcile
 
 // Parent relationships must survive the service allowlist all the way to the
 // atomic database check; missing or malformed references cannot become null.
-for (const kind of ["refund-succeeded", "refund-failed", "transfer-succeeded", "transfer-reversed"]) {
+for (const kind of ["refund-pending", "refund-succeeded", "refund-failed", "transfer-succeeded", "transfer-reversed"]) {
   const isTransfer = kind.startsWith("transfer-");
   const signed = {eventId: "evt_parent_bound", kind, objectId: isTransfer ? "tr_original_transfer" : "re_original_refund",
     paymentId, commandId: commandIds[0], amountPence: 2000, currency: "gbp", occurredAt: new Date().toISOString(),

@@ -214,6 +214,7 @@ const privacyRequestService = {
 };
 let paymentStarted = false;
 const paymentService = {
+  async replayObservations(actor, paymentId) { calls.push({ kind: "observation-replay", actor, paymentId }); return { paymentId, recoveryRequired: false, signedEventsReplayed: 1 }; },
   async recoverCommand(actor, commandId) { calls.push({ kind: "payment-recovery", actor, commandId }); return { commandId, paymentId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", kind: "refund", status: "provider-pending", recoveryRequired: true, recoveryReason: "awaiting-signed-evidence", signedEventsReplayed: 0 }; },
   getClientConfiguration(actor) { calls.push({ kind: "payment-config", actor }); return { publishableKey: `pk_test_${"p".repeat(32)}`, testMode: true }; },
   async beginSandboxCheckout(actor, input) {
@@ -486,6 +487,16 @@ assert(await noPaymentRouter.handle(request("POST", sandboxCheckoutUrl), absentS
 
 const adminPaymentQueue = await dispatch(router, "GET", "/api/marketplace/admin/payments?status=actionable&limit=25&offset=0", { headers: { cookie: administratorAuthHeaders.cookie } });
 const recoveryPath = "/api/marketplace/admin/payment-commands/dddddddd-dddd-4ddd-8ddd-dddddddddddd/recover";
+const observationPath = "/api/marketplace/admin/payments/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/observations/replay";
+assert((await dispatch(router, "POST", observationPath, { body: {} })).response.statusCode === 401);
+assert((await dispatch(router, "POST", observationPath, { headers: authHeaders, body: {} })).response.statusCode === 403);
+assert((await dispatch(router, "POST", observationPath, { headers: { ...administratorAuthHeaders, "x-csrf-token": "" }, body: {} })).response.statusCode === 403);
+assert((await dispatch(router, "POST", observationPath, { headers: { ...administratorAuthHeaders, origin: "https://unrelated.example" }, body: {} })).response.statusCode === 403);
+assert((await dispatch(router, "GET", observationPath, { headers: administratorAuthHeaders })).response.statusCode === 405);
+assert((await dispatch(router, "POST", observationPath, { headers: administratorAuthHeaders, body: { amountPence: 1000 } })).response.statusCode === 422);
+assert(!calls.some(call => call.kind === "observation-replay"), "Denied replay reached financial evidence repository");
+const observationReplay = await dispatch(router, "POST", observationPath, { headers: administratorAuthHeaders, body: {} });
+assert(observationReplay.response.statusCode === 200 && observationReplay.body.recovery.signedEventsReplayed === 1);
 const recoveryCallsBefore = calls.filter(call => call.kind === "payment-recovery").length;
 for (const [headers, statusCode] of [[{},401], [authHeaders,403], [{ cookie: administratorAuthHeaders.cookie, origin: administratorAuthHeaders.origin, "content-type": "application/json" },403]]) {
   const denied = await dispatch(router, "POST", recoveryPath, { headers, body: {} });

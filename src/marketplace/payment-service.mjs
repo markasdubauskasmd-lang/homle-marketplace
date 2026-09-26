@@ -10,6 +10,8 @@ const bookingStatuses = new Set(["confirmed", "cleaner-en-route", "cleaner-arriv
 const commandStatuses = new Set(["created", "provider-pending", "provider-failed", "reconciled"]);
 const disputeStatuses = new Set(["warning_needs_response", "warning_under_review", "needs_response", "under_review", "won", "lost", "warning_closed", "prevented", "unknown", "conflict"]);
 const eventKinds = new Set([
+  "refund-pending",
+  "intent-cancelled-observed",
   "authorization-requires-action",
   "authorization-processing",
   "authorization-succeeded",
@@ -110,7 +112,17 @@ function administratorPaymentOperation(value) {
       recoveryRequired: command.recoveryRequired, recoveryReason: recoveryReason(command.recoveryReason),
       checkedAt: command.checkedAt == null ? null : timestamp(command.checkedAt, "Payment recovery check") });
   });
-  const reconciliationReviewRequired = record.reconciliationReviewRequired === true || recoveryCommands.some(command => command.recoveryRequired);
+  if (!Array.isArray(record.observations || []) || (record.observations || []).length > 100) throw new Error("Payment observation details are unavailable.");
+  const observations = (record.observations || []).map(item => {
+    if (!["refund", "cancellation"].includes(item.kind) || !["pending", "succeeded", "failed", "cancelled", "unresolved"].includes(item.status)
+      || !new RegExp(`^${item.kind === "refund" ? "re" : "pi"}_[A-Za-z0-9_]{3,250}$`).test(item.providerObjectId || "")
+      || !/^evt_[A-Za-z0-9_]{3,250}$/.test(item.lastEventId || "") || typeof item.requiresReview !== "boolean") throw new Error("Payment observation details are unavailable.");
+    const amount = positiveInteger(item.amountPence, "Observed amount");
+    return Object.freeze({ providerObjectId: item.providerObjectId, kind: item.kind, status: item.status, amountPence: amount,
+      appliedPence: exactInteger(item.appliedPence, 0, amount, "Observed applied amount"), reason: recoveryReason(item.reason),
+      lastEventId: item.lastEventId, requiresReview: item.requiresReview });
+  });
+  const reconciliationReviewRequired = record.reconciliationReviewRequired === true || recoveryCommands.some(command => command.recoveryRequired) || observations.some(item => item.requiresReview);
   const result = {
     paymentId: uuid(record.paymentId, "payment id"),
     bookingId: uuid(record.bookingId, "booking id"),
@@ -130,6 +142,7 @@ function administratorPaymentOperation(value) {
     canTransfer: !disputeReviewRequired && !reconciliationReviewRequired && record.canTransfer === true,
     reconciliationReviewRequired,
     recoveryCommands: Object.freeze(recoveryCommands),
+    observations: Object.freeze(observations),
     disputeReviewRequired,
     disputes: Object.freeze(disputes),
     awaitingProvider: record.awaitingProvider === true,
@@ -212,6 +225,14 @@ function normalizedEvent(value, payloadHash) {
       if (value.destinationAccountId != null) throw new TypeError("The payment provider returned an unexpected refund destination identity.");
       result.destinationAccountId = null;
     }
+  }
+  if (value.kind === "intent-cancelled-observed") {
+    if (!/^pi_[A-Za-z0-9_]{3,250}$/.test(value.providerPaymentId || "") || value.providerPaymentId !== value.objectId
+      || value.sourceChargeId != null || value.destinationAccountId != null) throw new TypeError("The cancellation parent identity is invalid.");
+    result.commandId = null;
+    result.providerPaymentId = value.providerPaymentId;
+    result.sourceChargeId = null;
+    result.destinationAccountId = null;
   }
   if (value.kind === "dispute-opened" || value.kind === "dispute-closed") {
     if (value.disputeId != null && !/^du_[A-Za-z0-9_]{3,250}$/.test(value.disputeId)) throw new TypeError("The payment provider returned an invalid dispute identity.");
@@ -310,6 +331,14 @@ export function createPaymentService(repository, provider, options = {}) {
   }
 
   return Object.freeze({
+    async replayObservations(actor, paymentId) {
+      requireRole(actor, "administrator");
+      const id = uuid(paymentId, "payment id");
+      const result = await repository.replayObservations(actor, id);
+      if (!result || result.paymentId !== id || typeof result.recoveryRequired !== "boolean") throw new Error("Payment observation recovery is unavailable.");
+      return Object.freeze({ paymentId: id, recoveryRequired: result.recoveryRequired,
+        signedEventsReplayed: exactInteger(result.signedEventsReplayed, 0, 100, "Replayed payment events") });
+    },
     async recoverCommand(actor, commandId) {
       requireRole(actor, "administrator");
       const selectedId = uuid(commandId, "payment command id");

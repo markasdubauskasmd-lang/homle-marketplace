@@ -581,6 +581,11 @@
       "order": 116,
       "file": "116_media_terminal_cleanup.sql",
       "sha256": "64d78b1152090a2e4b04f70bb3c0064cdaece053ad51d76b27941f53d7d12130"
+    },
+    {
+      "order": 117,
+      "file": "117_external_payment_observations.sql",
+      "sha256": "53cd53d1e9118c0f9952188aa34174eddb9601a45f237b48222929a5abac2e66"
     }
   ],
   "grantFiles": [

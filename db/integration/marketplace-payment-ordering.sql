@@ -208,6 +208,7 @@ DECLARE
   event_name text;
 BEGIN
   DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN (SELECT id FROM payment_commands WHERE payment_id=p);
+  DELETE FROM tideway_private.payment_observed_objects WHERE payment_id=p;
   DELETE FROM payment_commands WHERE payment_id=p;
   UPDATE booking_payments SET status='captured',amount_refunded_pence=0,last_provider_event_at=now()-interval '1 minute' WHERE id=p;
   SELECT * INTO payment FROM booking_payments WHERE id=p;
@@ -296,6 +297,7 @@ BEGIN
 
   -- Capture/refund signed events may arrive after a later dispute timestamp.
   DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN (SELECT id FROM payment_commands WHERE payment_id=p);
+  DELETE FROM tideway_private.payment_observed_objects WHERE payment_id=p;
   DELETE FROM payment_commands WHERE payment_id=p;
   UPDATE booking_payments SET amount_captured_pence=0,amount_refunded_pence=0 WHERE id=p;
   INSERT INTO payment_commands(id,payment_id,command_kind,amount_pence,status,idempotency_key_hash,created_by)
@@ -304,6 +306,7 @@ BEGIN
   IF result->>'accepted'<>'true' OR (SELECT amount_captured_pence FROM booking_payments WHERE id=p)<>payment.amount_pence OR (SELECT status FROM booking_payments WHERE id=p)<>'disputed'
     THEN RAISE EXCEPTION 'Delayed capture was discarded or erased the hold'; END IF;
   DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN (SELECT id FROM payment_commands WHERE payment_id=p);
+  DELETE FROM tideway_private.payment_observed_objects WHERE payment_id=p;
   DELETE FROM payment_commands WHERE payment_id=p;
   INSERT INTO payment_commands(id,payment_id,command_kind,amount_pence,status,idempotency_key_hash,created_by)
     VALUES(c,p,'refund',1000,'provider-pending',decode(repeat('ed',32),'hex'),'10000000-0000-4000-8000-000000000004');
@@ -318,6 +321,7 @@ BEGIN
 
   DELETE FROM tideway_private.payment_disputes WHERE payment_id=p;
   DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN (SELECT id FROM payment_commands WHERE payment_id=p);
+  DELETE FROM tideway_private.payment_observed_objects WHERE payment_id=p;
   DELETE FROM payment_commands WHERE payment_id=p;
   UPDATE booking_payments SET status='authorized',amount_refunded_pence=0,amount_captured_pence=0 WHERE id=p;
   PERFORM pg_temp.test_dispute_event('evt_won_before_capture','du_won_before_capture','won',t);
@@ -375,5 +379,6 @@ $receipt_owner$;
 
 \ir marketplace-payment-recovery.sql
 \ir marketplace-payment-event-identity.sql
+\ir marketplace-payment-observations.sql
 
 ROLLBACK;

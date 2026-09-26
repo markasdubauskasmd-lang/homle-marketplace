@@ -121,6 +121,40 @@ const provider = { name: "stripe", async prepareCommandAttempt() { preparedLooku
 const dispatch = () => dispatchPersistedPaymentCommand({ actor: administrator, prepared: { ...state, destinationAccountId: "acct_changed_current" }, kind: state.kind,
   request: { ...request, destinationAccountId: "acct_changed_current", sourceChargeId: "ch_changed_current" }, repository, provider,
   normalizeProviderCommand: result => ({ providerCommandId: result.id, status: result.status }) });
+{
+  const superseded = { ...persisted, status: "provider-failed", hasAttemptWindow: false, requestIdentity: null, supersededBeforeDispatch: true };
+  const attempted = [], reads = [];
+  const unavailableProvider = { ...provider,
+    async prepareCommandAttempt() { attempted.push("prepare"); throw Error("Provider unavailable"); },
+    async discoverCommandObject() { attempted.push("discover"); throw Error("Provider unavailable"); },
+    async transfer() { attempted.push("POST"); throw Error("Must not send"); }
+  };
+  const knownRepository = { ...repository,
+    async getCommandAttempt() { reads.push("role-bound-attempt"); return superseded; },
+    async getAdministratorCommandRecovery() { reads.push("admin-bound-recovery"); return superseded; },
+    async claimCommandAttempt() { throw Error("Known unsent command must not request a new claim"); },
+    async recordCommandRecovery() { throw Error("Known unsent command must not record phantom uncertainty"); }
+  };
+  const result = await dispatchPersistedPaymentCommand({ actor: administrator, prepared: superseded, kind: superseded.kind,
+    request, repository: knownRepository, provider: unavailableProvider, normalizeProviderCommand: value => value });
+  assert.equal(result.recoveryReason, "superseded-before-dispatch");
+  assert.equal(result.recoveryRequired, false);
+  const knownService = createPaymentService(knownRepository, unavailableProvider, { publishableKey: "pk_test_" + "p".repeat(32) });
+  assert.equal((await knownService.recoverCommand(administrator, commandId)).recoveryReason, "superseded-before-dispatch");
+  assert.deepEqual(attempted, [], "Known-unsent recovery consulted unavailable provider or sent money");
+  assert.deepEqual(reads, ["role-bound-attempt", "admin-bound-recovery"]);
+  await assert.rejects(knownService.recoverCommand({ ...administrator, roles: ["landlord"] }, commandId), error => error.statusCode === 403);
+  assert.equal(reads.length, 2, "Role denial must precede even the known-unsent lookup");
+  await assert.rejects(dispatchPersistedPaymentCommand({ actor: administrator, prepared: { ...superseded, paymentId: bookingId },
+    kind: superseded.kind, request, repository: knownRepository, provider: unavailableProvider, normalizeProviderCommand: value => value }), /persisted payment action/);
+}
+const notSent = await dispatchPersistedPaymentCommand({ actor: administrator, prepared: persisted, kind: persisted.kind, request, provider,
+  repository: { ...repository, async claimCommandAttempt() { return { action: "not-sent", status: "provider-failed", recoveryReason: "superseded-before-dispatch" }; } },
+  normalizeProviderCommand: value => value });
+assert.equal(notSent.recoveryReason, "superseded-before-dispatch");
+assert.equal(notSent.recoveryRequired, false);
+assert.equal(monetaryCalls.length, 0, "Superseded never-sent action called provider");
+assert.equal(discoveryReads, 0, "Known never-sent action invented an unknown provider outcome");
 await dispatch();
 state = { ...persisted, requestIdentity: Object.fromEntries(Object.entries(request).reverse()) };
 await dispatch();
