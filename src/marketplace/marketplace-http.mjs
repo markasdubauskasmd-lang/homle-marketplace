@@ -326,6 +326,17 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, matchingReadiness: readiness });
           return true;
         }
+        const selectedObservationPayment = pathname.match(/^\/api\/marketplace\/admin\/payments\/([0-9a-f-]{36})\/observations\/replay$/i);
+        if (selectedObservationPayment) {
+          if (!payments) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const input = await readJsonObject(request);
+          if (Object.keys(input).length) throw new TypeError("Recorded payment evidence replay does not accept payment instructions.");
+          const recovery = await payments.replayObservations(context.actor, selectedObservationPayment[1]);
+          sendJson(response, 200, { ok: true, recovery });
+          return true;
+        }
         const selectedRecoveryCommand = pathname.match(/^\/api\/marketplace\/admin\/payment-commands\/([0-9a-f-]{36})\/recover$/i);
         if (selectedRecoveryCommand) {
           if (!payments) return false;

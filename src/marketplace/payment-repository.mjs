@@ -136,6 +136,14 @@ export function createPaymentRepository(database) {
         } catch (error) { throw mapError(error); }
       });
     },
+    replayObservations(actor, paymentId) {
+      return database.withUserTransaction(actor, async client => {
+        try {
+          const result = await client.query("SELECT tideway_private.replay_payment_observations($1::uuid) AS result", [paymentId]);
+          return result.rows[0]?.result || null;
+        } catch (error) { throw mapError(error); }
+      });
+    },
     getAdministratorCommandRecovery(actor, commandId) {
       return database.withUserTransaction(actor, async client => {
         try {
@@ -178,7 +186,7 @@ export function createPaymentRepository(database) {
           );
           return Object.freeze(result.rows[0]?.result || { accepted: false, duplicate: false });
         }
-        const parentBound = input.kind.startsWith("refund-") || input.kind.startsWith("transfer-");
+        const parentBound = input.kind.startsWith("refund-") || input.kind.startsWith("transfer-") || input.kind === "intent-cancelled-observed";
         const values = [input.provider, input.providerEventId, input.kind, input.providerObjectId, input.paymentId, input.commandId, input.amountPence, input.currency, input.occurredAt, input.payloadHash];
         if (parentBound) values.push(input.providerPaymentId, input.sourceChargeId, input.destinationAccountId ?? null);
         const result = await client.query(

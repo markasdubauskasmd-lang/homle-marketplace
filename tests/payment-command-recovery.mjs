@@ -121,6 +121,13 @@ const provider = { name: "stripe", async prepareCommandAttempt() { preparedLooku
 const dispatch = () => dispatchPersistedPaymentCommand({ actor: administrator, prepared: { ...state, destinationAccountId: "acct_changed_current" }, kind: state.kind,
   request: { ...request, destinationAccountId: "acct_changed_current", sourceChargeId: "ch_changed_current" }, repository, provider,
   normalizeProviderCommand: result => ({ providerCommandId: result.id, status: result.status }) });
+const notSent = await dispatchPersistedPaymentCommand({ actor: administrator, prepared: persisted, kind: persisted.kind, request, provider,
+  repository: { ...repository, async claimCommandAttempt() { return { action: "not-sent", status: "provider-failed", recoveryReason: "superseded-before-dispatch" }; } },
+  normalizeProviderCommand: value => value });
+assert.equal(notSent.recoveryReason, "superseded-before-dispatch");
+assert.equal(notSent.recoveryRequired, false);
+assert.equal(monetaryCalls.length, 0, "Superseded never-sent action called provider");
+assert.equal(discoveryReads, 0, "Known never-sent action invented an unknown provider outcome");
 await dispatch();
 state = { ...persisted, requestIdentity: Object.fromEntries(Object.entries(request).reverse()) };
 await dispatch();

@@ -44,6 +44,10 @@ export async function dispatchPersistedPaymentCommand({ actor, prepared, kind, r
   const requestHash = createHash("sha256").update(JSON.stringify(identity, Object.keys(identity).sort())).digest();
   const requestedAt = performance.now();
   const grant = await repository.claimCommandAttempt(actor, prepared.commandId, { requestHash, identity });
+  if (grant?.action === "not-sent") {
+    return Object.freeze({ commandId: prepared.commandId, paymentId: prepared.paymentId, kind,
+      status: "provider-failed", recoveryRequired: false, recoveryReason: "superseded-before-dispatch", signedEventsReplayed: 0 });
+  }
   if (canDispatchCommand(grant, requestedAt)) {
     try {
       const result = normalizeProviderCommand(await provider[kind]({ ...grant.requestIdentity, postDeadline: requestedAt + grant.remainingMs }));

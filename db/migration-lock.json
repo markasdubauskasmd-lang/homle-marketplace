@@ -571,6 +571,11 @@
       "order": 114,
       "file": "114_payment_event_parent_identity.sql",
       "sha256": "86c27160a9a466c053d78f995a8323b9cf8f6f0f09b0e0de3de7a1a6441948dc"
+    },
+    {
+      "order": 115,
+      "file": "115_external_payment_observations.sql",
+      "sha256": "ed6ca17f150c0edc10b09ee8060684cede3273da2bbdf8558b6aa9d268a05f12"
     }
   ],
   "grantFiles": [

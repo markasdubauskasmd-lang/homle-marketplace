@@ -13,6 +13,7 @@ export function paymentDisputeHeld(record) {
 
 export function paymentRecoveryHeld(record) {
   return record?.reconciliationReviewRequired === true
+    || (Array.isArray(record?.observations) && record.observations.some(item => item.requiresReview === true))
     || (Array.isArray(record?.recoveryCommands) && record.recoveryCommands.some(command => command.recoveryRequired === true));
 }
 
@@ -34,7 +35,24 @@ function recoveryCommands(value) {
   }));
 }
 
+function paymentObservations(value) {
+  if (value === undefined) return Object.freeze([]);
+  if (!Array.isArray(value) || value.length > 100) throw new Error("Payment observation evidence is unavailable.");
+  return Object.freeze(value.map(item => {
+    if (!item || !["refund", "cancellation"].includes(item.kind) || !["pending", "succeeded", "failed", "cancelled", "unresolved"].includes(item.status)
+      || !new RegExp(`^${item.kind === "refund" ? "re" : "pi"}_[A-Za-z0-9_]{3,250}$`).test(item.providerObjectId || "")
+      || !/^evt_[A-Za-z0-9_]{3,250}$/.test(item.lastEventId || "") || typeof item.requiresReview !== "boolean"
+      || item.reason != null && !/^[a-z0-9-]{1,120}$/.test(item.reason)) throw new Error("Payment observation evidence is unavailable.");
+    const amountPence = integer(item.amountPence, 1, 10_000_000, "Observed amount");
+    return Object.freeze({ providerObjectId: item.providerObjectId, kind: item.kind, status: item.status, amountPence,
+      appliedPence: integer(item.appliedPence, 0, amountPence, "Observed applied amount"), reason: item.reason || null,
+      lastEventId: item.lastEventId, requiresReview: item.requiresReview });
+  }));
+}
+
 export function paymentRecoveryReasonLabel(reason) {
+  if (reason === "superseded-before-dispatch")
+    return "This action was not sent to Stripe because the payment changed before dispatch. Review the refreshed balance before starting a new action.";
   if (reason === "awaiting-event-parent-identity")
     return "The original payment event needs its charge details verified. Retry its delivery from Stripe; checking the provider record alone cannot settle it.";
   if (reason === "payment-event-parent-mismatch")
@@ -103,15 +121,16 @@ export function adminPaymentQueue(value) {
     if (record.disputeReviewRequired !== undefined && typeof record.disputeReviewRequired !== "boolean") throw new Error("Payment dispute review status is unavailable.");
     const disputeReviewRequired = paymentDisputeHeld({ ...record, disputes });
     const commands = recoveryCommands(record.recoveryCommands);
+    const observations = paymentObservations(record.observations);
     if (record.reconciliationReviewRequired !== undefined && typeof record.reconciliationReviewRequired !== "boolean") throw new Error("Payment recovery status is unavailable.");
-    const reconciliationReviewRequired = paymentRecoveryHeld({ ...record, recoveryCommands: commands });
+    const reconciliationReviewRequired = paymentRecoveryHeld({ ...record, recoveryCommands: commands, observations });
     const held = disputeReviewRequired || reconciliationReviewRequired;
     return Object.freeze({
       paymentId: record.paymentId.toLowerCase(), bookingId: record.bookingId.toLowerCase(), paymentStatus: record.paymentStatus, bookingStatus: record.bookingStatus,
       scheduledStartAt: timestamp(record.scheduledStartAt, "Booking start time"), scheduledEndAt: timestamp(record.scheduledEndAt, "Booking end time"), updatedAt: timestamp(record.updatedAt, "Payment update time"),
       amountPence, amountCapturedPence, amountRefundedPence, cleanerPayPence: integer(record.cleanerPayPence, 1, amountPence, "Cleaner pay"), currency: "gbp",
       payoutReady: record.payoutReady === true, canCapture: !held && record.canCapture === true, canCancel: !held && record.canCancel === true, canRefund: !held && record.canRefund === true, canTransfer: !held && record.canTransfer === true, awaitingProvider: record.awaitingProvider === true,
-      disputeReviewRequired, disputes, reconciliationReviewRequired, recoveryCommands: commands
+      disputeReviewRequired, disputes, reconciliationReviewRequired, recoveryCommands: commands, observations
     });
   });
   return Object.freeze({ payments: Object.freeze(payments), limit, offset, testMode: value.testMode === true });

@@ -140,3 +140,24 @@ jobs:
         run: |
           node tools/postgres-integration-runner.mjs
           node tools/postgres-media-delivery.mjs
+      - name: Verify payment observation upgrade from actual migration114
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          # Separate throwaway database: no downgrade or data rewrite in the main suite.
+          psql -v ON_ERROR_STOP=1 -X -h "$PGHOST" -p "$PGPORT" -U postgres -d postgres -c 'CREATE DATABASE ci_tideway_upgrade OWNER tideway_owner'
+          psql -v ON_ERROR_STOP=1 -X -h "$PGHOST" -p "$PGPORT" -U postgres -d ci_tideway_upgrade <<SQL
+          CREATE EXTENSION pgcrypto;
+          CREATE EXTENSION citext;
+          CREATE EXTENSION btree_gist;
+          GRANT ALL ON SCHEMA public TO tideway_owner;
+          SQL
+          export PGPASSWORD="$OWNER_PW"
+          for file in $(ls db/migrations/*.sql | sort); do
+            [ "$(basename "$file")" = '115_external_payment_observations.sql' ] && break
+            psql -v ON_ERROR_STOP=1 -X -h "$PGHOST" -p "$PGPORT" -U tideway_owner -d ci_tideway_upgrade -f "$file"
+          done
+          for file in db/integration/payment-observations-upgrade-seed.sql db/migrations/115_external_payment_observations.sql db/integration/payment-observations-upgrade-verify.sql; do
+            psql -v ON_ERROR_STOP=1 -X -h "$PGHOST" -p "$PGPORT" -U tideway_owner -d ci_tideway_upgrade -f "$file"
+          done

@@ -44,6 +44,43 @@ const source = readFileSync(new URL("../public/admin-payments.js", import.meta.u
 const extract = (start, end) => source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start)));
 const recoverySource = extract("async function recoverCommand(", "function recoveryPanel(");
 function deferred() { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; }
+const observation = { providerObjectId: "re_external_review", kind: "refund", status: "pending", amountPence: 1000, appliedPence: 0, reason: null, lastEventId: "evt_external_review", requiresReview: true };
+const observationHeld = { ...record, observations: [observation] };
+const observedNormalized = model.adminPaymentQueue(page(observationHeld)).payments[0];
+assert.equal(observedNormalized.canTransfer, false);
+assert.equal(observedNormalized.canRefund, false);
+for (const invalid of [{ ...observation, appliedPence: 1001 }, { ...observation, providerObjectId: "pi_wrong_kind" }, { ...observation, requiresReview: "false" }, { ...observation, lastEventId: "bad" }]) {
+  assert.throws(() => model.adminPaymentQueue(page({ ...record, observations: [invalid] })));
+}
+for (const outcome of ["pending", "settled", "network", "wrong-payment", "refresh-failed", "refresh-superseded"]) {
+  const auth = deferred(), calls = [], messages = [];
+  const context = vm.createContext({ ...model, commanding: false, recoveringCommands: new Set(), uncertainPayments: new Set(),
+    queue: { payments: [observationHeld], offset: 0 }, feedback: {}, renderQueue(){},
+    showFeedback: (_target, message, kind) => messages.push({ message, kind }), recoverCsrf: () => auth.promise,
+    requestJson: async (path, options) => {
+      calls.push({ path, options });
+      if (outcome === "network") throw Error("Synthetic timeout");
+      return { recovery: { paymentId: outcome === "wrong-payment" ? bookingId : paymentId, recoveryRequired: outcome !== "settled" } };
+    },
+    loadQueue: async () => {
+      if (outcome === "refresh-failed") throw Error("Synthetic refresh failure");
+      if (outcome === "refresh-superseded") return false;
+      context.uncertainPayments.clear(); return true;
+    }
+  });
+  vm.runInContext(extract("async function replayObservations(", "function observationPanel("), context);
+  const first = context.replayObservations(observationHeld);
+  await context.replayObservations(observationHeld);
+  assert.equal(calls.length, 0);
+  auth.resolve("synthetic-csrf"); await first;
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, `/api/marketplace/admin/payments/${paymentId}/observations/replay`);
+  assert.equal(calls[0].options.body, "{}");
+  assert.equal(calls[0].options.headers["X-CSRF-Token"], "synthetic-csrf");
+  assert.equal(context.recoveringCommands.size, 0);
+  assert.equal(messages.at(-1).kind, outcome === "settled" ? "success" : outcome === "pending" ? "info" : "error");
+  if (!["settled", "pending"].includes(outcome)) assert(context.uncertainPayments.has(paymentId));
+}
 for (const outcome of ["pending", "settled", "network", "wrong-command", "refresh-failed", "refresh-superseded"]) {
   const auth = deferred(), calls = [], messages = [];
   const context = vm.createContext({ ...model, commanding: false, recoveringCommands: new Set(), uncertainPayments: new Set(),

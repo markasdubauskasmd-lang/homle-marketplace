@@ -200,6 +200,30 @@ export async function createStripePaymentProvider(configuration = {}, options = 
     const object = event.data?.object;
     if (!object || typeof object !== "object") throw new TypeError("Stripe webhook event data is missing.");
     if (["charge.dispute.created", "charge.dispute.updated", "charge.dispute.closed"].includes(event.type)) return eventWithDisputePayment(event, object);
+    if (["refund.created", "refund.updated", "refund.failed"].includes(event.type)) {
+      monetaryEventObject(object, "re", "refund");
+      if (!["pending", "requires_action", "succeeded", "failed", "canceled"].includes(object.status)
+        || event.type === "refund.failed" && !["failed", "canceled"].includes(object.status)) throw new TypeError("Stripe returned a contradictory refund event status.");
+      const parents = await monetaryEventParents(object, "refund");
+      let references = metadataReferences(object);
+      if (!references) {
+        const intent = await stripe.paymentIntents.retrieve(parents.providerPaymentId, {}, eventParentRequestOptions);
+        if (intent?.id !== parents.providerPaymentId || intent.object !== "payment_intent" || intent.livemode !== false || intent.currency !== "gbp") throw new TypeError("Stripe returned an invalid refund parent PaymentIntent.");
+        const parentMetadata = metadataReferences(intent);
+        // The parent may retain a capture command. It cannot identify a refund.
+        references = { paymentId: parentMetadata?.paymentId ?? null, commandId: null };
+      }
+      const kind = object.status === "succeeded" ? "refund-succeeded" : ["failed", "canceled"].includes(object.status) ? "refund-failed" : "refund-pending";
+      return Object.freeze({ ...normalizedEvent(event, kind, object, references), ...parents });
+    }
+    if (event.type === "payment_intent.canceled") {
+      monetaryEventObject(object, "pi", "payment_intent");
+      if (object.status !== "canceled" || object.livemode !== false) throw new TypeError("Stripe returned an invalid canceled PaymentIntent.");
+      const references = metadataReferences(object) || { paymentId: null, commandId: null };
+      // A terminal intent observation is independent of stale command metadata.
+      return Object.freeze({ ...normalizedEvent(event, "intent-cancelled-observed", object, { ...references, commandId: null }),
+        providerPaymentId: object.id, sourceChargeId: null, destinationAccountId: null });
+    }
     const references = metadataReferences(object);
     if (!references) return Object.freeze({ ignored: true, eventId: reference(event.id, "event id") });
     const intentStatuses = {
@@ -220,17 +244,6 @@ export async function createStripePaymentProvider(configuration = {}, options = 
     if (event.type === "payment_intent.processing") return normalizedEvent(event, "authorization-processing", object, references);
     if (event.type === "payment_intent.payment_failed") return normalizedEvent(event, references.commandId ? "capture-failed" : "authorization-failed", object, references);
     if (event.type === "payment_intent.succeeded") return normalizedEvent(event, references.commandId ? "capture-succeeded" : "authorization-succeeded", object, references, { amountPence: object.amount_received });
-    if (event.type === "payment_intent.canceled") return normalizedEvent(event, references.commandId ? "cancellation-succeeded" : "authorization-failed", object, references);
-    if (["refund.created", "refund.updated", "refund.failed"].includes(event.type)) {
-      monetaryEventObject(object, "re", "refund");
-      if (!["pending", "requires_action", "succeeded", "failed", "canceled"].includes(object.status)
-        || event.type === "refund.failed" && !["failed", "canceled"].includes(object.status)) throw new TypeError("Stripe returned a contradictory refund event status.");
-      if (["succeeded", "failed", "canceled"].includes(object.status)) {
-        const parents = await monetaryEventParents(object, "refund");
-        return Object.freeze({ ...normalizedEvent(event, object.status === "succeeded" ? "refund-succeeded" : "refund-failed", object, references), ...parents });
-      }
-      return Object.freeze({ ignored: true, eventId: reference(event.id, "event id") });
-    }
     if (event.type === "transfer.created") {
       monetaryEventObject(object, "tr", "transfer");
       const parents = await monetaryEventParents(object, "transfer");
