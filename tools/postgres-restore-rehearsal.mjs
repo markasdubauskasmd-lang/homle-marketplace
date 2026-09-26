@@ -71,7 +71,7 @@ async function assertRole(connection, expected, database, privileged = false) {
 }
 
 function canonicalAcl(expression) {
-  return `(SELECT COALESCE(jsonb_agg(jsonb_build_object('grantor',grantor.rolname,'grantee',CASE WHEN acl_entry.grantee=0 THEN 'PUBLIC' ELSE grantee.rolname END,'privilege',acl_entry.privilege_type,'grantable',acl_entry.is_grantable) ORDER BY grantor.rolname,CASE WHEN acl_entry.grantee=0 THEN 'PUBLIC' ELSE grantee.rolname END,acl_entry.privilege_type,acl_entry.is_grantable),'[]'::jsonb) FROM aclexplode(${expression}) acl_entry LEFT JOIN pg_roles grantor ON grantor.oid=acl_entry.grantor LEFT JOIN pg_roles grantee ON grantee.oid=acl_entry.grantee)`;
+  return `(SELECT COALESCE(jsonb_agg(jsonb_build_object('grantor',grantor.rolname,'grantee',CASE WHEN acl_entry.grantee=0 THEN 'PUBLIC' ELSE grantee.rolname END,'privilege',acl_entry.privilege_type,'grantable',acl_entry.is_grantable) ORDER BY grantor.rolname,CASE WHEN acl_entry.grantee=0 THEN 'PUBLIC' ELSE grantee.rolname END,acl_entry.privilege_type,acl_entry.is_grantable),'[]'::jsonb) FROM aclexplode(NULLIF(${expression},'{}'::aclitem[])) acl_entry LEFT JOIN pg_roles grantor ON grantor.oid=acl_entry.grantor LEFT JOIN pg_roles grantee ON grantee.oid=acl_entry.grantee)`;
 }
 
 async function snapshot(connection) {
