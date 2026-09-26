@@ -6,6 +6,7 @@ import { checklistChangeReview } from "./checklist-change-review.js";
 import { clearSelectedCleaner, clearSelectedProperty, readSelectedCleaner, readSelectedProperty, saveSelectedCleaner, saveSelectedProperty } from "./account-intent.js?v=20260718-2";
 import { isUkPostcode } from "./contact-validation.js";
 import { clearLandlordRequestDraft, readLandlordRequestDraft, saveLandlordRequestDraft, landlordRequestDraftLifetimeMs } from "./landlord-request-draft.js";
+import { clearPropertyFormDraft, readPropertyFormDraft, savePropertyFormDraft, propertyDraftFields } from "./landlord-property-draft.js";
 import { consumeRoomPhotoInputFiles, maximumRoomPhotos, validatedRoomPhotoSelection } from "./room-photo-selection.js";
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
@@ -220,6 +221,11 @@ let propertyEditorRevision = 0;
 let propertyEditorInstance = 0;
 let propertyViewRevision = 0;
 let propertyCreateRetry = null;
+let restoredPropertyRetryId = "";
+let propertyAttemptOwner = "";
+let propertyTouchedFields = new Set();
+let propertyDraftRecoveryChecked = false;
+let populatingPropertyForm = false;
 let requestDirty = false;
 let landlordProfileDirty = false;
 let editingPropertyId = "";
@@ -289,6 +295,16 @@ function saveCsrf(token) {
 function bindWorkingRequestOwner(account, { allowChange = false } = {}) {
   const owner = typeof account?.userId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(account.userId) ? account.userId : "";
   if (requestDraftOwner && requestDraftOwner !== owner) {
+    clearPropertyFormDraft(propertyDraftStorage());
+    restoredPropertyRetryId = "";
+    propertyDraftRecoveryChecked = false;
+    propertyEditorRevision += 1;
+    propertyEditorInstance += 1;
+    propertyForm.reset();
+    propertyForm.hidden = true;
+    editingPropertyId = "";
+    propertyDirty = false;
+    if (propertyDialog?.open) propertyDialog.close();
     window.clearTimeout(requestRecoveryTimer);
     clearLandlordRequestDraft(window.sessionStorage);
     requestForm.reset();
@@ -1451,7 +1467,8 @@ function exactAddress(property) {
 
 function populatePropertyForm(property) {
   const address = property?.exactAddress || {};
-  propertyForm.reset();
+  populatingPropertyForm = true;
+  try { propertyForm.reset(); } finally { populatingPropertyForm = false; }
   propertyForm.elements.name.value = property?.name || "";
   propertyForm.elements.propertyType.value = property?.propertyType || "";
   propertyForm.elements.addressLine1.value = address.addressLine1 || "";
@@ -1470,6 +1487,9 @@ function populatePropertyForm(property) {
 
 function openPropertyEditor(property = null) {
   if (!propertyForm.hidden && propertyDirty && !window.confirm("Discard the unsaved property changes and open these details instead?")) return;
+  if (property || propertyDirty) clearPropertyFormDraft(propertyDraftStorage());
+  restoredPropertyRetryId = "";
+  propertyTouchedFields = new Set();
   propertyEditorRevision += 1;
   propertyEditorInstance += 1;
   editingPropertyId = property?.propertyId || "";
@@ -1484,10 +1504,34 @@ function openPropertyEditor(property = null) {
   selectWorkspaceTab("properties");
   if (propertyDialog && !propertyDialog.open) propertyDialog.showModal();
   (property ? propertyForm.elements.accessInstructions : propertyForm.elements.propertyType).focus({ preventScroll: true });
+  if (!property) restorePropertyFormDraft();
+}
+
+function propertyDraftStorage() {
+  try { return window.sessionStorage; } catch { return null; }
+}
+
+function rememberPropertyFormDraft(retryId = restoredPropertyRetryId) {
+  if (!requestDraftOwner || (editingPropertyId && editingPropertyId !== restoredPropertyRetryId) || propertyForm.hidden || !propertyDirty) return;
+  const fields = Object.fromEntries(Object.keys(propertyDraftFields).map(name => [name, propertyForm.elements[name]?.value || ""]));
+  savePropertyFormDraft(propertyDraftStorage(), { ownerId: requestDraftOwner, fields, retryId });
+}
+
+function restorePropertyFormDraft() {
+  if (editingPropertyId || propertyDirty || !requestDraftOwner) return;
+  const draft = readPropertyFormDraft(propertyDraftStorage(), requestDraftOwner);
+  if (!draft) return;
+  for (const [name, value] of Object.entries(draft.fields)) propertyForm.elements[name].value = value;
+  restoredPropertyRetryId = draft.retryId;
+  propertyAttemptOwner = requestDraftOwner;
+  propertyDirty = true;
+  showFeedback(propertyFeedback, "Your unfinished location was restored from this tab. Access instructions and other optional details are not restored.", "success");
 }
 
 function closePropertyEditor() {
   if (propertyDirty && !window.confirm("Close and discard these unsaved property changes?")) return false;
+  clearPropertyFormDraft(propertyDraftStorage());
+  restoredPropertyRetryId = "";
   propertyEditorRevision += 1;
   propertyEditorInstance += 1;
   propertyForm.hidden = true;
@@ -4217,6 +4261,11 @@ async function loadWorkspace() {
     loadStatus.hidden = unavailable.size === 0 && healthResult.status === "fulfilled";
     if (location.hash === "#landlord-account-title") selectWorkspaceTab("account");
     continueBookingStart();
+    if (!propertyDraftRecoveryChecked) {
+      propertyDraftRecoveryChecked = true;
+      if (["properties", "bookings", "places"].includes(currentWorkspaceTab) && propertyForm.hidden
+          && readPropertyFormDraft(propertyDraftStorage(), requestDraftOwner)) openPropertyEditor();
+    }
     void refreshSelectedCleanerProfile();
   } catch (error) {
     if (error.code === "browser-offline") showState("You are offline.", "Your unfinished room walkthrough stays in this tab. Reconnect and Homle will safely reopen the private workspace; no change will be retried automatically.", { kind: "offline", allowRetry: true });
@@ -4267,6 +4316,35 @@ async function saveLandlordProfile(event) {
   }
 }
 
+function reviewRecoveredProperty(property) {
+  const values = { name: property.name, bedrooms: property.bedrooms, bathrooms: property.bathrooms,
+    approximateSizeSqM: property.approximateSizeSqM, accessInstructions: property.accessInstructions,
+    parkingInstructions: property.parkingInstructions, cleaningPreferences: property.cleaningPreferences,
+    savedChecklist: property.savedChecklist, specialNotes: property.specialNotes };
+  if (!Object.keys(values).every(name => Object.hasOwn(property, name)) || !Array.isArray(property.savedChecklist)
+      || !["accessInstructions", "parkingInstructions", "cleaningPreferences", "specialNotes"].every(name => typeof property[name] === "string")) {
+    throw new Error("The previous property's protected details could not be loaded. Your entries are kept; retry.");
+  }
+  // Only the safe location was retained across refresh. Bring omitted details
+  // back from the authorized record, while preserving new typing or explicit
+  // clearing in this editor. No protected value enters the tab recovery draft.
+  for (const [name, value] of Object.entries(values)) {
+    const control = propertyForm.elements[name];
+    if (!propertyTouchedFields.has(name) && !control.value) control.value = name === "savedChecklist" ? tasksToLines(value) : value ?? "";
+  }
+  editingPropertyId = property.propertyId;
+  restoredPropertyRetryId = property.propertyId;
+  propertyAttemptOwner = requestDraftOwner;
+  propertyDirty = true;
+  propertyFormTitle.textContent = "Edit access and property details";
+  propertySave.textContent = "Update protected details";
+  propertyForm.querySelector(".dashboard-optional-fields").open = true;
+  properties = [...properties.filter(entry => entry.propertyId !== property.propertyId), property];
+  renderProperties();
+  rememberPropertyFormDraft();
+  showFeedback(propertyFeedback, "Your previous save was found. Your latest location edits are kept. Review the restored property details, then save your changes.", "success");
+}
+
 // Keep only an owner-bound payload digest and retry identity in the tab. The
 // address, access instructions and CSRF token never enter this retry record.
 async function propertyCreateIdentity(body, ownerId) {
@@ -4315,23 +4393,41 @@ async function saveProperty(event) {
   try {
     const csrf = await recoverCsrf(propertyFeedback, "saving this property", { refresh: true });
     if (!csrf || !sameEditor()) return;
-    const expectedId = selectedPropertyId || await propertyCreateIdentity(body, ownerId);
+    const recoveryId = !updating && propertyAttemptOwner === ownerId ? restoredPropertyRetryId : "";
+    const expectedId = selectedPropertyId || recoveryId || await propertyCreateIdentity(body, ownerId);
     if (!sameEditor()) return;
     const path = updating ? `/api/marketplace/properties/${encodeURIComponent(selectedPropertyId)}` : "/api/marketplace/properties";
     let result;
+    if (recoveryId) {
+      // A refresh cannot retain protected optional fields. Resolve the previous
+      // attempt by its owner-authorized identity before any new write; do not
+      // guess from an address or replace existing protected details with blanks.
+      const own = await requestJson("/api/marketplace/properties");
+      if (!sameEditor()) return;
+      if (!Array.isArray(own.properties)) throw new Error("The previous property save could not be checked. Your entries are kept; retry.");
+      const matches = own.properties.filter(property => property.propertyId === recoveryId);
+      if (matches.length > 1) throw new Error("The previous property save could not be verified. Your entries are kept; retry.");
+      if (matches.length === 1) { reviewRecoveredProperty(matches[0]); return; }
+    }
+    if (!updating) { restoredPropertyRetryId = expectedId; propertyAttemptOwner = ownerId; rememberPropertyFormDraft(expectedId); }
     try {
       result = await requestJson(path, { method: updating ? "PUT" : "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: JSON.stringify(updating ? body : { ...body, id: expectedId }) });
     } catch (error) {
       if (updating || (!["request-timeout", "browser-offline"].includes(error?.code) && error?.statusCode !== 409)) throw error;
       if (requestDraftOwner !== ownerId) return;
       const own = await requestJson("/api/marketplace/properties");
-      const recovered = (own.properties || []).find(property => property.propertyId === expectedId);
-      if (!recovered) throw error;
-      result = { property: recovered };
+      if (!sameEditor()) return;
+      if (!Array.isArray(own.properties)) throw new Error("The previous property save could not be checked. Your entries are kept; retry.");
+      const matches = own.properties.filter(property => property.propertyId === expectedId);
+      if (matches.length > 1) throw new Error("The previous property save could not be verified. Your entries are kept; retry.");
+      if (!matches.length) throw error;
+      reviewRecoveredProperty(matches[0]);
+      return;
     }
     if (requestDraftOwner !== ownerId) return;
     if (result.property?.propertyId !== expectedId) throw new Error("The saved property could not be verified.");
-    if (!updating && propertyCreateRetry?.id === expectedId) {
+    if (sameEditor()) { clearPropertyFormDraft(propertyDraftStorage()); restoredPropertyRetryId = ""; }
+    if (propertyCreateRetry?.id === expectedId) {
       propertyCreateRetry = null;
       try { window.sessionStorage.removeItem("homlePropertyCreateRetryV1"); } catch {}
     }
@@ -4937,7 +5033,12 @@ cleaningTypeSelect.addEventListener("change", () => {
 speechButton.addEventListener("click", () => { if (!recognition) return; if (listening) recognition.stop(); else { try { recognition.start(); } catch { speechStatus.textContent = "Speech is already starting. Try again in a moment."; } } });
 requestForm.elements.transcript.addEventListener("input", () => { invalidateScopeReview("The walkthrough changed. Summarise again or manually reconcile every room task before confirming."); scheduleLiveSummarise(); });
 requestForm.elements.tasks.addEventListener("input", () => { tasksManuallyEdited = true; clearTimeout(liveSummariseTimer); renderTaskPreview(); invalidateScopeReview("The concise checklist changed. Review every room task again before saving."); });
-propertyForm.addEventListener("input", () => { propertyEditorRevision += 1; propertyDirty = true; });
+propertyForm.addEventListener("input", event => { propertyEditorRevision += 1; propertyDirty = true; propertyTouchedFields.add(event.target.name); rememberPropertyFormDraft(); });
+propertyForm.addEventListener("reset", () => { if (!populatingPropertyForm) { clearPropertyFormDraft(propertyDraftStorage()); restoredPropertyRetryId = ""; } });
+// Delegation also covers the account menu inserted by the workspace shell.
+document.addEventListener("click", event => {
+  if (event.target.closest?.("[data-account-sign-out]")) { clearPropertyFormDraft(propertyDraftStorage()); restoredPropertyRetryId = ""; }
+}, true);
 landlordProfileForm.addEventListener("input", () => { landlordProfileDirty = true; });
 requestForm.addEventListener("input", () => { currentRequestDraft = null; requestDirty = true; scheduleWorkingRequestRecovery(); scheduleManualQuote(); });
 requestForm.addEventListener("change", () => { currentRequestDraft = null; requestDirty = true; scheduleWorkingRequestRecovery(); scheduleManualQuote(); });

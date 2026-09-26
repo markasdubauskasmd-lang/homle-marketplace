@@ -93,6 +93,9 @@ console.log("Manual draft ownership passed: same account, different account, pro
     requestDirty: true, currentRequestDraft: { requestId: "old" },
     generatedChecklist: ["old"], generatedChecklistSource: "old", assistedSummaryTranscript: "old", tasksManuallyEdited: true,
     window: { sessionStorage: storage, clearTimeout() {} }, clearLandlordRequestDraft,
+    clearPropertyFormDraft(){storage.removeItem('homlePropertyFormDraftV1');},propertyDraftStorage:()=>storage,
+    restoredPropertyRetryId:'',propertyDraftRecoveryChecked:true,propertyEditorRevision:0,propertyEditorInstance:0,
+    propertyForm:{reset(){},hidden:false},editingPropertyId:'',propertyDirty:true,propertyDialog:null,
     requestForm: { reset() { for (const field of Object.values(scopeControls)) field.value = ""; } },
     closeRequestPhotoDialog() {}, renderTaskPreview() {}
   });
