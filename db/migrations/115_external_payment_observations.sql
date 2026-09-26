@@ -78,7 +78,7 @@ CREATE FUNCTION tideway_private.reconcile_payment_observation(selected_provider 
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public,pg_temp AS $$
 DECLARE p booking_payments%ROWTYPE; c payment_commands%ROWTYPE; e tideway_private.payment_provider_events%ROWTYPE;
  o tideway_private.payment_observed_objects%ROWTYPE; b tideway_private.payment_event_parent_identities%ROWTYPE;
- is_refund boolean:=COALESCE(supplied_kind LIKE 'refund-%',false); repeated boolean; rejection text;
+ is_refund boolean:=COALESCE(supplied_kind LIKE 'refund-%',false); repeated boolean; object_repeated boolean; rejection text;
  desired integer; delta integer; next_status text; observation_status text; bound_payment uuid;
 BEGIN
  IF selected_provider IS DISTINCT FROM 'stripe' OR supplied_kind IS NULL OR supplied_kind NOT IN ('refund-pending','refund-succeeded','refund-failed','intent-cancelled-observed')
@@ -196,6 +196,7 @@ BEGIN
      AND pending.id IS DISTINCT FROM c.id AND pending.status IN ('created','provider-pending')
      AND EXISTS(SELECT 1 FROM tideway_private.payment_command_attempt_windows attempt WHERE attempt.command_id=pending.id)
      AND NOT pending.provider_success_applied AND NOT pending.provider_terminal_failure)) ON CONFLICT DO NOTHING;
+ object_repeated:=NOT FOUND;
  SELECT * INTO o FROM tideway_private.payment_observed_objects WHERE provider=selected_provider AND provider_object_id=supplied_object_id FOR UPDATE;
  IF ROW(o.payment_id,o.provider_payment_id,o.source_charge_id,o.amount_pence,o.currency)
    IS DISTINCT FROM ROW(p.id,supplied_provider_payment_id,supplied_source_charge_id,supplied_amount_pence,supplied_currency)
@@ -251,7 +252,7 @@ BEGIN
  IF next_status<>p.status THEN INSERT INTO payment_status_history(payment_id,from_status,to_status,event_source,reason,metadata)
    VALUES(p.id,p.status,next_status,'provider','Signed provider observation reconciled.',jsonb_build_object('eventId',supplied_event_id,'objectId',supplied_object_id)); END IF;
  UPDATE tideway_private.payment_provider_events SET processed=true,result_code='processed',reconciliation_version=3 WHERE provider=selected_provider AND provider_event_id=supplied_event_id;
- RETURN jsonb_build_object('accepted',true,'duplicate',repeated);
+ RETURN jsonb_build_object('accepted',true,'duplicate',repeated OR (object_repeated AND delta=0));
 END;
 $$;
 REVOKE ALL ON FUNCTION tideway_private.reconcile_payment_observation(text,text,text,text,uuid,uuid,integer,character,timestamptz,character,text,text,text) FROM PUBLIC,tideway_app,tideway_worker;

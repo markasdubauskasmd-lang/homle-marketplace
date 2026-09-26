@@ -49,6 +49,23 @@ const observationHeld = { ...record, observations: [observation] };
 const observedNormalized = model.adminPaymentQueue(page(observationHeld)).payments[0];
 assert.equal(observedNormalized.canTransfer, false);
 assert.equal(observedNormalized.canRefund, false);
+// Run the actual queue renderer: a review-only external observation is an
+// attention item even when it has neither a money action nor an app command.
+for (const [requiresReview, expectedCount] of [[true, "1"], [false, "0"]]) {
+  const nodes = new Map();
+  const payment = model.adminPaymentQueue(page({ ...record, canRefund: false, canTransfer: false,
+    observations: [{ ...observation, status: "succeeded", appliedPence: 1000, requiresReview }] })).payments[0];
+  const context = vm.createContext({ ...model, queue: { payments: [payment], offset: 0, limit: 50 },
+    list: { replaceChildren(){}, setAttribute(){} }, empty: {}, previous: {}, next: {},
+    selectedBookingId: null, paymentCard: () => ({}), document: { querySelector(selector) {
+      if (!nodes.has(selector)) nodes.set(selector, {}); return nodes.get(selector);
+    } }
+  });
+  vm.runInContext(extract("function renderQueue()", "async function loadQueue("), context);
+  context.renderQueue();
+  assert.equal(nodes.get("[data-admin-payments-actionable-count]").textContent, expectedCount,
+    "Observation-only review was omitted from the attention count, or settled history was counted");
+}
 for (const invalid of [{ ...observation, appliedPence: 1001 }, { ...observation, providerObjectId: "pi_wrong_kind" }, { ...observation, requiresReview: "false" }, { ...observation, lastEventId: "bad" }]) {
   assert.throws(() => model.adminPaymentQueue(page({ ...record, observations: [invalid] })));
 }

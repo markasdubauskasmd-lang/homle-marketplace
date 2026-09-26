@@ -290,7 +290,7 @@ function renderQueue() {
   empty.hidden = queue.payments.length > 0;
   list.setAttribute("aria-busy", "false");
   document.querySelector("[data-admin-payments-count]").textContent = String(queue.payments.length);
-  document.querySelector("[data-admin-payments-actionable-count]").textContent = String(queue.payments.filter((item) => item.canCapture || item.canCancel || item.canRefund || item.canTransfer || item.recoveryCommands?.length).length);
+  document.querySelector("[data-admin-payments-actionable-count]").textContent = String(queue.payments.filter((item) => item.canCapture || item.canCancel || item.canRefund || item.canTransfer || item.recoveryCommands?.length || paymentRecoveryHeld(item)).length);
   document.querySelector("[data-admin-payments-waiting-count]").textContent = String(queue.payments.filter((item) => item.awaitingProvider).length);
   document.querySelector("[data-admin-payments-page]").textContent = selectedBookingId ? "One related booking" : `Page ${Math.floor(queue.offset / queue.limit) + 1}`;
   previous.disabled = queue.offset === 0;
