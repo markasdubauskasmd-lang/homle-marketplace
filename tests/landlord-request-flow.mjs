@@ -9,6 +9,7 @@ import {
 import { defaultPricingConfig, normalizedPricingConfig } from "../public/pricing-config.js";
 import { quoteRooms } from "../public/pricing-engine.js";
 import { optionalRequestScope, pricingRequestFromManualTasks } from "../public/landlord-dashboard-model.js";
+import "./property-form-draft-browser.mjs";
 
 // The complete manual-request journey, driven twice with different selections.
 //
