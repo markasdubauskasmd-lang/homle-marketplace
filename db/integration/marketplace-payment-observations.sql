@@ -95,15 +95,15 @@ END;
 $missing_capture$;
 ROLLBACK TO observations_base;
 DO $cancelled$
-DECLARE p uuid:='50000000-0000-4000-8000-000000000010'; amount integer; r jsonb; booking_status text;
+DECLARE p uuid:='50000000-0000-4000-8000-000000000010'; amount integer; r jsonb; original_booking_status public.booking_status;
 BEGIN
  SELECT amount_pence INTO amount FROM booking_payments WHERE id=p;
- SELECT status INTO booking_status FROM bookings WHERE id='40000000-0000-4000-8000-000000000003';
+ SELECT status INTO original_booking_status FROM bookings WHERE id='40000000-0000-4000-8000-000000000003';
  UPDATE booking_payments SET status='authorized',amount_captured_pence=0 WHERE id=p;
  r:=pg_temp.observed('evt_auto_cancelled','intent-cancelled-observed','pi_payment_ordering',amount);
  IF r->>'accepted' IS DISTINCT FROM 'true' OR (SELECT status FROM booking_payments WHERE id=p)<>'cancelled' THEN RAISE EXCEPTION 'Automatic cancellation retained authorization'; END IF;
  PERFORM tideway_private.reconcile_payment_provider_event('stripe','evt_late_authorized','authorization-succeeded','pi_payment_ordering',p,NULL,amount,'gbp',now(),repeat('b',64));
- IF (SELECT status FROM booking_payments WHERE id=p)<>'cancelled' OR (SELECT status FROM bookings WHERE id='40000000-0000-4000-8000-000000000003')<>booking_status THEN RAISE EXCEPTION 'Late authorization revived intent or changed booking'; END IF;
+ IF (SELECT status FROM booking_payments WHERE id=p)<>'cancelled' OR (SELECT status FROM bookings WHERE id='40000000-0000-4000-8000-000000000003')<>original_booking_status THEN RAISE EXCEPTION 'Late authorization revived intent or changed booking'; END IF;
 END;
 $cancelled$;
 ROLLBACK TO observations_base;
@@ -163,6 +163,10 @@ BEGIN
  IF NOT (SELECT superseded_before_dispatch FROM payment_commands WHERE id=c)
    OR (SELECT provider_terminal_failure OR provider_success_applied FROM payment_commands WHERE id=c)
    OR tideway_private.payment_observation_hold(p) THEN RAISE EXCEPTION 'Proven-unsent reservation was stranded or fabricated a provider outcome'; END IF;
+ r:=tideway_private.get_payment_command_attempt(c);
+ IF r->>'supersededBeforeDispatch' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION 'Known-unsent evidence missing from role-bound projection'; END IF;
+ r:=tideway_private.record_payment_command_recovery(c,'operator-required','provider-recovery-unavailable',NULL,'{}'::jsonb);
+ IF r->>'recoveryRequired' IS DISTINCT FROM 'false' OR r->>'recoveryReason' IS DISTINCT FROM 'superseded-before-dispatch' THEN RAISE EXCEPTION 'Stale recovery invented uncertainty for unsent command'; END IF;
  r:=pg_temp.claim_observed_command(c);
  IF r->>'action' IS DISTINCT FROM 'not-sent' THEN RAISE EXCEPTION 'Superseded command retained POST allowance'; END IF;
  PERFORM * FROM tideway_private.begin_booking_payment_command('59000000-0000-4000-8000-000000000007',p,'refund',500,decode(repeat('9a',32),'hex'));

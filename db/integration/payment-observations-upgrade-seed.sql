@@ -1,4 +1,11 @@
 \set ON_ERROR_STOP on
+DO $disposable_target$
+BEGIN
+ IF current_database()<>'ci_tideway_upgrade' THEN
+   RAISE EXCEPTION 'Observation upgrade fixture requires its dedicated disposable CI database';
+ END IF;
+END;
+$disposable_target$;
 \ir marketplace-integration-setup.sql
 \ir marketplace-dispute-setup.sql
 BEGIN;

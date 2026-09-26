@@ -794,4 +794,120 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION tideway_private.get_payment_command_attempt(target_command_id uuid)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=public,pg_temp AS $$
+DECLARE c payment_commands%ROWTYPE; p booking_payments%ROWTYPE; w tideway_private.payment_command_attempt_windows%ROWTYPE;
+  actor uuid:=tideway_private.current_user_id();
+BEGIN
+  SELECT command.* INTO c FROM payment_commands command JOIN booking_payments payment ON payment.id=command.payment_id
+    WHERE command.id=target_command_id AND actor IS NOT NULL AND (tideway_private.has_role('administrator')
+      OR command.command_kind='cancel' AND payment.landlord_user_id=actor AND tideway_private.has_role('landlord'));
+  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='payment-command-not-found'; END IF;
+  SELECT * INTO p FROM booking_payments WHERE id=c.payment_id;
+  SELECT * INTO w FROM tideway_private.payment_command_attempt_windows WHERE command_id=c.id;
+  RETURN jsonb_build_object('commandId',c.id,'paymentId',p.id,'bookingId',p.booking_id,'kind',c.command_kind,'status',c.status,
+    'amountPence',c.amount_pence,'currency',p.currency,'providerPaymentId',p.provider_payment_id,'providerCommandId',c.provider_command_id,
+    'requestIdentity',w.request_identity,'legacyUnknown',COALESCE(w.legacy_unknown,false),'hasAttemptWindow',w.command_id IS NOT NULL,
+    'firstAttemptAt',w.first_attempt_at,'retryBefore',w.retry_before,
+    'supersededBeforeDispatch',c.superseded_before_dispatch AND w.command_id IS NULL
+      AND c.provider_command_id IS NULL AND NOT c.provider_success_applied AND NOT c.provider_terminal_failure); 
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION tideway_private.record_payment_command_recovery(target_command_id uuid,supplied_outcome text,supplied_reason text,supplied_provider_object_id text,supplied_evidence jsonb)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=public,pg_temp AS $$
+DECLARE p booking_payments%ROWTYPE; c payment_commands%ROWTYPE;
+  w tideway_private.payment_command_attempt_windows%ROWTYPE; e tideway_private.payment_provider_events%ROWTYPE;
+  result jsonb; replayed integer:=0; audit_id bigint; actor uuid:=tideway_private.current_user_id();
+  recovery_reason text; evidence jsonb; recovered boolean:=false; failed boolean:=false;
+BEGIN
+  IF actor IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501',MESSAGE='payment-role-required'; END IF;
+  SELECT payment.* INTO p FROM booking_payments payment JOIN payment_commands command ON command.payment_id=payment.id
+    WHERE command.id=target_command_id AND (tideway_private.has_role('administrator') OR command.command_kind='cancel' AND payment.landlord_user_id=actor AND tideway_private.has_role('landlord')) FOR UPDATE OF payment;
+  IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='P0002',MESSAGE='payment-command-not-found'; END IF;
+  SELECT * INTO c FROM payment_commands WHERE id=target_command_id FOR UPDATE;
+  SELECT * INTO w FROM tideway_private.payment_command_attempt_windows WHERE command_id=c.id;
+  -- Recheck under the same role-bound payment lock when an earlier read raced
+  -- with supersession. An unavailable GET must not invent an unknown outcome.
+  IF c.superseded_before_dispatch AND w.command_id IS NULL AND c.provider_command_id IS NULL
+    AND NOT c.provider_success_applied AND NOT c.provider_terminal_failure THEN
+    RETURN jsonb_build_object('status',c.status,'recoveryRequired',false,'recoveryReason','superseded-before-dispatch','signedEventsReplayed',0);
+  END IF;
+  recovery_reason:=CASE WHEN supplied_reason ~ '^[a-z][a-z0-9-]{0,119}$' THEN supplied_reason ELSE 'provider-recovery-failed' END;
+  evidence:=CASE WHEN jsonb_typeof(supplied_evidence)='object' AND octet_length(supplied_evidence::text)<=4096
+    AND supplied_evidence-ARRAY['source','amountPence','currency','providerPaymentId','sourceChargeId','destinationAccountId','observedStatus','observedReversedAmount']='{}'::jsonb
+    THEN supplied_evidence ELSE '{}'::jsonb END;
+  -- Insert outside the exception subtransaction so failures remain inspectable.
+  INSERT INTO tideway_private.payment_command_recovery_attempts(command_id,actor_id,outcome,reason,evidence)
+    VALUES(c.id,actor,'operator-required','recovery-in-progress',evidence) RETURNING id INTO audit_id;
+  IF supplied_outcome IS DISTINCT FROM 'found-awaiting-signed-evidence' THEN
+    UPDATE tideway_private.payment_command_recovery_attempts SET reason=CASE WHEN supplied_outcome='operator-required' THEN recovery_reason ELSE 'invalid-command-recovery' END WHERE id=audit_id;
+    RETURN jsonb_build_object('status',c.status,'recoveryRequired',true,'recoveryReason',CASE WHEN supplied_outcome='operator-required' THEN recovery_reason ELSE 'invalid-command-recovery' END,'signedEventsReplayed',0);
+  END IF;
+  BEGIN
+    IF (c.command_kind='refund' AND COALESCE(supplied_provider_object_id,'') !~ '^re_[A-Za-z0-9_]{3,250}$')
+      OR (c.command_kind='transfer' AND COALESCE(supplied_provider_object_id,'') !~ '^tr_[A-Za-z0-9_]{3,250}$')
+      OR (c.command_kind IN ('capture','cancel') AND supplied_provider_object_id IS DISTINCT FROM p.provider_payment_id)
+      OR c.provider_command_id IS NOT NULL AND c.provider_command_id<>supplied_provider_object_id
+      OR evidence->>'source' IS DISTINCT FROM 'stripe-api-discovery'
+      OR evidence->>'amountPence' IS DISTINCT FROM c.amount_pence::text OR evidence->>'currency' IS DISTINCT FROM p.currency::text
+      OR evidence->>'providerPaymentId' IS DISTINCT FROM p.provider_payment_id
+      THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='payment-recovery-identity-conflict'; END IF;
+    IF c.command_kind='transfer' THEN
+      IF w.request_identity->>'destinationAccountId' IS NULL THEN RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='original-destination-unavailable'; END IF;
+      IF evidence->>'destinationAccountId' IS DISTINCT FROM w.request_identity->>'destinationAccountId'
+        OR evidence->>'sourceChargeId' IS DISTINCT FROM w.request_identity->>'sourceChargeId'
+        OR COALESCE(evidence->>'observedReversedAmount','') !~ '^[0-9]{1,8}$'
+        THEN RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='payment-recovery-identity-conflict'; END IF;
+      IF (evidence->>'observedReversedAmount')::integer NOT IN (0,c.amount_pence) THEN
+        RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='partial-transfer-reversal-requires-accounting'; END IF;
+    ELSIF COALESCE(evidence->>'observedStatus','') NOT IN ('succeeded','pending','requires_action','failed','canceled','requires_capture','requires_payment_method','processing','requires_confirmation') THEN
+      RAISE EXCEPTION USING ERRCODE='22023',MESSAGE='payment-recovery-identity-conflict';
+    END IF;
+    UPDATE payment_commands SET provider_command_id=COALESCE(provider_command_id,supplied_provider_object_id),
+      status=CASE WHEN status='created' THEN 'provider-pending' ELSE status END,updated_at=now() WHERE id=c.id;
+    IF (SELECT count(*) FROM (SELECT 1 FROM tideway_private.payment_provider_events event WHERE event.payment_id=p.id
+      AND event.command_id=c.id AND event.provider_object_id=supplied_provider_object_id LIMIT 101) bounded)>100 THEN
+      RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='retained-event-bound'; END IF;
+    FOR e IN SELECT * FROM tideway_private.payment_provider_events event WHERE event.provider='stripe' AND event.payment_id=p.id
+      AND event.command_id=c.id AND event.provider_object_id=supplied_provider_object_id AND event.amount_pence=c.amount_pence AND event.currency=p.currency
+      AND ((c.command_kind='refund' AND event.event_kind IN ('refund-succeeded','refund-failed'))
+        OR (c.command_kind='transfer' AND event.event_kind IN ('transfer-succeeded','transfer-reversed'))
+        OR (c.command_kind='capture' AND event.event_kind IN ('capture-succeeded','capture-failed'))
+        OR (c.command_kind='cancel' AND event.event_kind IN ('cancellation-succeeded','cancellation-failed')))
+      ORDER BY event.occurred_at,event.received_at,event.provider_event_id LIMIT 100 LOOP
+      result:=tideway_private.reconcile_payment_provider_event(e.provider,e.provider_event_id,e.event_kind,e.provider_object_id,e.payment_id,e.command_id,e.amount_pence,e.currency,e.occurred_at,e.payload_hash);
+      IF result->>'accepted' IS DISTINCT FROM 'true' THEN RAISE EXCEPTION USING ERRCODE='P0001',MESSAGE='signed-event-prerequisite-unresolved'; END IF;
+      replayed:=replayed+1;
+    END LOOP;
+    recovered:=tideway_private.payment_command_signed_outcome_matches(c.id,evidence);
+  EXCEPTION WHEN OTHERS THEN
+    -- The binding and every monetary replay roll back together. Never leave a
+    -- half-applied financial result while calling the overall recovery failed.
+    failed:=true; replayed:=0;
+    recovery_reason:=CASE WHEN SQLSTATE='23505' THEN 'signed-event-replay-conflict'
+      WHEN SQLSTATE='22023' THEN 'payment-recovery-identity-conflict'
+      WHEN SQLERRM IN ('original-destination-unavailable','partial-transfer-reversal-requires-accounting','retained-event-bound','signed-event-prerequisite-unresolved') THEN SQLERRM
+      ELSE 'signed-event-replay-failed' END;
+  END;
+  SELECT * INTO c FROM payment_commands WHERE id=target_command_id;
+  IF NOT failed THEN
+    recovery_reason:=CASE WHEN recovered THEN NULL
+      WHEN (c.command_kind='refund' AND evidence->>'observedStatus' IN ('failed','canceled'))
+        OR (c.command_kind='transfer' AND evidence->>'observedReversedAmount'<>'0')
+        OR (c.command_kind IN ('capture','cancel') AND evidence->>'observedStatus' IN ('succeeded','canceled'))
+        THEN 'awaiting-signed-terminal-evidence' ELSE 'awaiting-signed-evidence' END;
+  END IF;
+  UPDATE tideway_private.payment_command_recovery_attempts SET outcome=CASE WHEN failed THEN 'operator-required' WHEN recovered THEN 'signed-evidence-replayed' ELSE 'found-awaiting-signed-evidence' END,
+    reason=recovery_reason,provider_object_id=CASE WHEN NOT failed THEN supplied_provider_object_id ELSE NULL END WHERE id=audit_id;
+  -- Return the same durable hold that the administrator projections expose,
+  -- including an earlier adverse observation followed by a stale success GET.
+  result:=tideway_private.payment_command_recovery_state(c.id);
+  IF (result->>'reviewRequired')::boolean THEN
+    recovered:=false; recovery_reason:=result->>'recoveryReason';
+  END IF;
+  RETURN jsonb_build_object('status',c.status,'recoveryRequired',NOT recovered OR failed,'recoveryReason',recovery_reason,'signedEventsReplayed',replayed);
+END;
+$$;
+
 COMMIT;

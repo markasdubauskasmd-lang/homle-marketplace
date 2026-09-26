@@ -1,4 +1,11 @@
 \set ON_ERROR_STOP on
+DO $disposable_target$
+BEGIN
+ IF current_database()<>'ci_tideway_upgrade' THEN
+   RAISE EXCEPTION 'Observation upgrade fixture requires its dedicated disposable CI database';
+ END IF;
+END;
+$disposable_target$;
 BEGIN;
 SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000004',true);
 SELECT set_config('app.user_roles','administrator',true);

@@ -141,6 +141,7 @@ jobs:
           node tools/postgres-integration-runner.mjs
           node tools/postgres-media-delivery.mjs
       - name: Verify payment observation upgrade from actual migration114
+        if: ${{ !cancelled() }}
         env:
           PGPASSWORD: postgres
         run: |

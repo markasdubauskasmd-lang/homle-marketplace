@@ -10,7 +10,19 @@ function recoveryIdentity(command) {
     ...(command.kind === "transfer" && !command.requestIdentity ? { destinationAccountId: null, sourceChargeId: null } : {}) };
 }
 
+function supersededResult(command) {
+  if (command.supersededBeforeDispatch !== true) return null;
+  // Only the role-bound repository projection can prove that no dispatch
+  // allowance ever existed. A missing flag or contradictory record is not proof.
+  if (command.status !== "provider-failed" || command.hasAttemptWindow !== false
+    || command.legacyUnknown !== false || command.providerCommandId != null) throw new Error("The unsent payment action evidence is inconsistent.");
+  return Object.freeze({ commandId: command.commandId, paymentId: command.paymentId, kind: command.kind,
+    status: "provider-failed", recoveryRequired: false, recoveryReason: "superseded-before-dispatch", signedEventsReplayed: 0 });
+}
+
 export async function recoverPersistedPaymentCommand({ actor, command, repository, provider, reason = null }) {
+  const superseded = supersededResult(command);
+  if (superseded) return superseded;
   let discovery;
   try {
     discovery = reason ? { outcome: "operator-required", reason } : await provider.discoverCommandObject(recoveryIdentity(command));
@@ -27,6 +39,8 @@ export async function dispatchPersistedPaymentCommand({ actor, prepared, kind, r
   const persisted = await repository.getCommandAttempt(actor, prepared.commandId);
   if (!persisted || persisted.commandId !== prepared.commandId || persisted.paymentId !== prepared.paymentId
     || persisted.kind !== kind) throw new Error("The persisted payment action is unavailable.");
+  const superseded = supersededResult(persisted);
+  if (superseded) return superseded;
   // Original arguments must be read before looking up current bank settings or
   // latest charge. A retry cannot silently replace the reserved transfer source.
   if (persisted.legacyUnknown || persisted.providerCommandId || persisted.status === "reconciled") {
