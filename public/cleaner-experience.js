@@ -3,6 +3,24 @@ import { saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-on
 import { refreshOnboardingCsrf } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { hydrateOnboardingDocumentInputs, selectedDocumentCopy, storedDocumentCopy, uploadOnboardingFormDocuments, validateOnboardingDocument } from "./cleaner-onboarding-documents.js?v=20260805-1";
 
+const guardedExperienceForms = new WeakSet();
+function guardExperienceSubmission(form) {
+  if (!(form instanceof HTMLFormElement)) return null;
+  if (!guardedExperienceForms.has(form)) {
+    form.addEventListener("submit", (event) => event.preventDefault());
+    guardedExperienceForms.add(form);
+  }
+  const submit = form.querySelector('button[type="submit"]');
+  if (submit instanceof HTMLButtonElement) submit.disabled = true;
+  return submit;
+}
+
+// The registration shell reveals this step before its own account/profile
+// reads finish. Protect it when this deferred module loads, before those reads.
+if (typeof document !== "undefined" && globalThis.location?.pathname === "/cleaner/experience") {
+  guardExperienceSubmission(document.querySelector("[data-experience-form]"));
+}
+
 const serviceTypes = new Set(["cleaner", "beautician"]);
 const cleanerSpecialisms = [
   { value: "regular-domestic", profileService: "regular-domestic" },
@@ -219,6 +237,10 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
   if (experienceTopbar) experienceTopbar.hidden = false;
   if (!(form instanceof HTMLFormElement)) return;
 
+  // A visible form must never fall back to native GET navigation while its
+  // profile or documents are still loading, or when initialization fails.
+  const initialSubmit = guardExperienceSubmission(form);
+
   const [profileResult, availabilityResult, payoutResult, experienceResult, businessResult] = await Promise.allSettled([
     requestJson("/api/marketplace/cleaner/profile"),
     requestJson("/api/marketplace/cleaner/availability"),
@@ -313,4 +335,5 @@ export async function setupExperience({ account, showFeedback, requestJson }) {
       if (submit instanceof HTMLButtonElement) submit.disabled = false;
     }
   });
+  if (initialSubmit instanceof HTMLButtonElement) initialSubmit.disabled = false;
 }
