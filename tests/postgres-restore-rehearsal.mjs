@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {validateRestoreEnvironment} from '../tools/postgres-restore-rehearsal.mjs';
+import {validateRestoreEnvironment, canonicalCheckDefinition} from '../tools/postgres-restore-rehearsal.mjs';
 const secret='restore-rehearsal-do-not-print-this';
 const baseline={...process.env,TIDEWAY_DATABASE_TEST_CONFIRMATION:'RUN TIDEWAY DISPOSABLE DATABASE TESTS',DATABASE_INTEGRATION_OWNER_URL:'postgresql://tideway_owner:'+secret+'@localhost:5432/ci_tideway_test',DATABASE_INTEGRATION_APP_URL:'postgresql://tideway_app:'+secret+'@localhost:5432/ci_tideway_test',DATABASE_INTEGRATION_WORKER_URL:'postgresql://tideway_worker:'+secret+'@localhost:5432/ci_tideway_test',DATABASE_RESTORE_ADMIN_URL:'postgresql://postgres:'+secret+'@localhost:5432/postgres'};
 const cases=[
@@ -29,3 +29,19 @@ for(const [name,changes] of cases){
  assert.match(output,/restore|disposable|confirmation|invalid|local/i,name+' must explain the safety guard');
 }
 console.log('Restore rehearsal safety passed: explicit confirmation, local disposable databases, role/port boundaries, URL overrides and credential-safe failures.');
+
+const original = 'CHECK ((((byte_size >= 1) AND (byte_size <= 1572864)) AND (byte_size = octet_length(image_bytes))))';
+const reparsed = 'CHECK (((byte_size >= 1) AND (byte_size <= 1572864) AND (byte_size = octet_length(image_bytes))))';
+assert.equal(canonicalCheckDefinition(original), canonicalCheckDefinition(reparsed), 'Reparse-only AND grouping is equivalent');
+for (const changed of [
+ reparsed.replace('>= 1', '>= 0'),
+ reparsed.replace('<= 1572864', '<= 2572864'),
+ reparsed.replace(' AND ', ' OR '),
+ 'CHECK (((byte_size >= 1) AND (byte_size <= 1572864)))',
+ 'CHECK ((((byte_size >= 1) OR (byte_size <= 1572864)) AND (byte_size = octet_length(image_bytes))))',
+ 'CHECK ((NOT ((byte_size >= 1) AND (byte_size <= 1572864)) AND (byte_size = octet_length(image_bytes))))',
+]) assert.notEqual(canonicalCheckDefinition(original), canonicalCheckDefinition(changed), 'Changed constraint must remain detectable');
+for (const quoted of ["CHECK ((note = '((a) AND (b))'))", 'CHECK (("AND" = 1))', 'CHECK ((x > 1)) NOT VALID', 'CHECK ((x > 1 /* AND */))'])
+ assert.equal(canonicalCheckDefinition(quoted), quoted, 'Unfamiliar or quoted SQL stays strict');
+assert.notEqual(canonicalCheckDefinition('CHECK (((a + b) * c) > 1)'), canonicalCheckDefinition('CHECK ((a + (b * c)) > 1)'));
+console.log('Restore comparison preserves changed limits, operators, missing predicates, mixed logic, quoting and arithmetic grouping.');

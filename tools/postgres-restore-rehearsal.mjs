@@ -74,6 +74,43 @@ function canonicalAcl(expression) {
   return `(SELECT COALESCE(jsonb_agg(jsonb_build_object('grantor',grantor.rolname,'grantee',CASE WHEN acl_entry.grantee=0 THEN 'PUBLIC' ELSE grantee.rolname END,'privilege',acl_entry.privilege_type,'grantable',acl_entry.is_grantable) ORDER BY grantor.rolname,CASE WHEN acl_entry.grantee=0 THEN 'PUBLIC' ELSE grantee.rolname END,acl_entry.privilege_type,acl_entry.is_grantable),'[]'::jsonb) FROM aclexplode(NULLIF(${expression},'{}'::aclitem[])) acl_entry LEFT JOIN pg_roles grantor ON grantor.oid=acl_entry.grantor LEFT JOIN pg_roles grantee ON grantee.oid=acl_entry.grantee)`;
 }
 
+// pg_dump reparses CHECK expressions and flattens associative AND groups.
+// Normalize only fully parenthesized conjunctions without SQL quoting/comments.
+// Every leaf is preserved exactly; unfamiliar SQL remains byte-for-byte strict.
+export function canonicalCheckDefinition(definition) {
+  if (!/^CHECK \(.*\)$/s.test(definition) || !/^[A-Za-z0-9_\s().<>=!+*%/-]+$/.test(definition)
+      || /--|\/\*/.test(definition)) return definition;
+  function closing(text, start = 0) {
+    let depth = 0;
+    for (let i = start; i < text.length; i++) {
+      if (text[i] === '(') depth++;
+      if (text[i] === ')' && --depth === 0) return i;
+    }
+    return -1;
+  }
+  function expression(text) {
+    text = text.trim();
+    while (text.startsWith('(') && closing(text) === text.length - 1) text = text.slice(1, -1).trim();
+    const parts = [];
+    let rest = text;
+    while (rest.startsWith('(')) {
+      const end = closing(rest);
+      if (end < 0) break;
+      parts.push(rest.slice(0, end + 1));
+      rest = rest.slice(end + 1);
+      if (!rest) {
+        if (parts.length < 2) break;
+        const children = parts.map(expression);
+        return ['and', ...children.flatMap(child => child[0] === 'and' ? child.slice(1) : [child])];
+      }
+      if (!rest.startsWith(' AND ')) break;
+      rest = rest.slice(5);
+    }
+    return ['expression', text];
+  }
+  return JSON.stringify(['CHECK', expression(definition.slice(6))]);
+}
+
 async function snapshot(connection) {
   const relations = (await connection.query(`SELECT n.nspname AS schema,c.relname AS name,c.relkind,c.relrowsecurity,c.relforcerowsecurity,
     pg_get_userbyid(c.relowner) AS owner,${canonicalAcl("COALESCE(c.relacl,acldefault(CASE WHEN c.relkind='S' THEN 's'::\"char\" ELSE 'r'::\"char\" END,c.relowner))")} AS acl FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -105,6 +142,7 @@ async function snapshot(connection) {
     r.relname AS relation,pg_get_constraintdef(c.oid) AS definition FROM pg_constraint c
     JOIN pg_namespace n ON n.oid=c.connamespace LEFT JOIN pg_class r ON r.oid=c.conrelid
     WHERE n.nspname=ANY($1::text[]) ORDER BY n.nspname,r.relname,c.conname`, [schemas])).rows;
+  for (const constraint of constraints) if (constraint.contype === 'c') constraint.definition = canonicalCheckDefinition(constraint.definition);
   const indexes = (await connection.query(`SELECT n.nspname AS schema,r.relname AS relation,i.relname AS name,
     x.indisvalid,x.indisready,pg_get_indexdef(i.oid) AS definition
     FROM pg_index x JOIN pg_class i ON i.oid=x.indexrelid JOIN pg_class r ON r.oid=x.indrelid
