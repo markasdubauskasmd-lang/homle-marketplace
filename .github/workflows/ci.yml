@@ -141,6 +141,25 @@ jobs:
           node tools/postgres-integration-runner.mjs
           node tools/postgres-media-delivery.mjs
           node tools/postgres-upload-expiry.mjs
+
+      - name: Rehearse isolated PostgreSQL backup and restore
+        env:
+          DATABASE_INTEGRATION_OWNER_URL: postgresql://tideway_owner:${{ env.OWNER_PW }}@localhost:5432/ci_tideway_test
+          DATABASE_INTEGRATION_APP_URL: postgresql://tideway_app:${{ env.APP_PW }}@localhost:5432/ci_tideway_test
+          DATABASE_INTEGRATION_WORKER_URL: postgresql://tideway_worker:${{ env.WORKER_PW }}@localhost:5432/ci_tideway_test
+          DATABASE_RESTORE_ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          TIDEWAY_DATABASE_TEST_CONFIRMATION: RUN TIDEWAY DISPOSABLE DATABASE TESTS
+        run: |
+          export PATH="/usr/lib/postgresql/16/bin:$PATH"
+          node tools/postgres-restore-rehearsal.mjs
+
+      - name: Verify individual email leases with competing workers
+        env:
+          DATABASE_INTEGRATION_OWNER_URL: postgresql://tideway_owner:${{ env.OWNER_PW }}@localhost:5432/ci_tideway_test
+          DATABASE_INTEGRATION_WORKER_URL: postgresql://tideway_worker:${{ env.WORKER_PW }}@localhost:5432/ci_tideway_test
+          TIDEWAY_DATABASE_TEST_CONFIRMATION: RUN TIDEWAY DISPOSABLE DATABASE TESTS
+        run: node tools/postgres-email-lease.mjs
+
       - name: Verify payment observation upgrade from actual migration116
         if: ${{ !cancelled() }}
         env:
