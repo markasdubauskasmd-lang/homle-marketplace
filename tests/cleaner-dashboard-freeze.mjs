@@ -39,7 +39,9 @@ const expectedFileCount = 98;
 // User authorised the database-backed safety exam, 15 September 2026.
 // User authorised the database-backed safety exam, 15 September 2026.
 // User authorised the database-backed safety exam, 15 September 2026.
-const expectedDigest = "43561a855d0e8cf1cadcfb767c0ced1406eb045ad49d307a62c7a0060953f7e3";
+// User approved the specifically proposed early-submit guard, 26 September 2026.
+// Only public/cleaner-experience.js changed; all other protected files remain pinned.
+const expectedDigest = "81f81802e22a23f083493c01262f13feda711a97c58c46f52901d7b578fbeca3";
 
 const sharedBrowserDependencies = Object.freeze([
   "public/account-avatar.js",
@@ -136,4 +138,4 @@ assert.equal(
   "A shared module controlling Cleaner matching, job terms, payout or automatic dispatch changed. Revert it or isolate the non-Cleaner work; do not refresh this digest while the Cleaner backend freeze remains active."
 );
 
-console.log(`Cleaner Dashboard freeze passed: ${files.length} protected files and ${sharedCleanerOutcomeDependencies.length} shared Cleaner-outcome modules are byte-for-byte unchanged.`);
+console.log(`Cleaner Dashboard freeze passed: ${files.length} protected files match the approved baseline; ${sharedCleanerOutcomeDependencies.length} shared Cleaner-outcome modules remain byte-for-byte unchanged.`);
