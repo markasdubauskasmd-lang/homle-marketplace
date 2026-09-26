@@ -95,11 +95,17 @@ export function createEmailNotificationWorker(repository, delivery, options = {}
 
   return Object.freeze({
     async runOnce() {
-      const leaseToken = createId();
-      if (!uuidPattern.test(leaseToken || "")) throw new TypeError("The email worker lease generator must return a UUID.");
-      const claimed = await repository.claimDue(leaseToken.toLowerCase(), batchLimit, leaseSeconds);
-      const result = { claimed: claimed.length, sent: 0, retried: 0, failed: 0 };
-      for (const candidate of claimed) {
+      const result = { claimed: 0, sent: 0, retried: 0, failed: 0 };
+      // Claim just before delivery: queued messages must not spend their lease
+      // waiting for earlier provider calls or completion acknowledgments.
+      for (let index = 0; index < batchLimit; index += 1) {
+        const leaseToken = createId();
+        if (!uuidPattern.test(leaseToken || "")) throw new TypeError("The email worker lease generator must return a UUID.");
+        const claimed = await repository.claimDue(leaseToken.toLowerCase(), 1, leaseSeconds);
+        if (!Array.isArray(claimed) || claimed.length > 1) throw new Error("Email claim returned an invalid single-record batch.");
+        if (claimed.length === 0) break;
+        const candidate = claimed[0];
+        result.claimed += 1;
         try {
           const email = notificationEmail(candidate, appOrigin);
           await delivery.send(email);
