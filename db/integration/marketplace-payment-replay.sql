@@ -38,6 +38,7 @@ DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN 
   IF (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>0 THEN RAISE EXCEPTION 'Duplicate failure or stale success corrupted refund total'; END IF;
 
   -- The reverse delivery order produces exactly the same final money.
+  DELETE FROM tideway_private.payment_observed_objects WHERE command_id=r;
   DELETE FROM payment_commands WHERE id=r;
   PERFORM * FROM tideway_private.begin_booking_payment_command(r,p,'refund',1000,decode(repeat('e3',32),'hex'));
   result:=pg_temp.reconcile_bound_fixture_event('stripe','evt_replay_failed_first','refund-failed','re_replay_first',p,r,1000,'gbp',occurred,repeat('6',64));
@@ -45,6 +46,7 @@ DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN 
   IF (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>0 THEN RAISE EXCEPTION 'Failure-first refund was reapplied by stale success'; END IF;
 
   -- A failed API command reply alone is not a terminal signed refund fact.
+  DELETE FROM tideway_private.payment_observed_objects WHERE command_id=r;
   DELETE FROM payment_commands WHERE id=r;
   PERFORM * FROM tideway_private.begin_booking_payment_command(r,p,'refund',1000,decode(repeat('e4',32),'hex'));
   PERFORM * FROM tideway_private.record_booking_payment_command(r,'re_reply_failure','failed');
@@ -87,8 +89,14 @@ DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN 
   DELETE FROM tideway_private.payment_disputes WHERE payment_id=p;
 
   -- A missing capture prerequisite stays retryable, including exact redelivery.
+  DELETE FROM tideway_private.payment_observed_objects WHERE command_id=r;
   DELETE FROM payment_commands WHERE id=r;
   UPDATE booking_payments SET amount_refunded_pence=0,amount_captured_pence=0,status='authorized' WHERE id=p;
+  -- The capture request already reached the provider before its refund arrives;
+  -- only the signed capture result is delayed. A new capture after the refund
+  -- observation would correctly be blocked by the reconciliation hold.
+  PERFORM * FROM tideway_private.begin_booking_payment_command(c,p,'capture',NULL,decode(repeat('e6',32),'hex'));
+  PERFORM * FROM tideway_private.record_booking_payment_command(c,payment.provider_payment_id,'pending');
   INSERT INTO payment_commands(id,payment_id,command_kind,amount_pence,status,idempotency_key_hash,created_by)
     VALUES(r,p,'refund',1000,'created',decode(repeat('e5',32),'hex'),tideway_private.current_user_id());
   result:=pg_temp.reconcile_bound_fixture_event('stripe','evt_replay_pending','refund-succeeded','re_pending',p,r,1000,'gbp',occurred,repeat('a',64));
@@ -97,7 +105,6 @@ DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN 
   IF result->>'retryable'<>'true' OR result->>'accepted'<>'false' THEN RAISE EXCEPTION 'Unresolved duplicate was falsely acknowledged'; END IF;
   -- Simulate a historically acknowledged conflict: replay must still recover it.
   UPDATE tideway_private.payment_provider_events SET processed=true,result_code='invalid-state-transition',reconciliation_version=1 WHERE provider_event_id='evt_replay_pending';
-  PERFORM * FROM tideway_private.begin_booking_payment_command(c,p,'capture',NULL,decode(repeat('e6',32),'hex'));
   result:=pg_temp.reconcile_bound_fixture_event('stripe','evt_replay_capture','capture-succeeded',payment.provider_payment_id,p,c,payment.amount_pence,'gbp',occurred+interval '10 seconds',repeat('b',64));
   result:=pg_temp.reconcile_bound_fixture_event('stripe','evt_replay_pending','refund-succeeded','re_pending',p,r,1000,'gbp',occurred,repeat('a',64));
   IF result->>'accepted'<>'true' OR (SELECT amount_refunded_pence FROM booking_payments WHERE id=p)<>1000 THEN RAISE EXCEPTION 'Historical signed replay did not recover after capture'; END IF;
