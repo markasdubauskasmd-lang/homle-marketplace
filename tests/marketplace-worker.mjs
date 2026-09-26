@@ -77,7 +77,13 @@ assert.ok(queries.every((query) => query.text.includes("$1") && query.values.len
 
 const drainBatches = [{ processedCount: 100, batchFull: true }, { processedCount: 0, batchFull: false }];
 const deletedObjects = [];
+const emptyTerminalRepository = {
+  async claimJobPhotoTerminalCleanup(){return {processedCount:0,batchFull:false,uploads:[]};},
+  async claimRequestPhotoTerminalCleanup(){return {processedCount:0,batchFull:false,uploads:[]};},
+  async acknowledgeJobPhotoTerminalCleanup(){}, async acknowledgeRequestPhotoTerminalCleanup(){}
+};
 const maintenanceJobs = createMarketplaceMaintenanceJobs({
+  ...emptyTerminalRepository,
   async acknowledgeJobPhotoUploadCleanup() {},
   async acknowledgeRequestPhotoUploadCleanup() {},
   async expireInvitations() { return drainBatches.shift(); },
@@ -91,7 +97,7 @@ const maintenanceJobs = createMarketplaceMaintenanceJobs({
   async expireJobPhotoUploads() { return { processedCount: 1, batchFull: false, uploads: [{ quarantineStorageKey: "q/job", finalStorageKey: "f/job" }] }; },
   async expireRequestPhotoUploads() { return { processedCount: 0, batchFull: false, uploads: [] }; }
 }, { objectStorage: { async deleteObject({ storageKey }) { deletedObjects.push(storageKey); } } });
-assert.equal(maintenanceJobs.length, 10);
+assert.equal(maintenanceJobs.length, 12);
 // Time-based deletion of room scans. Named explicitly rather than counted only,
 // because a retention job silently absent is a retention policy that quietly
 // does not run.
@@ -100,7 +106,7 @@ assert.deepEqual(await maintenanceJobs.find((job) => job.name === "invitation-ex
 assert.deepEqual(await maintenanceJobs.find((job) => job.name === "job-photo-upload-expiry").runOnce(), { batches: 1, processed: 1, objectsDeleted: 2, moreMayRemain: false });
 assert.deepEqual(deletedObjects, ["q/job", "f/job"]);
 
-const zeroRepository = Object.fromEntries(["expireInvitations", "queuePaymentReadinessReminders", "queueBookingVisitReminders", "purgeLocations", "purgeSessions", "purgeRateLimits", "purgePendingSocialIdentities", "purgeRoomScans"].map((name) => [name, async () => ({ processedCount: 0, batchFull: false })]));
+const zeroRepository = Object.assign({}, emptyTerminalRepository, Object.fromEntries(["expireInvitations", "queuePaymentReadinessReminders", "queueBookingVisitReminders", "purgeLocations", "purgeSessions", "purgeRateLimits", "purgePendingSocialIdentities", "purgeRoomScans"].map((name) => [name, async () => ({ processedCount: 0, batchFull: false })])));
 const runtime = createMarketplaceWorkerRuntime({ query() {} }, { createMaintenanceRepository: () => zeroRepository, onUnexpectedError() {} });
 assert.deepEqual(runtime.snapshot().jobs.map((job) => job.name), ["invitation-expiry", "location-expiry", "payment-readiness-reminders", "booking-visit-reminders", "session-expiry", "rate-limit-retention", "social-identity-retention", "room-scan-retention"]);
 await runtime.close();
@@ -249,4 +255,22 @@ console.log("Marketplace worker tests passed: exact packaged release, restricted
   assert.deepEqual(acknowledged,['healthy']);
   const rejectedAck=createMaintenanceRepository({async query(){return {rows:[{acknowledged:false}]};}});
   await assert.rejects(rejectedAck.acknowledgeRequestPhotoUploadCleanup('88888888-8888-4888-8888-888888888888'),/not acknowledged/);
+}
+
+// Terminal cleanup repository preserves explicit DB-selected keys/status and
+// fails closed when acknowledgments fail, without exposing a final-image field.
+{
+  const id='88888888-8888-4888-8888-888888888888',calls=[];
+  const q='quarantine/request-photos/66666666-6666-4666-8666-666666666666/'+id;
+  const repo=createMaintenanceRepository({async query(text,values){calls.push({text,values});return text.includes('acknowledge')?{rows:[{acknowledged:true}]}:{rows:[{upload_id:id,upload_status:'completed',cleanup_keys:[q]}]};}});
+  for(const kind of ['Job','Request']){
+    const result=await repo['claim'+kind+'PhotoTerminalCleanup'](10);
+    assert.deepEqual(result,{processedCount:1,batchFull:false,uploads:[{uploadId:id,status:'completed',cleanupKeys:[q]}]});
+    assert.equal(Object.hasOwn(result.uploads[0],'finalStorageKey'),false);
+    await repo['acknowledge'+kind+'PhotoTerminalCleanup'](id,'completed');
+    assert.deepEqual(calls.at(-1).values,[id,'completed']);assert(calls.at(-1).text.includes('$2::text'));
+  }
+  const failed=createMaintenanceRepository({async query(){return {rows:[{acknowledged:false}]};}});
+  await assert.rejects(failed.acknowledgeJobPhotoTerminalCleanup(id,'rejected'),/not acknowledged/);
+  await assert.rejects(repo.claimRequestPhotoTerminalCleanup(11),/outside/);
 }

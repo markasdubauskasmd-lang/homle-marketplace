@@ -576,6 +576,11 @@
       "order": 115,
       "file": "115_media_expiry_recovery.sql",
       "sha256": "dc4b7c6b37ff2aaefd5a394736f880d0dbd59d5914b4a3e194b22666050eeac5"
+    },
+    {
+      "order": 116,
+      "file": "116_media_terminal_cleanup.sql",
+      "sha256": "64d78b1152090a2e4b04f70bb3c0064cdaece053ad51d76b27941f53d7d12130"
     }
   ],
   "grantFiles": [
@@ -585,7 +590,7 @@
     },
     {
       "file": "worker-role-grants.sql",
-      "sha256": "75f4f057c8172875df919fb9d28984ed55ca418c9a2fd013f31b3e213fe95912"
+      "sha256": "c6a33db6304caa949d9a7ed86818fc1c91195f673f40185b76e2ca959654fcb3"
     }
   ]
 }

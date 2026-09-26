@@ -31,6 +31,18 @@ function createDrainJob(repository, method, options) {
   });
 }
 
+// Validate the exact server-owned shape before any deletion. In particular,
+// a completed upload can never supply a final-image key to this worker.
+function terminalCleanupKeys(upload, kind) {
+  const id = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+  const pattern = new RegExp("^quarantine/" + kind + "-photos/(" + id + ")/(" + id + ")$");
+  const keys = upload?.cleanupKeys;
+  if (!Array.isArray(keys) || !["completed", "rejected"].includes(upload?.status) || keys.length !== (upload.status === "completed" ? 1 : 2)) throw new Error("Terminal photo cleanup keys are invalid.");
+  const match = typeof keys[0] === "string" ? pattern.exec(keys[0]) : null;
+  if (!match || match[2] !== upload.uploadId || (upload.status === "rejected" && keys[1] !== kind + "-photos/" + match[1] + "/" + match[2] + ".jpg")) throw new Error("Terminal photo cleanup keys are invalid.");
+  return keys;
+}
+
 function createUploadExpiryJob(repository, method, acknowledge, objectStorage, options) {
   if (typeof repository?.[acknowledge] !== "function") throw new TypeError(`Marketplace maintenance requires ${acknowledge}.`);
   if (typeof repository?.[method] !== "function") throw new TypeError(`Marketplace maintenance requires ${method}.`);
@@ -49,13 +61,13 @@ function createUploadExpiryJob(repository, method, acknowledge, objectStorage, o
         while (nextUpload < batch.uploads.length) {
           const upload = batch.uploads[nextUpload++];
           try {
-            if (![upload?.quarantineStorageKey, upload?.finalStorageKey].every((key) => typeof key === "string" && key.trim().length > 0)) throw new Error("Expired photo cleanup keys are incomplete.");
-            const keys = [...new Set([upload.quarantineStorageKey, upload.finalStorageKey])];
+            if (!options.terminalKind && ![upload?.quarantineStorageKey, upload?.finalStorageKey].every((key) => typeof key === "string" && key.trim().length > 0)) throw new Error("Expired photo cleanup keys are incomplete.");
+            const keys = options.terminalKind ? terminalCleanupKeys(upload, options.terminalKind) : [...new Set([upload.quarantineStorageKey, upload.finalStorageKey])];
             for (const key of keys) {
               await objectStorage.deleteObject({ storageKey: key });
               objectsDeleted += 1;
             }
-            await repository[acknowledge](upload.uploadId);
+            await repository[acknowledge](upload.uploadId, upload.status);
           } catch (error) { failures.push(error); }
         }
       };
@@ -87,6 +99,10 @@ export function createMarketplaceMaintenanceJobs(repository, options = {}) {
   if (options.objectStorage) {
     jobs.push(createUploadExpiryJob(repository, "expireJobPhotoUploads", "acknowledgeJobPhotoUploadCleanup", options.objectStorage, { name: "job-photo-upload-expiry", intervalMs: minute }));
     jobs.push(createUploadExpiryJob(repository, "expireRequestPhotoUploads", "acknowledgeRequestPhotoUploadCleanup", options.objectStorage, { name: "request-photo-upload-expiry", intervalMs: minute }));
+  }
+  if (options.objectStorage) {
+    jobs.push(createUploadExpiryJob(repository, "claimJobPhotoTerminalCleanup", "acknowledgeJobPhotoTerminalCleanup", options.objectStorage, { name: "job-photo-terminal-cleanup", intervalMs: minute, terminalKind: "job" }));
+    jobs.push(createUploadExpiryJob(repository, "claimRequestPhotoTerminalCleanup", "acknowledgeRequestPhotoTerminalCleanup", options.objectStorage, { name: "request-photo-terminal-cleanup", intervalMs: minute, terminalKind: "request" }));
   }
   return Object.freeze(jobs);
 }
