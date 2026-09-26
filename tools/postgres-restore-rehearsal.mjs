@@ -70,9 +70,13 @@ async function assertRole(connection, expected, database, privileged = false) {
   await connection.query("SET timezone='UTC'; SET datestyle='ISO, YMD'; SET intervalstyle='postgres'");
 }
 
+function canonicalAcl(expression) {
+  return `(SELECT COALESCE(jsonb_agg(jsonb_build_object('grantor',grantor.rolname,'grantee',CASE WHEN acl_entry.grantee=0 THEN 'PUBLIC' ELSE grantee.rolname END,'privilege',acl_entry.privilege_type,'grantable',acl_entry.is_grantable) ORDER BY grantor.rolname,CASE WHEN acl_entry.grantee=0 THEN 'PUBLIC' ELSE grantee.rolname END,acl_entry.privilege_type,acl_entry.is_grantable),'[]'::jsonb) FROM aclexplode(${expression}) acl_entry LEFT JOIN pg_roles grantor ON grantor.oid=acl_entry.grantor LEFT JOIN pg_roles grantee ON grantee.oid=acl_entry.grantee)`;
+}
+
 async function snapshot(connection) {
   const relations = (await connection.query(`SELECT n.nspname AS schema,c.relname AS name,c.relkind,c.relrowsecurity,c.relforcerowsecurity,
-    pg_get_userbyid(c.relowner) AS owner,c.relacl::text AS acl FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    pg_get_userbyid(c.relowner) AS owner,${canonicalAcl("COALESCE(c.relacl,acldefault(CASE WHEN c.relkind='S' THEN 's'::\"char\" ELSE 'r'::\"char\" END,c.relowner))")} AS acl FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname=ANY($1::text[]) AND c.relkind IN ('r','p','S','v','m') ORDER BY n.nspname,c.relname`, [schemas])).rows;
   const data = [];
   for (const relation of relations) {
@@ -85,13 +89,13 @@ async function snapshot(connection) {
     }
   }
   const functions = (await connection.query(`SELECT n.nspname,p.proname,pg_get_function_identity_arguments(p.oid) AS arguments,
-    pg_get_userbyid(p.proowner) AS owner,p.prosecdef,p.proconfig,p.proacl::text AS acl,pg_get_functiondef(p.oid) AS definition
+    pg_get_userbyid(p.proowner) AS owner,p.prosecdef,p.proconfig,${canonicalAcl("COALESCE(p.proacl,acldefault('f',p.proowner))")} AS acl,pg_get_functiondef(p.oid) AS definition
     FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname=ANY($1::text[]) AND p.prokind IN ('f','p') ORDER BY n.nspname,p.proname,arguments`, [schemas])).rows;
   const policies = (await connection.query("SELECT * FROM pg_policies WHERE schemaname=ANY($1::text[]) ORDER BY schemaname,tablename,policyname", [schemas])).rows;
-  const schemaGrants = (await connection.query("SELECT nspname,pg_get_userbyid(nspowner) AS owner,nspacl::text AS acl FROM pg_namespace WHERE nspname=ANY($1::text[]) ORDER BY nspname", [schemas])).rows;
+  const schemaGrants = (await connection.query(`SELECT nspname,pg_get_userbyid(nspowner) AS owner,${canonicalAcl("COALESCE(nspacl,acldefault('n',nspowner))")} AS acl FROM pg_namespace WHERE nspname=ANY($1::text[]) ORDER BY nspname`, [schemas])).rows;
   const extensions = (await connection.query("SELECT extname,extversion,pg_get_userbyid(extowner) AS owner FROM pg_extension ORDER BY extname")).rows;
   const columns = (await connection.query(`SELECT n.nspname AS schema,c.relname AS relation,a.attnum,a.attname,
-    format_type(a.atttypid,a.atttypmod) AS type,a.attnotnull,a.attidentity,a.attgenerated,a.attacl::text AS acl,
+    format_type(a.atttypid,a.atttypmod) AS type,a.attnotnull,a.attidentity,a.attgenerated,${canonicalAcl("COALESCE(a.attacl,'{}'::aclitem[])")} AS acl,
     pg_get_expr(d.adbin,d.adrelid) AS default_expression
     FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid JOIN pg_namespace n ON n.oid=c.relnamespace
     LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
@@ -191,6 +195,23 @@ export async function runRestoreRehearsal(env = process.env) {
     compareSnapshots(await snapshot(restoredReader), before);
     phase = "source-unchanged";
     compareSnapshots(await snapshot(sourceReader), before);
+    phase = "corruption-detector";
+    await restoredReader.query("BEGIN");
+    try {
+      await restoredReader.query(`UPDATE ${fixtureSchema}.payloads SET payload=payload || '{"restore_probe":true}'::jsonb WHERE id=1`);
+      const corrupted = await snapshot(restoredReader);
+      assert.throws(() => compareSnapshots(corrupted, before), "Changed restored records must fail verification");
+      assert.equal(mismatch?.category, "data");
+    } finally { await restoredReader.query("ROLLBACK"); mismatch = null; }
+    phase = "permission-expansion-detector";
+    await restoredReader.query("BEGIN");
+    try {
+      await restoredReader.query(`GRANT SELECT ON ${fixtureSchema}.payloads TO tideway_app`);
+      const expanded = await snapshot(restoredReader);
+      assert.throws(() => compareSnapshots(expanded, before), "Expanded restored permissions must fail verification");
+      assert.equal(mismatch?.category, "relations");
+    } finally { await restoredReader.query("ROLLBACK"); mismatch = null; }
+    compareSnapshots(await snapshot(restoredReader), before);
     phase = "restored-runtime-permissions";
     const app = client(urls.app, targetName), worker = client(urls.worker, targetName);
     await app.connect(); connections.push(app); await assertRole(app, "tideway_app", targetName);
@@ -206,7 +227,7 @@ export async function runRestoreRehearsal(env = process.env) {
     await worker.query("ROLLBACK");
     return { verified: true, source: sourceName, destination: targetName, tableSnapshots: before.data.length,
       functionSnapshots: before.functions.length, policySnapshots: before.policies.length, restoredAppRls: true, restoredWorkerBoundary: true,
-      productionBackupVerified: false, objectStorageRestored: false };
+      corruptionDetection: true, permissionExpansionDetection: true, productionBackupVerified: false, objectStorageRestored: false };
   } finally {
     // Cleanup only fixture objects/accounts created by this run in the exact
     // allowlisted source. Never drop or replace an existing database.
