@@ -1370,6 +1370,22 @@ BEGIN
 END;
 $parent_identity_verification$;
 
+DO $media_cleanup_verification$
+DECLARE installed boolean:=false; signature text;
+BEGIN
+  IF to_regclass('tideway_private.schema_migrations') IS NOT NULL THEN
+    EXECUTE 'SELECT EXISTS (SELECT 1 FROM tideway_private.schema_migrations WHERE migration_order=115)' INTO installed;
+  END IF;
+  IF installed THEN
+    FOREACH signature IN ARRAY ARRAY['tideway_private.acknowledge_job_photo_upload_cleanup(uuid)','tideway_private.acknowledge_request_photo_upload_cleanup(uuid)'] LOOP
+      IF to_regprocedure(signature) IS NULL OR NOT has_function_privilege('tideway_worker',signature,'EXECUTE')
+        OR has_function_privilege('tideway_app',signature,'EXECUTE')
+      THEN RAISE EXCEPTION 'Expired photo cleanup acknowledgment grant is incomplete or unsafe'; END IF;
+    END LOOP;
+  END IF;
+END;
+$media_cleanup_verification$;
+
 SELECT json_build_object(
   'verified', true,
   'postgresqlVersion', current_setting('server_version'),
@@ -1387,6 +1403,7 @@ SELECT json_build_object(
     + CASE WHEN to_regprocedure('tideway_private.reschedule_open_cleaning_request(uuid,timestamp with time zone)') IS NULL THEN 0 ELSE 1 END
     + CASE WHEN to_regprocedure('tideway_private.record_scan_telemetry_batch(jsonb)') IS NULL THEN 0 ELSE 2 END,
   'workerFunctionChecks', 14
+    + CASE WHEN to_regprocedure('tideway_private.acknowledge_request_photo_upload_cleanup(uuid)') IS NULL THEN 0 ELSE 2 END
 ) AS tideway_deployment_verification;
 
 ROLLBACK;
