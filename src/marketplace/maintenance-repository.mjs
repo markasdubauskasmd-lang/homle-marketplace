@@ -68,6 +68,28 @@ export function createMaintenanceRepository(pool) {
       const selected = boundedLimit(limit, 5000, "Pending social-identity purge batch limit");
       return scalarResult(await pool.query("SELECT tideway_private.purge_expired_pending_social_identities($1::integer) AS processed_count", [selected]), selected);
     },
+    async claimJobPhotoTerminalCleanup(limit) {
+      const selected = boundedLimit(limit, 10, "Terminal photo cleanup batch limit");
+      const result = await pool.query("SELECT * FROM tideway_private.claim_job_photo_terminal_cleanup($1::integer)", [selected]);
+      const rows = result?.rows;
+      if (!Array.isArray(rows) || rows.length>selected) throw new Error("Invalid terminal photo cleanup batch.");
+      return {processedCount:rows.length,batchFull:rows.length===selected,uploads:rows.map(row=>({uploadId:row.upload_id,status:row.upload_status,cleanupKeys:row.cleanup_keys}))};
+    },
+    async acknowledgeJobPhotoTerminalCleanup(uploadId, status) {
+      const result = await pool.query("SELECT tideway_private.acknowledge_job_photo_terminal_cleanup($1::uuid,$2::text) AS acknowledged", [uploadId,status]);
+      if (result?.rows?.[0]?.acknowledged!==true) throw new Error("Terminal photo cleanup was not acknowledged.");
+    },
+    async claimRequestPhotoTerminalCleanup(limit) {
+      const selected = boundedLimit(limit, 10, "Terminal photo cleanup batch limit");
+      const result = await pool.query("SELECT * FROM tideway_private.claim_request_photo_terminal_cleanup($1::integer)", [selected]);
+      const rows = result?.rows;
+      if (!Array.isArray(rows) || rows.length>selected) throw new Error("Invalid terminal photo cleanup batch.");
+      return {processedCount:rows.length,batchFull:rows.length===selected,uploads:rows.map(row=>({uploadId:row.upload_id,status:row.upload_status,cleanupKeys:row.cleanup_keys}))};
+    },
+    async acknowledgeRequestPhotoTerminalCleanup(uploadId, status) {
+      const result = await pool.query("SELECT tideway_private.acknowledge_request_photo_terminal_cleanup($1::uuid,$2::text) AS acknowledged", [uploadId,status]);
+      if (result?.rows?.[0]?.acknowledged!==true) throw new Error("Terminal photo cleanup was not acknowledged.");
+    },
     async acknowledgeJobPhotoUploadCleanup(uploadId) {
       const result = await pool.query("SELECT tideway_private.acknowledge_job_photo_upload_cleanup($1::uuid) AS acknowledged", [uploadId]);
       if (result?.rows?.[0]?.acknowledged !== true) throw new Error("Expired job-photo cleanup was not acknowledged.");

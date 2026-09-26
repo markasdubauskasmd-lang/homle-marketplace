@@ -274,4 +274,61 @@ BEGIN
 END;
 $media_cleanup$;
 
+
+DO $terminal_cleanup$
+DECLARE kind text; table_name text; rows_seen integer; item record; acknowledged boolean; preserved text;
+  completed_id uuid := '7e000000-0000-4000-8000-000000000003';
+  rejected_id uuid := '7e000000-0000-4000-8000-000000000002';
+  future_id uuid := '7e000000-0000-4000-8000-000000000004';
+BEGIN
+  FOREACH kind IN ARRAY ARRAY['request','job'] LOOP
+    table_name:=CASE kind WHEN 'request' THEN 'cleaning_request_photo_uploads' ELSE 'job_photo_uploads' END;
+    IF has_function_privilege('tideway_app',format('tideway_private.claim_%s_photo_terminal_cleanup(integer)',kind),'EXECUTE')
+      OR has_function_privilege('tideway_app',format('tideway_private.acknowledge_%s_photo_terminal_cleanup(uuid,text)',kind),'EXECUTE')
+      OR NOT has_function_privilege('tideway_worker',format('tideway_private.claim_%s_photo_terminal_cleanup(integer)',kind),'EXECUTE')
+      OR NOT has_function_privilege('tideway_worker',format('tideway_private.acknowledge_%s_photo_terminal_cleanup(uuid,text)',kind),'EXECUTE')
+    THEN RAISE EXCEPTION 'Terminal cleanup grant boundary failed'; END IF;
+    -- Reuse only this transaction's synthetic upload rows; never application rows.
+    EXECUTE format('UPDATE %I SET status=''rejected'',rejection_reason=''synthetic-rejection'' WHERE id=$1',table_name) USING rejected_id;
+    EXECUTE format('UPDATE %I SET status=''completed'' WHERE id=$1',table_name) USING future_id;
+    rows_seen:=0;
+    FOR item IN EXECUTE format('SELECT * FROM tideway_private.claim_%s_photo_terminal_cleanup(10)',kind) LOOP
+      rows_seen:=rows_seen+1;
+      IF item.upload_id=completed_id THEN
+        IF item.upload_status IS DISTINCT FROM 'completed' OR cardinality(item.cleanup_keys) IS DISTINCT FROM 1
+          OR item.cleanup_keys[1] NOT LIKE 'quarantine/%' THEN RAISE EXCEPTION 'Completed cleanup exposed valid final media'; END IF;
+      ELSIF item.upload_id=rejected_id THEN
+        IF item.upload_status IS DISTINCT FROM 'rejected' OR cardinality(item.cleanup_keys) IS DISTINCT FROM 2
+          OR item.cleanup_keys[1] NOT LIKE 'quarantine/%' OR item.cleanup_keys[2] LIKE 'quarantine/%'
+        THEN RAISE EXCEPTION 'Rejected cleanup omitted required keys'; END IF;
+      ELSE RAISE EXCEPTION 'Terminal cleanup selected pending/expired/unexpired media'; END IF;
+    END LOOP;
+    IF rows_seen<>2 THEN RAISE EXCEPTION 'Historical terminal uploads were not queued'; END IF;
+    EXECUTE format('SELECT count(*) FROM tideway_private.claim_%s_photo_terminal_cleanup(10)',kind) INTO rows_seen;
+    IF rows_seen<>2 THEN RAISE EXCEPTION 'Unacknowledged terminal cleanup cannot recover after crash'; END IF;
+    EXECUTE format('SELECT tideway_private.acknowledge_%s_photo_terminal_cleanup($1,''rejected'')',kind) INTO acknowledged USING completed_id;
+    IF acknowledged THEN RAISE EXCEPTION 'Wrong terminal state was acknowledged'; END IF;
+    EXECUTE format('SELECT tideway_private.acknowledge_%s_photo_terminal_cleanup($1,''completed'')',kind) INTO acknowledged USING future_id;
+    IF acknowledged THEN RAISE EXCEPTION 'Future upload was acknowledged'; END IF;
+    EXECUTE format('SELECT tideway_private.acknowledge_%s_photo_terminal_cleanup($1,''completed'')',kind) INTO acknowledged USING completed_id;
+    IF acknowledged IS DISTINCT FROM true THEN RAISE EXCEPTION 'Completed quarantine cleanup not acknowledged'; END IF;
+    EXECUTE format('SELECT tideway_private.acknowledge_%s_photo_terminal_cleanup($1,''rejected'')',kind) INTO acknowledged USING rejected_id;
+    IF acknowledged IS DISTINCT FROM true THEN RAISE EXCEPTION 'Rejected cleanup not acknowledged'; END IF;
+    EXECUTE format('SELECT count(*) FROM tideway_private.claim_%s_photo_terminal_cleanup(10)',kind) INTO rows_seen;
+    IF rows_seen<>0 THEN RAISE EXCEPTION 'Acknowledged terminal cleanup immediately reselected'; END IF;
+    EXECUTE format('SELECT status||'':''||rejection_reason FROM %I WHERE id=$1',table_name) INTO preserved USING rejected_id;
+    IF preserved IS DISTINCT FROM 'rejected:synthetic-rejection' THEN RAISE EXCEPTION 'Rejection evidence changed during cleanup'; END IF;
+    EXECUTE format('UPDATE %I SET terminal_cleanup_completed_at=now()-interval ''2 days'' WHERE id IN ($1,$2)',table_name) USING completed_id,rejected_id;
+    EXECUTE format('SELECT count(*) FROM tideway_private.claim_%s_photo_terminal_cleanup(10)',kind) INTO rows_seen;
+    IF rows_seen<>2 THEN RAISE EXCEPTION 'Terminal late-write resweep missing'; END IF;
+    BEGIN
+      EXECUTE format('SELECT * FROM tideway_private.claim_%s_photo_terminal_cleanup(11)',kind);
+      RAISE EXCEPTION 'Terminal cleanup accepted oversized batch';
+    EXCEPTION WHEN SQLSTATE '22023' THEN
+      IF SQLERRM<>'invalid-terminal-cleanup-limit' THEN RAISE; END IF;
+    END;
+  END LOOP;
+END;
+$terminal_cleanup$;
+
 ROLLBACK;

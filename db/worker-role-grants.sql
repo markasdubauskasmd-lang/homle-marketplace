@@ -44,4 +44,9 @@ REVOKE ALL ON TABLE tideway_private.request_rate_limits FROM tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.acknowledge_job_photo_upload_cleanup(uuid) TO tideway_worker;
 GRANT EXECUTE ON FUNCTION tideway_private.acknowledge_request_photo_upload_cleanup(uuid) TO tideway_worker;
 
+GRANT EXECUTE ON FUNCTION tideway_private.claim_job_photo_terminal_cleanup(integer) TO tideway_worker;
+GRANT EXECUTE ON FUNCTION tideway_private.acknowledge_job_photo_terminal_cleanup(uuid,text) TO tideway_worker;
+GRANT EXECUTE ON FUNCTION tideway_private.claim_request_photo_terminal_cleanup(integer) TO tideway_worker;
+GRANT EXECUTE ON FUNCTION tideway_private.acknowledge_request_photo_terminal_cleanup(uuid,text) TO tideway_worker;
+
 COMMIT;
