@@ -7,6 +7,7 @@ import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260729-6";
 import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { activityRecords, activityDateKey, renderActivityFeature, renderActivityWeek, connectActivityNavigation } from "./homlle-activity.js?v=20260908-1";
 import { storedCsrf } from "./session-csrf.js?v=20260718-1";
+import { availabilityWindowBooked } from "./cleaner-availability-model.js?v=20261025-booked-1";
 
 const gate = document.querySelector("[data-schedule-gate]");
 const gateTitle = document.querySelector("[data-schedule-gate-title]");
@@ -401,6 +402,8 @@ async function saveTimeOff(event) {
 // with no caller anywhere in the product — so every Cleaner was unmatchable and
 // the directory stayed empty no matter how many people were recruited.
 let availabilityWindows = [];
+// The raw booking projections, kept apart from the calendar's display records.
+let occupyingBookings = [];
 let savingAvailability = false;
 
 const availabilityDayFormat = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" });
@@ -419,9 +422,10 @@ function renderAvailability() {
     item.append(
       element("span", "hc-availability-item-when", `${availabilityDayFormat.format(start)} · ${availabilityTimeFormat.format(start)}–${availabilityTimeFormat.format(end)}`)
     );
-    // Held means a booking already depends on this window. Offering a remove
-    // button for it would promise something the server will refuse.
-    if (window_.status === "held") {
+    // A booking already depends on this window. Read from the bookings
+    // themselves: nothing writes an availability `held` status, so checking
+    // that alone meant a booked window always looked free.
+    if (availabilityWindowBooked(window_, occupyingBookings)) {
       item.append(element("span", "hc-availability-item-held", "Booked"));
     } else {
       const remove = element("button", "hc-availability-item-remove", "Remove");
@@ -574,6 +578,7 @@ async function loadSchedule() {
       loadOnboardingForm(requestJson, "availability", timeOffForm).then((section) => section || { data: {} }).catch(() => null)
     ]);
     const liveBookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
+    occupyingBookings = liveBookings;
     previewMode = !activityRedesign && liveBookings.length === 0;
     if (!activityRedesign || requestedRevision === bookingRevision) {
       bookings = activityRedesign ? activityRecords(liveBookings) : previewMode ? [] : liveBookings;
@@ -635,6 +640,8 @@ connectBookingRefresh(async () => {
   const result = await requestJson("/api/marketplace/bookings?limit=50");
   if (revision !== bookingRevision) return;
   const next = activityRedesign ? activityRecords(result.bookings || []) : (result.bookings || []);
+  occupyingBookings = result.bookings || [];
+  renderAvailability();
   if (!previewMode && JSON.stringify(bookings) === JSON.stringify(next)) return;
   bookings = next;
   previewMode = false; view.dataset.preview = "false"; renderAll();

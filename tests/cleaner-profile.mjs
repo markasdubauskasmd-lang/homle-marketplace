@@ -262,8 +262,10 @@ assert(scheduleScript.includes("24 * 60 * 60_000") && /if \(endAt <= startAt\) e
 // The client bounds must not contradict normalizedAvailabilityWindow, or a
 // Cleaner gets a server error for something the form accepted.
 assert(scheduleScript.includes("30 * 60_000") && scheduleScript.includes("5 * 60_000") && scheduleScript.includes("366 * 24 * 60 * 60_000"), "The availability form does not mirror the server's duration, lead-time and horizon limits.");
-// A held window belongs to a booking and the server refuses to withdraw it.
-assert(scheduleScript.includes('window_.status === "held"') && scheduleScript.includes("Booked"), "A booked window offers a remove button the server will refuse.");
+// A window a booking depends on shows Booked instead of Remove. Decided from
+// the bookings (tests/cleaner-availability-model.mjs), because nothing writes
+// the availability `held` status the page used to read.
+assert(scheduleScript.includes("availabilityWindowBooked(window_, occupyingBookings)") && scheduleScript.includes("Booked"), "A booked window offers a remove button the server will refuse.");
 
 // Holiday mode is stored in the onboarding blob and enforced nowhere. It must
 // not claim otherwise. This is the false-trust-claim limit in CLAUDE.md.
