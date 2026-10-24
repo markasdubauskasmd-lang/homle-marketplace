@@ -53,6 +53,7 @@ const scripts = Object.freeze({
   cleanerApplicationReview: "cleaner-application-review-verification.sql",
   accountStatus: "account-status-verification.sql",
   revenueSummary: "revenue-summary-verification.sql",
+  refundNotice: "refund-notice-verification.sql",
   rls: "marketplace-rls-behaviour.sql",
   acceptA: "accept-booking-a.sql",
   acceptB: "accept-booking-b.sql",
@@ -357,6 +358,9 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     // The arithmetic is the whole feature, so it runs against money that was
     // actually captured, refunded and transferred.
     runPsqlSync({ label: "Revenue summary test", file: scripts.revenueSummary, environment: ownerEnvironment, command, execute });
+    // 117 routes every refund through the observation ledger, which 126's
+    // notice trigger could not read; 135 repairs it, proved by running it.
+    runPsqlSync({ label: "Refund notice test", file: scripts.refundNotice, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Job-start payment gate test", file: scripts.paymentGate, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Participant lifecycle rehearsal setup", file: scripts.participantLifecycleSetup, environment: ownerEnvironment, command, execute });
     const realtimeProof = await executeRealtimeProbe({

@@ -405,3 +405,39 @@ figure, any "guaranteed work" or volume claim, and any suggestion that Homle
 insures or vets on the cleaner's behalf. Inventing those is the entire failure
 mode of a recruitment page and it is the kind of thing that gets added later by
 somebody optimising conversion.
+
+**D20 — Merge #559 before the launch work, and renumber the launch work after it.**
+#559 was green on its exact head, which already contained `main`, and its
+deploy prerequisites (original Stripe event access, payment-command pause,
+old-process drain, reconciliation across the window) concern real money.
+Production is Stripe test mode with no real payments, so they reduce to the
+pause/drain step in the deploy instructions. great-mendel's 17 migrations
+therefore became 118–134, and `main`'s 115–117 kept their lock entries
+byte for byte.
+
+**D21 — Integrate on the session's designated branch, not `integrate/launch-work`.**
+The brief named `integrate/launch-work`; this session may push only to its
+designated branch. The branch name carries no meaning in the squash merge.
+
+**D22 — A cancel result is a release only when the provider accepted it.**
+`paymentService.cancel` resolves rather than throws on an unknown outcome, a
+refusal or an unsent command, and the ledger records every provider answer
+as `provider-pending` until the signed event arrives. The dispatcher now
+returns the provider's own verdict beside the ledger row, and both the
+Landlord cancellation and the unpaid-booking expiry end a booking only on an
+accepted cancel, or on an unsent one when the payment already shows no hold.
+Requiring `reconciled` was considered and rejected: it would refuse every
+ordinary cancellation, because reconciliation waits for the webhook.
+
+**D23 — Fix never-deployed migrations in place; fix deployed ones forward.**
+Migrations 118–134 have run nowhere but disposable databases, so the F4
+reconciliation fix edits 124 and re-locks it. The F3 notice fix touches
+behaviour of 117, which will be live, so it is a new migration (135).
+
+**D24 — Close 41 stale PRs; re-implement only #439's intent.**
+31 were verified no-ops by `git merge-tree`. Of the conflicting ones, the
+intent of #394, #446 and #447 is already on `main`; #253, #274, #372 and the
+three contrast deltas (#480, #482, #483) are polish that blocks nobody from
+booking, paying, applying or being paid. #439 proves against real
+PostgreSQL that the customer's saved quote is the invitation's price —
+money, and missing — so it is rebuilt fresh rather than merged.

@@ -1,3 +1,8 @@
+import { cancellationOutcome } from "./payment-command-dispatch.mjs";
+
+// Mirrors the statuses begin_payment_command accepts for a cancel.
+const releasableStatuses = new Set(["creating", "requires-customer-action", "processing", "authorized"]);
+
 /**
  * End bookings nobody ever paid for, and give the Cleaner their day back.
  *
@@ -92,15 +97,20 @@ export function createUnpaidBookingWorker(options = {}) {
               // the ordinary route back to the customer's money is closed and
               // only an administrator running recovery can reopen it. Unknown
               // is not released, so the booking stays alive.
-              if (release?.recoveryRequired === true) {
-                throw Object.assign(new Error("The provider outcome for this authorization is unknown, so the booking was left alive for recovery."), {
-                  code: "payment-release-uncertain",
+              // A refusal or an unsent command resolves too. Neither is a release
+              // unless the payment itself shows the hold is already gone.
+              const outcome = cancellationOutcome(release);
+              const alreadyGone = outcome === "not-released" && typeof payments.getForBooking === "function"
+                && !releasableStatuses.has((await payments.getForBooking(actor, booking.bookingId))?.status);
+              if (outcome !== "released" && !alreadyGone) {
+                throw Object.assign(new Error("The card hold was not confirmed released, so the booking was left alive with its money."), {
+                  code: outcome === "uncertain" ? "payment-release-uncertain" : "payment-release-refused",
                   paymentId: booking.paymentId,
                   commandId: release.commandId ?? null,
                   recoveryReason: release.recoveryReason ?? null
                 });
               }
-              released += 1;
+              if (!alreadyGone) released += 1;
             } catch (error) {
               // The attempt reached a state that cannot be cancelled between
               // the queue being read and now -- most often because it already

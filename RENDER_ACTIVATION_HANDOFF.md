@@ -61,8 +61,9 @@ These are operational boundaries, not missing UI work:
   readiness field green.
 - The Render database is a small, non-HA staging resource. Complete the explicit
   capacity, backup and recovery review before public launch.
-- The Cleaner Dashboard is a protected boundary for the continuous improvement
-  goal. Do not change its files, routes, styles, forms or backend behaviour.
+- The Cleaner Dashboard freeze was retired on 20 September 2026 by the founder
+  (DECISIONS.md D2). Cleaner-side work is in scope and is guarded by its
+  behavioural tests, not by a byte-for-byte digest.
 
 ## Historical archive
 

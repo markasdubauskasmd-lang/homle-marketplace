@@ -15,12 +15,12 @@ against this repository:
 | Brief says | Reality |
 |---|---|
 | Next.js | **No framework.** `server.mjs` is a ~402 KB native Node HTTP server. The front end is hand-written ES modules and CSS in `public/`. No React, no JSX, no bundler. |
-| Supabase | **No Supabase.** PostgreSQL 16 driven directly through `pg` 8.22.0, with 114 hand-written locked migrations in `db/migrations/`. RLS is real but is declared in those migrations, not in Supabase. |
+| Supabase | **No Supabase.** PostgreSQL 16 driven directly through `pg` 8.22.0, with 135 hand-written locked migrations in `db/migrations/` (25 Oct 2026). RLS is real but is declared in those migrations, not in Supabase. |
 | Stripe Connect | Correct. `stripe` 22.1.1, pinned to API `2026-06-24.dahlia`. |
 | Anthropic API | Correct. `@anthropic-ai/sdk` for room-scan vision. |
 | Render | Correct. `render.yaml`, Docker runtime, `autoDeployTrigger: "off"`. |
 
-**Do not migrate to Next.js or Supabase.** Doing so would discard 114 locked
+**Do not migrate to Next.js or Supabase.** Doing so would discard 135 locked
 migrations, 255 test files and a green CI for no revenue gain. Treat any brief
 instruction phrased in Next.js or Supabase terms as describing the *outcome*
 wanted, and implement it the way this codebase already does it. See DECISIONS.md

@@ -287,7 +287,10 @@ assert(await rejects(() => failingWorkflow.cancelBooking(landlord, bookingId, {}
 // The release path must not depend on a field the Landlord projection does not
 // carry. `publicPayment` exposes nine keys and `canCancel` is not one of them —
 // reading it returns undefined, which silently skipped every release.
-const runtimeReleaseSource = runtimeSource.slice(runtimeSource.indexOf("releaseAuthorization:"), runtimeSource.indexOf("releaseAuthorization:") + 2200);
+// The release lives in its own module (behaviour: tests/booking-hold-release.mjs);
+// the runtime must still wire it to the cancellation path.
+assert(runtimeSource.includes("releaseAuthorization: paymentService ? createAuthorizationRelease(paymentService) : undefined"), "The runtime no longer wires the hold release into Landlord cancellation.");
+const runtimeReleaseSource = await readFile(new URL("../src/marketplace/booking-hold-release.mjs", import.meta.url), "utf8");
 assert(!runtimeReleaseSource.includes("canCancel"), "The hold release reads `canCancel`, which the Landlord payment projection does not carry, so it never releases anything.");
 assert(runtimeReleaseSource.includes("payment.paymentId == null") && runtimeReleaseSource.includes("releasablePaymentStatuses"), "The hold release does not decide releasability from fields the projection actually carries.");
 assert(runtimeReleaseSource.includes('error?.code === "payment-not-cancellable"'), "A database refusal to cancel a payment is treated as a failure rather than as nothing to release.");
@@ -310,7 +313,7 @@ const domainSource = await readFile(new URL("../src/marketplace/domain.mjs", imp
 for (const permitted of ["draft", "searching-for-cleaner", "cleaner-invited", "pending-cleaner-acceptance", "confirmed"]) assert(domainSource.includes(`"${permitted}:cancelled"`) && cancellationMigration.includes(`'${permitted}'`), `The cancellable statuses in the migration and domain.mjs disagree about ${permitted}.`);
 const httpSource = await readFile(new URL("../src/marketplace/marketplace-http.mjs", import.meta.url), "utf8");
 assert(httpSource.includes("bookingCancellationPath") && /bookingCancellationPath[\s\S]{0,400}roles: \["landlord"\]/.test(httpSource), "The cancellation route is missing or is not restricted to the Landlord who owns the booking.");
-assert(runtimeSource.includes("releaseAuthorization") && runtimeSource.includes("paymentService.cancel(actor,"), "Cancelling a booking does not release the customer's card hold.");
+assert(runtimeSource.includes("releaseAuthorization") && runtimeReleaseSource.includes("paymentService.cancel(actor,"), "Cancelling a booking does not release the customer's card hold.");
 // The two expected refusals must reach the customer as 409/403, not as a 500
 // that also pages the on-call through onUnexpectedError.
 const repositorySource = await readFile(new URL("../src/marketplace/booking-repository.mjs", import.meta.url), "utf8");

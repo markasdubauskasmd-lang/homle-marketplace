@@ -2,12 +2,41 @@
 
 **Resume here after a context reset.** Read `CLAUDE.md` first (rules + hard
 limits + the real stack), then this file, then `DECISIONS.md` and
-`HUMAN_TODO.md`.
+`HUMAN_TODO.md`. `LAUNCH_CHECKLIST.md` is the founder's ordered go-live list.
 
-**Branch:** `claude/great-mendel-7ozvur` · **Base:** `main` at `f38cb82` (#557)
-**Last updated:** 20 September 2026 · 43 commits ahead of `main`
+**Branch of record:** `main`. **Last updated:** 25 October 2026.
 
 ---
+
+## 25 October 2026 — launch integration (verified)
+
+What was checked against reality, and where it differed from the brief:
+
+| Claim in the brief | Verified |
+|---|---|
+| `main` head `6bbb9a99` (#564), 116 migrations | ✅ true at session start |
+| great-mendel 54 ahead / 6 behind, no PR | ✅ true |
+| #559 CI green on `36a7e05a` | ✅ both jobs green on that exact head, which already contained `main`; squash-merged as `a71fff36` |
+| Live `/api/health` values | ❌ **not verifiable from this container**: the network policy refuses `CONNECT homlle.com:443` (403). Render is not reachable either. Phase C stops at "ready to deploy". |
+| 31 no-op PRs, 7 conflicting, 3 small deltas | ✅ re-verified with `git merge-tree` against `a71fff36` (after unshallowing the clone; a shallow clone reports every PR as unrelated history) |
+| `/cleaner/apply` (old HUMAN_TODO) | ❌ no route serves it. The real entry is `/cleaner/registration`, which continues at `/cleaner/onboarding` (`server.mjs` route table). Corrected in `HUMAN_TODO.md`. |
+| C2: `/cleaner/availability` 308s to `/cleaner/jobs-map` | ✅ still true, and harmless: great-mendel fixed C2 on the **Schedule** page, which now creates and withdraws real availability windows. |
+
+Done in the integration PR:
+
+- great-mendel merged onto `main`; its 17 migrations renumbered 115–131 → **118–134**; every file reference and every prose reference in lines it added updated; lock entries appended for the renamed files only (`main`'s 117 entries byte-identical).
+- Cleaner Dashboard freeze gate retired (`tests/cleaner-dashboard-freeze.mjs` deleted; D2). #564's behavioural browser regression stays.
+- **Review against 117 found four money defects great-mendel could not have seen** (it was written at 114). All fixed with tests that fail before and pass after:
+  - **F1** Landlord cancellation discarded the hold-release result, so a refused, unknown or unsent cancel still cancelled the booking and stranded the hold. Extracted to `src/marketplace/booking-hold-release.mjs`; only an accepted cancel releases. `tests/booking-hold-release.mjs`.
+  - **F2** Unpaid-booking expiry only refused `recoveryRequired`; a refused or unsent cancel still ended the booking. Same rule now. `tests/unpaid-booking-expiry.mjs` (fakes now return the real result shape).
+  - **F3** After 117 **no refund notified the customer** — 117's history rows carry `eventId` but not `eventKind`, and 126's trigger needs the kind. Migration **135** resolves it from the signed event. `db/integration/refund-notice-verification.sql`.
+  - **F4** Settlement reconciliation (124) ignored a partially refunded payment whose Cleaner was never paid (117 blocks that transfer). Fixed in 124 directly — 118–134 have never been deployed — and executed by the same integration file.
+- GM's account-status integration test assumed no other Administrator existed; the runner commits one, so the guard was never reached. Fixture fixed (parks other Administrators inside the rolled-back transaction).
+- `tests/customer-journey-recovery.mjs` hard-coded 8–9 October 2026 as "future" dates and began failing on `main` on 9 October. Now relative to today.
+- Upgrade proof: CI's real-upgrade step now continues the live-shaped 116 database through 117–135 and runs `db/integration/launch-work-upgrade-verify.sql` (live rate-limit rows survive the replaced CHECKs, a pre-upgrade booking cancels with history, a pre-117 refund is summed once, the expiry sweep runs).
+- Q10 (text into enum) re-reviewed: none remain. M1 order re-reviewed: JS releases first, then cancels; now also refuses on any unconfirmed release.
+
+PR hygiene: 41 PRs closed with a reason each. #439's intent (real-DB proof that the saved quote is the price the invitation carries) is missing on `main` and is queued as a fresh PR.
 
 ## Phase 0 — Audit · DONE
 
@@ -18,7 +47,7 @@ limits + the real stack), then this file, then `DECISIONS.md` and
 | `pnpm test` main chain | **Green**, 180 suites |
 | `pnpm test` post-hooks | **Green**, 40 suites, except the two browser timeouts below |
 | CI on base commit | Green (Actions run 1489) |
-| Migrations | 114 at audit; now 123, all locked in `db/migration-lock.json` |
+| Migrations | 114 at audit; 135 after integration (25 Oct), all locked in `db/migration-lock.json` |
 | Live site | **Unverifiable from this container** — network policy refuses `CONNECT homlle.com:443` with 403 |
 
 Two heavy Chromium suites fail locally and pass in GitHub CI — see the
@@ -86,7 +115,7 @@ move. `HUMAN_TODO.md` §3 has been corrected to stop recruitment until these shi
 | Q3 | Remove invented example jobs from the empty Cleaner calendar | **DONE** — `a5822711` |
 | Q4 | P1-6: converge Landlord and Cleaner dashboards onto one design system | TODO — large |
 | Q5 | ✅ **DONE** `2d79d573` — Property / Place / Booking vocabulary settled; "place" is gone from visible copy |
-| Q6 | Close the 40 dead PRs (all verified to contain nothing not in `main`) | FOUNDER — outward-facing |
+| Q6 | Close the dead PRs | ✅ **DONE** 25 Oct — 41 closed, founder-authorised |
 | Q7 | `.scan-hero` CSS — not dead, see D6; retire with `.hub-cta` together | DEFERRED |
 | Q8 | Publication guard: 6 false positives + 122 MB tracked vs 100 MiB limit | TODO |
 | Q11 | **`tests/customer-tracking-style.mjs` cannot run in this container, and the reason is not the timeout.** It hangs at a 300-second ceiling on an idle box, so the configurable `HOMLE_BROWSER_TIMEOUT_MS` added alongside it does not help. The snapshot returns every CSS property of every element plus both pseudo-elements in a single `Runtime.evaluate`, at two viewports — hundreds of thousands of key/value pairs in one CDP response. Paging that snapshot would fix it without weakening a single assertion. Not attempted, because the rewrite cannot be validated against the GitHub CI baseline the test exists to protect and CI does not run on this branch. **Every other suite in the tree passes.** | TODO |

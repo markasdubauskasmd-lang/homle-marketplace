@@ -76,8 +76,11 @@ BEGIN
       settled.amount_captured_pence - settled.amount_refunded_pence - settled.transferred_pence AS platform_take_pence,
       CASE
         WHEN settled.transferred_pence > settled.amount_captured_pence - settled.amount_refunded_pence THEN 'over-transferred'
+        -- A partial refund (including one made outside Homle) leaves money
+        -- for the Cleaner, but blocks the automatic transfer for review, so
+        -- it must surface here rather than wait silently.
         WHEN settled.transferred_pence = 0
-          AND settled.status = 'captured'
+          AND settled.status IN ('captured','partially-refunded')
           AND settled.captured_at IS NOT NULL
           AND settled.captured_at < now() - make_interval(hours => stale_transfer_hours)
           THEN 'awaiting-transfer'

@@ -22,9 +22,16 @@ function repository({ due = [], expire } = {}) {
   };
 }
 
-function paymentService(behaviour = () => {}) {
+// The shape a cancel Stripe accepted really resolves to: the ledger records it
+// as provider-pending until the signed event arrives, with the provider's own
+// verdict alongside. A fake returning nothing hid a defect here once.
+const accepted = Object.freeze({ commandId: "c-0", paymentId, kind: "cancel", status: "provider-pending", providerResult: "succeeded" });
+
+function paymentService(behaviour = () => accepted, paymentStatus = "authorized") {
   const calls = [];
-  return { calls, async cancel(actor, input) { calls.push({ actor, input }); return behaviour(input); } };
+  return { calls,
+    async cancel(actor, input) { calls.push({ actor, input }); return behaviour(input); },
+    async getForBooking() { return { paymentId, status: paymentStatus }; } };
 }
 
 /* ── The hold is released before the booking is ended ──────────────────── */
@@ -38,7 +45,7 @@ function paymentService(behaviour = () => {}) {
   const store = repository({ due: [{ bookingId, scheduledStartAt: startAt, paymentId }] });
   const originalExpire = store.expire;
   store.expire = async (...args) => { order.push("expire"); return originalExpire(...args); };
-  const payments = paymentService(() => { order.push("release"); });
+  const payments = paymentService(() => { order.push("release"); return accepted; });
   const worker = createUnpaidBookingWorker({ repository: store, payments, actor: administrator });
 
   const outcome = await worker.runOnce();
@@ -96,10 +103,33 @@ function paymentService(behaviour = () => {}) {
 // A cancel that resolves normally is a real release.
 {
   const store = repository({ due: [{ bookingId, scheduledStartAt: startAt, paymentId }] });
-  const payments = paymentService(() => ({ commandId: "c-2", paymentId, kind: "cancel", status: "succeeded", recoveryRequired: false }));
+  const payments = paymentService(() => ({ commandId: "c-2", paymentId, kind: "cancel", status: "provider-pending", providerResult: "succeeded" }));
   const worker = createUnpaidBookingWorker({ repository: store, payments, actor: administrator });
   const outcome = await worker.runOnce();
   assert(outcome.released === 1 && outcome.expired === 1, `A completed release did not expire the booking: ${JSON.stringify(outcome)}`);
+}
+
+// A cancel the provider refused also resolves, and the ledger still says
+// provider-pending. Only the provider's verdict shows the hold is still live.
+{
+  const store = repository({ due: [{ bookingId, scheduledStartAt: startAt, paymentId }] });
+  const payments = paymentService(() => ({ commandId: "c-3", paymentId, kind: "cancel", status: "provider-pending", providerResult: "failed" }));
+  const reported = [];
+  const worker = createUnpaidBookingWorker({ repository: store, payments, actor: administrator, onUnexpectedError: (error) => reported.push(error) });
+  const outcome = await worker.runOnce();
+  assert(!store.calls.some((call) => call.kind === "expire"), "A booking was ended after the provider refused to release its hold.");
+  assert(outcome.failed === 1 && reported[0]?.code === "payment-release-refused", `A refused release was not reported: ${JSON.stringify(outcome)}`);
+}
+
+// An unsent command (superseded before dispatch) releases nothing. It may end
+// the booking only when the payment itself shows the hold is already gone.
+for (const [paymentStatus, expectExpired] of [["authorized", false], ["cancelled", true]]) {
+  const store = repository({ due: [{ bookingId, scheduledStartAt: startAt, paymentId }] });
+  const payments = paymentService(() => ({ commandId: "c-4", paymentId, kind: "cancel", status: "provider-failed", recoveryRequired: false, recoveryReason: "superseded-before-dispatch" }), paymentStatus);
+  const worker = createUnpaidBookingWorker({ repository: store, payments, actor: administrator, onUnexpectedError: () => {} });
+  const outcome = await worker.runOnce();
+  assert((outcome.expired === 1) === expectExpired && outcome.released === 0,
+    `An unsent release with the payment ${paymentStatus} was handled wrongly: ${JSON.stringify(outcome)}`);
 }
 
 /* ── A booking with no payment attempt needs no provider call ──────────── */
