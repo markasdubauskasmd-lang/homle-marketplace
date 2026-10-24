@@ -23,6 +23,11 @@ const paymentId = "22222222-2222-4222-8222-222222222222";
 const bookingId = "33333333-3333-4333-8333-333333333333";
 const commandId = "44444444-4444-4444-8444-444444444444";
 const hash = Buffer.alloc(32, 7);
+rows.push({ result: { paymentId, signedEventsReplayed: 2, recoveryRequired: false } });
+assert.equal((await repository.replayObservations(administrator, paymentId)).signedEventsReplayed, 2);
+assert.equal(calls.at(-2).transaction, "user");
+assert(calls.at(-1).text.includes("replay_payment_observations"));
+assert.deepEqual(calls.at(-1).values, [paymentId]);
 
 for (const [method, expectedFunction] of [["getCommandAttempt", "get_payment_command_attempt"], ["getAdministratorCommandRecovery", "get_administrator_payment_command_recovery"]]) {
   rows.push({ result: { commandId, paymentId, requestIdentity: null, legacyUnknown: true } });

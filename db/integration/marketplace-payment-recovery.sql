@@ -2,6 +2,8 @@
 SAVEPOINT recovery_checks;
 SELECT set_config('app.user_id','10000000-0000-4000-8000-000000000004',true);
 SELECT set_config('app.user_roles','administrator',true);
+DELETE FROM tideway_private.payment_observed_objects WHERE payment_id='50000000-0000-4000-8000-000000000010';
+DELETE FROM tideway_private.payment_observation_event_parents WHERE provider_event_id IN (SELECT provider_event_id FROM tideway_private.payment_provider_events WHERE payment_id='50000000-0000-4000-8000-000000000010');
 DELETE FROM tideway_private.payment_command_attempt_windows WHERE command_id IN (SELECT id FROM payment_commands WHERE payment_id='50000000-0000-4000-8000-000000000010');
 DELETE FROM payment_commands WHERE payment_id='50000000-0000-4000-8000-000000000010';
 DELETE FROM tideway_private.payment_disputes WHERE payment_id='50000000-0000-4000-8000-000000000010';

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import "./external-payment-observations.mjs";
 import "./payment-event-identity.mjs";
 import { performance } from "node:perf_hooks";
 import { createStripePaymentProvider, stripePaymentApiVersion } from "../src/marketplace/stripe-payment-provider.mjs";
@@ -164,7 +165,7 @@ await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /API version/);
 // Signed monetary snapshots must retain verifiable identities and economics.
 // A valid signature cannot make missing/contradictory fields safe to apply.
 const eventMetadata = { tideway_payment_id: paymentId, tideway_booking_id: bookingId, tideway_command_id: commandId };
-const intentSnapshot = { id: "pi_test_authorization", object: "payment_intent", status: "succeeded", amount: 12_000, amount_received: 12_000, currency: "gbp", metadata: eventMetadata };
+const intentSnapshot = { id: "pi_test_authorization", object: "payment_intent", livemode: false, status: "succeeded", amount: 12_000, amount_received: 12_000, currency: "gbp", metadata: eventMetadata };
 const refundSnapshot = { id: "re_test_refund", object: "refund", status: "succeeded", amount: 2_000, currency: "gbp", charge: "ch_test_captured", payment_intent: intentSnapshot.id, metadata: eventMetadata };
 const transferSnapshot = { ...reversedTransfer, object: "transfer" };
 for (const [type, snapshot, wrongPrefix] of [
@@ -192,12 +193,12 @@ for (const [type, status, kind] of [
   ["payment_intent.processing", "processing", "authorization-processing"],
   ["payment_intent.payment_failed", "requires_payment_method", "capture-failed"],
   ["payment_intent.succeeded", "succeeded", "capture-succeeded"],
-  ["payment_intent.canceled", "canceled", "cancellation-succeeded"]
+  ["payment_intent.canceled", "canceled", "intent-cancelled-observed"]
 ]) {
   nextEvent = stripeEvent(type, { ...intentSnapshot, status });
   assert.equal((await provider.verifyWebhook(rawBody, "signed")).kind, kind);
   nextEvent = stripeEvent(type, { ...intentSnapshot, status: "contradictory" });
-  await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /contradictory PaymentIntent/);
+  await assert.rejects(provider.verifyWebhook(rawBody, "signed"), /contradictory PaymentIntent|invalid canceled PaymentIntent/);
 }
 for (const type of ["refund.created", "refund.updated", "refund.failed"]) {
   for (const status of ["failed", "canceled"]) {
@@ -220,7 +221,7 @@ for (const status of ["pending", "requires_action", "succeeded"]) {
     nextEvent = stripeEvent(type, { ...refundSnapshot, status });
     const projected = await provider.verifyWebhook(rawBody, "signed");
     if (status === "succeeded") assert.equal(projected.kind, "refund-succeeded");
-    else assert.equal(projected.ignored, true, "A pending refund must not alter captured/refunded totals.");
+    else assert.equal(projected.kind, "refund-pending", "A pending refund must retain evidence without applying a money delta.");
   }
 }
 nextEvent = stripeEvent("transfer.failed", transferSnapshot);

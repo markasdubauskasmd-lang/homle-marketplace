@@ -193,6 +193,45 @@ async function recoverCommand(record, command) {
   }
 }
 
+async function replayObservations(record) {
+  if (commanding || recoveringCommands.size) return;
+  const current = queue.payments.find(item => item.paymentId === record.paymentId);
+  if (!current?.observations?.length) return;
+  recoveringCommands.add(record.paymentId);
+  uncertainPayments.add(record.paymentId);
+  renderQueue();
+  showFeedback(feedback, "Checking recorded signed evidence. No money request is being sent.");
+  try {
+    const csrf = await recoverCsrf();
+    const result = await requestJson(`/api/marketplace/admin/payments/${record.paymentId}/observations/replay`, {
+      method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf }, body: "{}"
+    });
+    if (result.recovery?.paymentId !== record.paymentId || typeof result.recovery.recoveryRequired !== "boolean") throw new Error("Invalid observation recovery result.");
+    if (!await loadQueue(queue.offset)) throw new Error("A newer payment status request is still pending.");
+    showFeedback(feedback, result.recovery.recoveryRequired
+      ? "Recorded evidence still needs reconciliation. Review the original Stripe events; no money request was repeated."
+      : "Recorded signed evidence reconciled. The current ledger status is shown below.", result.recovery.recoveryRequired ? "info" : "success");
+  } catch {
+    uncertainPayments.add(record.paymentId);
+    showFeedback(feedback, "Recorded evidence could not be checked or refreshed. Refresh the queue and retry; no money request was sent.", "error");
+  } finally { recoveringCommands.delete(record.paymentId); renderQueue(); }
+}
+
+function observationPanel(record) {
+  const panel = element("details", "admin-payment-next");
+  panel.append(element("summary", "", `Recorded provider outcomes (${record.observations.length})`));
+  for (const item of record.observations) {
+    panel.append(element("p", "", `${item.kind === "refund" ? "Refund" : "Authorization cancellation"} · ${item.status} · ${money(item.amountPence)} · ${item.providerObjectId}`));
+    if (item.requiresReview) panel.append(element("p", "", item.reason ? paymentRecoveryReasonLabel(item.reason) : "Review the original provider outcome before another money action."));
+  }
+  const button = element("button", "button button-outline", recoveringCommands.has(record.paymentId) ? "Checking evidence…" : "Recheck recorded evidence");
+  button.type = "button";
+  button.disabled = commanding || recoveringCommands.size > 0;
+  button.addEventListener("click", () => replayObservations(record));
+  panel.append(button);
+  return panel;
+}
+
 function recoveryPanel(record) {
   const panel = element("section", "admin-payment-next");
   panel.append(element("strong", "", "Earlier payment actions"));
@@ -234,6 +273,7 @@ function paymentCard(record) {
   }
   if (record.awaitingProvider) card.append(element("p", "admin-payment-waiting", "Waiting for a signed provider update. Refresh status; do not repeat the action."));
   if (record.recoveryCommands?.length) card.append(recoveryPanel(record));
+  if (record.observations?.length) card.append(observationPanel(record));
   if (uncertainPayments.has(record.paymentId)) card.append(element("p", "admin-payment-warning", "The previous action has an uncertain result. Refresh the signed status before any retry."));
   const actions = element("div", "booking-summary-actions");
   if (record.canCapture) actions.append(actionButton(record, "capture"));
@@ -250,7 +290,7 @@ function renderQueue() {
   empty.hidden = queue.payments.length > 0;
   list.setAttribute("aria-busy", "false");
   document.querySelector("[data-admin-payments-count]").textContent = String(queue.payments.length);
-  document.querySelector("[data-admin-payments-actionable-count]").textContent = String(queue.payments.filter((item) => item.canCapture || item.canCancel || item.canRefund || item.canTransfer || item.recoveryCommands?.length).length);
+  document.querySelector("[data-admin-payments-actionable-count]").textContent = String(queue.payments.filter((item) => item.canCapture || item.canCancel || item.canRefund || item.canTransfer || item.recoveryCommands?.length || paymentRecoveryHeld(item)).length);
   document.querySelector("[data-admin-payments-waiting-count]").textContent = String(queue.payments.filter((item) => item.awaitingProvider).length);
   document.querySelector("[data-admin-payments-page]").textContent = selectedBookingId ? "One related booking" : `Page ${Math.floor(queue.offset / queue.limit) + 1}`;
   previous.disabled = queue.offset === 0;
@@ -324,14 +364,17 @@ async function runSelectedAction() {
     renderQueue();
     try {
       if (!await loadQueue(queue.offset)) throw new Error("A newer payment status request is pending.");
-      showFeedback(feedback, result.command?.recoveryRequired
+      showFeedback(feedback, result.command?.recoveryReason === "superseded-before-dispatch"
+        ? paymentRecoveryReasonLabel(result.command.recoveryReason) : result.command?.recoveryRequired
         ? paymentRecoveryReasonLabel(result.command.recoveryReason)
-        : `${paymentActionLabel(actionKind)} was accepted once. Homle is waiting for the signed provider status before any next action.`, result.command?.recoveryRequired ? "info" : "success");
+        : `${paymentActionLabel(actionKind)} was accepted once. Homle is waiting for the signed provider status before any next action.`, result.command?.recoveryRequired || result.command?.recoveryReason === "superseded-before-dispatch" ? "info" : "success");
     } catch {
       uncertainPayments.add(actionRecord.paymentId);
       list.setAttribute("aria-busy", "false");
       renderQueue();
-      showFeedback(feedback, `${paymentActionLabel(actionKind)} was accepted by Homle, but its signed status could not be refreshed. This payment is locked until you refresh the queue successfully.`, "error");
+      showFeedback(feedback, result.command?.recoveryReason === "superseded-before-dispatch"
+        ? "This action was not sent to Stripe. Its updated payment status could not be refreshed; refresh the queue before continuing."
+        : `${paymentActionLabel(actionKind)} was accepted by Homle, but its signed status could not be refreshed. This payment is locked until you refresh the queue successfully.`, "error");
     }
     return result;
   } catch (error) {

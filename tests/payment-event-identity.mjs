@@ -12,7 +12,7 @@ const charge = { id: refund.charge, object: "charge", payment_intent: refund.pay
 let event, returnedCharge = charge, lookupError = null;
 const reads = [];
 const provider = await createStripePaymentProvider({ secretKey: "sk_test_" + "a".repeat(32), webhookSecret: "whsec_" + "b".repeat(32) }, {stripeClient: {
-  accounts: {}, accountLinks: {}, paymentIntents: {}, refunds: {}, transfers: {},
+  accounts: {}, accountLinks: {}, paymentIntents: { async retrieve(id) { return { id, object: "payment_intent", livemode: false, currency: "gbp", metadata: {} }; } }, refunds: {}, transfers: {},
   charges: { async retrieve(id, parameters, options) { reads.push({id, parameters, options}); if (lookupError) throw lookupError; return returnedCharge; } },
   webhooks: { constructEvent(body, signature) { assert(Buffer.isBuffer(body)); if (signature !== "signed") throw Error("invalid signature"); return event; } }
 }});
@@ -81,6 +81,6 @@ const beforeSignature = reads.length;
 await assert.rejects(provider.verifyWebhook(Buffer.from("bad"), "invalid"), error => error.code === "invalid-payment-webhook");
 assert.equal(reads.length, beforeSignature);
 select("refund.updated", {...refund, metadata: {}});
-assert.equal((await read()).ignored, true);
-assert.equal(reads.length, beforeSignature, "Unrelated refunds must not trigger parent reads");
+assert.equal((await read()).paymentId, null);
+assert.equal(reads.length, beforeSignature + 1, "Metadata-less refunds require exact parent verification before database ownership resolution");
 console.log("Signed payment parent checks passed: exact charge/mode/currency/PI chain, expanded references, bounded lookup, signed outcomes and failure retryability.");
