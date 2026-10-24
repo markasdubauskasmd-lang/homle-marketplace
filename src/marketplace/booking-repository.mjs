@@ -66,6 +66,10 @@ export function createBookingRepository(database) {
         const result = await client.query(
           `SELECT request.id, request.requested_start_at, request.requested_end_at, request.required_services,
                   request.budget_pence, coverage.distance_km,
+                  -- The price the customer was shown, frozen on the request.
+                  -- Without these the invitation re-prices cost-up from the
+                  -- Cleaner's rate card and the shown price never survives.
+                  request.quoted_total_pence, request.quoted_minutes, request.pricing_config_version,
                   CASE WHEN $4::boolean THEN tideway_private.cleaner_payout_ready_for_paid_booking($2::uuid) ELSE TRUE END AS payout_ready,
                   COALESCE(jsonb_agg(jsonb_build_object('serviceCode', service.service_code, 'pricingModel', service.pricing_model, 'pricePence', service.price_pence) ORDER BY service.service_code) FILTER (WHERE service.id IS NOT NULL), '[]'::jsonb) AS services
              FROM cleaning_requests request

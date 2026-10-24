@@ -141,6 +141,7 @@ jobs:
           node tools/postgres-integration-runner.mjs
           node tools/postgres-media-delivery.mjs
           node tools/postgres-upload-expiry.mjs
+          node tools/postgres-quote-handoff.mjs
 
       - name: Rehearse isolated PostgreSQL backup and restore
         env:
