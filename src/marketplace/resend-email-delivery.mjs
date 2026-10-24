@@ -71,6 +71,7 @@ export async function createResendEmailDelivery(env = process.env, options = {})
             to: [message.recipient],
             subject: message.subject,
             text: message.text,
+            html: message.html,
             headers: { "X-Homle-Delivery-Id": deliveryId }
           })
         });

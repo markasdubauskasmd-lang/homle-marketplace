@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { emailHtmlFromText } from "./email-html.mjs";
 
 const emailPattern = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 
@@ -64,12 +65,12 @@ export function preparedEmailMessage(input, appOrigin) {
     const action = facebookVerification ? "Verify this email address to finish Facebook sign-in" : verification ? "Verify your email address" : "Reset your Homle password";
     const purpose = facebookVerification ? "Facebook sign-in verification" : verification ? "email verification" : "password reset";
     const text = `${action}:\n\n${link}\n\nThis private ${purpose} link expires at ${expiresAt.toISOString()}. If you did not request this, you can ignore this email.`;
-    return Object.freeze({ recipient, subject, text, seed: `${input.kind}\0${recipient.toLowerCase()}\0${link}\0${input.expiresAt}` });
+    return Object.freeze({ recipient, subject, text, html: emailHtmlFromText(text, appOrigin, subject), seed: `${input.kind}\0${recipient.toLowerCase()}\0${link}\0${input.expiresAt}` });
   }
   const recipient = emailAddress(input.to, "Email recipient");
   const idempotencyKey = boundedLine(input.idempotencyKey, 100, "Email idempotency key");
   const subject = boundedLine(input.subject, 200, "Email subject");
   if (!subject.startsWith("Homle:")) throw new TypeError("Notification email subject is invalid.");
   const text = boundedText(input.text);
-  return Object.freeze({ recipient, subject, text, seed: `notification\0${idempotencyKey}` });
+  return Object.freeze({ recipient, subject, text, html: emailHtmlFromText(text, appOrigin, subject), seed: `notification\0${idempotencyKey}` });
 }

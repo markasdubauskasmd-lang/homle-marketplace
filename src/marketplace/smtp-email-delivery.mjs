@@ -77,6 +77,7 @@ export async function createSmtpEmailDelivery(env = process.env, options = {}) {
           to: message.recipient,
           subject: message.subject,
           text: message.text,
+          html: message.html,
           messageId: `<tideway-${deliveryId.slice(0, 40)}@${sender.domain}>`,
           headers: { "X-Tideway-Delivery-Id": deliveryId }
         });
