@@ -297,43 +297,6 @@ function renderQueue() {
   next.disabled = queue.payments.length < queue.limit;
 }
 
-const revenueWindowControl = document.querySelector("[data-admin-revenue-window]");
-const revenueList = document.querySelector("[data-admin-revenue-lines]");
-const revenueWarningNode = document.querySelector("[data-admin-revenue-warning]");
-const revenueGenerated = document.querySelector("[data-admin-revenue-generated]");
-
-// Rendered separately from the payment queue and allowed to fail on its own.
-// An Administrator opened this screen to act on a payment; losing the summary
-// must not lose the queue as well.
-async function loadRevenue() {
-  if (!revenueList) return;
-  revenueList.setAttribute("aria-busy", "true");
-  try {
-    const windowDays = revenueWindow(revenueWindowControl.value);
-    const { revenue } = await requestJson(`/api/marketplace/admin/revenue?windowDays=${windowDays}`);
-    revenueList.replaceChildren(...revenueLines(revenue).map((line) => {
-      const wrap = document.createElement("div");
-      const term = document.createElement("dt"); term.textContent = line.label;
-      const value = document.createElement("dd"); value.textContent = line.amount;
-      const note = document.createElement("small"); note.textContent = line.note;
-      wrap.append(term, value, note);
-      return wrap;
-    }));
-    const warning = revenueWarning(revenue);
-    revenueWarningNode.textContent = warning;
-    revenueWarningNode.hidden = !warning;
-    revenueGenerated.textContent = `Counted by when the money was taken. Snapshot ${new Date(revenue.generatedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}.`;
-  } catch (error) {
-    revenueList.replaceChildren();
-    revenueWarningNode.hidden = false;
-    revenueWarningNode.textContent = `The revenue summary could not be loaded (${error.message}). The payment queue below is unaffected.`;
-    revenueGenerated.textContent = "";
-  } finally {
-    revenueList.setAttribute("aria-busy", "false");
-  }
-}
-
-revenueWindowControl?.addEventListener("change", () => { void loadRevenue(); });
 
 async function loadQueue(offset = 0) {
   const revision = ++queueRevision;
@@ -371,6 +334,44 @@ async function load() {
     else showGate("Payment operations could not be opened", navigator.onLine ? "Try again. No payment action was taken." : "Reconnect, then try again. No payment action was taken.", { kind: "error", retry: true });
   } finally { loading = false; }
 }
+
+const revenueWindowControl = document.querySelector("[data-admin-revenue-window]");
+const revenueList = document.querySelector("[data-admin-revenue-lines]");
+const revenueWarningNode = document.querySelector("[data-admin-revenue-warning]");
+const revenueGenerated = document.querySelector("[data-admin-revenue-generated]");
+
+// Rendered separately from the payment queue and allowed to fail on its own.
+// An Administrator opened this screen to act on a payment; losing the summary
+// must not lose the queue as well.
+async function loadRevenue() {
+  if (!revenueList) return;
+  revenueList.setAttribute("aria-busy", "true");
+  try {
+    const windowDays = revenueWindow(revenueWindowControl.value);
+    const { revenue } = await requestJson(`/api/marketplace/admin/revenue?windowDays=${windowDays}`);
+    revenueList.replaceChildren(...revenueLines(revenue).map((line) => {
+      const wrap = document.createElement("div");
+      const term = document.createElement("dt"); term.textContent = line.label;
+      const value = document.createElement("dd"); value.textContent = line.amount;
+      const note = document.createElement("small"); note.textContent = line.note;
+      wrap.append(term, value, note);
+      return wrap;
+    }));
+    const warning = revenueWarning(revenue);
+    revenueWarningNode.textContent = warning;
+    revenueWarningNode.hidden = !warning;
+    revenueGenerated.textContent = `Counted by when the money was taken. Snapshot ${new Date(revenue.generatedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}.`;
+  } catch (error) {
+    revenueList.replaceChildren();
+    revenueWarningNode.hidden = false;
+    revenueWarningNode.textContent = `The revenue summary could not be loaded (${error.message}). The payment queue below is unaffected.`;
+    revenueGenerated.textContent = "";
+  } finally {
+    revenueList.setAttribute("aria-busy", "false");
+  }
+}
+
+revenueWindowControl?.addEventListener("change", () => { void loadRevenue(); });
 
 async function runSelectedAction() {
   if (commanding || recoveringCommands.size || !selected || !selectedKind) return;

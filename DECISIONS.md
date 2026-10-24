@@ -441,3 +441,21 @@ three contrast deltas (#480, #482, #483) are polish that blocks nobody from
 booking, paying, applying or being paid. #439 proves against real
 PostgreSQL that the customer's saved quote is the invitation's price —
 money, and missing — so it is rebuilt fresh rather than merged.
+
+**D25 — Do not apply `FORCE ROW LEVEL SECURITY` (H5); the finding was wrong.**
+Verified on a disposable PostgreSQL 16 with all migrations applied: with FORCE
+on `users`, the migration owner read 0 of the rows it had just written. This
+design deliberately crosses RLS through 219 `SECURITY DEFINER` functions owned
+by that role, and the worker, settlement, expiry and email-outbox paths call
+them with no application identity set, so under FORCE they would silently
+find nothing instead of failing. The owner cannot hold `BYPASSRLS` on Render
+without superuser. The app role is already subject to every policy, which is
+the protection H5 was after. Re-open only with a design that moves the
+definer functions to a dedicated BYPASSRLS role.
+
+**D26 — Address lookup is configuration, not code.**
+`ADDRESS_LOOKUP_PROVIDER=google-maps` with `GOOGLE_MAPS_SERVER_API_KEY` is
+already implemented and tested (Places API, server-side). postcodes.io
+resolves postcodes to coordinates but returns no street addresses, so it
+cannot stand in. A Google key needs a billing account, which is the
+founder's spend; manual address entry works meanwhile. In LAUNCH_CHECKLIST.

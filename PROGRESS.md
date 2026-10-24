@@ -34,6 +34,7 @@ Done in the integration PR:
 - GM's account-status integration test assumed no other Administrator existed; the runner commits one, so the guard was never reached. Fixture fixed (parks other Administrators inside the rolled-back transaction).
 - `tests/customer-journey-recovery.mjs` hard-coded 8–9 October 2026 as "future" dates and began failing on `main` on 9 October. Now relative to today.
 - Upgrade proof: CI's real-upgrade step now continues the live-shaped 116 database through 117–135 and runs `db/integration/launch-work-upgrade-verify.sql` (live rate-limit rows survive the replaced CHECKs, a pre-upgrade booking cancels with history, a pre-117 refund is summed once, the expiry sweep runs).
+- `#559` × great-mendel: `admin-payments.js`'s revenue block sat between the two functions #559's recovery test slices out; moved below `load()`.
 - Q10 (text into enum) re-reviewed: none remain. M1 order re-reviewed: JS releases first, then cancels; now also refuses on any unconfirmed release.
 
 PR hygiene: 41 PRs closed with a reason each. #439's intent (real-DB proof that the saved quote is the price the invitation carries) is missing on `main` and is queued as a fresh PR.
@@ -136,7 +137,7 @@ coverage is 71/71. The real gaps are narrower:
 | H2 | ✅ **DONE** `534fa8b3` — **No cumulative Anthropic spend cap.** Per-call token ceilings, a 30 s timeout, `maxRetries: 1` and a cheap-model-by-default escalation guard all exist, but nothing stops sustained legitimate-looking traffic running a large bill. The brief asks for a spend cap specifically. | TODO |
 | H3 | ✅ **DONE** `5d9b2478` — **No 500 HTML page.** `server.mjs:5967` returns JSON only and never consults `wantsHtmlDocument`, so a browser hitting a server fault gets the unstyled-JSON experience the 404 work existed to remove. | TODO |
 | H4 | ✅ **DONE** `7a50dd4c` — **No structured request log** — no request id, latency, or method/path/status line. Error events exist with no request trail to correlate against. | TODO |
-| H5 | `FORCE ROW LEVEL SECURITY` is absent on all 60 tables. Low risk (the app connects as a non-owner) but cheap to close. | TODO |
+| H5 | ❌ **REJECTED with evidence (D25)** — FORCE would subject the 219 owner-run `SECURITY DEFINER` functions to policies; verified the owner then reads 0 rows. Was: `FORCE ROW LEVEL SECURITY` is absent on all 60 tables. | CLOSED |
 | H6 | ✅ **ALREADY CLOSED** — re-audited and the finding was wrong. `tests/verification-coverage.mjs` already asserts that every one of the 256 test files is executed by `pnpm run check` or `pnpm test`, expanding the script graph including `pre`/`post` hooks and then walking the import graph outward from the directly executed suites. `payment-disputes.mjs` and `dispute-parent-identity.mjs` both run. The 43 files not named in a script are reached by import from a suite that is; the original audit counted names in `package.json` and missed that. | ✅ |
 
 ### P1c — admin gaps (Phase 3 audit)
