@@ -193,8 +193,26 @@ try {
   assert.equal(unapprovedPublicMarketplace.ok, false, "Production preflight opened a public marketplace without founder and business approval.");
   assert(unapprovedPublicMarketplace.errors.some((error) => error.includes("PUBLIC_MARKETPLACE_APPROVED")));
   assert(unapprovedPublicMarketplace.errors.some((error) => error.includes("INSURANCE_READY")));
+  // A public marketplace must be able to take payment. The job-start gate in
+  // migration 025 refuses en-route, arrived and cleaning-in-progress without a
+  // verified authorization, so a public deployment with payments off accepts
+  // bookings, matches Cleaners and then stalls the moment somebody tries to
+  // begin work. This fixture previously asserted that state was acceptable.
+  const publicPaymentEnvironment = {
+    PAYMENTS_ENABLED: "true",
+    STRIPE_SECRET_KEY: `sk_test_${"a".repeat(32)}`,
+    STRIPE_PUBLISHABLE_KEY: `pk_test_${"b".repeat(32)}`,
+    STRIPE_WEBHOOK_SECRET: `whsec_${"c".repeat(32)}`,
+    // Going public with payments needs the founder's own payment approvals.
+    // That chain is deliberate: a public marketplace must be able to take
+    // money, and taking money in public is a decision only they can make.
+    PUBLIC_PAYMENTS_APPROVED: "true",
+    PAYMENT_ACCOUNT_VERIFIED: "true",
+    REFUND_PROCESS_READY: "true"
+  };
   const approvedPublicMarketplace = validateProductionDeployment({
     ...builtInMonitoringEnvironment,
+    ...publicPaymentEnvironment,
     STAGING_ACCOUNTS_ONLY: "false",
     PUBLIC_MARKETPLACE_APPROVED: "true",
     LEGAL_BUSINESS_READY: "true",
@@ -205,9 +223,28 @@ try {
     CUSTOMER_TERMS_READY: "true"
   }, { projectRoot });
   assert.equal(approvedPublicMarketplace.ok, true, approvedPublicMarketplace.errors.join("\n"));
+  const publicMarketplaceWithoutPayments = validateProductionDeployment({
+    ...builtInMonitoringEnvironment,
+    STAGING_ACCOUNTS_ONLY: "false",
+    PUBLIC_MARKETPLACE_APPROVED: "true",
+    LEGAL_BUSINESS_READY: "true",
+    INSURANCE_READY: "true",
+    CLEANER_SUPPLY_READY: "true",
+    PRICING_POLICY_APPROVED: "true",
+    CUSTOMER_SUPPORT_READY: "true",
+    CUSTOMER_TERMS_READY: "true"
+  }, { projectRoot });
+  assert.equal(publicMarketplaceWithoutPayments.ok, false, "A public marketplace was accepted with payments off, so no Cleaner could ever start a job.");
+  assert.ok(publicMarketplaceWithoutPayments.errors.some((error) => error.includes("PAYMENTS_ENABLED")), "The refusal does not name the setting that has to change.");
+  // A restricted rehearsal environment is allowed to be partial: only the
+  // operator can reach it, so they meet the wall themselves rather than a
+  // customer meeting it for them.
+  const restrictedWithoutPayments = validateProductionDeployment({ ...builtInMonitoringEnvironment }, { projectRoot });
+  assert.equal(restrictedWithoutPayments.checks.stagingAccountsRestricted, true);
+  assert.equal(restrictedWithoutPayments.ok, true, restrictedWithoutPayments.errors.join("\n"));
   assert.equal(approvedPublicMarketplace.checks.stagingAccountsRestricted, false);
   assert.equal(approvedPublicMarketplace.checks.publicMarketplaceApproved, true);
-  assert.equal(approvedPublicMarketplace.checks.publicPaymentsApproved, false);
+  assert.equal(approvedPublicMarketplace.checks.publicPaymentsApproved, true);
   const missingBuiltInMonitoring = validateProductionDeployment({ ...builtInMonitoringEnvironment, MONITORING_WEBHOOK_URL: "", MONITORING_WEBHOOK_TOKEN: "" }, { projectRoot });
   assert.equal(missingBuiltInMonitoring.ok, false);
   assert(missingBuiltInMonitoring.errors.some((error) => error.includes("MONITORING_WEBHOOK_URL")));

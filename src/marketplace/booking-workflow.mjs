@@ -342,6 +342,46 @@ export function createBookingWorkflowService(repository, options = {}) {
       }
       const record = await repository.respondToInvitation(actor, selectedBookingId, { decision, reason });
       return bookingProjection(record, actor);
+    },
+    /**
+     * Cancel a booking the customer owns, and release any card hold it placed.
+     *
+     * The hold is released FIRST, while the booking is still confirmed, because
+     * the database's own cancel guard requires exactly that: a cancel command
+     * against a booking that is not `confirmed` raises `payment-not-cancellable`
+     * (see db/migrations/113_payment_command_recovery.sql).
+     *
+     * Getting this backwards strands the money with no way out. A cancelled
+     * booking with an authorized payment can no longer be cancelled (wrong
+     * booking status), captured (needs `completed`) or refunded (needs a
+     * captured payment) — not by the customer, not by an administrator, and no
+     * maintenance job sweeps it. The hold would then sit until Stripe expired
+     * it, with the ledger row stuck in `authorized` for good.
+     *
+     * So a genuine release failure stops the cancellation instead. The booking
+     * stays confirmed, the customer is told to try again, and nothing is
+     * stranded. The cost is that a provider outage delays cancelling; the
+     * alternative is money nobody can move. The database trigger added in
+     * migration 025 independently blocks a Cleaner from starting work without a
+     * current authorization, so a released hold cannot turn into unpaid work.
+     */
+    async cancelBooking(actor, bookingId, input = {}) {
+      if (!actor?.userId || !Array.isArray(actor.roles) || !actor.roles.includes("landlord")) throw new TypeError("A Landlord account is required to cancel a booking.");
+      const selectedBookingId = uuid(bookingId, "booking id");
+      const reason = boundedText(input.reason, 1000, "Cancellation reason") || null;
+      let holdRelease = null;
+      if (typeof options.releaseAuthorization === "function") {
+        try {
+          holdRelease = await options.releaseAuthorization(actor, selectedBookingId);
+        } catch (error) {
+          throw Object.assign(
+            new Error("Your booking was not cancelled, because the card hold on it could not be released. Nothing has changed. Try again in a moment."),
+            { statusCode: 503, code: "hold-release-failed", cause: error }
+          );
+        }
+      }
+      const record = await repository.cancelBooking(actor, selectedBookingId, reason);
+      return Object.freeze({ booking: bookingProjection(record, actor), holdRelease });
     }
   });
 }

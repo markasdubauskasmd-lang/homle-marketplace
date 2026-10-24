@@ -366,6 +366,44 @@ function canonicalPublicLocation(request, requestUrl) {
   return `${canonicalUrl.origin}${requestUrl.pathname}${requestUrl.search}`;
 }
 
+/**
+ * One structured line per request, so an error has a trail to sit in.
+ *
+ * Error monitoring records what broke and nothing about the request that broke
+ * it — no method, no path, no timing, no way to correlate two events from the
+ * same visitor. During an incident that is the difference between "something
+ * is throwing" and "every POST to this route has taken nine seconds since the
+ * deploy".
+ *
+ * What is deliberately NOT logged: the query string, any header, any cookie and
+ * any body. Tokens travel in query strings and fragments across this product —
+ * private tracker links, opportunity links, verification links — and a log is
+ * the easiest place in a system to leak one and the hardest to clean up
+ * afterwards. The path is kept because it identifies the route, and UUIDs in a
+ * path are record identifiers rather than credentials.
+ *
+ * On in production by default, because a trail nobody switched on before the
+ * incident is not a trail. `REQUEST_LOG` set to "off" disables it.
+ */
+const requestLogEnabled = String(process.env.REQUEST_LOG || "").trim().toLowerCase() !== "off"
+  && (process.env.NODE_ENV === "production" || String(process.env.REQUEST_LOG || "").trim().toLowerCase() === "on");
+
+function logRequest(request, response, requestUrl, requestId, startedAt) {
+  if (!requestLogEnabled) return;
+  try {
+    console.log(JSON.stringify({
+      channel: "request",
+      requestId,
+      method: request.method,
+      path: requestUrl.pathname,
+      status: response.statusCode,
+      durationMs: Math.round(Number(process.hrtime.bigint() - startedAt) / 1e6)
+    }));
+  } catch {
+    // A logging failure must never take a served request with it.
+  }
+}
+
 function json(response, statusCode, body) {
   response.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
   response.end(JSON.stringify(body));
@@ -4932,6 +4970,18 @@ async function getAdminConfig(request, response) {
     authenticationReady: accountAttachment.authenticationHttpReady,
     providers: accountAttachment.authenticationCapabilities,
     paymentsReady: marketplaceAttachment.paymentsReady,
+    // Whether completed bookings are settling on their own, or whether somebody
+    // still has to press capture and transfer for every job. Enabled-but-refused
+    // is reported to monitoring, but an operator checking whether it is on
+    // should not have to read the logs to find out — the answer is either true
+    // here or it is not running.
+    settlementReady: marketplaceAttachment.settlementReady === true,
+    // Whether unpaid bookings are being ended, which is the loop that gives a
+    // Cleaner back a day they would otherwise lose to a job that can never
+    // start. It rides the same gate as settlement, so a false here with
+    // settlement true means the loop refused to build and said so to
+    // monitoring.
+    expiryReady: marketplaceAttachment.expiryReady === true,
     // This contains no credential or connection detail. Operators set it only
     // when the database provider has imposed a deletion date, so the private
     // launch desk cannot mistake temporary connectivity for durable storage.
@@ -5548,9 +5598,21 @@ function wantsHtmlDocument(request, requestUrl) {
  * than to a blank response.
  */
 async function serveNotFoundDocument(request, response, cspNonce = "") {
+  return serveErrorDocument(request, response, 404, "not-found.html");
+}
+
+/**
+ * Sends a designed error page, or reports that it could not.
+ *
+ * Shared by the 404 and 500 paths so they cannot drift. Returning false rather
+ * than throwing matters on the 500 path in particular: the caller is already
+ * handling a failure, and a page that fails to load must fall through to the
+ * JSON body rather than become a second error inside the first.
+ */
+async function serveErrorDocument(request, response, status, fileName) {
   try {
-    const body = await readFile(path.resolve(publicDir, "not-found.html"));
-    response.writeHead(404, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    const body = await readFile(path.resolve(publicDir, fileName));
+    response.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
     if (request.method === "HEAD") response.end();
     else response.end(body);
     return true;
@@ -5562,6 +5624,16 @@ async function serveNotFoundDocument(request, response, cspNonce = "") {
 async function serveFile(requestPath, response, cspNonce = "") {
   const routes = {
     "/": "home.html",
+    // The stated main growth channel is landlords and letting agents with
+    // several properties, and the scrollytelling homepage addresses one person
+    // with one home. A separate page keeps that pitch out of the pinned-scroll
+    // acts and, unlike the homepage, gives the channel something indexable.
+    "/for-landlords": "for-landlords.html",
+    // Cleaner supply is the binding constraint: no cleaner means no booking,
+    // whatever else works. The cleaner audience previously got two links
+    // saying "Work as a cleaner" and no pitch at all.
+    "/for-cleaners": "for-cleaners.html",
+    "/cookies": "cookies.html",
     "/login": "account.html",
     "/signup": "account.html",
     "/verify-email": "account.html",
@@ -5632,6 +5704,7 @@ async function serveFile(requestPath, response, cspNonce = "") {
     "/admin/scan-operations": "admin-scan-operations.html",
     "/admin/bookings": "admin-bookings.html",
     "/admin/verifications": "admin-verifications.html",
+    "/admin/accounts": "admin-accounts.html",
     "/privacy": "privacy.html",
     "/facebook-data-deletion": "facebook-data-deletion.html",
     "/terms": "terms.html"
@@ -5680,6 +5753,11 @@ async function handleHttpRequest(request, response) {
   const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
   const cspNonce = randomBytes(18).toString("base64");
   setSecurityHeaders(response, requestUrl.pathname, cspNonce);
+  // Recorded on `finish` rather than inline, so the status and duration are the
+  // ones the client actually received no matter which branch answered.
+  const requestId = randomBytes(8).toString("hex");
+  const startedAt = process.hrtime.bigint();
+  response.once("finish", () => logRequest(request, response, requestUrl, requestId, startedAt));
 
   try {
     const canonicalLocation = canonicalPublicLocation(request, requestUrl);
@@ -5949,7 +6027,9 @@ async function handleHttpRequest(request, response) {
     }
     json(response, 404, { ok: false, error: "Not found." });
   } catch (error) {
-    console.error(error);
+    // Tagged with the same id as the request line above, which is the whole
+    // point: an error and its request can be put back together afterwards.
+    console.error(`request ${requestId} failed`, error);
     // Once a handler has started writing, a second write throws
     // ERR_HTTP_HEADERS_SENT from inside this catch — which escaped the request and
     // took the process with it, because nothing awaits the promise `createServer`
@@ -5964,6 +6044,14 @@ async function handleHttpRequest(request, response) {
     // and handed an unvalidated value to writeHead, which throws if it is not a
     // legal status.
     const authored = clientErrorStatuses.has(error?.statusCode);
+    // A browser gets a page here too. The 404 work removed the unstyled-JSON
+    // experience for a mistyped URL and left it for a server fault, which is
+    // the worse of the two: the person did nothing wrong and is most likely to
+    // be mid-booking. An API caller still receives the JSON below, with the
+    // same status either way.
+    if (!authored && wantsHtmlDocument(request, requestUrl)) {
+      if (await serveErrorDocument(request, response, 500, "server-error.html")) return;
+    }
     json(response, authored ? error.statusCode : 500, { ok: false, error: authored ? error.message : "Something went wrong. Please try again." });
   }
 }

@@ -81,15 +81,24 @@ import { createStagingAccountAccess } from "./staging-account-access.mjs";
 import { createAdministratorBookingRepository } from "./administrator-booking-repository.mjs";
 import { createAdministratorBookingService } from "./administrator-booking-service.mjs";
 import { createAdministratorVerificationRepository } from "./administrator-verification-repository.mjs";
+import { createAdministratorAccountRepository } from "./administrator-account-repository.mjs";
+import { createAdministratorAccountService } from "./administrator-account-service.mjs";
 import { createAdministratorVerificationService } from "./administrator-verification-service.mjs";
 import { createAdministratorCoverageRepository } from "./administrator-coverage-repository.mjs";
 import { createAdministratorCoverageService } from "./administrator-coverage-service.mjs";
 import { createAdministratorFunnelRepository } from "./administrator-funnel-repository.mjs";
+import { createFunnelTelemetryRepository } from "./funnel-telemetry-repository.mjs";
+import { createUnpaidBookingRepository } from "./unpaid-booking-repository.mjs";
 import { createAdministratorFunnelService } from "./administrator-funnel-service.mjs";
 import { createLandlordCareRepository } from "./landlord-care-repository.mjs";
 import { createLandlordCareService } from "./landlord-care-service.mjs";
 import { createFavouriteCleanerRepository } from "./favourite-cleaner-repository.mjs";
 import { createFavouriteCleanerService } from "./favourite-cleaner-service.mjs";
+
+// The payment statuses a cancel command can still act on. Mirrors the guard in
+// db/migrations/113_payment_command_recovery.sql; the database owns the real
+// decision and this only avoids calling it when the answer is obviously no.
+const releasablePaymentStatuses = new Set(["creating", "requires-customer-action", "processing", "authorized"]);
 
 // Whether travel is charged by distance rather than as a flat fee. A blank or
 // zero per-kilometre rate keeps the flat-fee path, which needs no distance and
@@ -232,7 +241,40 @@ export function createMarketplaceRuntime(pool, options = {}) {
     pricingPolicy: bookingPricingPolicy,
     getPlatformEconomics: async (actor) => (await pricingConfigurationRepository.economicsForRuntime(actor)) || defaultPricingEconomics,
     requirePayoutReady: paymentService !== null,
-    getPayoutReadiness: cleanerPayoutService ? (actor) => cleanerPayoutService.getStatus(actor) : undefined
+    getPayoutReadiness: cleanerPayoutService ? (actor) => cleanerPayoutService.getStatus(actor) : undefined,
+    // Cancelling a booking must give the customer their money back. The hold is
+    // an uncaptured authorization, so releasing it is a cancel command, not a
+    // refund — there is nothing to refund yet. `cancel` already permits the
+    // Landlord role; until now no route reached it.
+    //
+    // A booking with no payment, or one whose payment can no longer be
+    // cancelled, is not an error: plenty of bookings are cancelled before the
+    // payment window ever opens.
+    releaseAuthorization: paymentService
+      ? async (actor, bookingId) => {
+        const payment = await paymentService.getForBooking(actor, bookingId);
+        // `getForBooking` answers for any booking the caller owns, with a
+        // synthetic `not-started` record when no payment row exists, so a null
+        // paymentId — not a null record — is what "nothing was taken" looks
+        // like here.
+        if (!payment || payment.paymentId == null) return Object.freeze({ released: false, message: "No payment had been taken, so there is nothing to release.", code: "no-payment" });
+        // Mirrors the statuses begin_payment_command accepts for a cancel. A
+        // payment already captured, refunded or cancelled has nothing to
+        // release and must not be treated as a failure.
+        if (!releasablePaymentStatuses.has(payment.status)) return Object.freeze({ released: false, message: "There was no card hold left to release.", code: "nothing-to-release" });
+        try {
+          await paymentService.cancel(actor, { paymentId: payment.paymentId, idempotencyKey: `booking_cancel_${bookingId}` });
+        } catch (error) {
+          // The database owns the real guard, and it can legitimately refuse
+          // for reasons this projection cannot see. A refusal means there is
+          // nothing to release; anything else is a genuine failure and must
+          // stop the cancellation rather than strand the money.
+          if (error?.code === "payment-not-cancellable") return Object.freeze({ released: false, message: "There was no card hold left to release.", code: "nothing-to-release" });
+          throw error;
+        }
+        return Object.freeze({ released: true, message: "Your card hold has been released. You have not been charged.", code: "released" });
+      }
+      : undefined
   });
   const matchingRepository = createMatchingRepository(database);
   const matchingService = createMatchingService(matchingRepository, { pricingPolicy: bookingPricingPolicy, requirePayoutReady: paymentService !== null });
@@ -266,16 +308,81 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const administratorBookingRepository = createAdministratorBookingRepository(database);
   const administratorBookingService = createAdministratorBookingService(administratorBookingRepository);
   const administratorVerificationRepository = createAdministratorVerificationRepository(database);
-  const administratorVerificationService = createAdministratorVerificationService(administratorVerificationRepository);
+  const administratorVerificationService = createAdministratorVerificationService(administratorVerificationRepository, { dataEncryptionSecret: env.DATA_ENCRYPTION_KEY });
+  // Suspending an account. `users.account_status` has been enforced in
+  // forty-five places since migration 001 and settable from nowhere, so the
+  // lock was fitted and there was no key.
+  const administratorAccountRepository = createAdministratorAccountRepository(database);
+  const administratorAccountService = createAdministratorAccountService(administratorAccountRepository);
   const administratorCoverageRepository = createAdministratorCoverageRepository(database, { requirePayoutReady: paymentService !== null });
   const administratorCoverageService = createAdministratorCoverageService(administratorCoverageRepository);
   const administratorFunnelRepository = createAdministratorFunnelRepository(database);
   const administratorFunnelService = createAdministratorFunnelService(administratorFunnelRepository);
+  // Visitor-side funnel counts, which the report above cannot see: it is built
+  // from accounts and bookings, so it begins at the first person who already
+  // signed up. Everything before that -- who arrived, who pressed anything --
+  // was invisible. Anonymous and cookieless by construction; see D11 and the
+  // header of `funnel-telemetry.mjs`.
+  const funnelTelemetryRepository = options.funnelTelemetry || createFunnelTelemetryRepository(database);
+  // The queue of bookings that reached their payment deadline unpaid. Read and
+  // acted on by the expiry loop composed in attachment.mjs, for the same reason
+  // settlement is: the background worker's credential cannot execute a payment
+  // command, and widening it would be a worse trade than running the loop where
+  // the application credential already lives.
+  const unpaidBookingRepository = createUnpaidBookingRepository(database);
   const landlordCareRepository = createLandlordCareRepository(database);
   const landlordCareService = createLandlordCareService(landlordCareRepository);
   const privacyRequestRepository = createPrivacyRequestRepository(database);
-  const privacyRequestService = createPrivacyRequestService(privacyRequestRepository);
-  const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
+  // A subject access response, assembled from the requester's own authenticated
+  // reads rather than from a second, parallel definition of "their data".
+  //
+  // That is the whole design. Every read below is the same owner-scoped service
+  // the product uses to show somebody their own screens, so the export cannot
+  // include a field those screens would not, cannot drift as the schema moves,
+  // and cannot accidentally reach another person's records — the projections
+  // already decided all three, and they are tested.
+  //
+  // A failing section is reported as unavailable rather than failing the whole
+  // export. A partial response delivered inside the statutory month, saying
+  // plainly which part is missing, is worth more than a complete one that
+  // arrives late or not at all.
+  async function exportSection(name, read) {
+    try { return { name, data: await read() }; }
+    catch (error) { return { name, unavailable: true, reason: error?.code || "unavailable" }; }
+  }
+  async function assembleAccountExport(actor) {
+    // Sections are chosen by the roles the account actually holds. Asking for a
+    // Cleaner profile as a Landlord would be refused and reported "unavailable",
+    // which reads as "Homle is holding something it will not show you" — the
+    // opposite of what a subject access response is for. A section that does not
+    // apply is simply absent.
+    const roles = Array.isArray(actor?.roles) ? actor.roles : [];
+    const reads = [
+      ["cleaningRequests", () => cleaningRequestService.listOwnRequests(actor), "landlord"],
+      ["properties", () => propertyService.listOwnProperties(actor), "landlord"],
+      ["archivedProperties", () => propertyService.listArchivedOwnProperties(actor), "landlord"],
+      ["cleanerProfile", () => cleanerProfileService.getOwnProfile(actor), "cleaner"],
+      ["cleanerAvailability", () => cleanerProfileService.listOwnAvailability(actor), "cleaner"],
+      // Both roles hold these.
+      ["bookings", () => bookingWorkflowService.listParticipantBookings(actor, { limit: 100 }), null],
+      ["notifications", () => notificationService.listNotifications(actor, { limit: 100 }), null],
+      ["privacyRequests", () => privacyRequestService.list(actor), null]
+    ];
+    const sections = await Promise.all(
+      reads.filter(([, , role]) => role === null || roles.includes(role)).map(([name, read]) => exportSection(name, read))
+    );
+    return Object.freeze({
+      generatedAt: new Date().toISOString(),
+      accountId: actor.userId,
+      // Said plainly, because a person reading their own export should not have
+      // to work out why their payment history is summarised rather than
+      // itemised, or why the other party's messages are not here.
+      note: "This is the data Homle holds that is yours, assembled from your own account. It does not include another person's records, security material such as password or session data, or Homle's internal pricing and matching workings. Financial records are retained under UK tax law and are summarised on your bookings rather than exported separately.",
+      sections: Object.fromEntries(sections.map((section) => [section.name, section.unavailable ? { unavailable: true, reason: section.reason } : section.data]))
+    });
+  }
+  const privacyRequestService = createPrivacyRequestService(privacyRequestRepository, { assembleExport: assembleAccountExport });
+  const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, administratorAccountService, funnelTelemetry: funnelTelemetryRepository, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
     clientKey: options.clientKey,
     onUnexpectedError: options.onUnexpectedError,
     pricingConfiguration: (actor) => pricingConfigurationRepository.activeConfig(actor),
@@ -388,6 +495,10 @@ export function createMarketplaceRuntime(pool, options = {}) {
     administratorCoverageService,
     administratorFunnelRepository,
     administratorFunnelService,
+    administratorAccountRepository,
+    administratorAccountService,
+    funnelTelemetry: funnelTelemetryRepository,
+    unpaidBookingRepository,
     landlordCareRepository,
     landlordCareService,
     privacyRequestRepository,

@@ -9,7 +9,8 @@ function mapDisputeError(error) {
     "invalid-dispute-status": [422, "invalid-dispute-status", "The booking-case status filter is invalid."],
     "invalid-dispute-page": [422, "invalid-dispute-page", "The booking-case page is invalid."],
     "invalid-dispute-decision": [422, "invalid-dispute-decision", "The booking-case decision is invalid."],
-    "invalid-dispute-resolution": [422, "invalid-dispute-resolution", "The booking-case resolution is incomplete or invalid."]
+    "invalid-dispute-resolution": [422, "invalid-dispute-resolution", "The booking-case resolution is incomplete or invalid."],
+    "dispute-not-found": [404, "dispute-not-found", "That booking case could not be found."]
   };
   const selected = errors[error?.message];
   return selected ? Object.assign(new Error(selected[2]), { statusCode: selected[0], code: selected[1], cause: error }) : error;
@@ -32,6 +33,9 @@ export function createDisputeRepository(database) {
     },
     listForAdministrator(actor, input) {
       return privateCall(actor, "SELECT tideway_private.list_admin_booking_disputes($1::text,$2::integer,$3::integer) AS result", [input.status, input.limit, input.offset]);
+    },
+    getForAdministrator(actor, disputeId) {
+      return privateCall(actor, "SELECT tideway_private.get_booking_dispute_for_administrator($1::uuid) AS result", [disputeId]);
     },
     review(actor, disputeId, input) {
       return privateCall(actor, "SELECT tideway_private.review_booking_dispute($1::uuid,$2::text,$3::text,$4::text) AS result", [disputeId, input.status, input.resolutionNote, input.resolutionOutcome]);

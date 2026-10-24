@@ -11,6 +11,8 @@ import { createS3ObjectStorage } from "./s3-object-storage.mjs";
 import { createTransactionalEmailDelivery } from "./email-delivery.mjs";
 import { createStripePaymentProvider } from "./stripe-payment-provider.mjs";
 import { createTrustedClientKeyResolver } from "./trusted-client-key.mjs";
+import { createPaymentSettlementWorker, paymentSettlementEnabled, platformSettlementUserId } from "./payment-settlement-worker.mjs";
+import { createUnpaidBookingWorker } from "./unpaid-booking-worker.mjs";
 
 function enabledState(env) {
   const value = String(env.MARKETPLACE_ENABLED || "").trim().toLowerCase();
@@ -261,11 +263,100 @@ export async function createMarketplaceAttachment(options = {}) {
     apple: runtime.appleSignInReady === true,
     facebook: runtime.facebookLoginReady === true
   });
+  // Settlement runs here, in the web process, rather than in the background
+  // worker. The worker connects as `tideway_worker`, which deliberately has no
+  // table grants and cannot execute the payment commands; widening that
+  // credential so a scheduled job could move money is a worse trade than
+  // running the job where the application credential already lives.
+  //
+  // The configured account is verified against `user_roles` before anything is
+  // scheduled. This is not belt and braces: `tideway_private.has_role` reads
+  // the roles the application supplies, so the database trusts this actor
+  // rather than resolving it. Without the check, any user's id in
+  // PLATFORM_SETTLEMENT_USER_ID would have granted that identity authority to
+  // capture and transfer every payment, and stamped them on the audit record.
+  let settlementTimer = null;
+  let expiryTimer = null;
+  let expiryReady = false;
+  const settlementUserId = platformSettlementUserId(env);
+  const settlementRequested = paymentSettlementEnabled(env);
+  let settlementReady = false;
+  if (settlementRequested) {
+    let settlementRefusal = null;
+    if (!runtime.paymentService) settlementRefusal = "payments are not attached";
+    else if (!settlementUserId) settlementRefusal = "PLATFORM_SETTLEMENT_USER_ID is not set";
+    else {
+      let holdsRole = false;
+      try {
+        const verified = await pool.query("SELECT tideway_private.account_holds_role($1::uuid, 'administrator') AS ok", [settlementUserId]);
+        holdsRole = verified.rows[0]?.ok === true;
+      } catch (error) {
+        settlementRefusal = `the configured account could not be verified (${error?.code || "unknown error"})`;
+      }
+      if (!settlementRefusal && !holdsRole) settlementRefusal = "PLATFORM_SETTLEMENT_USER_ID is not an active administrator account";
+    }
+    if (settlementRefusal) {
+      // Enabled and not running would otherwise be invisible until somebody
+      // noticed money had stopped moving.
+      adapters.onUnexpectedError(new TypeError(`Automatic payment settlement is enabled but ${settlementRefusal}, so nothing will settle.`));
+    } else {
+      // This block sits after the composition try/catch that owns teardown, so
+      // anything thrown here would leak the pools, the realtime source, email
+      // and object storage and never call adapters.close(). Settlement is
+      // optional and the marketplace is not: a settlement misconfiguration is
+      // reported loudly and leaves the site serving.
+      try {
+        const settlement = createPaymentSettlementWorker({
+          payments: runtime.paymentService,
+          actor: { userId: settlementUserId, roles: ["administrator"] },
+          onUnexpectedError: adapters.onUnexpectedError
+        });
+        const runSettlement = () => {
+          settlement.runOnce().catch((error) => adapters.onUnexpectedError(error));
+        };
+        settlementTimer = setInterval(runSettlement, 300_000);
+        settlementTimer.unref?.();
+        settlementReady = true;
+
+        // Ending unpaid bookings runs behind exactly the same gate, and not
+        // behind a flag of its own. It needs the same verified platform
+        // administrator, and -- more importantly -- it must never run on a
+        // deployment with payments switched off. There, no booking has an
+        // authorization because none can, and migration 025 deliberately lets
+        // jobs start without one; an expiry loop in that world would cancel
+        // every confirmed booking in the system.
+        const expiry = createUnpaidBookingWorker({
+          repository: runtime.unpaidBookingRepository,
+          payments: runtime.paymentService,
+          actor: { userId: settlementUserId, roles: ["administrator"] },
+          onUnexpectedError: adapters.onUnexpectedError
+        });
+        // Every fifteen minutes. The deadline it enforces is twelve hours wide,
+        // so this is far finer than it needs to be; the cost is one indexed
+        // query that usually returns nothing, and the benefit is that a Cleaner
+        // learns their day is free within the quarter-hour rather than the
+        // hour.
+        expiryTimer = setInterval(() => {
+          expiry.runOnce().catch((error) => adapters.onUnexpectedError(error));
+        }, 900_000);
+        expiryTimer.unref?.();
+        // Reported for the same reason settlement is: an operator asking
+        // whether unpaid bookings are being ended should not have to read the
+        // logs to find out.
+        expiryReady = true;
+      } catch (error) {
+        adapters.onUnexpectedError(error);
+      }
+    }
+  }
+
   let closed = false;
   return Object.freeze({
     enabled: true,
     ready: true,
     reason: "ready",
+    settlementReady,
+    expiryReady,
     authenticationHttpReady: runtime.authenticationHttpReady === true,
     authenticationCapabilities,
     emailReady: Boolean(emailDelivery),
@@ -284,6 +375,8 @@ export async function createMarketplaceAttachment(options = {}) {
       if (closed) return;
       closed = true;
       const failures = [];
+      if (settlementTimer) { clearInterval(settlementTimer); settlementTimer = null; }
+      if (expiryTimer) { clearInterval(expiryTimer); expiryTimer = null; }
       try { await realtimeSignalSource.close?.(); } catch (error) { failures.push(error); }
       try { await emailDelivery?.close(); } catch (error) { failures.push(error); }
       try { await objectStorage?.close(); } catch (error) { failures.push(error); }

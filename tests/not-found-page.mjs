@@ -123,3 +123,70 @@ if(resolveChromiumPath()){
   }finally{await browser.close();await fixture.close();}
   console.log("404 rendered recovery targets passed at390/768/1440 with documented inline-prose exception.");
 }else console.log("404 rendered recovery targets SKIPPED: Chromium unavailable.");
+
+// The 500 page. The 404 work removed the unstyled-JSON experience for a
+// mistyped URL and left it in place for a server fault, which is the worse of
+// the two: the person did nothing wrong, and they are most likely to be
+// mid-booking when it happens.
+{
+  const { readFile: readSource } = await import("node:fs/promises");
+  const serverSource = await readSource(new URL("../server.mjs", import.meta.url), "utf8");
+  const errorPage = await readSource(new URL("../public/server-error.html", import.meta.url), "utf8");
+
+  // Scriptless by design. This page renders when something has already failed,
+  // so it must not depend on a module loading or a session resolving — either
+  // could be the thing that broke.
+  if (/<script/i.test(errorPage)) throw new Error("The 500 page loads a script, so the failure that produced it could also stop the page explaining it.");
+  if (!errorPage.includes("Error 500")) throw new Error("The 500 page does not say what happened.");
+  // Somebody mid-booking needs to know whether they were charged.
+  if (!/(?:Nothing|not)[^.]*charged or confirmed/.test(errorPage)) throw new Error("The 500 page does not tell a customer whether their booking or payment went through.");
+  if (!errorPage.includes('href="/"') || !errorPage.includes("/landlord/help")) throw new Error("The 500 page offers no way back into Homle and no way to ask for help.");
+  if (!errorPage.includes('class="skip-link"')) throw new Error("The 500 page has no skip link.");
+  if (!/noindex/.test(errorPage)) throw new Error("The 500 page is indexable.");
+
+  // Only for browsers, only for faults this server did not author, and it must
+  // fall through to JSON if the page itself cannot be read — otherwise a
+  // missing file becomes a second error inside the first.
+  const catchBlock = serverSource.slice(serverSource.indexOf("const authored = clientErrorStatuses.has"), serverSource.indexOf("const authored = clientErrorStatuses.has") + 1200);
+  if (!catchBlock.includes("wantsHtmlDocument(request, requestUrl)")) throw new Error("A browser hitting a server fault still receives raw JSON.");
+  if (!catchBlock.includes("!authored")) throw new Error("An authored client error is being replaced by the generic 500 page, hiding the real reason.");
+  if (!/serveErrorDocument\(request, response, 500, "server-error\.html"\)\) return;/.test(catchBlock)) throw new Error("The 500 page does not fall through to JSON when it cannot itself be served.");
+  // One implementation for both pages so they cannot drift apart.
+  if (!serverSource.includes("return serveErrorDocument(request, response, 404, \"not-found.html\")")) throw new Error("The 404 and 500 pages are served by two separate implementations.");
+  console.log("Server-error page tests passed: a browser fault renders a designed, scriptless page that says whether money moved, while API callers keep their JSON and an unreadable page falls through rather than failing twice.");
+}
+
+// One structured line per request, so an error has a trail to sit in.
+//
+// Error monitoring recorded what broke and nothing about the request that broke
+// it — no method, no path, no timing, no way to correlate two events from one
+// visitor. During an incident that is the difference between "something is
+// throwing" and "every POST to this route has taken nine seconds since the
+// deploy".
+{
+  const { readFile: readLogSource } = await import("node:fs/promises");
+  const logSource = await readLogSource(new URL("../server.mjs", import.meta.url), "utf8");
+  const logger = logSource.slice(logSource.indexOf("function logRequest"), logSource.indexOf("function logRequest") + 900);
+  for (const field of ["requestId", "method", "path", "status", "durationMs"]) {
+    if (!logger.includes(field)) throw new Error(`The request log omits ${field}, without which it cannot be correlated or triaged.`);
+  }
+  // Tokens travel in query strings across this product — tracker links,
+  // opportunity links, verification links. A log is the easiest place in a
+  // system to leak one and the hardest to clean up afterwards.
+  for (const forbidden of ["requestUrl.search", "headers", "cookie", "authorization", "req.body"]) {
+    if (logger.includes(forbidden)) throw new Error(`The request log records ${forbidden}, which can carry a credential.`);
+  }
+  // Recorded on finish, so the status and duration are the ones the client
+  // actually received rather than the ones the first branch intended.
+  if (!/response\.once\("finish"/.test(logSource)) throw new Error("The request log is written before the response completes, so its status can be wrong.");
+  // A logging failure must never take a served request with it.
+  if (!/logRequest[\s\S]{0,700}catch \{/.test(logSource)) throw new Error("A failure while logging would propagate into the served request.");
+  // The error path carries the same id, which is the entire point.
+  if (!/console\.error\(`request \$\{requestId\} failed`/.test(logSource)) throw new Error("An error and its request line cannot be put back together.");
+  // On in production by default: a trail nobody switched on before the incident
+  // is not a trail.
+  if (!/NODE_ENV === "production"/.test(logSource.slice(logSource.indexOf("const requestLogEnabled"), logSource.indexOf("const requestLogEnabled") + 400))) {
+    throw new Error("Request logging is not on by default in production.");
+  }
+  console.log("Request log tests passed: one structured line per request carrying id, method, path, status and duration, written on finish, never recording a query string or header, and tagged onto the error path so the two can be correlated.");
+}

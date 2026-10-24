@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#d7182a" />
+  <title>Something went wrong | Homle</title>
+  <link rel="icon" href="/homle-logo.png" type="image/png">
+  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
+  <link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1">
+  <link rel="stylesheet" href="/homle-workspace.css?v=20260831-1">
+  <link rel="stylesheet" href="/not-found.css?v=20260830-1">
+</head>
+<!-- The 404 work removed the unstyled-JSON experience for a mistyped URL and
+     left it in place for a server fault, which is the worse of the two: the
+     person did nothing wrong, and they are most likely to be mid-booking.
+
+     Deliberately scriptless. This page is what renders when something has
+     already failed, so it must not depend on a module loading, a session
+     resolving, or anything else that could be the thing that broke. The 404
+     page can afford a script because the server is healthy when it serves. -->
+<body class="homle-workspace not-found-page">
+  <a class="skip-link" href="#server-error-main">Skip to content</a>
+  <main class="not-found-main" id="server-error-main" tabindex="-1">
+    <div class="not-found-card">
+      <a class="not-found-brand" href="/" aria-label="Homle home">
+        <img src="/homle-logo.png" alt="" width="44" height="44">
+        <span>Homle</span>
+      </a>
+      <p class="hw-section-title">Error 500</p>
+      <h1>Something went wrong at our end.</h1>
+      <p class="not-found-lead">This one is ours, not yours. Homle has recorded what happened. Nothing you were doing has been charged or confirmed — if you were part-way through a booking, it has not gone through, so it is safe to try again.</p>
+      <div class="hw-actions">
+        <a class="button" href="/">Go to Homle</a>
+        <a class="button button-outline" href="/landlord/help">Ask Homle for help</a>
+      </div>
+      <p class="hw-hint not-found-help">If this keeps happening, tell us what you were doing when it did — that is usually the fastest way to fix it.</p>
+    </div>
+  </main>
+</body>
+</html>

@@ -15,6 +15,10 @@ const requiredFiles = [
   "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql",
   "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "landlord-support-owner-setup.sql", "landlord-support-behaviour.sql", "landlord-support-owner-cleanup.sql",
   "payment-claim-concurrency-setup.sql", "payment-claim-concurrency-core.sql", "payment-claim-concurrency-a.sql", "payment-claim-concurrency-b.sql", "payment-claim-concurrency-expire.sql", "payment-claim-concurrency-verify.sql", "payment-claim-concurrency-cleanup.sql",
+  "booking-cancellation-verification.sql",
+  "cleaner-application-review-verification.sql",
+  "account-status-verification.sql",
+  "revenue-summary-verification.sql",
   "marketplace-payment-event-identity.sql",
   "marketplace-payment-gate.sql", "marketplace-payment-ordering.sql", "marketplace-integration-verify.sql", "marketplace-integration-cleanup.sql"
 ];
@@ -40,6 +44,36 @@ assert.match(sources.get("public-cleaner-profile-behaviour.sql"), /Public Cleane
 assert.match(sources.get("cleaner-verification-queue-pagination.sql"), /ignored its page limit/);
 assert.match(sources.get("cleaner-verification-queue-pagination.sql"), /an Administrator paging forward sees nothing/);
 assert.match(sources.get("cleaner-verification-queue-pagination.sql"), /needs at least 2 to tell real pagination from the aggregate bug/);
+// Both cancellation functions inserted a text value into an enum column, so
+// both threw on the one path where they act while every JavaScript test
+// covering them stayed green. These pin the scenarios that a fake cannot.
+assert.match(sources.get("booking-cancellation-verification.sql"), /cancel_booking_as_landlord did not cancel the booking/);
+assert.match(sources.get("booking-cancellation-verification.sql"), /an unwarned booking was expired/);
+assert.match(sources.get("booking-cancellation-verification.sql"), /did not notify both the customer and the Cleaner/);
+assert.match(sources.get("booking-cancellation-verification.sql"), /a booking that had been paid for was cancelled/);
+assert.match(sources.get("booking-cancellation-verification.sql"), /a non-Administrator read the booking-case queue/);
+// Approving a Cleaner is what puts a stranger in a customer's home. These pin
+// the conditions that make reading their identity documents acceptable.
+assert.match(sources.get("cleaner-application-review-verification.sql"), /a draft Cleaner application was readable/);
+assert.match(sources.get("cleaner-application-review-verification.sql"), /was not audited/);
+assert.match(sources.get("cleaner-application-review-verification.sql"), /not recorded as a second event/);
+assert.match(sources.get("cleaner-application-review-verification.sql"), /a Landlord read a Cleaner application/);
+assert.match(sources.get("cleaner-application-review-verification.sql"), /ROLLBACK/);
+// account_status was enforced in forty-five places and settable from nowhere.
+// These pin the guards that come with finally making it settable.
+assert.match(sources.get("account-status-verification.sql"), /an Administrator suspended themselves/);
+assert.match(sources.get("account-status-verification.sql"), /the last active Administrator was suspended/);
+assert.match(sources.get("account-status-verification.sql"), /an account was deleted from the suspension path/);
+assert.match(sources.get("account-status-verification.sql"), /left its live sessions in place/);
+assert.match(sources.get("account-status-verification.sql"), /not audited with its reason/);
+assert.match(sources.get("account-status-verification.sql"), /ROLLBACK/);
+// The arithmetic is the feature. These pin the two ways it would quietly lie:
+// counting money that has not moved, and applying the window to the wrong date.
+assert.match(sources.get("revenue-summary-verification.sql"), /a transfer still pending with the provider was counted as paid/);
+assert.match(sources.get("revenue-summary-verification.sql"), /the yearly window did not include the older capture/);
+assert.match(sources.get("revenue-summary-verification.sql"), /carried an identifier/);
+assert.match(sources.get("revenue-summary-verification.sql"), /ROLLBACK/);
+assert.match(sources.get("booking-cancellation-verification.sql"), /ROLLBACK/);
 assert.match(sources.get("matching-self-exclusion.sql"), /A landlord was recommended as a cleaner for their own request/);
 assert.match(sources.get("matching-self-exclusion.sql"), /The independent eligible cleaner was not recommended/);
 assert.match(sources.get("paid-matching-payout-readiness.sql"), /No-payment matching incorrectly required Cleaner payout setup/);
@@ -251,7 +285,7 @@ const result = await runPostgresMarketplaceIntegration({
 assert.deepEqual(result, { database: "acme_tideway_test", host: "db.example", verified: true, administratorBootstrap: true, publicCleanerProfilePrivacy: true, cleanerVerificationQueuePagination: true, matchingSelfExclusion: true, paidMatchingPayoutReadiness: true, administratorCoverage: true, administratorFunnel: true, propertyArchive: true, automaticDispatchConcurrency: true, automaticDispatchRequeue: true, landlordSingleDispatch: true, requestRealtimeAndAvatar: true, facebookDataDeletion: true, structuredRoomScan: true, scanPricingRuleset: true, scanEstimateShadow: true, scanRetentionVoiceAddon: true, scanGroundTruth: true, rls: true, concurrentOverlap: true, participantLifecycle: true, participantRealtime: true, participantMessaging: true, disputes: true, landlordSupport: true, paymentJourneyGate: true, paymentOrdering: true, paymentClaimConcurrency: true, fixturesRemoved: true });
 assert.deepEqual(calls.map((call) => call.file), [
   "deployment-verification.sql", "assert-integration-target.sql", "administrator-bootstrap-app-denied.sql", "administrator-bootstrap-owner.sql", "marketplace-integration-setup.sql", "public-cleaner-profile-behaviour.sql", "cleaner-verification-queue-pagination.sql",
-  "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "administrator-coverage-behaviour.sql", "administrator-funnel-owner-setup.sql", "administrator-funnel-behaviour.sql", "administrator-funnel-owner-cleanup.sql", "customer-capacity-setup.sql", "customer-capacity-behaviour.sql", "customer-capacity-cleanup.sql", "property-archive-behaviour.sql", "landlord-repeat-setup.sql", "landlord-repeat-behaviour.sql", "landlord-repeat-cleanup.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "structured-room-scan-behaviour.sql", "scan-pricing-ruleset-behaviour.sql", "scan-estimate-shadow-behaviour.sql", "scan-retention-voice-addon-behaviour.sql", "scan-ground-truth-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "landlord-support-owner-setup.sql", "landlord-support-behaviour.sql", "landlord-support-owner-cleanup.sql", "marketplace-payment-ordering.sql", "payment-claim-concurrency-setup.sql", "payment-claim-concurrency-verify.sql", "payment-claim-concurrency-expire.sql", "payment-claim-concurrency-verify.sql", "marketplace-integration-verify.sql",
+  "matching-self-exclusion.sql", "paid-matching-payout-readiness.sql", "administrator-coverage-behaviour.sql", "administrator-funnel-owner-setup.sql", "administrator-funnel-behaviour.sql", "administrator-funnel-owner-cleanup.sql", "customer-capacity-setup.sql", "customer-capacity-behaviour.sql", "customer-capacity-cleanup.sql", "property-archive-behaviour.sql", "landlord-repeat-setup.sql", "landlord-repeat-behaviour.sql", "landlord-repeat-cleanup.sql", "automatic-dispatch-rehearsal-setup.sql", "automatic-dispatch-first-invite-a.sql", "automatic-dispatch-first-expiry-setup.sql", "automatic-dispatch-requeue.sql", "automatic-dispatch-second-expiry-setup.sql", "automatic-dispatch-attempt-limit.sql", "automatic-dispatch-rehearsal-verify.sql", "automatic-dispatch-rehearsal-cleanup.sql", "landlord-single-dispatch-authorization.sql", "cleaning-request-realtime-and-avatar.sql", "facebook-data-deletion-behaviour.sql", "structured-room-scan-behaviour.sql", "scan-pricing-ruleset-behaviour.sql", "scan-estimate-shadow-behaviour.sql", "scan-retention-voice-addon-behaviour.sql", "scan-ground-truth-behaviour.sql", "marketplace-rls-behaviour.sql", "marketplace-post-concurrency.sql", "booking-cancellation-verification.sql", "cleaner-application-review-verification.sql", "account-status-verification.sql", "revenue-summary-verification.sql", "marketplace-payment-gate.sql", "participant-lifecycle-rehearsal-setup.sql", "participant-lifecycle-rehearsal.sql", "marketplace-dispute-setup.sql", "marketplace-dispute-behaviour.sql", "landlord-support-owner-setup.sql", "landlord-support-behaviour.sql", "landlord-support-owner-cleanup.sql", "marketplace-payment-ordering.sql", "payment-claim-concurrency-setup.sql", "payment-claim-concurrency-verify.sql", "payment-claim-concurrency-expire.sql", "payment-claim-concurrency-verify.sql", "marketplace-integration-verify.sql",
   "marketplace-integration-cleanup.sql"
 ]);
 for (const call of calls) {

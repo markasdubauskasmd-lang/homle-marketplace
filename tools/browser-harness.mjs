@@ -6,6 +6,35 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// How long one DevTools call may take before it is called a timeout.
+//
+// Thirty seconds is right for CI and for a developer machine. It is not right
+// for a small container: the heaviest suites here snapshot every computed CSS
+// property of every element at several viewports, and on four slow cores that
+// work legitimately exceeds thirty seconds. The result was a false failure that
+// read exactly like a defect, and cost two full verification runs before it was
+// recognised for what it was.
+//
+// So the ceiling is configurable and the default is unchanged. A slow machine
+// sets HOMLE_BROWSER_TIMEOUT_MS and gets a truthful answer; CI keeps the same
+// thirty seconds it has always had. This bounds transport patience only -- no
+// assertion, no measurement and no threshold in any test is affected by it,
+// which is why it is the right knob and loosening a test would not have been.
+function browserTimeoutMs(env = process.env) {
+  const supplied = String(env.HOMLE_BROWSER_TIMEOUT_MS || "").trim();
+  if (supplied === "") return 30_000;
+  const parsed = Number(supplied);
+  // A bad value is refused rather than silently ignored. Quietly falling back
+  // to the default would leave somebody believing they had raised a ceiling
+  // they had not, and chasing the same false failure again.
+  if (!Number.isInteger(parsed) || parsed < 1000 || parsed > 600_000) {
+    throw new TypeError("HOMLE_BROWSER_TIMEOUT_MS must be a whole number of milliseconds between 1000 and 600000.");
+  }
+  return parsed;
+}
+
+export { browserTimeoutMs };
+
 // A real browser, driven with no dependencies.
 //
 // Everything else in this repository's scanner coverage is a unit test or a
@@ -154,7 +183,10 @@ function nextId(state) {
  * `--use-fake-ui-for-media-stream` auto-grants permission, so the real
  * `getUserMedia` path runs without a human or a webcam.
  */
-export async function launchBrowser({ headless = true } = {}) {
+export async function launchBrowser({ headless = true, timeoutMs } = {}) {
+  // Read once per launch, so a bad value fails the run immediately rather than
+  // on whichever DevTools call happens to be first.
+  const callTimeoutMs = timeoutMs == null ? browserTimeoutMs() : browserTimeoutMs({ HOMLE_BROWSER_TIMEOUT_MS: String(timeoutMs) });
   const chromiumPath = resolveChromiumPath();
   if (!chromiumPath) {
     throw new Error("No supported Chromium executable was found. Set CHROMIUM_PATH to run the browser proof.");
@@ -176,7 +208,7 @@ export async function launchBrowser({ headless = true } = {}) {
 
   const endpoint = await new Promise((resolve, reject) => {
     let output = "";
-    const timer = setTimeout(() => reject(new Error("Chromium did not report a DevTools endpoint in time.")), 30_000);
+    const timer = setTimeout(() => reject(new Error("Chromium did not report a DevTools endpoint in time.")), callTimeoutMs);
     chromium.stderr.on("data", (chunk) => {
       output += String(chunk);
       const match = /ws:\/\/[^\s]+/.exec(output);
@@ -220,7 +252,7 @@ export async function launchBrowser({ headless = true } = {}) {
       socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
       setTimeout(() => {
         if (pending.has(id)) { pending.delete(id); reject(new Error(`${method} timed out.`)); }
-      }, 30_000).unref?.();
+      }, callTimeoutMs).unref?.();
     });
   }
 

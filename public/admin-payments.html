@@ -32,6 +32,20 @@
       <aside class="booking-dashboard-next-action admin-payment-boundary" role="note">
         <div><span class="booking-dashboard-next-icon" aria-hidden="true">!</span><div><strong>Every button contacts the configured test payment provider</strong><p>Nothing runs automatically. Capture is available only after completion; Cleaner pay uses the frozen booking amount and provider-verified payout destination. Live Stripe keys remain rejected by this application.</p></div></div>
       </aside>
+      <section class="booking-dashboard-section" data-admin-revenue-section>
+        <div class="admin-cases-toolbar">
+          <div><h2>What the money did</h2><p>Summed from the same ledger the queue below shows one payment at a time. Contribution, not profit — the provider's own fees, the AI provider, hosting and anybody's time are not in this ledger.</p></div>
+          <label>Window<select data-admin-revenue-window>
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="365">Last 365 days</option>
+          </select></label>
+        </div>
+        <dl class="booking-dashboard-stats" data-admin-revenue-lines aria-live="polite" aria-busy="true"></dl>
+        <p class="admin-verification-evidence-unreadable" data-admin-revenue-warning hidden></p>
+        <p data-admin-revenue-generated></p>
+      </section>
       <aside class="booking-dashboard-next-action admin-payment-case-handoff" data-admin-payment-related hidden>
         <div><span class="booking-dashboard-next-icon" aria-hidden="true">T</span><div><strong>Related payment for <span data-admin-payment-related-reference></span></strong><p>Review the booking case evidence first. This separate screen shows only the exact payment state and never resolves the case or runs a remedy automatically.</p></div></div>
         <a class="button button-outline button-small" href="/admin/cases">Back to booking cases</a>

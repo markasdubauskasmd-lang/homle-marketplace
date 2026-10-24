@@ -21,6 +21,7 @@ export const adminDestinations = Object.freeze([
   { href: "/admin/cases", label: "Cases" },
   { href: "/admin/support", label: "Landlord support" },
   { href: "/admin/verifications", label: "Cleaner vetting" },
+  { href: "/admin/accounts", label: "Accounts" },
   { href: "/admin/coverage", label: "Coverage" },
   { href: "/admin/funnel", label: "Funnel" },
   { href: "/admin/payments", label: "Payments" },

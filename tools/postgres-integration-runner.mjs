@@ -49,6 +49,10 @@ const scripts = Object.freeze({
   scanEstimateShadow: "scan-estimate-shadow-behaviour.sql",
   scanRetentionVoiceAddon: "scan-retention-voice-addon-behaviour.sql",
   scanGroundTruth: "scan-ground-truth-behaviour.sql",
+  bookingCancellation: "booking-cancellation-verification.sql",
+  cleanerApplicationReview: "cleaner-application-review-verification.sql",
+  accountStatus: "account-status-verification.sql",
+  revenueSummary: "revenue-summary-verification.sql",
   rls: "marketplace-rls-behaviour.sql",
   acceptA: "accept-booking-a.sql",
   acceptB: "accept-booking-b.sql",
@@ -335,6 +339,24 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     }
 
     runPsqlSync({ label: "Post-concurrency RLS test", file: scripts.postConcurrency, environment: appEnvironment, command, execute });
+    // Owner-run and self-contained: it creates its own fixtures and rolls
+    // back. It exists because both cancellation functions inserted a text
+    // value into an enum column and so threw on the one path where they act,
+    // while every JavaScript test covering them stayed green -- a fake and a
+    // string match cannot see a type error.
+    runPsqlSync({ label: "Booking cancellation and unpaid-expiry test", file: scripts.bookingCancellation, environment: ownerEnvironment, command, execute });
+    // Owner-run and self-contained. It asserts the conditions that make a
+    // widening of access to identity documents acceptable -- Administrator
+    // only, submitted applications only, audited every time -- by running the
+    // function rather than by reading it.
+    runPsqlSync({ label: "Cleaner application review test", file: scripts.cleanerApplicationReview, environment: ownerEnvironment, command, execute });
+    // The guards that make suspension safe -- recorded reason, self and
+    // last-Administrator protection, session revocation, audit -- all live in
+    // the function, so they are asserted by running it.
+    runPsqlSync({ label: "Account status control test", file: scripts.accountStatus, environment: ownerEnvironment, command, execute });
+    // The arithmetic is the whole feature, so it runs against money that was
+    // actually captured, refunded and transferred.
+    runPsqlSync({ label: "Revenue summary test", file: scripts.revenueSummary, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Job-start payment gate test", file: scripts.paymentGate, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Participant lifecycle rehearsal setup", file: scripts.participantLifecycleSetup, environment: ownerEnvironment, command, execute });
     const realtimeProof = await executeRealtimeProbe({

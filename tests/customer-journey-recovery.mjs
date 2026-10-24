@@ -38,6 +38,10 @@ const section = (from, until) => script.slice(script.indexOf(from), script.index
       return { property };
     }
   });
+  // Analytics is module-level in the real page and outside these slices. Stubbed
+  // like every other collaborator here, so the handler under test runs unchanged:
+  // a counter must never be able to fail a customer's booking.
+  context.countFunnelStep = () => {};
   vm.runInContext(section("async function createOrRecoverProperty(", "async function createOrRecoverRequest("), context);
   await assert.rejects(context.createOrRecoverProperty("csrf"), /Read lost/);
   const uncertainId = state.draft.propertyDraftId;
@@ -78,6 +82,10 @@ function harness() {
     renderCleaner() {}, saveDraft() {}, updateResultTotals() {},
     document: { createElement: element }
   });
+  // Analytics is module-level in the real page and outside these slices. Stubbed
+  // like every other collaborator here, so the handler under test runs unchanged:
+  // a counter must never be able to fail a customer's booking.
+  context.countFunnelStep = () => {};
   vm.runInContext(section("let supplyLookup", "/* ── Step 2") + section("let cleanerLookup", "function renderCleaner(") + section("function renderResults()", "function updateResultTotals()"), context);
   return { context, state, el, requests };
 }
@@ -171,6 +179,10 @@ function invitationHarness({ found = true, approve = true, invitationError = nul
       throw Error("Unexpected route");
     }
   });
+  // Analytics is module-level in the real page and outside these slices. Stubbed
+  // like every other collaborator here, so the handler under test runs unchanged:
+  // a counter must never be able to fail a customer's booking.
+  ctx.countFunnelStep = () => {};
   vm.runInContext(section("function cleanerInvitationRecovery(", "async function loadBestEligibleCleaner(") + section("async function loadInvitationQuote(", "async function confirmJourney("), ctx);
   return { ctx, network, approvals, writes: () => writes };
 }

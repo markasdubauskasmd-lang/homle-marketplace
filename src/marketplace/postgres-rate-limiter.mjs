@@ -25,7 +25,20 @@ const supportedScopes = Object.freeze([
   "marketplace-landlord:room-reading",
   // Stores nothing, but costs CPU and a rates lookup — see migration 077.
   "marketplace-landlord:scan-preview",
-  "marketplace-cleaner:address-lookup"
+  "marketplace-cleaner:address-lookup",
+  // The two money-path writes. Neither costs provider money; both create work a
+  // real Cleaner may be asked to answer, and neither was bounded — see
+  // migration 122.
+  "marketplace-landlord:cleaning-request",
+  "marketplace-landlord:booking",
+  // Platform-wide daily ceilings on metered provider spend, keyed on a constant
+  // so every instance shares one bucket — see migration 123.
+  "marketplace-platform:room-reading-daily",
+  "marketplace-platform:scan-summary-daily",
+  // The anonymous visitor beacon. There is no session behind it, so this is the
+  // only thing bounding what one machine can write into the funnel aggregate —
+  // see migration 127.
+  "marketplace-public:funnel-events"
 ]);
 
 function secretKey(value) {

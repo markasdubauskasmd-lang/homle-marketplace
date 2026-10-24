@@ -1,4 +1,6 @@
 import { scanRates, scanReleaseRates } from "./scan-telemetry.mjs";
+import { funnelBatch } from "./funnel-telemetry.mjs";
+import { caseRefundInstruction } from "./case-response-policy.mjs";
 import { measureFromReference, measurementLabel, referenceScale } from "./room-measurement.mjs";
 import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
@@ -15,6 +17,8 @@ const uuidPattern = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][
 const landlordRepeatPath = new RegExp(`^/api/marketplace/landlord/bookings/(${uuidPattern})/repeat-scope$`);
 const bookingPropertyPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/property$`);
 const bookingResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/response$`);
+const bookingCancellationPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/cancel$`);
+const adminPrivacyRequestPath = new RegExp(`^/api/marketplace/admin/privacy-requests/(${uuidPattern})/progress$`);
 const requestInvitationPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitations$`);
 const requestInvitationQuotePath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/invitation-quote$`);
 const requestMatchesPath = new RegExp(`^/api/marketplace/cleaning-requests/(${uuidPattern})/matches$`);
@@ -77,6 +81,8 @@ const bookingPaymentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern
 const adminPaymentCommandPath = new RegExp(`^/api/marketplace/admin/payments/(${uuidPattern})/(capture|cancel|refund|transfer)$`);
 const adminRequestMatchingReadinessPath = new RegExp(`^/api/marketplace/admin/cleaning-requests/(${uuidPattern})/matching-readiness$`);
 const adminCleanerVerificationPath = new RegExp(`^/api/marketplace/admin/cleaner-verifications/(${uuidPattern})$`);
+const adminCleanerApplicationPath = new RegExp(`^/api/marketplace/admin/cleaner-verifications/(${uuidPattern})/application$`);
+const adminAccountStatusPath = new RegExp(`^/api/marketplace/admin/accounts/(${uuidPattern})/status$`);
 const adminReviewModerationPath = new RegExp(`^/api/marketplace/admin/reviews/(${uuidPattern})/moderation$`);
 const bookingDisputePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/dispute$`);
 const adminDisputePath = new RegExp(`^/api/marketplace/admin/disputes/(${uuidPattern})$`);
@@ -154,6 +160,13 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const administratorVerification = dependencies?.administratorVerificationService;
   const administratorCoverage = dependencies?.administratorCoverageService;
   const administratorFunnel = dependencies?.administratorFunnelService;
+  // Optional: absent means the account-control routes report themselves
+  // unavailable rather than the whole administrator surface failing to build.
+  const administratorAccounts = dependencies?.administratorAccountService || null;
+  // Optional: absent means the visitor beacon answers 503 and the
+  // account-derived funnel report is unaffected. Analytics is never a reason a
+  // deployment cannot take a booking.
+  const funnelTelemetry = dependencies?.funnelTelemetry || null;
   const landlordCare = dependencies?.landlordCareService;
   const privacyRequests = dependencies?.privacyRequestService;
   const payments = dependencies?.paymentService || null;
@@ -293,11 +306,70 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, 200, { ok: true, ...report });
           return true;
         }
+        // What the money did. Deliberately a separate read from the funnel
+        // report, which states outright that it excludes monetary data and
+        // still does.
+        if (pathname === "/api/marketplace/admin/revenue") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          sendJson(response, 200, { ok: true, revenue: await administratorFunnel.revenue(context.actor, { windowDays: url.searchParams.get("windowDays") }) });
+          return true;
+        }
         if (pathname === "/api/marketplace/admin/funnel") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { roles: ["administrator"] });
           const report = await administratorFunnel.get(context.actor, { windowDays: url.searchParams.get("windowDays") });
-          sendJson(response, 200, { ok: true, ...report });
+          // The visitor counts are read alongside the account-derived report,
+          // not folded into it: the report is built from accounts and bookings
+          // and so begins at somebody who already signed up, while these begin
+          // at somebody who arrived. Merging them would imply the two lanes
+          // count the same population, and they do not.
+          //
+          // A failed or absent telemetry read reports `null` rather than
+          // failing the page. The funnel report is the thing an administrator
+          // opened this for; losing the visitor lane should not lose it too.
+          let visitors = null;
+          if (funnelTelemetry) {
+            try { visitors = await funnelTelemetry.snapshot(context.actor, report.windowDays); }
+            catch (error) { onUnexpectedError(error); }
+          }
+          sendJson(response, 200, { ok: true, ...report, visitors });
+          return true;
+        }
+        // Finding and suspending an account. `users.account_status` has been
+        // enforced since migration 001 -- login refuses a non-active account
+        // and the session lookup stops resolving one -- and nothing could set
+        // it. If a Cleaner behaves badly in somebody's home there was no way
+        // to stop them.
+        if (pathname === "/api/marketplace/admin/accounts") {
+          if (!administratorAccounts) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          sendJson(response, 200, { ok: true, account: await administratorAccounts.find(context.actor, url.searchParams.get("identifier")) });
+          return true;
+        }
+        const selectedAccountStatus = pathname.match(adminAccountStatusPath);
+        if (selectedAccountStatus) {
+          if (!administratorAccounts) return false;
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const outcome = await administratorAccounts.setStatus(context.actor, selectedAccountStatus[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, ...outcome });
+          return true;
+        }
+        // The evidence behind a vetting decision. Approving a Cleaner is what
+        // puts a stranger in a customer's home, and it was being done against a
+        // name and two status strings. Administrator-only, refused for an
+        // application nobody has submitted, and audited at the database on
+        // every read -- looking at somebody's identity documents is an event,
+        // not a page view.
+        const selectedCleanerApplication = pathname.match(adminCleanerApplicationPath);
+        if (selectedCleanerApplication) {
+          if (!administratorVerification) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const application = await administratorVerification.getApplication(context.actor, selectedCleanerApplication[1]);
+          sendJson(response, 200, { ok: true, application });
           return true;
         }
         if (pathname === "/api/marketplace/admin/cleaner-verifications") {
@@ -346,6 +418,20 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (Object.keys(input).length) throw new TypeError("The payment outcome check does not accept payment instructions.");
           const recovery = await payments.recoverCommand(context.actor, selectedRecoveryCommand[1]);
           sendJson(response, 200, { ok: true, recovery });
+          return true;
+        }
+        // Where the platform fee went. Automatic settlement moves money without
+        // anybody watching the numbers, so the arithmetic needs somewhere to be
+        // checked.
+        if (pathname === "/api/marketplace/admin/payments/reconciliation") {
+          if (!payments) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const reconciliation = await payments.settlementReconciliation(context.actor, {
+            staleTransferHours: requestUrl.searchParams.get("staleTransferHours"),
+            limit: requestUrl.searchParams.get("limit")
+          });
+          sendJson(response, 200, { ok: true, reconciliation });
           return true;
         }
         const selectedAdminPaymentCommand = pathname.match(adminPaymentCommandPath);
@@ -447,6 +533,40 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           sendJson(response, mutation && result.created === true ? 201 : 200, { ok: true, ...(mutation ? { privacyRequest: result } : { privacyRequests: result }) });
           return true;
         }
+        // Downloaded, never emailed. A complete personal record is the last
+        // thing that should be sent to an address nobody re-verified, and the
+        // session has already proven who is asking.
+        if (pathname === "/api/marketplace/privacy-requests/export") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request);
+          const document = await privacyRequests.buildExport(context.actor);
+          sendJson(response, 200, { ok: true, export: document }, {
+            "Content-Disposition": `attachment; filename="homle-data-export-${new Date().toISOString().slice(0, 10)}.json"`
+          });
+          return true;
+        }
+        // The administrator side of data protection. Intake has existed since
+        // migration 035 and nothing could read it, so a statutory request was
+        // written to a table nobody looked at while the one-month clock ran.
+        if (pathname === "/api/marketplace/admin/privacy-requests") {
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          const queue = await privacyRequests.listForAdministrator(context.actor, {
+            view: requestUrl.searchParams.get("view"),
+            limit: requestUrl.searchParams.get("limit"),
+            offset: requestUrl.searchParams.get("offset")
+          });
+          sendJson(response, 200, { ok: true, queue });
+          return true;
+        }
+        const selectedPrivacyProgress = pathname.match(adminPrivacyRequestPath);
+        if (selectedPrivacyProgress) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
+          const privacyRequest = await privacyRequests.recordProgress(context.actor, selectedPrivacyProgress[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, privacyRequest });
+          return true;
+        }
         if (pathname === "/api/marketplace/landlord/care-summary") {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { roles: ["landlord"] });
@@ -488,6 +608,44 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { roles: ["cleaner", "landlord"] });
           const records = await bookings.listParticipantBookings(context.actor, { limit: url.searchParams.get("limit") });
           sendJson(response, 200, { ok: true, bookings: records });
+          return true;
+        }
+        // The visitor funnel. Anonymous on purpose: the questions it answers --
+        // does anybody arrive, does the letting-agent pitch move them, where do
+        // they stop -- are all about people who have no account yet, so there is
+        // nobody to authenticate.
+        //
+        // Anonymous does not mean unguarded. The origin check keeps this to
+        // Homle's own pages, the rate limit is the only thing standing between
+        // one machine and an aggregate table, and every name and label is
+        // checked against the allowlist in `funnel-telemetry.mjs` before it is
+        // counted -- and restated at the database in migration 127, so this
+        // cannot become a channel for arbitrary strings.
+        //
+        // No CSRF token and none needed: there is no session to ride and the
+        // write touches no account, so a forged request can at worst inflate a
+        // counter that the rate limit already bounds.
+        if (pathname === "/api/marketplace/funnel-events") {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          security.requireOrigin(request);
+          await limitPublicRead(request, "marketplace-public:funnel-events");
+          const body = await readJsonObject(request);
+          const events = funnelBatch(body?.events);
+          let stored = 0;
+          if (funnelTelemetry && events.length) {
+            // A storage failure is reported to monitoring and not to the
+            // visitor. Their page is waiting on this response and nothing they
+            // are doing depends on it; failing their journey because an
+            // analytics write failed would be the wrong trade in every case.
+            try { stored = await funnelTelemetry.recordBatch(events); }
+            catch (error) { onUnexpectedError(error); }
+          }
+          // `accepted` is how many of the submitted names survived the
+          // allowlist, so a client can tell that a name it sent was dropped
+          // rather than silently believing it is measured. `stored` is how many
+          // events the database actually kept, which is lower when telemetry is
+          // unconfigured or the write failed.
+          sendJson(response, 202, { ok: true, accepted: events.length, stored });
           return true;
         }
         if (pathname === "/api/marketplace/cleaners") {
@@ -713,6 +871,15 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           }
           if (request.method === "POST") {
             const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+            // Every authentication and AI endpoint is limited; these two writes
+            // -- a request, and the invitation below -- were not, so one
+            // authenticated session could create them without bound. Mostly
+            // this catches a broken client rather than an attacker: a retry
+            // loop, a double tap on a slow connection, a page restored from the
+            // background cache. Idempotency stops the same record being made
+            // twice; nothing stopped many different ones, and each is work a
+            // real Cleaner may be asked to answer.
+            await limitPublicRead(request, "marketplace-landlord:cleaning-request");
             const cleaningRequest = await cleaningRequests.createOwnRequest(context.actor, await readJsonObject(request));
             sendJson(response, 201, { ok: true, cleaningRequest });
             return true;
@@ -913,6 +1080,7 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         if (selectedInvitationRequest) {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
           const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          await limitPublicRead(request, "marketplace-landlord:booking");
           const body = await readJsonObject(request);
           const booking = await bookings.inviteCleaner(context.actor, { cleaningRequestId: selectedInvitationRequest[1], cleanerId: body.cleanerId, approvedCustomerPricePence: body.approvedCustomerPricePence });
           sendJson(response, 201, { ok: true, booking });
@@ -940,6 +1108,18 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           const context = await security.protect(request, { mutation: true, roles: ["cleaner"] });
           const booking = await bookings.respondToInvitation(context.actor, selectedBookingResponse[1], await readJsonObject(request));
           sendJson(response, 200, { ok: true, booking });
+          return true;
+        }
+        // A customer who cannot cancel has to phone somebody, and their money
+        // stays held until the authorization expires. `confirmed:cancelled` has
+        // been a permitted Landlord transition since the booking model was
+        // written; this is the route that finally reaches it.
+        const selectedBookingCancellation = pathname.match(bookingCancellationPath);
+        if (selectedBookingCancellation) {
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const context = await security.protect(request, { mutation: true, roles: ["landlord"] });
+          const outcome = await bookings.cancelBooking(context.actor, selectedBookingCancellation[1], await readJsonObject(request));
+          sendJson(response, 200, { ok: true, booking: outcome.booking, holdRelease: outcome.holdRelease });
           return true;
         }
         const selectedCompletion = pathname.match(bookingCompletionPath);
@@ -1002,8 +1182,67 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         if (selectedAdminDispute) {
           if (request.method !== "PATCH") return methodNotAllowed(response, ["PATCH"]), true;
           const context = await security.protect(request, { mutation: true, roles: ["administrator"] });
-          const dispute = await disputes.review(context.actor, selectedAdminDispute[1], await readJsonObject(request));
-          sendJson(response, 200, { ok: true, dispute });
+          const body = await readJsonObject(request);
+          const refundInstruction = caseRefundInstruction(body);
+          let refund = null;
+          if (refundInstruction) {
+            // A refund only ever accompanies a FINAL decision. Review found
+            // that this was parsed from the body independently of the status,
+            // so `{status:"reviewing", refundAmountPence, refundAuthorised}`
+            // moved money while the dispute service -- which only checks the
+            // handling standard when resolving -- never saw an attestation at
+            // all. Merely starting a review could refund a customer.
+            if (String(body?.status || "").trim().toLowerCase() !== "resolved") {
+              sendJson(response, 422, { ok: false, code: "refund-requires-resolution", error: "A refund can only accompany a final case resolution." });
+              return true;
+            }
+            if (!payments) {
+              sendJson(response, 503, { ok: false, error: "Payments are not configured on this deployment, so this case cannot issue a refund." });
+              return true;
+            }
+            // Read before anything is written, so the money can move while the
+            // booking is still `disputed`.
+            const existing = await disputes.getForAdministrator(context.actor, selectedAdminDispute[1]);
+            const payment = await payments.getForBooking(context.actor, existing.bookingId);
+            if (!payment?.paymentId) {
+              sendJson(response, 409, { ok: false, code: "payment-not-found", error: "This booking has no payment to refund." });
+              return true;
+            }
+            // The refund goes FIRST, which reverses the original order here.
+            // Resolving with the outcome `completed` lets the settlement loop
+            // transfer the Cleaner's pay within minutes, and migration 113
+            // refuses every refund on a payment that has been transferred --
+            // permanently. The earlier ordering could therefore strand a
+            // refund with no route back, while the screen advised retrying it
+            // on a desk where it would also be refused.
+            //
+            // The failure mode this direction gives is benign by comparison: a
+            // refund that succeeds and a resolution that then fails leaves the
+            // customer's money returned, the case still open and the booking
+            // still `disputed`, which is a state an Administrator can simply
+            // finish. A refund that fails stops the whole request, so no case
+            // is ever marked final claiming money moved when it did not.
+            //
+            // The key deliberately does NOT include the amount. `disputes`
+            // returns success when a case is replayed with an identical note
+            // and outcome, so a resubmitted form reaches this line again; with
+            // the amount in the key a changed amount was a different command
+            // and a second real refund. Keyed on the case alone, an identical
+            // replay is idempotent and a changed amount is refused by the
+            // command ledger, which is what this was always documented to do.
+            const command = await payments.refund(context.actor, {
+              paymentId: payment.paymentId,
+              amountPence: refundInstruction.amountPence,
+              idempotencyKey: `case_refund_${existing.disputeId}`
+            });
+            // A recovery record means the provider outcome is UNKNOWN -- it may
+            // never have reached Stripe. Reporting that as issued, in the
+            // success style, is how an Administrator ends up refunding twice.
+            const uncertain = command?.recoveryRequired === true;
+            refund = { issued: !uncertain, uncertain, amountPence: refundInstruction.amountPence, status: command?.status ?? null };
+          }
+          const dispute = await disputes.review(context.actor, selectedAdminDispute[1], body);
+          sendJson(response, 200, { ok: true, dispute, refund });
           return true;
         }
         const selectedMessages = pathname.match(bookingMessagesPath);
@@ -1045,6 +1284,19 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           // Landlord replaying their own valid session must not be able to
           // drive unbounded provider cost.
           await limitPublicRead(request, "marketplace-landlord:scan-summary");
+          // Per-client limits bound one session. They do not bound what a
+          // thousand honest sessions cost, and that is the bill that arrives.
+          // A spent daily budget degrades exactly like an unconfigured
+          // provider, because to the Landlord it is the same thing: the
+          // assisted summary is not available and the walkthrough continues.
+          //
+          // Charged only once a provider is actually configured, so a budget
+          // that measures provider spend is not consumed by requests that could
+          // never reach one.
+          if (speechSummary && !(await limitPublicRead.platform("marketplace-platform:scan-summary-daily"))) {
+            sendJson(response, 503, { ok: false, error: "Assisted walkthrough summaries are not configured." });
+            return true;
+          }
           if (!speechSummary) {
             sendJson(response, 503, { ok: false, error: "Assisted walkthrough summaries are not configured." });
             return true;
@@ -1075,6 +1327,21 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           await limitPublicRead(request, "marketplace-landlord:room-reading");
           if (!roomVision) {
             observeScan("scan.reading.unavailable");
+            sendJson(response, 503, { ok: false, error: "Assisted room reading is not configured." });
+            return true;
+          }
+          // Charged after the provider-configured check, because a budget that
+          // measures provider spend must only count requests that could reach
+          // the provider. Charging first meant a deployment with no provider
+          // burned a ceiling that measured nothing.
+          //
+          // The browser already falls back to its on-device reader when the
+          // provider is unavailable, and a spent budget takes that same path
+          // rather than showing an error nobody can act on. It is observed, so
+          // reaching the ceiling is a signal somebody can see rather than a
+          // silent degradation.
+          if (!(await limitPublicRead.platform("marketplace-platform:room-reading-daily"))) {
+            observeScan("scan.reading.budget-spent");
             sendJson(response, 503, { ok: false, error: "Assisted room reading is not configured." });
             return true;
           }

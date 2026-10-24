@@ -586,6 +586,91 @@
       "order": 117,
       "file": "117_external_payment_observations.sql",
       "sha256": "53cd53d1e9118c0f9952188aa34174eddb9601a45f237b48222929a5abac2e66"
+    },
+    {
+      "order": 118,
+      "file": "118_landlord_booking_cancellation.sql",
+      "sha256": "63ed2e68485e082f01eff3061fe12fd5099fff71de647573f3db8dddcc6e228c"
+    },
+    {
+      "order": 119,
+      "file": "119_booking_cancellation_notice.sql",
+      "sha256": "caebf8d1ca16a85ec7760ae9c35695fa6edbef56cb8d388bf64915508f33978b"
+    },
+    {
+      "order": 120,
+      "file": "120_payment_outcome_notices.sql",
+      "sha256": "f36d65560cea171f0073e1cd2f200dd3d82b45c1a6f8a0414c56be6a781625f9"
+    },
+    {
+      "order": 121,
+      "file": "121_privacy_request_fulfilment.sql",
+      "sha256": "8c00bc2a887b019a6e68ca35d15505be6f662577826830da5080fbc9e8e5f02b"
+    },
+    {
+      "order": 122,
+      "file": "122_booking_write_rate_limits.sql",
+      "sha256": "3f344701e121ab6066b894673b369ba8e6c098a4463d4e00b5aaf37dabbfd6ff"
+    },
+    {
+      "order": 123,
+      "file": "123_provider_spend_ceiling.sql",
+      "sha256": "28fbe50b6c0b7215008750d5ed29214f81d3943f07d2c08e904937bd3bbee673"
+    },
+    {
+      "order": 124,
+      "file": "124_settlement_reconciliation.sql",
+      "sha256": "2a6926692d3fd4fde4396b1be1bfcd44b962f904bb17577845165b5a20b7ba8b"
+    },
+    {
+      "order": 125,
+      "file": "125_settlement_account_verification.sql",
+      "sha256": "9d53420ae56042efabf0950d53cd16e72d34cfa758b7d69563082b7481ade16e"
+    },
+    {
+      "order": 126,
+      "file": "126_payment_notice_event_binding.sql",
+      "sha256": "0bc0f60cf50574888aac1f0106d2bd39e0a9c59f2e400cf2a73a90ca53372485"
+    },
+    {
+      "order": 127,
+      "file": "127_public_funnel_telemetry.sql",
+      "sha256": "076c854cd0cf34e6ad297cdadc9300133b44492928266a0fb008bedc6a107d49"
+    },
+    {
+      "order": 128,
+      "file": "128_unpaid_booking_expiry.sql",
+      "sha256": "be1ffa0727c492a8a83b585172dcb7ac5c74dbc846fa8ba0092ae23b86d7bea6"
+    },
+    {
+      "order": 129,
+      "file": "129_booking_cancellation_status_cast.sql",
+      "sha256": "e682aafd8da726794f871355d2520554d1710cd21fa29276295f8317edd73f56"
+    },
+    {
+      "order": 130,
+      "file": "130_administrator_dispute_read.sql",
+      "sha256": "9d88842b846cfbfb1f3071dea44a73ce887e22b46c4f3b873fc86224507f3a12"
+    },
+    {
+      "order": 131,
+      "file": "131_administrator_cleaner_application_read.sql",
+      "sha256": "48311f648d27ca9a30e029fff5a8951d8bf99baf434d04c8eb2daedc852089a9"
+    },
+    {
+      "order": 132,
+      "file": "132_administrator_account_status.sql",
+      "sha256": "7613724181c2976be164a33e7ed12e075f4eaea45099ac8f67b0becc8e1fa142"
+    },
+    {
+      "order": 133,
+      "file": "133_administrator_revenue_summary.sql",
+      "sha256": "7c02411586fe0db2494f8aee999d7cee8b4d99982c26c0f2f81cd9191a2d6a9e"
+    },
+    {
+      "order": 134,
+      "file": "134_cleaner_surface_funnel.sql",
+      "sha256": "b574632110653f84d7c2d5f1570a9dcfe1cac527af494c3dafe0f01575e14310"
     }
   ],
   "grantFiles": [

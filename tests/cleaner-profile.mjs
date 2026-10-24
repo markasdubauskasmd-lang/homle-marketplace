@@ -38,7 +38,7 @@ const completeInput = {
 };
 const completeProfile = normalizedCleanerProfile(completeInput);
 assert(completeProfile.profileCompletionPercent === 100 && completeProfile.isPublic && completeProfile.serviceAreas[0].outwardPostcode === "SW1A" && completeProfile.services.length === 2 && !Object.hasOwn(completeProfile, "currentAvailabilityStatus") && !Object.hasOwn(completeProfile, "profilePhotoUrl"), "A complete cleaner profile did not reach publishable canonical state or retained a client-controlled availability/photo field.");
-assert(throws(() => normalizedCleanerProfile({ biography: "Short", isPublic: true }), "Complete every required") && throws(() => normalizedCleanerProfile({ ...completeInput, services: [{ serviceCode: "invented", pricingModel: "quote" }] }), "supported and unique") && throws(() => normalizedCleanerProfile({ ...completeInput, serviceAreas: [{ outwardPostcode: "London" }] }), "Outward postcode"), "Incomplete, invented-service or vague-area cleaner data was accepted.");
+assert(throws(() => normalizedCleanerProfile({ biography: "Short", isPublic: true }), "an introduction of at least 40 characters") && throws(() => normalizedCleanerProfile({ ...completeInput, services: [{ serviceCode: "invented", pricingModel: "quote" }] }), "supported and unique") && throws(() => normalizedCleanerProfile({ ...completeInput, serviceAreas: [{ outwardPostcode: "London" }] }), "Outward postcode"), "Incomplete, invented-service or vague-area cleaner data was accepted.");
 
 const serviceCalls = [];
 const publicRows = [{
@@ -199,3 +199,76 @@ for (const role of ['primary','secondary','excluded']) {
   if(role === 'excluded') assert(p.profileCompletionPercent < 100,'Excluded-only coverage cannot make a profile complete');
 }
 assert(throws(()=>normalizedCleanerProfile({...completeInput,serviceAreas:[{outwardPostcode:'SW1A',role:'unknown'}]}),'valid work-area role'),'Invalid roles must fail');
+
+// Every field profileCompletionPercent requires must be reachable from the
+// product. Four of the nine were passed through unchanged by every page that
+// wrote the profile — biography, a price, languages and the property-type
+// preference — so completion was capped near 56%, `isPublic` could never be
+// accepted, and the public Cleaner directory stayed permanently empty. That was
+// read as a recruitment problem for weeks.
+const registrationPage = await readFile(new URL("../public/cleaner-registration.html", import.meta.url), "utf8");
+const experienceScript = await readFile(new URL("../public/cleaner-experience.js", import.meta.url), "utf8");
+for (const control of ['name="biography"', 'name="hourlyRate"', 'name="languages"', 'name="residentialPreference"', 'name="commercialPreference"']) {
+  assert(registrationPage.includes(control), `Cleaner onboarding cannot collect ${control}, so a profile can never reach 100% and never be published.`);
+}
+assert(/minlength="40"/.test(registrationPage), "The biography control does not state the 40-character minimum the completion check enforces.");
+// These four are required to PUBLISH, not required to CONTINUE. Marking them
+// `required` blocks the onboarding form from submitting at all, which stops a
+// cleaner moving to the next step and adds friction exactly where drop-off is
+// worst. The completion meter and the publish gate already say what is missing.
+const aboutSection = registrationPage.slice(registrationPage.indexOf("hc-experience-about"), registrationPage.indexOf("hc-experience-property-types"));
+assert(!/\brequired\b/.test(aboutSection), "The About-you fields block onboarding from continuing. They gate publishing, not progress.");
+// Reading the controls is what matters; a field that exists but is never read
+// leaves completion exactly where it was.
+for (const read of ["form.elements.biography", "ratePenceFrom", "selectedLanguages", "propertyTypePreferences"]) {
+  assert(experienceScript.includes(read), `The experience form does not read ${read} into the saved profile.`);
+}
+assert(!/biography: currentProfile\.biography \|\| ""[\s\S]{0,40}hourlyRatePence: currentProfile\.hourlyRatePence/.test(experienceScript), "The experience form is passing the profile straight through again, which is what capped completion.");
+// Pounds in, pence stored, rounded rather than truncated so £12.50 does not
+// become £12.49 through a floating-point remainder.
+assert(experienceScript.includes("Math.round(pounds * 100)"), "The hourly rate is not converted to whole pence safely.");
+
+// A profile that reaches 100% must actually be publishable from the product.
+const profilePreviewPage = await readFile(new URL("../public/cleaner-public-profile.html", import.meta.url), "utf8");
+const profilePreviewScript = await readFile(new URL("../public/cleaner-public-profile.js", import.meta.url), "utf8");
+assert(!profilePreviewPage.includes("aria-readonly"), "The publish switch is still marked read-only, so it cannot be operated.");
+assert(profilePreviewScript.includes("togglePublished") && /method: "PUT"/.test(profilePreviewScript) && profilePreviewScript.includes("storedCsrf()"), "The publish switch does not send an authenticated profile update, so publishing remains impossible.");
+assert(profilePreviewScript.includes("isPublic: next"), "The publish switch does not change the published state.");
+// The endpoint replaces the profile, so sending a bare flag would blank
+// everything else the Cleaner has filled in.
+assert(/\{ \.\.\.currentProfile, isPublic: next \}/.test(profilePreviewScript), "Publishing sends a partial profile and would erase the Cleaner's other answers.");
+// Keyboard operation, because a span is not a button.
+assert(profilePreviewScript.includes('addEventListener("keydown"') && profilePreviewScript.includes('event.key !== " " && event.key !== "Enter"'), "The publish switch cannot be operated from the keyboard.");
+// Below 100% the server refuses. The control must say so rather than failing on use.
+assert(profilePreviewScript.includes('aria-disabled') && profilePreviewScript.includes("Finish every profile section to publish"), "An unpublishable profile shows an enabled switch that will fail when used.");
+
+console.log("Cleaner publish-path tests passed: every completion field is collected and read, pounds convert to exact pence, and the publish switch performs an authenticated whole-profile update it can be operated to reach.");
+
+// Available hours are the only input matching reads. The POST endpoint behind
+// them was written, validated and granted, then never called from anywhere in
+// the product — so every Cleaner was unmatchable regardless of how many were
+// recruited, and the page built for it had been redirected away.
+const schedulePage = await readFile(new URL("../public/cleaner-schedule.html", import.meta.url), "utf8");
+const scheduleScript = await readFile(new URL("../public/cleaner-schedule.js", import.meta.url), "utf8");
+assert(/method: "POST"[\s\S]{0,200}cleaner\/availability|cleaner\/availability"[\s\S]{0,200}method: "POST"/.test(scheduleScript), "Nothing in the product creates an availability window, so no Cleaner can be matched.");
+assert(scheduleScript.includes('method: "DELETE"') && scheduleScript.includes("cleaner/availability/"), "A Cleaner cannot withdraw hours they can no longer work.");
+assert(scheduleScript.includes("storedCsrf()"), "Availability changes are sent without the session CSRF token and will be refused.");
+for (const control of ['name="availabilityDate"', 'name="availabilityStart"', 'name="availabilityEnd"']) {
+  assert(schedulePage.includes(control), `The schedule page cannot collect ${control}.`);
+}
+// An overnight shift is ordinary in commercial cleaning; rejecting it as
+// "ends before it starts" would quietly exclude that whole market.
+assert(scheduleScript.includes("24 * 60 * 60_000") && /if \(endAt <= startAt\) endAt = new Date/.test(scheduleScript), "An overnight availability window is rejected instead of rolling into the next morning.");
+// The client bounds must not contradict normalizedAvailabilityWindow, or a
+// Cleaner gets a server error for something the form accepted.
+assert(scheduleScript.includes("30 * 60_000") && scheduleScript.includes("5 * 60_000") && scheduleScript.includes("366 * 24 * 60 * 60_000"), "The availability form does not mirror the server's duration, lead-time and horizon limits.");
+// A held window belongs to a booking and the server refuses to withdraw it.
+assert(scheduleScript.includes('window_.status === "held"') && scheduleScript.includes("Booked"), "A booked window offers a remove button the server will refuse.");
+
+// Holiday mode is stored in the onboarding blob and enforced nowhere. It must
+// not claim otherwise. This is the false-trust-claim limit in CLAUDE.md.
+assert(!schedulePage.includes("Homle will not offer new jobs on this date"), "The schedule page promises holiday enforcement that nothing performs.");
+assert(!/Holiday mode &mdash; pause all new job offers/.test(schedulePage), "Holiday mode still claims to pause offers it cannot pause.");
+assert(schedulePage.includes("remove your available hours"), "The time-off section does not point at the control that actually stops offers.");
+
+console.log("Cleaner availability tests passed: hours can be added and withdrawn against the real endpoint, overnight shifts survive, client bounds mirror the server, booked windows are not offered for removal, and holiday mode no longer claims an enforcement it does not have.");

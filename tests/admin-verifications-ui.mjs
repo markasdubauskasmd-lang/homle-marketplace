@@ -38,3 +38,30 @@ for (const forbidden of ["email", "phone", "postcode", "address_line", "home_add
 assert(migration.includes("SECURITY DEFINER") && migration.includes("administrator-required") && migration.includes("audit_logs"), "The verification functions lost Administrator enforcement or audit logging.");
 assert(grants.includes("list_cleaner_verification_queue(text,integer,integer)") && grants.includes("set_cleaner_verification(uuid,text,text,text)") && server.includes('"/admin/verifications": "admin-verifications.html"'), "The restricted grants or protected page route are missing.");
 console.log("Administrator verification UI tests passed: validated views and decisions, bounded evidence note, privacy-minimal projection and protected page route.");
+
+/* ── The evidence behind a vetting decision is reachable ───────────────── */
+
+// Approving a Cleaner is what puts a stranger in a customer's home. The screen
+// showed a name and two status strings; these pin the review path that makes
+// the decision an informed one, and the honesty of what it claims to show.
+{
+  const source = await readFile(new URL("../public/admin-verifications.js", import.meta.url), "utf8");
+  assert(source.includes("/application`"), "The vetting screen cannot open a submitted application.");
+  // Behind a button, not loaded with the queue: every read is audited against
+  // the Administrator's name, and opening a page must not record them as
+  // having examined twenty people's identity documents.
+  assert(source.includes("Review submitted application") && source.includes('reveal.addEventListener("click"'),
+    "The application review is no longer an explicit, per-cleaner action.");
+  assert(!/loadQueue[\s\S]{0,400}\/application/.test(source),
+    "Opening the queue fetches applications, which would audit an Administrator as reading every one of them.");
+  // A section that cannot be decrypted is shown as unreadable, never hidden:
+  // an incomplete application must not be able to look complete.
+  assert(source.includes("could not be decrypted and must not be treated as submitted evidence"),
+    "An undecryptable application section would be presented as if it were fine.");
+  // And the screen must not imply the Administrator has seen a document when
+  // it has only shown them its filename.
+  assert(source.includes("File contents are not shown here"),
+    "The review screen implies document contents were reviewed when only metadata is shown.");
+  assert(!source.includes("innerHTML"), "The application review renders untrusted applicant text as markup.");
+}
+console.log("Cleaner application review UI checks passed: explicit per-cleaner read, no queue-wide auditing, undecryptable sections surfaced, and no claim to show document contents.");

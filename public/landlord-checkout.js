@@ -1,6 +1,7 @@
 import { bookingIdFromSearch, formatPaymentAmount, paymentPresentation, paymentRetryStorageKey } from "./landlord-checkout-model.js";
 import { storedCsrf } from "./session-csrf.js";
 import { renderWorkspaceShell } from "./workspace-shell.js?v=20260830-1";
+import { recordFunnel } from "./funnel.js?v=20260920-1";
 
 const stripeScriptUrl = "https://js.stripe.com/clover/stripe.js";
 const bookingId = bookingIdFromSearch(location.search);
@@ -283,6 +284,10 @@ async function refreshStatus({ manual = false } = {}) {
   }
 }
 
+// Set once the signed status has confirmed an authorization, so the funnel
+// counts the booking rather than the number of times somebody reloaded.
+let authorisationCounted = false;
+
 async function confirmStripePayment() {
   let timer;
   try {
@@ -312,7 +317,18 @@ async function confirmPayment(event) {
       if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
       const payment = await readPaymentStatus();
       renderPayment(payment);
-      if (!["creating", "requires-customer-action", "processing"].includes(payment?.status)) break;
+      if (!["creating", "requires-customer-action", "processing"].includes(payment?.status)) {
+        // Counted from the signed status Homle read back, not from Stripe's
+        // browser-side result: the funnel should say a payment was authorised
+        // only where the product itself believes one was. Guarded so a refresh
+        // or a second pass through the poll cannot count the same booking
+        // twice.
+        if (payment?.status === "authorized" && !authorisationCounted) {
+          authorisationCounted = true;
+          recordFunnel("funnel.payment.authorised", { audience: "customer", surface: "app" });
+        }
+        break;
+      }
       prepare.hidden = true;
       form.hidden = true;
       statusRefresh.hidden = false;
