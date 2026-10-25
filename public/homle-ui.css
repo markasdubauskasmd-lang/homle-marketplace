@@ -245,3 +245,20 @@ a.hs-card:hover { box-shadow: var(--hs-elevation-2); transform: translateY(-2px)
 .hs-quote-not-yet { margin-top: var(--hs-space-2); padding: var(--hs-space-4); border-radius: var(--hs-radius); background: var(--hs-neutral); }
 .hs-quote .hs-inline-form { display: grid; gap: var(--hs-space-2); }
 .hs-quote :is(a, button, input):focus-visible { outline: 3px solid var(--hs-focus); outline-offset: 2px; box-shadow: 0 0 0 2px var(--hs-ink); }
+
+/* ── Landlords and FAQ (landing) ───────────────────────────────────────── */
+.hs-more { position: relative; z-index: 2; background: var(--hs-neutral); color: var(--hs-ink); font-family: var(--hs-font); line-height: var(--hs-leading); padding: var(--hs-space-7) 0; }
+.hs-more *, .hs-more *::before, .hs-more *::after { box-sizing: border-box; }
+.hs-more h2 { font-family: var(--hs-font); font-size: var(--hs-h3); font-weight: var(--hs-weight-display); line-height: var(--hs-leading-tight); letter-spacing: -0.02em; margin: 0 0 var(--hs-space-3); color: var(--hs-ink); }
+.hs-more p { margin: 0 0 var(--hs-space-3); color: var(--hs-ink-2); }
+.hs-more-grid { display: grid; gap: var(--hs-space-5); grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); align-items: start; }
+@media (max-width: 860px) { .hs-more-grid { grid-template-columns: minmax(0, 1fr); } }
+.hs-landlords { padding: var(--hs-space-5); }
+.hs-landlords .hs-btn { white-space: normal; text-align: center; }
+.hs-faq details { border-bottom: 1px solid var(--hs-line); }
+.hs-faq summary { display: flex; align-items: center; justify-content: space-between; gap: var(--hs-space-3); min-height: 56px; padding: var(--hs-space-2) 0; font-weight: var(--hs-weight-strong); cursor: pointer; list-style: none; }
+.hs-faq summary::-webkit-details-marker { display: none; }
+.hs-faq summary::after { content: ""; flex: none; width: 10px; height: 10px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translate(-2px, -2px); transition: transform var(--hs-motion-fast) var(--hs-ease); }
+.hs-faq details[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
+.hs-faq details p { padding-bottom: var(--hs-space-3); max-width: 62ch; }
+.hs-more :is(a, summary):focus-visible { outline: 3px solid var(--hs-focus); outline-offset: 2px; box-shadow: 0 0 0 2px var(--hs-ink); }

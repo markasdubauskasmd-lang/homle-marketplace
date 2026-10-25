@@ -25,6 +25,11 @@ for (const name of ["postcode", "serviceType", "bedrooms", "bathrooms", "livingR
   assert(section.includes(`name="${name}"`), `The price form lost its ${name} field.`);
 }
 assert(!/no account (required|needed)|vetted|insured|DBS|star rating|rated \d|\d+\+? (reviews|cleans|customers)|trusted by/i.test(section), "The price section makes a claim Homle cannot back.");
+const more = home.match(/<section class="hs-more"[\s\S]*?<\/section>/)?.[0];
+assert(more && more.includes('href="/for-landlords"'), "The landing page lost its landlords section.");
+assert((more.match(/<details>/g) || []).length >= 5, "The landing page lost its plain-English questions.");
+assert(!/vetted|insured|DBS|guarantee|star rating|\d+\+? (reviews|cleans|customers)|trusted by/i.test(more), "An answer on the landing page makes a claim Homle cannot back.");
+assert(home.indexOf('class="hs-more"') < home.indexOf('data-stage="join"'), "The questions come after the closing call to action.");
 assert.equal(roomsFor({ bedrooms: 2, bathrooms: 1, livingRooms: 0 }).map((room) => room.roomType).join(","), "kitchen,bedroom,bedroom,bathroom");
 
 const chromiumPath = resolveChromiumPath();
