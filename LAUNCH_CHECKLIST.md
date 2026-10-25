@@ -31,12 +31,24 @@ real person. Those rules (CLAUDE.md, "HARD LIMITS") are why this list exists.
    pnpm run verify:live-release https://homlle.com --expect-release=<commit>
    ```
 7. Open `https://homlle.com/api/health`. Check `sourceCommit` = the commit,
-   `migrationCount` = 136 (for this release), `dataIntegrity: "healthy"`, and
+   `migrationCount` = the number of entries in `db/migration-lock.json` at
+   that commit (136 for the launch integration release, 137 once the
+   visitor-API release is merged), `dataIntegrity: "healthy"`, and
    `writesAllowed: true`.
 8. Render → **Logs**: find `Inline marketplace workers started`.
 9. Open `https://homlle.com/api/marketplace/admin/payments/reconciliation` while
    signed in as an Administrator. Expect zero `over-transferred` rows. Rows
    marked `awaiting-transfer` are Cleaners still owed money; act on them.
+
+10. As a visitor, in a private window, on your phone:
+    - `https://homlle.com/` → **Get a price** → enter a postcode, a type of clean
+      and rooms. Expect a price within a second or two. Until a real Cleaner is
+      live it should say "We do not have a Cleaner in … yet" and offer launch news.
+    - `https://homlle.com/how-homle-works` reads true to you. If any sentence is
+      not true for your business, tell the engineer before anything else.
+    - `https://homlle.com/llms.txt` and `https://homlle.com/openapi.json` load.
+    - `/mcp` stays off (`MCP_ENABLED` unset). Turn it on only after reading
+      DECISIONS D31.
 
 If any check fails, do not flip any switch below. Paste the output to the
 engineer.

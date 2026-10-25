@@ -8,6 +8,28 @@ limits + the real stack), then this file, then `DECISIONS.md` and
 
 ---
 
+## 25 October 2026 — 7-day "open to customers" programme (branch `local/public-api`, after the integration PR)
+
+Where each day stands. Every item has a test that fails before and passes after;
+`pnpm run check` and the full `pnpm test` were run on the heads named.
+
+| Day | Item | Status | Where |
+|---|---|---|---|
+| 1 | Visitor API: `/api/public/pricing`, `/quote`, `/coverage`, `/launch-interest` (migration 137, real-DB integration file) | ✅ | D28 |
+| 1 | `--hs-*` tokens, icon sprite, `homle-ui.css` components, shared header/footer on document pages | ✅ | `tests/site-chrome.mjs` |
+| 2 | Landing: postcode → clean → rooms → estimate (`#quote`), honest not-yet with consented launch news, landlords card, FAQ, JSON-LD | ✅ | D29, `tests/browser-home-quick-quote.mjs` |
+| 3 | Guest's choice carried through sign-in (incl. the email tab); checkout explains the hold; "Book cleaning" role wording | ✅ | `tests/guest-quote-handoff.mjs` |
+| 4 | Landlord "Getting started"; Cleaner "profile not published" alert; admin on tokens | ✅ | D33, `tests/landlord-getting-started.mjs`, `tests/cleaner-ready-alerts.mjs` |
+| 5 | robots AI policy, `llms.txt`, `/openapi.json`, `/mcp` (off by default) | ✅ | D30, D31, D32 |
+| 6 | Trust page `/how-homle-works`; 404/500 already branded; 265 KB of dead landing CSS removed | ✅ | — |
+| 6 | Service and area pages | ⏸ area pages need real coverage (none in the database yet); service pages after the founder names the launch area | HUMAN_TODO §0.4 |
+| 6 | CSS under 400 KB | ◐ 1.48 MB → 1.21 MB. The rest is `styles.css` (343 KB) and the Cleaner/Landlord sheets; needs a selector-by-selector audit against the computed-style baselines, not a guess | next |
+| 6 | Funnel events for the price form | ⏸ the funnel vocabulary is fixed by migration 127; new event names need a migration and a review of what is counted | next |
+| 6 | Support email on the site | ⏸ founder: HUMAN_TODO §0.7 | — |
+| 7 | Founder rehearsal | ⏸ founder | LAUNCH_CHECKLIST |
+
+Measured locally (Chromium, intercepted assets, so optimistic): landing LCP 0.4 s, CLS ≤ 0.015 at 390 and 1280 px.
+
 ## 25 October 2026 — launch integration (verified)
 
 What was checked against reality, and where it differed from the brief:
