@@ -474,3 +474,13 @@ estimate cannot drift from what booking charges. Coverage reuses the matcher's
 rules (migration 137) and answers only yes/no for the outward area; it never
 reveals which Cleaner, how many, or where. The only thing stored is a launch-news
 sign-up with explicit consent, version `launch-news-v1`.
+
+**D29 — Add a price section to the landing page instead of rebuilding it.**
+Five tests pin the current landing page: its five scroll acts, its 19 hashed
+images and video, its controller internals, and its scroll smoothness. A
+rebuild would mean rewriting those guards, with no revenue gain from doing so.
+Instead, `#quote` (postcode, type of clean, rooms, then an estimate) goes
+straight after the hero, and the hero's main button now points to it. The
+scanner stays available as the optional extra. It is built from the hs-*
+components in their own files (`quick-quote.js` and `homle-ui.css`), so the
+content-addressed landing CSS and JS are untouched.

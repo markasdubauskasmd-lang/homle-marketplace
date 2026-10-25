@@ -204,3 +204,44 @@ a.hs-card:hover { box-shadow: var(--hs-elevation-2); transform: translateY(-2px)
   .hs-skeleton { animation: none; }
   a.hs-card:hover { transform: none; }
 }
+
+/* ── Get a price (landing #quote) ──────────────────────────────────────── */
+.hs-quote *, .hs-quote *::before, .hs-quote *::after { box-sizing: border-box; }
+/* hidden must win over the display each block sets below. */
+.hs-quote [hidden] { display: none !important; }
+.hs-quote { position: relative; z-index: 2; background: var(--hs-white); color: var(--hs-ink); font-family: var(--hs-font); line-height: var(--hs-leading); padding: var(--hs-space-7) 0; scroll-margin-top: 72px; }
+.hs-quote h2 { font-family: var(--hs-font); font-size: var(--hs-h2); font-weight: var(--hs-weight-display); line-height: var(--hs-leading-tight); letter-spacing: -0.02em; margin: 0 0 var(--hs-space-3); color: var(--hs-ink); }
+.hs-quote p { margin: 0 0 var(--hs-space-3); }
+.hs-quote-grid { display: grid; gap: var(--hs-space-6); grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: start; }
+@media (max-width: 860px) { .hs-quote-grid { grid-template-columns: minmax(0, 1fr); gap: var(--hs-space-5); } }
+.hs-quote .hs-btn { white-space: normal; text-align: center; }
+.hs-how { list-style: none; padding: 0; margin: var(--hs-space-4) 0 0; display: grid; gap: var(--hs-space-3); }
+.hs-how li { display: grid; grid-template-columns: 40px 1fr; gap: var(--hs-space-3); align-items: start; }
+.hs-how .hs-icon { width: 40px; height: 40px; padding: 9px; border-radius: var(--hs-radius); background: var(--hs-red-tint); color: var(--hs-red); }
+.hs-quote-card { padding: var(--hs-space-5); }
+.hs-quote-form { display: grid; gap: var(--hs-space-4); }
+.hs-quote fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.hs-quote legend { padding: 0; margin-bottom: var(--hs-space-2); }
+.hs-quote-services { display: grid; gap: var(--hs-space-2); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hs-quote-services legend { grid-column: 1 / -1; }
+@media (max-width: 480px) { .hs-quote-services { grid-template-columns: 1fr; } }
+.hs-choice { position: relative; display: block; cursor: pointer; }
+.hs-choice input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.hs-choice > span { display: grid; grid-template-columns: 24px 1fr; column-gap: 10px; row-gap: 2px; min-height: 72px; align-content: center; padding: 12px 14px; border: 1.5px solid var(--hs-border-control); border-radius: var(--hs-radius); background: var(--hs-paper); transition: border-color var(--hs-motion-fast) var(--hs-ease), background var(--hs-motion-fast) var(--hs-ease); }
+.hs-choice .hs-icon { grid-row: span 2; color: var(--hs-red); }
+.hs-choice small { color: var(--hs-muted); font-size: var(--hs-text-sm); }
+.hs-choice input:checked + span { border-color: var(--hs-ink); background: var(--hs-neutral); box-shadow: inset 0 0 0 1px var(--hs-ink); }
+.hs-choice input:focus-visible + span { outline: 3px solid var(--hs-focus); outline-offset: 2px; }
+.hs-quote-rooms { display: grid; gap: var(--hs-space-2); }
+.hs-stepper { display: grid; grid-template-columns: 1fr 44px 64px 44px; gap: 8px; align-items: center; }
+.hs-stepper label { font-weight: var(--hs-weight-strong); }
+.hs-stepper .hs-btn { min-height: var(--hs-target); min-width: var(--hs-target); padding: 0; font-size: 1.25rem; }
+.hs-stepper .hs-input { text-align: center; padding-inline: 4px; -moz-appearance: textfield; }
+.hs-stepper .hs-input::-webkit-inner-spin-button, .hs-stepper .hs-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.hs-quote-result { margin-top: var(--hs-space-4); padding-top: var(--hs-space-4); border-top: 1px solid var(--hs-line); display: grid; gap: var(--hs-space-1); }
+.hs-quote-result:focus { outline: none; }
+.hs-quote-total { font-size: var(--hs-h1); font-weight: var(--hs-weight-display); line-height: 1; letter-spacing: -0.03em; margin: 0; }
+.hs-quote-area { font-weight: var(--hs-weight-strong); }
+.hs-quote-not-yet { margin-top: var(--hs-space-2); padding: var(--hs-space-4); border-radius: var(--hs-radius); background: var(--hs-neutral); }
+.hs-quote .hs-inline-form { display: grid; gap: var(--hs-space-2); }
+.hs-quote :is(a, button, input):focus-visible { outline: 3px solid var(--hs-focus); outline-offset: 2px; box-shadow: 0 0 0 2px var(--hs-ink); }
