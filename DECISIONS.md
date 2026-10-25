@@ -531,3 +531,12 @@ one-shot cart. Revisit once `PUBLIC_PAYMENTS_APPROVED` is true and account
 tools exist. WebMCP (`navigator.modelContext`) would expose the same four
 tools from the page itself. It is still an experimental browser API, so it is
 deferred behind a future `WEBMCP_ENABLED` rather than shipped half-supported.
+
+**D33 — Landlord "Getting started" covers only what nothing else does.**
+A brand-new Landlord saw two generic start cards and nothing saying that a saved
+property comes first. The new card says "Add a property", then "Book your first
+clean", and steps aside as soon as any request or booking exists. The banner
+removed on 21 July (b903e09c) repeated the payment and live-job actions the
+booking cards already carry. `tests/landlord-dashboard-ui.mjs` still keeps that
+banner out, and `tests/landlord-getting-started.mjs` keeps this card from
+growing into it.

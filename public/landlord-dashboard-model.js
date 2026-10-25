@@ -286,3 +286,22 @@ export function landlordMarketplaceCapabilityState(input = {}) {
   }
   return Object.freeze({ mediaReady, pricingReady, geocodingReady, matchingReady, automaticDispatchReady, notice });
 }
+
+/**
+ * Getting started: the first step for a Landlord with nothing in motion.
+ *
+ * Only the two states nothing else on the home view covers: no place to clean
+ * yet, and a place with nothing requested. Once a request or a booking exists
+ * this steps aside, because the request rail, the Next clean card and the
+ * booking cards already carry those actions. A banner that repeated them was
+ * removed on 21 July (b903e09c) and is not coming back (DECISIONS D33).
+ */
+export function landlordGettingStarted({ properties = [], cleaningRequests = [], bookings = [] } = {}) {
+  const liveBooking = (Array.isArray(bookings) ? bookings : []).some((booking) => booking && !finishedPropertyBookingStatuses.has(booking.status));
+  const openRequest = (Array.isArray(cleaningRequests) ? cleaningRequests : []).some((request) => request && !["draft", "cancelled"].includes(request.status));
+  if (liveBooking || openRequest) return Object.freeze({ kind: "none" });
+  if (!(Array.isArray(properties) && properties.length)) {
+    return Object.freeze({ kind: "add-property", title: "Start by adding your property", body: "Add the address once and Homle keeps its rooms, checklist and cleaning history together. The address stays private until a booking is confirmed.", action: Object.freeze({ label: "Add a property", opens: "property" }) });
+  }
+  return Object.freeze({ kind: "book", title: "Book your first clean", body: "Scan the rooms with your phone or list them yourself. You will see the price and review the checklist before anything is booked.", action: Object.freeze({ label: "Book a clean", href: "/landlord/book" }) });
+}

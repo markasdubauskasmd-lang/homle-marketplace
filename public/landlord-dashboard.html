@@ -17,8 +17,8 @@
   <link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1">
   <link rel="stylesheet" href="/landlord-dashboard.css?v=20260906-2">
   <!-- The v2 composition, last so it wins without !important. -->
-  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20260906-2">
-  <script src="/landlord-dashboard.js?v=20260913-job-refresh-1" type="module"></script>
+  <link rel="stylesheet" href="/landlord-dashboard-v2.css?v=20261025-1">
+  <script src="/landlord-dashboard.js?v=20261025-getting-started-1" type="module"></script>
   <script src="/account-menu.js?v=20260718-3" type="module"></script>
   <script src="/landlord-notification-badge.js?v=20260821-3" type="module"></script>
 </head>
@@ -161,6 +161,15 @@
            expands the request builder further down this page through the
            existing data-open-request-tab hook. -->
       <section id="landlord-panel-home" data-landlord-panel="home" class="landlord-workspace-panel ld-home" aria-labelledby="ld-home-title">
+        <section class="ld-getting-started" data-ld-getting-started aria-labelledby="ld-getting-started-title" hidden>
+          <span class="ld-getting-started-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+          <div>
+            <p class="ld-getting-started-eyebrow">Getting started</p>
+            <h2 id="ld-getting-started-title" data-getting-started-title></h2>
+            <p data-getting-started-body></p>
+            <a class="ld-btn ld-btn-primary" data-getting-started-action href="/landlord/book"></a>
+          </div>
+        </section>
         <h2 class="ld-home-question" id="ld-home-title">What do you need cleaned?</h2>
 
         <div class="ld-start-cards">
