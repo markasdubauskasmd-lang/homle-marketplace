@@ -122,6 +122,9 @@ function render(result, { quote, note, coverage }) {
   notYet.hidden = covered;
   result.hidden = false;
   result.focus();
+  // Counted with the existing cookieless funnel (no postcode, no price, no
+  // identifier): only that a visitor on the landing page saw a price.
+  if (quote?.priceable) import("/funnel.js?v=20260920-1").then(({ recordFunnel }) => recordFunnel("funnel.price.shown", { surface: "landing" })).catch(() => {});
 }
 
 // "From" prices on the service choices: a one-bedroom home (kitchen, living

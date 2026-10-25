@@ -38,7 +38,7 @@ if (!chromiumPath) {
   process.exit(0);
 }
 
-const sent = { quotes: [], coverage: [], interest: [] };
+const sent = { quotes: [], coverage: [], interest: [], funnel: [] };
 const server = await serveStatic({
   extraFiles: {
     "/api/public/pricing": () => ({ body: { ok: true, config: defaultPricingConfig } }),
@@ -54,7 +54,8 @@ const server = await serveStatic({
       return { body: { ok: true, covered: area === "SW1A", area } };
     },
     "/api/public/launch-interest": ({ body }) => { sent.interest.push(JSON.parse(body)); return { status: 202, body: { ok: true } }; },
-    "/api/health": () => ({ status: 404, body: {} })
+    "/api/health": () => ({ status: 404, body: {} }),
+    "/api/marketplace/funnel-events": ({ body }) => { sent.funnel.push(...(JSON.parse(body).events || [])); return { status: 202, body: { ok: true } }; }
   }
 });
 const browser = await launchBrowser();
@@ -142,6 +143,10 @@ try {
     await until(`document.querySelector("[data-interest-status]").textContent.startsWith("Thanks")`, "the sign-up confirmation");
     assert.deepEqual(sent.interest.at(-1), { postcode: "ZE9 1AA", email: "visitor@example.invalid", consent: true });
   }
+  await new Promise((resolve) => setTimeout(resolve, 2500));
+  const funnelText = JSON.stringify(sent.funnel);
+  assert(sent.funnel.some((event) => event.metric === "funnel.price.shown" && event.dimensions?.surface === "landing"), `A price shown on the landing page was not counted: ${funnelText}`);
+  assert(!/SW1A|ZE9|1AA|visitor@|£|Pence/i.test(funnelText), "The funnel carried a postcode, an email or a price.");
   console.log("Landing quick quote passed at 390/1280: engine-exact estimate and from prices, postcode caught before any request, booking offered only where covered, consent-gated launch news, area-only memory, 44px controls, no overflow.");
 } finally {
   await browser.close();

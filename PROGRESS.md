@@ -24,7 +24,7 @@ Where each day stands. Every item has a test that fails before and passes after;
 | 6 | Trust page `/how-homle-works`; 404/500 already branded; 265 KB of dead landing CSS removed | ✅ | — |
 | 6 | Service and area pages | ⏸ area pages need real coverage (none in the database yet); service pages after the founder names the launch area | HUMAN_TODO §0.4 |
 | 6 | CSS under 400 KB | ◐ 1.48 MB → 1.21 MB. The rest is `styles.css` (343 KB) and the Cleaner/Landlord sheets; needs a selector-by-selector audit against the computed-style baselines, not a guess | next |
-| 6 | Funnel events for the price form | ⏸ the funnel vocabulary is fixed by migration 127; new event names need a migration and a review of what is counted | next |
+| 6 | Funnel: a price shown on the landing page | ✅ `funnel.price.shown` / `landing`, already in migration 134's vocabulary, so no migration; no postcode, email or price is sent | `tests/browser-home-quick-quote.mjs` |
 | 6 | Support email on the site | ⏸ founder: HUMAN_TODO §0.7 | — |
 | 7 | Founder rehearsal | ⏸ founder | LAUNCH_CHECKLIST |
 
