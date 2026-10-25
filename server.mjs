@@ -5874,7 +5874,7 @@ async function handleHttpRequest(request, response) {
     if (standaloneAuthenticationAttachment?.router && (requestUrl.pathname.startsWith("/api/marketplace/auth/") || requestUrl.pathname === "/api/marketplace/account" || requestUrl.pathname === "/api/marketplace/onboarding")) {
       if (await standaloneAuthenticationAttachment.router.handle(request, response, requestUrl)) return;
     }
-    if (marketplaceAttachment.router && requestUrl.pathname.startsWith("/api/marketplace/")) {
+    if (marketplaceAttachment.router && (requestUrl.pathname.startsWith("/api/marketplace/") || requestUrl.pathname.startsWith("/api/public/"))) {
       if (await marketplaceAttachment.router.handle(request, response, requestUrl)) return;
     }
     if (!await allowDataMutation(request, response, requestUrl.pathname)) return;

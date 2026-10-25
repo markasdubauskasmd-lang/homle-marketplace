@@ -1589,3 +1589,75 @@ console.log("Revenue summary HTTP checks passed: administrator-only, window pass
   assert(getConfirm.response.statusCode === 405 && getConfirm.response.headers.Allow === "POST", "The confirm route accepted a read.");
   console.log("Saved-card HTTP checks passed: closed without its worker, Landlord-only, CSRF-protected writes, strict consent, uncached.");
 }
+
+// The visitor API (migration 137): a price, a quote and a coverage answer
+// before any account, carrying only the customer's side, bounded per client.
+{
+  const visitorOrigin = { origin: "http://127.0.0.1:4173", "content-type": "application/json" };
+  const publicCalls = [];
+  const publicMarketplace = {
+    async pricingConfig() { publicCalls.push("config"); return null; },
+    async pricingEconomics() { publicCalls.push("economics"); return null; },
+    async coverage(postcode, requirePayout) { publicCalls.push({ kind: "coverage", postcode, requirePayout }); return { area: "SW1A", covered: postcode.startsWith("SW1A") }; },
+    async recordLaunchInterest(postcode, email, version) { publicCalls.push({ kind: "interest", postcode, email, version }); return true; },
+    async administratorLaunchInterest() { return [{ area: "SW1A", count: 2 }]; }
+  };
+  const visitorRouter = createMarketplaceHttpRouter({ ...dependencies, publicMarketplace, publicCoverageRequiresPayout: true }, { clientKey: () => trustedClientKey });
+
+  // Without the dependency the whole prefix is unhandled.
+  assert((await dispatch(router, "GET", "/api/public/pricing")).handled === false, "The visitor API answered with no public repository attached.");
+
+  const pricing = await dispatch(visitorRouter, "GET", "/api/public/pricing");
+  assert(pricing.response.statusCode === 200 && pricing.body.config?.serviceTypes, "The public price list was not served without a session.");
+  assert(!/economics|cleanerPay|payout|margin|contribution/i.test(JSON.stringify(pricing.body)), "The public price list carried platform economics.");
+
+  const home = { serviceType: "standard", frequency: "one-time", rooms: [{ roomType: "kitchen", items: [] }, { roomType: "bathroom", items: [] }] };
+  const quoted = await dispatch(visitorRouter, "POST", "/api/public/quote", { headers: visitorOrigin, body: home });
+  assert(quoted.response.statusCode === 200 && quoted.body.estimate === true && quoted.body.quote?.priceable === true && quoted.body.quote.totalPence > 0,
+    `A visitor could not get a quote without an account: ${JSON.stringify(quoted.body).slice(0, 200)}`);
+  assert(!/economics|cleanerPay|payout|margin|contribution|grossMargin/i.test(JSON.stringify(quoted.body)), "The public quote carried platform economics.");
+  assert(String(quoted.response.headers["Cache-Control"]).includes("no-store"), "A quote response could be cached.");
+
+  // Abuse cases: wrong method, foreign origin, missing rooms, a malformed
+  // duration, an oversized body, and the per-client ceiling.
+  assert((await dispatch(visitorRouter, "GET", "/api/public/quote")).response.statusCode === 405, "The quote answered a GET.");
+  assert((await dispatch(visitorRouter, "POST", "/api/public/quote", { headers: { ...visitorOrigin, origin: "https://elsewhere.example" }, body: home })).response.statusCode === 403, "Another origin could request quotes.");
+  assert((await dispatch(visitorRouter, "POST", "/api/public/quote", { headers: visitorOrigin, body: { rooms: "kitchen" } })).response.statusCode === 422, "A quote without rooms was not refused clearly.");
+  assert((await dispatch(visitorRouter, "POST", "/api/public/quote", { headers: visitorOrigin, body: { ...home, requestedMinutes: 99999 } })).response.statusCode === 422, "An impossible duration was not refused clearly.");
+  const oversized = await dispatch(visitorRouter, "POST", "/api/public/quote", { headers: visitorOrigin, body: { ...home, padding: "x".repeat(20 * 1024) } });
+  assert(oversized.response.statusCode === 413, `An oversized quote body was accepted: ${oversized.response.statusCode}`);
+  const previousVisitorScope = rateLimitedScope;
+  for (const [scope, method, path, body] of [
+    ["marketplace-public:quote", "POST", "/api/public/quote", home],
+    ["marketplace-public:pricing", "GET", "/api/public/pricing"],
+    ["marketplace-public:coverage", "GET", "/api/public/coverage?postcode=SW1A1AA"],
+    ["marketplace-public:launch-interest", "POST", "/api/public/launch-interest", { postcode: "SW1A 1AA", email: "a@b.example", consent: true }]
+  ]) {
+    rateLimitedScope = scope;
+    const limited = await dispatch(visitorRouter, method, path, { headers: visitorOrigin, body });
+    assert(limited.response.statusCode === 429, `${path} ignored its rate limit: ${limited.response.statusCode}`);
+  }
+  rateLimitedScope = previousVisitorScope;
+
+  // Coverage: a yes/no and the area, under the paid-mode rule.
+  const covered = await dispatch(visitorRouter, "GET", "/api/public/coverage?postcode=SW1A%201AA");
+  assert(covered.response.statusCode === 200 && covered.body.covered === true && covered.body.area === "SW1A", "Coverage did not answer a covered postcode.");
+  assert(Object.keys(covered.body).sort().join(",") === "area,covered,ok", `Coverage returned more than yes/no and the area: ${Object.keys(covered.body)}`);
+  assert(publicCalls.find((call) => call.kind === "coverage")?.requirePayout === true, "Coverage ignored that payments are on.");
+  assert((await dispatch(visitorRouter, "GET", "/api/public/coverage")).response.statusCode === 422, "A missing postcode was not refused.");
+  assert((await dispatch(visitorRouter, "GET", `/api/public/coverage?postcode=${"A".repeat(40)}`)).response.statusCode === 422, "An overlong postcode reached the database.");
+
+  // Launch news: explicit consent, one answer whatever the address.
+  const noConsent = await dispatch(visitorRouter, "POST", "/api/public/launch-interest", { headers: visitorOrigin, body: { postcode: "SW1A 1AA", email: "a@b.example", consent: "yes" } });
+  assert(noConsent.response.statusCode === 422 && !publicCalls.some((call) => call.kind === "interest"), "Launch interest was stored without a strict consent.");
+  const signedUp = await dispatch(visitorRouter, "POST", "/api/public/launch-interest", { headers: visitorOrigin, body: { postcode: "SW1A 1AA", email: "a@b.example", consent: true } });
+  assert(signedUp.response.statusCode === 202 && Object.keys(signedUp.body).join() === "ok", "Launch interest said more than that it was received.");
+  assert(publicCalls.find((call) => call.kind === "interest")?.version === "launch-news-v1", "Launch interest was stored without its consent wording version.");
+  assert((await dispatch(visitorRouter, "POST", "/api/public/launch-interest", { headers: { ...visitorOrigin, origin: "https://elsewhere.example" }, body: { postcode: "SW1A 1AA", email: "a@b.example", consent: true } })).response.statusCode === 403, "Another origin could sign people up.");
+
+  // The tally is Administrator-only.
+  assert((await dispatch(visitorRouter, "GET", "/api/marketplace/admin/launch-interest", { headers: { cookie: authHeaders.cookie } })).response.statusCode === 403, "A Landlord read the launch-interest tally.");
+  const tally = await dispatch(visitorRouter, "GET", "/api/marketplace/admin/launch-interest", { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(tally.response.statusCode === 200 && tally.body.areas[0].count === 2, "An Administrator could not read the launch-interest tally.");
+  console.log("Visitor API HTTP checks passed: price list, quote and coverage without an account, no economics or Cleaner data, origin-bound writes, bounded bodies, per-route ceilings, consented launch news, Administrator-only tally.");
+}

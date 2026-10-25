@@ -414,3 +414,20 @@ journey is simply Google-only plus email/password.
 - **Tracked files and the publication guard** — the guard still reports six
   false positives and ~122 MB tracked against a 100 MiB limit. Narrowing it
   and moving the training videos out of git follow in their own pull request.
+
+---
+
+## 9. Launch-news sign-ups are personal data (added 25 October)
+
+The new postcode check lets a visitor in an area Homle does not cover yet
+leave an email for launch news, with an explicit consent tick (wording version
+`launch-news-v1`). Nothing is sent: email is off, and no send to this list
+exists in code. Before you use the list:
+
+1. Add one line to the Privacy Policy: what the launch-news list is, that it is
+   used only to say Homle now covers the person's area, and how to leave it.
+2. Decide how long an unused sign-up is kept (suggestion: 12 months), and tell
+   the engineer so it can be enforced.
+3. `/api/marketplace/admin/launch-interest` shows how many people asked, by
+   postcode district, without showing any address. Use it to choose where to
+   recruit Cleaners next.

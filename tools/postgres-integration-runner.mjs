@@ -55,6 +55,7 @@ const scripts = Object.freeze({
   revenueSummary: "revenue-summary-verification.sql",
   refundNotice: "refund-notice-verification.sql",
   savedCard: "saved-card-verification.sql",
+  publicQuoteCoverage: "public-quote-coverage-verification.sql",
   rls: "marketplace-rls-behaviour.sql",
   acceptA: "accept-booking-a.sql",
   acceptB: "accept-booking-b.sql",
@@ -365,6 +366,9 @@ export async function runPostgresMarketplaceIntegration(options = {}) {
     // Pay at booking (136): who may save a card, when it may be used, and that
     // consent to one total is not consent to another -- by running it.
     runPsqlSync({ label: "Saved card test", file: scripts.savedCard, environment: ownerEnvironment, command, execute });
+    // The visitor API (137): no user, matcher-equivalent coverage that says
+    // only yes/no, consented launch news -- by running it.
+    runPsqlSync({ label: "Public quote and coverage test", file: scripts.publicQuoteCoverage, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Job-start payment gate test", file: scripts.paymentGate, environment: ownerEnvironment, command, execute });
     runPsqlSync({ label: "Participant lifecycle rehearsal setup", file: scripts.participantLifecycleSetup, environment: ownerEnvironment, command, execute });
     const realtimeProof = await executeRealtimeProbe({

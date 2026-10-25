@@ -681,6 +681,11 @@
       "order": 136,
       "file": "136_saved_card_authorization.sql",
       "sha256": "4864f7225cb1a57fce008acda82c3cd50dcbee21a0ae34f1c81734b651743f10"
+    },
+    {
+      "order": 137,
+      "file": "137_public_quote_and_coverage.sql",
+      "sha256": "e14e26957e30cb01baeda9e5e8d20c7af19e0869d149c6f576f03edcdfeb3f8d"
     }
   ],
   "grantFiles": [
