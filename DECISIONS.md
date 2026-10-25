@@ -459,3 +459,11 @@ already implemented and tested (Places API, server-side). postcodes.io
 resolves postcodes to coordinates but returns no street addresses, so it
 cannot stand in. A Google key needs a billing account, which is the
 founder's spend; manual address entry works meanwhile. In LAUNCH_CHECKLIST.
+
+**D27 — One design system: the Cleaner workspace takes the Landlord workspace's.**
+The founder chose the Landlord workspace as the base. `cleaner-workspace-v2.css`
+loads last on every Cleaner page and maps the Cleaner tokens, cards and Activity
+frame onto Landlord values; `homle-cleaner.css` swaps each warm cream or brown for
+the neutral grey of the same luminance, so no contrast ratio moved. An overlay
+sheet rather than an edit keeps it reversible one link per page. Guarded by
+`tests/cleaner-design-convergence.mjs`.
