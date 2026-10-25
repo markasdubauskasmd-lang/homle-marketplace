@@ -709,16 +709,16 @@
             <!-- Preserve the proven summariser, checklist validator and optional
                  defaults without putting more controls in the primary path. -->
             <div hidden>
-              <details data-speech-fallback><summary>Speech transcript</summary><textarea name="transcript" rows="5" maxlength="5000"></textarea></details>
+              <details data-speech-fallback><summary>Speech transcript</summary><textarea name="transcript" rows="5" maxlength="5000" aria-label="Speech transcript"></textarea></details>
               <button type="button" data-summarise-speech>Update concise bullets</button>
               <button type="button" data-use-saved-checklist>Use saved checklist</button>
               <div data-task-preview role="list" aria-live="polite"><p role="listitem">No tasks yet.</p></div>
               <section data-checklist-changes hidden aria-labelledby="checklist-changes-title"><h4 id="checklist-changes-title" data-checklist-changes-title>Checklist changes</h4><div data-checklist-changes-body></div><button type="button" data-checklist-restore>Restore checklist</button></section>
               <p data-task-review-status role="status">Add at least one clear cleaning action.</p>
-              <input name="scopeReviewed" type="checkbox" disabled>
+              <input name="scopeReviewed" type="checkbox" disabled aria-label="I have reviewed the checklist">
               <select name="frequency"><option value="one-time">One time</option><option value="weekly">Weekly preference</option><option value="fortnightly">Fortnightly preference</option><option value="every-four-weeks">Every four weeks</option></select>
-              <input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01">
-              <textarea name="specialInstructions" rows="3" maxlength="5000"></textarea>
+              <input name="budget" type="number" inputmode="decimal" min="0.01" max="100000" step="0.01" aria-label="Budget in pounds">
+              <textarea name="specialInstructions" rows="3" maxlength="5000" aria-label="Special instructions"></textarea>
             </div>
             </div>
             <p class="landlord-request-recovery-status" data-request-recovery-status role="status">An unfinished walkthrough stays only in this browser tab for up to 30 minutes. Approval and photos are never restored.</p>
