@@ -295,7 +295,7 @@ await paymentAttachment.close();
 // the settlement gate precisely so the two cannot get out of step, and this is
 // what stops a future edit quietly untying them.
 const settlementUserId = "11111111-1111-4111-8111-111111111111";
-async function attachWithSettlement(environmentOverrides, { administrator = true, paymentService = true } = {}) {
+async function attachWithSettlement(environmentOverrides, { administrator = true, paymentService = true, savedCardState = null } = {}) {
   const reported = [];
   const attached = await createMarketplaceAttachment({
     env: Object.freeze({ ...paymentEnvironment, ...environmentOverrides }),
@@ -318,7 +318,8 @@ async function attachWithSettlement(environmentOverrides, { administrator = true
         paymentService: paymentService
           ? { async listForAdministrator() { return { operations: [] }; }, async capture() {}, async transfer() {}, async cancel() {} }
           : null,
-        unpaidBookingRepository: { async listExpirable() { return []; }, async expire() { return { bookingId: "", expired: false, reason: "" }; } }
+        unpaidBookingRepository: { async listExpirable() { return []; }, async expire() { return { bookingId: "", expired: false, reason: "" }; } },
+        ...(savedCardState ? { savedCardService: { async listDue() { return []; }, async authorizeDue() {} }, savedCardState } : {})
       };
     }
   });
@@ -351,6 +352,26 @@ async function attachWithSettlement(environmentOverrides, { administrator = true
   assert.equal(attached.expiryReady, false, "Unpaid-booking expiry ran under an account that does not hold the administrator role.");
   assert.equal(attached.settlementReady, false);
   assert.ok(reported.some((error) => /not an active administrator account/.test(error.message)));
+  await attached.close();
+}
+
+// Saved cards (M4) ride the settlement gate: their routes open only once the
+// verified platform worker that uses them is running.
+{
+  const state = { ready: false };
+  const { attached } = await attachWithSettlement({ WORKER_PAYMENT_SETTLEMENT_ENABLED: "true", PLATFORM_SETTLEMENT_USER_ID: settlementUserId }, { savedCardState: state });
+  assert.equal(attached.savedCardsReady, true, "Saved cards did not start behind a verified settlement gate.");
+  assert.equal(state.ready, true, "The saved-card routes were not opened once their worker ran.");
+  await attached.close();
+}
+for (const [label, overrides, options] of [
+  ["settlement switched off", { WORKER_PAYMENT_SETTLEMENT_ENABLED: "false", PLATFORM_SETTLEMENT_USER_ID: settlementUserId }, {}],
+  ["a non-administrator platform account", { WORKER_PAYMENT_SETTLEMENT_ENABLED: "true", PLATFORM_SETTLEMENT_USER_ID: settlementUserId }, { administrator: false }]
+]) {
+  const state = { ready: false };
+  const { attached } = await attachWithSettlement(overrides, { ...options, savedCardState: state });
+  assert.equal(attached.savedCardsReady, false, `Saved cards started with ${label}.`);
+  assert.equal(state.ready, false, `Saved-card routes opened with ${label}, so a card could be saved that nothing would use.`);
   await attached.close();
 }
 

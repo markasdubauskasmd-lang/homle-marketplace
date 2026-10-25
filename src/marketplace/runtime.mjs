@@ -17,6 +17,8 @@ import { createPaymentRepository } from "./payment-repository.mjs";
 import { createPaymentService } from "./payment-service.mjs";
 import { createAuthorizationRelease } from "./booking-hold-release.mjs";
 import { paymentCommandWritesPaused } from "./payment-command-policy.mjs";
+import { createSavedCardRepository } from "./saved-card-repository.mjs";
+import { createSavedCardService, savedCardAuthorizationEnabled } from "./saved-card-service.mjs";
 import { createCleanerPayoutRepository } from "./cleaner-payout-repository.mjs";
 import { createCleanerPayoutService } from "./cleaner-payout-service.mjs";
 import { createMatchingRepository } from "./matching-repository.mjs";
@@ -235,6 +237,13 @@ export function createMarketplaceRuntime(pool, options = {}) {
   const paymentRepository = createPaymentRepository(database);
   const commandWritesPaused = paymentCommandWritesPaused(env);
   const paymentService = options.paymentProvider ? createPaymentService(paymentRepository, options.paymentProvider, { publishableKey: env.STRIPE_PUBLISHABLE_KEY, commandWritesPaused }) : null;
+  // Pay at booking with a saved card (M4). The service exists only when
+  // switched on; its routes answer only once attachment has started the
+  // platform worker that uses the cards (savedCardState.ready).
+  const savedCardState = { ready: false };
+  const savedCardService = options.paymentProvider && savedCardAuthorizationEnabled(env)
+    ? createSavedCardService({ repository: createSavedCardRepository(database), paymentRepository, provider: options.paymentProvider, onUnexpectedError: options.onUnexpectedError })
+    : null;
   const cleanerPayoutRepository = createCleanerPayoutRepository(database);
   const cleanerPayoutService = options.paymentProvider ? createCleanerPayoutService(cleanerPayoutRepository, options.paymentProvider, { appOrigin: environment.appOrigin }) : null;
   const bookingWorkflowService = createBookingWorkflowService(bookingRepository, {
@@ -358,7 +367,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     });
   }
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository, { assembleExport: assembleAccountExport });
-  const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, administratorAccountService, funnelTelemetry: funnelTelemetryRepository, landlordCareService, privacyRequestService, paymentService, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
+  const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, administratorAccountService, funnelTelemetry: funnelTelemetryRepository, landlordCareService, privacyRequestService, paymentService, savedCardService, savedCardsReady: () => savedCardState.ready, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
     clientKey: options.clientKey,
     onUnexpectedError: options.onUnexpectedError,
     pricingConfiguration: (actor) => pricingConfigurationRepository.activeConfig(actor),
@@ -475,6 +484,8 @@ export function createMarketplaceRuntime(pool, options = {}) {
     administratorAccountService,
     funnelTelemetry: funnelTelemetryRepository,
     unpaidBookingRepository,
+    savedCardService,
+    savedCardState,
     landlordCareRepository,
     landlordCareService,
     privacyRequestRepository,

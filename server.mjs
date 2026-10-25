@@ -4982,6 +4982,9 @@ async function getAdminConfig(request, response) {
     // settlement true means the loop refused to build and said so to
     // monitoring.
     expiryReady: marketplaceAttachment.expiryReady === true,
+    // Whether saved cards are being used to authorize inside the payment
+    // window (SAVED_CARD_AUTHORIZATION_ENABLED). Rides the settlement gate.
+    savedCardsReady: marketplaceAttachment.savedCardsReady === true,
     // This contains no credential or connection detail. Operators set it only
     // when the database provider has imposed a deletion date, so the private
     // launch desk cannot mistake temporary connectivity for durable storage.

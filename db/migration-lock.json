@@ -676,6 +676,11 @@
       "order": 135,
       "file": "135_observed_refund_notice.sql",
       "sha256": "21ea2c366d1e1658bcee839a070168fe07d85bd09115845920071f8f9520a8c2"
+    },
+    {
+      "order": 136,
+      "file": "136_saved_card_authorization.sql",
+      "sha256": "4864f7225cb1a57fce008acda82c3cd50dcbee21a0ae34f1c81734b651743f10"
     }
   ],
   "grantFiles": [

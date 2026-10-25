@@ -78,6 +78,7 @@ const bookingReviewsPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern
 const bookingReviewResponsePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/reviews/response$`);
 const bookingReceiptPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/receipt$`);
 const bookingPaymentPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/payment$`);
+const bookingSavedCardPath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern})/saved-card(?:/(confirm|withdraw))?$`);
 const adminPaymentCommandPath = new RegExp(`^/api/marketplace/admin/payments/(${uuidPattern})/(capture|cancel|refund|transfer)$`);
 const adminRequestMatchingReadinessPath = new RegExp(`^/api/marketplace/admin/cleaning-requests/(${uuidPattern})/matching-readiness$`);
 const adminCleanerVerificationPath = new RegExp(`^/api/marketplace/admin/cleaner-verifications/(${uuidPattern})$`);
@@ -170,6 +171,10 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const landlordCare = dependencies?.landlordCareService;
   const privacyRequests = dependencies?.privacyRequestService;
   const payments = dependencies?.paymentService || null;
+  // Saved cards answer only while the platform worker that uses them is
+  // running; otherwise a customer could save a card nothing would ever use.
+  const savedCards = dependencies?.savedCardService || null;
+  const savedCardsReady = typeof dependencies?.savedCardsReady === "function" ? dependencies.savedCardsReady : () => false;
   const cleanerPayouts = dependencies?.cleanerPayoutService || null;
   const rateLimiter = dependencies?.rateLimiter;
   if (!security || typeof security.protect !== "function") throw new TypeError("Marketplace HTTP routes require account security.");
@@ -472,6 +477,25 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
           if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
           const context = await security.protect(request, { mutation: false, roles: ["landlord"] });
           sendJson(response, 200, { ok: true, receipt: await payments.getReceiptForBooking(context.actor, selectedBookingReceipt[1]) }, { "Cache-Control": "private, no-store" });
+          return true;
+        }
+        const selectedSavedCard = pathname.match(bookingSavedCardPath);
+        if (selectedSavedCard) {
+          if (!savedCards || !savedCardsReady()) return false;
+          const action = selectedSavedCard[2] || null;
+          const allowed = action ? ["POST"] : ["GET", "POST"];
+          if (!allowed.includes(request.method)) return methodNotAllowed(response, allowed), true;
+          const mutation = request.method === "POST";
+          const context = await security.protect(request, { mutation, roles: ["landlord"] });
+          // Saving a card creates provider objects: the same write limit as a booking.
+          if (mutation) await limitPublicRead(request, "marketplace-landlord:booking");
+          const bookingId = selectedSavedCard[1];
+          let savedCard;
+          if (!mutation) savedCard = await savedCards.get(context.actor, bookingId);
+          else if (action === "confirm") savedCard = await savedCards.confirm(context.actor, { bookingId });
+          else if (action === "withdraw") savedCard = await savedCards.withdraw(context.actor, { bookingId });
+          else savedCard = await savedCards.begin(context.actor, { bookingId, consent: (await readJsonObject(request)).consent === true });
+          sendJson(response, mutation && !action ? 201 : 200, { ok: true, savedCard }, { "Cache-Control": "private, no-store" });
           return true;
         }
         const selectedBookingPayment = pathname.match(bookingPaymentPath);

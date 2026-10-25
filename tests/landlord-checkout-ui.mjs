@@ -30,7 +30,7 @@ assert.match(script, /eyebrow: "Protected booking step"/);
 assert.match(script, /Stripe's secure element/);
 assert.match(html, /Stripe test mode · no real money moves/);
 assert.match(html, /simulated Stripe test authorization—your card is not charged/);
-assert.match(html, /\/landlord-checkout\.js\?v=20260905-1/);
+assert.match(html, /\/landlord-checkout\.js\?v=20261025-saved-card-1/);
 assert.match(script, /renderWorkspaceShell/);
 assert.match(script, /selectedRole !== "landlord"/);
 assert.match(script, /X-CSRF-Token/);
@@ -120,4 +120,96 @@ const motionRows = [];
   console.log("Checkout browser recovery passed at 390px and 1280px: repeated clicks, delayed/failed session recovery, provider failure and idempotent retry.");
 } else {
   console.log("Checkout browser recovery SKIPPED: Chromium unavailable.");
+}
+
+// Pay at booking (M4): offered only before the window opens, for a booking
+// with no payment yet, and every state says what will happen to the money.
+{
+  const { paymentWindowOpensAt, savedCardOffered, savedCardPresentation } = await import("../public/landlord-checkout-model.js");
+  const now = Date.parse("2026-11-01T09:00:00.000Z");
+  assert.equal(paymentWindowOpensAt("2026-11-20T09:00:00.000Z").toISOString(), "2026-11-15T09:00:00.000Z");
+  assert.equal(paymentWindowOpensAt("not a date"), null);
+  assert.equal(savedCardOffered({ status: "not-started" }, "2026-11-20T09:00:00.000Z", now), true);
+  assert.equal(savedCardOffered({ status: "not-started" }, "2026-11-05T09:00:00.000Z", now), false, "A saved card was offered inside the payment window.");
+  assert.equal(savedCardOffered({ status: "creating" }, "2026-11-20T09:00:00.000Z", now), false, "A saved card was offered for a booking that already has a payment.");
+  assert.equal(savedCardOffered({ status: "not-started" }, "bad", now), false);
+  assert.equal(savedCardPresentation(null).offer, true);
+  assert.equal(savedCardPresentation({ status: "saved" }).canWithdraw, true);
+  for (const status of ["authorizing", "authorized", "action-required"]) assert.equal(savedCardPresentation({ status }).canWithdraw, false, `A card could be withdrawn while ${status}.`);
+  for (const status of ["saved", "authorized"]) assert.match(savedCardPresentation({ status }).copy, /not (charged|captured)|captured only after/i);
+  console.log("Saved-card checkout model passed: offered only before the window, never alongside a payment, and every state names what happens to the money.");
+}
+
+// Pay at booking (M4) in the real page: offered only when the server answers
+// the saved-card route, consent gates the action, and with the route absent the
+// ordinary payment step is untouched.
+if (resolveChromiumPath()) {
+  const farStart = new Date(Date.now() + 20 * 86_400_000).toISOString();
+  const savedWrites = [];
+  let savedRoute = true;
+  const server = await serveStatic({ extraFiles: {
+    "/api/marketplace/account": () => ({ body: { account: { selectedRole: "landlord", roles: ["landlord"], name: "Saved card test" } } }),
+    "/api/marketplace/bookings": () => ({ body: { bookings: [{ bookingId, scheduledStartAt: farStart, propertyName: "Flat", cleaningType: "regular-domestic" }] } }),
+    "/api/marketplace/auth/session": () => ({ body: { csrfToken: "test-session-token" } }),
+    [`/api/marketplace/bookings/${bookingId}/payment`]: () => ({ body: { payment: { status: "not-started", amountPence: 5600 } } }),
+    [`/api/marketplace/bookings/${bookingId}/saved-card`]: ({ method, body }) => {
+      if (!savedRoute) return { status: 404, body: { ok: false, code: "not-found" } };
+      if (method === "POST") { savedWrites.push(JSON.parse(body)); return { status: 201, body: { savedCard: { bookingId, status: "saved", amountPence: 5600, currency: "gbp" } } }; }
+      return { body: { savedCard: null } };
+    }
+  } });
+  const browser = await launchBrowser();
+  try {
+    for (const width of [390, 1280]) {
+      await browser.setViewport({ width, height: 844, mobile: width === 390 });
+      savedRoute = true;
+      await browser.goto(`${server.origin}/landlord-checkout.html?bookingId=${bookingId}`);
+      const offered = await browser.evaluate(`
+        const deadline = Date.now() + 5000;
+        while (!document.querySelector('[data-saved-card]')) {
+          if (Date.now() > deadline) throw new Error('The saved-card offer never appeared');
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        const start = document.querySelector('[data-saved-card-start]');
+        const consent = document.querySelector('[data-saved-card-consent]');
+        const before = { disabled: start.disabled, prepareHidden: document.querySelector('[data-payment-prepare]').hidden,
+          consentText: consent.closest('label').textContent };
+        start.click();
+        await new Promise(resolve => setTimeout(resolve, 100));
+        consent.click();
+        const enabledAfterConsent = !start.disabled;
+        start.click();
+        const deadline2 = Date.now() + 3000;
+        while (!document.querySelector('[data-saved-card-withdraw]') || document.querySelector('[data-saved-card-withdraw]').hidden) {
+          if (Date.now() > deadline2) break;
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        return { ...before, enabledAfterConsent, title: document.querySelector('#saved-card-title').textContent,
+          withdrawVisible: !document.querySelector('[data-saved-card-withdraw]').hidden };
+      `);
+      assert(offered.disabled && offered.prepareHidden, `${width}px: the saved-card offer was not consent-gated, or the unusable payment step stayed visible.`);
+      assert(/£56\.00/.test(offered.consentText) && /without me being present/.test(offered.consentText), `${width}px: the consent did not name the total and that the hold is placed without the customer.`);
+      assert(offered.enabledAfterConsent && offered.title === "Card saved for this booking" && offered.withdrawVisible, `${width}px: saving with consent did not reach the saved state: ${JSON.stringify(offered)}`);
+      assert.deepEqual(savedWrites.at(-1), { consent: true }, "The saved-card request did not carry explicit consent.");
+
+      savedRoute = false;
+      await browser.goto(`${server.origin}/landlord-checkout.html?bookingId=${bookingId}`);
+      const ordinary = await browser.evaluate(`
+        const deadline = Date.now() + 5000;
+        while (document.querySelector('[data-payment-prepare]').hidden) {
+          if (Date.now() > deadline) throw new Error('Checkout did not become ready');
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        await new Promise(resolve => setTimeout(resolve, 300));
+        return { panel: Boolean(document.querySelector('[data-saved-card]')), prepareHidden: document.querySelector('[data-payment-prepare]').hidden };
+      `);
+      assert(!ordinary.panel && !ordinary.prepareHidden, `${width}px: with saved cards off the checkout changed.`);
+    }
+    assert.equal(savedWrites.length, 2, "Clicking before consent sent a saved-card request.");
+    assert.deepEqual(browser.pageErrors, [], "The saved-card checkout raised an unhandled browser error");
+  } finally {
+    await browser.close();
+    await server.close();
+  }
+  console.log("Saved-card checkout browser checks passed at 390px and 1280px: offered only when the route answers, consent-gated, named total, and the ordinary step untouched when off.");
 }

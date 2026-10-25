@@ -80,6 +80,38 @@ function authorizationResult(intent) {
   });
 }
 
+// Saved cards (PROGRESS M4). A SetupIntent saves a card for off-session use
+// against a Stripe Customer created for that booking; the card is later used
+// only by the platform, inside the payment window, for the frozen total.
+const savedCardIdempotencyPattern = /^tideway_saved_card_[0-9a-f-]{36}_[0-9a-f]{16}$/;
+
+function savedCardInput(input) {
+  if (!input || !uuidPattern.test(input.bookingId || "") || !/^[0-9a-f]{64}$/.test(input.landlordHash || "")
+    || !savedCardIdempotencyPattern.test(input.idempotencyKey || "")) throw new TypeError("A complete Homle saved-card request is required.");
+  return input;
+}
+
+function objectId(value) {
+  return typeof value === "string" ? value : value?.id;
+}
+
+function savedCardResult(setup, bookingId, customerId) {
+  if (!/^seti_[A-Za-z0-9_]{3,250}$/.test(setup?.id || "") || setup.object !== "setup_intent" || setup.livemode !== false
+    || setup.usage !== "off_session" || setup.metadata?.tideway_booking_id !== bookingId || objectId(setup.customer) !== customerId) {
+    throw new TypeError("Stripe returned a SetupIntent that does not belong to this booking.");
+  }
+  const status = setup.status === "succeeded" ? "saved" : setup.status === "canceled" ? "failed" : "requires-customer-action";
+  const paymentMethodId = status === "saved" ? objectId(setup.payment_method) : null;
+  if (status === "saved" && !/^pm_[A-Za-z0-9_]{3,250}$/.test(paymentMethodId || "")) throw new TypeError("Stripe returned a saved card with no payment method.");
+  return Object.freeze({
+    customerId,
+    setupId: setup.id,
+    status,
+    paymentMethodId,
+    clientSecret: status === "requires-customer-action" && typeof setup.client_secret === "string" ? setup.client_secret : null
+  });
+}
+
 function commandResult(object, successStatus, pendingStatuses = []) {
   const status = object?.status === successStatus ? "succeeded" : pendingStatuses.includes(object?.status) ? "pending" : "failed";
   return Object.freeze({ id: reference(object?.id, "payment command id"), status });
@@ -311,6 +343,67 @@ export async function createStripePaymentProvider(configuration = {}, options = 
         transfer_group: selected.transferGroup,
         metadata: metadata(selected)
       }, { idempotencyKey: selected.idempotencyKey });
+      return authorizationResult(intent);
+    },
+    async createSavedCardSetup(input) {
+      const selected = savedCardInput(input);
+      if (!stripe.customers?.create || !stripe.setupIntents?.create) throw new TypeError("The Stripe SDK client cannot save cards.");
+      const customer = await stripe.customers.create({
+        metadata: { tideway_booking_id: selected.bookingId, tideway_landlord_hash: selected.landlordHash }
+      }, { idempotencyKey: `${selected.idempotencyKey}_customer` });
+      if (!/^cus_[A-Za-z0-9_]{3,250}$/.test(customer?.id || "") || customer.livemode !== false) throw new TypeError("Stripe returned an invalid Customer.");
+      const setup = await stripe.setupIntents.create({
+        customer: customer.id,
+        usage: "off_session",
+        payment_method_types: ["card"],
+        metadata: { tideway_booking_id: selected.bookingId }
+      }, { idempotencyKey: selected.idempotencyKey });
+      return savedCardResult(setup, selected.bookingId, customer.id);
+    },
+    // The server reads the outcome back from Stripe; the browser's report that
+    // the card was saved is never taken on trust.
+    async retrieveSavedCardSetup(input) {
+      if (!uuidPattern.test(input?.bookingId || "") || !/^seti_[A-Za-z0-9_]{3,250}$/.test(input?.setupId || "")
+        || !/^cus_[A-Za-z0-9_]{3,250}$/.test(input?.customerId || "")) throw new TypeError("A recorded saved-card setup is required.");
+      if (!stripe.setupIntents?.retrieve) throw new TypeError("The Stripe SDK client cannot read saved cards.");
+      return savedCardResult(await stripe.setupIntents.retrieve(input.setupId), input.bookingId, input.customerId);
+    },
+    async detachSavedCard(input) {
+      if (!/^pm_[A-Za-z0-9_]{3,250}$/.test(input?.paymentMethodId || "")) throw new TypeError("A saved payment method is required.");
+      if (!stripe.paymentMethods?.detach) throw new TypeError("The Stripe SDK client cannot remove saved cards.");
+      const detached = await stripe.paymentMethods.detach(input.paymentMethodId);
+      if (detached?.id !== input.paymentMethodId || detached.livemode !== false) throw new TypeError("Stripe did not confirm the saved card was removed.");
+      return true;
+    },
+    // Off-session: the customer is not present, so the bank may refuse or ask
+    // for authentication. Stripe reports both by throwing a card error that
+    // carries the PaymentIntent it created; that intent is the result, and its
+    // state sends the customer to the ordinary in-app payment step.
+    async createSavedCardAuthorization(input) {
+      const selected = paymentInput(input);
+      if (!/^cus_[A-Za-z0-9_]{3,250}$/.test(selected.customerId || "") || !/^pm_[A-Za-z0-9_]{3,250}$/.test(selected.paymentMethodId || "")) {
+        throw new TypeError("A saved card is required for an off-session authorization.");
+      }
+      let intent;
+      try {
+        intent = await stripe.paymentIntents.create({
+          amount: selected.amountPence,
+          currency: "gbp",
+          capture_method: "manual",
+          payment_method_types: ["card"],
+          customer: selected.customerId,
+          payment_method: selected.paymentMethodId,
+          off_session: true,
+          confirm: true,
+          transfer_group: selected.transferGroup,
+          metadata: metadata(selected)
+        }, { idempotencyKey: selected.idempotencyKey });
+      } catch (error) {
+        const carried = error?.payment_intent ?? error?.raw?.payment_intent;
+        if (error?.type !== "StripeCardError" || !carried?.id) throw error;
+        intent = carried;
+      }
+      if (intent?.livemode !== false || intent.metadata?.tideway_payment_id !== selected.paymentId) throw new TypeError("Stripe returned an authorization that does not belong to this payment.");
       return authorizationResult(intent);
     },
     async createSandboxCheckout(input) {

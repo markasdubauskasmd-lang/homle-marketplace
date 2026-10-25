@@ -1544,3 +1544,48 @@ console.log("Account suspension HTTP checks passed: administrator-only lookup an
     "The funnel report grew monetary data, contradicting its own stated scope.");
 }
 console.log("Revenue summary HTTP checks passed: administrator-only, window passed through, read-only, and the funnel report still carries no money.");
+
+// Saved cards (M4): closed unless the service exists AND its platform worker is
+// running; Landlord-only; consent passed through as a strict boolean; CSRF on
+// every write; never cached.
+{
+  const savedCardCalls = [];
+  const savedCardService = {
+    async get(actor, bookingId) { savedCardCalls.push({ kind: "get", actor, bookingId }); return null; },
+    async begin(actor, input) { savedCardCalls.push({ kind: "begin", actor, input }); return { bookingId: input.bookingId, status: "requires-customer-action", amountPence: 9000, currency: "gbp", requiresCustomerAction: true, clientSecret: "seti_secret" }; },
+    async confirm(actor, input) { savedCardCalls.push({ kind: "confirm", actor, input }); return { bookingId: input.bookingId, status: "saved", amountPence: 9000, currency: "gbp" }; },
+    async withdraw(actor, input) { savedCardCalls.push({ kind: "withdraw", actor, input }); return { bookingId: input.bookingId, status: "withdrawn", amountPence: 9000, currency: "gbp" }; }
+  };
+  const savedBookingId = "56565656-5656-4565-8565-565656565656";
+  const savedUrl = `/api/marketplace/bookings/${savedBookingId}/saved-card`;
+  let ready = false;
+  const savedCardRouter = createMarketplaceHttpRouter({ ...dependencies, savedCardService, savedCardsReady: () => ready }, { clientKey: () => trustedClientKey });
+
+  const closed = await dispatch(savedCardRouter, "GET", savedUrl, { headers: { cookie: authHeaders.cookie } });
+  assert(closed.handled === false || closed.response.statusCode === 404, "Saved-card routes answered while no platform worker would ever use a saved card.");
+  const absent = await dispatch(router, "GET", savedUrl, { headers: { cookie: authHeaders.cookie } });
+  assert(absent.handled === false || absent.response.statusCode === 404, "Saved-card routes answered with the feature switched off.");
+
+  ready = true;
+  const read = await dispatch(savedCardRouter, "GET", savedUrl, { headers: { cookie: authHeaders.cookie } });
+  assert(read.response.statusCode === 200 && read.body.savedCard === null && savedCardCalls.at(-1).kind === "get", "The saved-card read did not reach the service.");
+  assert(String(read.response.headers["Cache-Control"]).includes("no-store"), "A saved-card response could be cached.");
+  assert((await dispatch(savedCardRouter, "GET", savedUrl)).response.statusCode === 401, "A saved card was readable without a session.");
+  assert((await dispatch(savedCardRouter, "GET", savedUrl, { headers: { cookie: administratorAuthHeaders.cookie } })).response.statusCode === 403, "A non-Landlord session used the saved-card route.");
+
+  const noCsrf = await dispatch(savedCardRouter, "POST", savedUrl, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { consent: true } });
+  assert(noCsrf.response.statusCode === 403 && savedCardCalls.at(-1).kind === "get", "Saving a card accepted a missing CSRF token.");
+
+  await dispatch(savedCardRouter, "POST", savedUrl, { headers: authHeaders, body: { consent: "yes" } });
+  assert(savedCardCalls.at(-1).kind === "begin" && savedCardCalls.at(-1).input.consent === false, "A non-boolean consent was passed through as consent.");
+  const begun = await dispatch(savedCardRouter, "POST", savedUrl, { headers: authHeaders, body: { consent: true } });
+  assert(begun.response.statusCode === 201 && begun.body.savedCard.clientSecret === "seti_secret" && savedCardCalls.at(-1).input.consent === true, "Saving a card did not start the setup.");
+
+  const confirmed = await dispatch(savedCardRouter, "POST", `${savedUrl}/confirm`, { headers: authHeaders });
+  assert(confirmed.response.statusCode === 200 && confirmed.body.savedCard.status === "saved" && savedCardCalls.at(-1).kind === "confirm", "Confirming a saved card did not reach the service.");
+  const withdrawn = await dispatch(savedCardRouter, "POST", `${savedUrl}/withdraw`, { headers: authHeaders });
+  assert(withdrawn.response.statusCode === 200 && savedCardCalls.at(-1).kind === "withdraw", "Withdrawing a saved card did not reach the service.");
+  const getConfirm = await dispatch(savedCardRouter, "GET", `${savedUrl}/confirm`, { headers: { cookie: authHeaders.cookie } });
+  assert(getConfirm.response.statusCode === 405 && getConfirm.response.headers.Allow === "POST", "The confirm route accepted a read.");
+  console.log("Saved-card HTTP checks passed: closed without its worker, Landlord-only, CSRF-protected writes, strict consent, uncached.");
+}

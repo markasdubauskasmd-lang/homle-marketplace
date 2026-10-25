@@ -12,6 +12,7 @@ import { createTransactionalEmailDelivery } from "./email-delivery.mjs";
 import { createStripePaymentProvider } from "./stripe-payment-provider.mjs";
 import { createTrustedClientKeyResolver } from "./trusted-client-key.mjs";
 import { createPaymentSettlementWorker, paymentSettlementEnabled, platformSettlementUserId } from "./payment-settlement-worker.mjs";
+import { createSavedCardAuthorizationWorker } from "./saved-card-service.mjs";
 import { createUnpaidBookingWorker } from "./unpaid-booking-worker.mjs";
 
 function enabledState(env) {
@@ -278,6 +279,8 @@ export async function createMarketplaceAttachment(options = {}) {
   let settlementTimer = null;
   let expiryTimer = null;
   let expiryReady = false;
+  let savedCardTimer = null;
+  let savedCardsReady = false;
   const settlementUserId = platformSettlementUserId(env);
   const settlementRequested = paymentSettlementEnabled(env);
   let settlementReady = false;
@@ -344,6 +347,25 @@ export async function createMarketplaceAttachment(options = {}) {
         // whether unpaid bookings are being ended should not have to read the
         // logs to find out.
         expiryReady = true;
+
+        // Saved cards are used by the same verified platform Administrator,
+        // behind the same gate, and only when switched on. Their routes stay
+        // closed until this worker exists, so no card is saved that nothing
+        // would ever use.
+        if (runtime.savedCardService) {
+          const savedCards = createSavedCardAuthorizationWorker({
+            savedCards: runtime.savedCardService,
+            actor: { userId: settlementUserId, roles: ["administrator"] },
+            isPaused: () => runtime.paymentCommandWritesPaused === true,
+            onUnexpectedError: adapters.onUnexpectedError
+          });
+          savedCardTimer = setInterval(() => {
+            savedCards.runOnce().catch((error) => adapters.onUnexpectedError(error));
+          }, 300_000);
+          savedCardTimer.unref?.();
+          runtime.savedCardState.ready = true;
+          savedCardsReady = true;
+        }
       } catch (error) {
         adapters.onUnexpectedError(error);
       }
@@ -357,6 +379,7 @@ export async function createMarketplaceAttachment(options = {}) {
     reason: "ready",
     settlementReady,
     expiryReady,
+    savedCardsReady,
     authenticationHttpReady: runtime.authenticationHttpReady === true,
     authenticationCapabilities,
     emailReady: Boolean(emailDelivery),
@@ -377,6 +400,7 @@ export async function createMarketplaceAttachment(options = {}) {
       const failures = [];
       if (settlementTimer) { clearInterval(settlementTimer); settlementTimer = null; }
       if (expiryTimer) { clearInterval(expiryTimer); expiryTimer = null; }
+      if (savedCardTimer) { clearInterval(savedCardTimer); savedCardTimer = null; }
       try { await realtimeSignalSource.close?.(); } catch (error) { failures.push(error); }
       try { await emailDelivery?.close(); } catch (error) { failures.push(error); }
       try { await objectStorage?.close(); } catch (error) { failures.push(error); }
