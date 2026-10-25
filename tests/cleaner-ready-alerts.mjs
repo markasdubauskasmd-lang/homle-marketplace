@@ -36,4 +36,8 @@ assert(alertsFor({ ...ready, availableWindowCount: 0 }).some((alert) => /No futu
 assert(alertsFor({ ...ready, payoutState: "not-started" }).some((alert) => /Payout account not set up/.test(alert.title)));
 const allClear = alertsFor(ready);
 assert(allClear.some((alert) => /public profile is live/.test(alert.title)) && !allClear.some((alert) => alert.tone !== "green"), "A ready Cleaner was shown a problem.");
-console.log("Cleaner readiness alerts passed: incomplete, unpublished, no availability and no payouts each named; a ready Cleaner sees only green.");
+// Publishing is the Cleaner's own switch (cleaner-profile.mjs); only the check
+// statuses are Administrator-set (migration 062). No page may say otherwise.
+const profilePage = readFileSync(new URL("../public/cleaner-public-profile.js", import.meta.url), "utf8");
+assert(!/on approval|awaiting approval|once approved/i.test(profilePage), "The Cleaner profile says publishing waits for approval; it does not.");
+console.log("Cleaner readiness alerts passed: incomplete, unpublished, no availability and no payouts each named; a ready Cleaner sees only green; no page claims publishing waits for approval.");

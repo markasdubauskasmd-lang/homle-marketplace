@@ -183,7 +183,7 @@ function renderProfile(account, profile) {
   const equipment = [...(Array.isArray(profile?.equipmentSupplied) ? profile.equipmentSupplied : []), ...(Array.isArray(profile?.productsSupplied) ? profile.productsSupplied : [])];
   setText("[data-profile-equipment]", equipment.length ? "Brings own equipment" : "Not supplied");
   setText("[data-profile-about]", profile?.biography || profile?.introduction || "You have not added an introduction yet.");
-  setText("[data-profile-live-state]", profile?.isPublic === true ? "Visible to clients" : "Goes live on approval");
+  setText("[data-profile-live-state]", profile?.isPublic === true ? "Visible to clients" : "Not published yet");
 
   chips("[data-profile-services]", (Array.isArray(profile?.services) ? profile.services : []).map(serviceLabel), "No specialisms selected yet.");
   chips("[data-profile-skills]", [], "No extra skills recorded yet.");
