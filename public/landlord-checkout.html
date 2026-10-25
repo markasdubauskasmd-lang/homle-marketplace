@@ -59,6 +59,11 @@
            container: the button re-enabled and nothing visible or audible
            explained why. Same class of defect as the archived-restore
            confirmation, found by the journey test's provider-unreachable probe. -->
+      <ol class="booking-payment-steps" aria-label="How paying for this booking works">
+        <li><strong>Now:</strong> the agreed total is held on your card. Nothing is taken yet.</li>
+        <li><strong>After the clean:</strong> the held amount is charged once the clean is finished.</li>
+        <li><strong>If the booking is cancelled first:</strong> the hold is released.</li>
+      </ol>
       <div class="booking-payment-feedback" data-payment-feedback role="alert" hidden></div>
       <button class="button booking-payment-prepare" type="button" data-payment-prepare hidden>Enter secure payment details</button>
       <a class="button booking-payment-complete" data-payment-complete href="/landlord/dashboard" hidden>Open confirmed booking</a>

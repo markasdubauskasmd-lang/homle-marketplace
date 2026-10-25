@@ -22,7 +22,11 @@ export function roomsFor({ bedrooms = 1, bathrooms = 1, livingRooms = 1, kitchen
 
 function remember(answers) {
   try {
-    sessionStorage.setItem(guestQuoteKey, JSON.stringify({ version: 1, savedAt: Date.now(), area: outward(answers.postcode), serviceType: answers.serviceType, rooms: answers.counts }));
+    const value = JSON.stringify({ version: 1, savedAt: Date.now(), area: outward(answers.postcode), serviceType: answers.serviceType, rooms: answers.counts });
+    sessionStorage.setItem(guestQuoteKey, value);
+    // Email sign-up verifies in a new tab, which has its own sessionStorage.
+    // The journey reads and deletes both copies; it ignores either after 30 minutes.
+    localStorage.setItem(guestQuoteKey, value);
   } catch { /* storage unavailable: the visitor simply answers again after sign-in */ }
 }
 
