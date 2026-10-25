@@ -18,7 +18,7 @@ assert.deepEqual([...used].filter((name) => !defined.has(name)), [], "homle-ui.c
 const symbols = new Set([...sprite.matchAll(/<symbol id="([a-z0-9-]+)"/g)].map((match) => match[1]));
 assert(symbols.size >= 20, "The icon sprite lost its symbols.");
 
-const pages = ["for-landlords.html", "for-cleaners.html", "cookies.html", "privacy.html", "terms.html"];
+const pages = ["for-landlords.html", "for-cleaners.html", "how-homle-works.html", "cookies.html", "privacy.html", "terms.html"];
 for (const page of pages) {
   const html = read(`public/${page}`);
   const head = html.slice(0, html.indexOf("</head>"));
@@ -46,5 +46,9 @@ for (const page of pages) {
   assert(!/\p{Extended_Pictographic}/u.test(`${header}${footer}`), `${page}'s header or footer uses an emoji instead of an icon.`);
 }
 
+const trust = read("public/how-homle-works.html");
+const claims = trust.slice(0, trust.indexOf("<h2>What we do not claim</h2>"));
+assert(!/insured|vetted|DBS|\d+\+? (reviews|cleans|customers)|star rating|trusted by/i.test(claims), "The trust page makes a claim before saying what Homle does not claim.");
+assert(trust.includes("<h2>What we do not claim</h2>"), "The trust page lost its list of what Homle does not claim.");
 assert(toggleScript.includes('setAttribute("aria-expanded"') && toggleScript.includes('"Escape"'), "The menu toggle no longer reports its state or closes on Escape.");
 console.log("Shared site header and footer use defined tokens, real icons, the component sheet last, and an operable menu.");
