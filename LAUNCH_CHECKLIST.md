@@ -31,7 +31,7 @@ real person. Those rules (CLAUDE.md, "HARD LIMITS") are why this list exists.
    pnpm run verify:live-release https://homlle.com --expect-release=<commit>
    ```
 7. Open `https://homlle.com/api/health`. Check `sourceCommit` = the commit,
-   `migrationCount` = 135 (for this release), `dataIntegrity: "healthy"`, and
+   `migrationCount` = 136 (for this release), `dataIntegrity: "healthy"`, and
    `writesAllowed: true`.
 8. Render → **Logs**: find `Inline marketplace workers started`.
 9. Open `https://homlle.com/api/marketplace/admin/payments/reconciliation` while
