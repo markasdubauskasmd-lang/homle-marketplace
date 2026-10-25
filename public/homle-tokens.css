@@ -38,7 +38,9 @@
 @font-face {
   font-family: "DM Sans";
   src: url("/vendor/fonts/dm-sans-wght.woff2") format("woff2");
-  font-weight: 400 600;
+  /* The vendored file is variable from 100 to 1000; the system uses 400 and
+     600 for text and 700 for display headings. */
+  font-weight: 400 700;
   font-display: swap;
   font-style: normal;
 }
@@ -121,4 +123,84 @@
   --homle-space-6: 32px;
   --homle-space-7: 48px;
   --homle-space-8: 64px;
+}
+
+/* ── The Homle system (25 October 2026) ─────────────────────────────────────
+ *
+ * One set of decisions for every screen: the public site, booking, both
+ * workspaces and the administrator desk. homle-ui.css builds its components
+ * from these and nothing else. The older --homle-* values above stay for the
+ * pages that still read them until each converges.
+ *
+ * Brand (docs/BRAND_AND_UI.md): Homle red for the one primary action on a
+ * screen, near-black for text and secure surfaces, warm white and warm neutral
+ * for surfaces. Yellow is focus only. Light first; dark is an accent band.
+ */
+:root {
+  --hs-red: #e31937;            /* the one primary action, active state, progress */
+  --hs-red-hover: #c8102e;
+  --hs-red-tint: #fdecef;
+  --hs-ink: #0b090a;            /* text, secure surfaces */
+  --hs-ink-2: #2b2729;          /* secondary text, still 12:1 on white */
+  --hs-muted: #5f5a56;          /* meta text, 6.6:1 on warm white */
+  --hs-line: #e6e0d9;
+  --hs-line-strong: #cfc7be;     /* decorative dividers only */
+  --hs-border-control: #857d76;  /* field and control edges: 4:1 on white, 3.5:1 on neutral */
+  --hs-white: #fffefd;          /* warm white: the reading surface */
+  --hs-neutral: #f2eee9;        /* warm neutral: panels and bands */
+  --hs-paper: #ffffff;          /* cards on warm white */
+  --hs-success: #1f7a4d;
+  --hs-success-tint: #e7f4ed;
+  --hs-warning: #8a5a00;
+  --hs-warning-tint: #fdf3dc;
+  --hs-danger: #b3152e;
+  --hs-danger-tint: #fdecef;
+  --hs-focus: #ffd400;          /* keyboard focus only */
+
+  --hs-font: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --hs-weight-text: 400;
+  --hs-weight-strong: 600;
+  --hs-weight-display: 700;
+
+  /* Type scale: 16px body minimum, 1.5 line height, confident headings. */
+  --hs-text-sm: 0.875rem;       /* 14px, meta only */
+  --hs-text: 1rem;              /* 16px body */
+  --hs-text-lg: 1.125rem;       /* 18px lead */
+  --hs-h4: 1.25rem;
+  --hs-h3: 1.5rem;
+  --hs-h2: clamp(1.75rem, 1.4rem + 1.4vw, 2.25rem);
+  --hs-h1: clamp(2.25rem, 1.6rem + 2.8vw, 3.5rem);
+  --hs-leading: 1.5;
+  --hs-leading-tight: 1.12;
+
+  /* An 8px spacing scale. */
+  --hs-space-1: 4px;
+  --hs-space-2: 8px;
+  --hs-space-3: 16px;
+  --hs-space-4: 24px;
+  --hs-space-5: 32px;
+  --hs-space-6: 48px;
+  --hs-space-7: 64px;
+  --hs-space-8: 96px;
+
+  --hs-radius-sm: 8px;
+  --hs-radius: 12px;
+  --hs-radius-lg: 16px;
+  --hs-radius-pill: 999px;
+
+  /* Two soft elevation levels. */
+  --hs-elevation-1: 0 1px 2px rgba(11, 9, 10, .06), 0 4px 12px rgba(11, 9, 10, .05);
+  --hs-elevation-2: 0 2px 6px rgba(11, 9, 10, .06), 0 16px 40px rgba(11, 9, 10, .10);
+
+  --hs-motion-fast: 150ms;
+  --hs-motion: 200ms;
+  --hs-motion-slow: 250ms;
+  --hs-ease: cubic-bezier(.2, .7, .2, 1);
+
+  --hs-target: 44px;            /* minimum touch target */
+  --hs-target-primary: 50px;
+  --hs-content: 1120px;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --hs-motion-fast: 0ms; --hs-motion: 0ms; --hs-motion-slow: 0ms; }
 }

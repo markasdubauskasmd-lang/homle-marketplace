@@ -238,7 +238,10 @@ try {
     await browser.setViewport({...viewport,mobile:false});
     for (const route of Object.keys(reviewDocuments)) {
       await browser.goto(server.origin + route);
-      const selector = accountRoutes.includes(route) ? ".ae-crumbs li[aria-current]" : ".back-link, .button-secondary";
+      // The shared site header (homle-ui.css) shows a menu button below 861px
+      // and the Sign in link above it; hover whichever one is on screen.
+      const headerControl = viewport.width < 861 ? "[data-site-nav-toggle]" : ".hs-nav a[href='/login']";
+      const selector = accountRoutes.includes(route) ? ".ae-crumbs li[aria-current]" : route === "/facebook-data-deletion" ? ".button-secondary" : headerControl;
       const hover = !accountRoutes.includes(route);
       if (hover) await browser.hover(selector);
       const contrast = await browser.evaluate(`

@@ -467,3 +467,10 @@ frame onto Landlord values; `homle-cleaner.css` swaps each warm cream or brown f
 the neutral grey of the same luminance, so no contrast ratio moved. An overlay
 sheet rather than an edit keeps it reversible one link per page. Guarded by
 `tests/cleaner-design-convergence.mjs`.
+
+**D28 — Visitors get a price and a coverage answer before any account.**
+The quote endpoint runs the booking path's own engine and price list, so the
+estimate cannot drift from what booking charges. Coverage reuses the matcher's
+rules (migration 137) and answers only yes/no for the outward area; it never
+reveals which Cleaner, how many, or where. The only thing stored is a launch-news
+sign-up with explicit consent, version `launch-news-v1`.
