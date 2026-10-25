@@ -24,7 +24,7 @@ html body.homlle-onboarding-flow .hc-main :is(input[type=checkbox],input[type=ra
 html body.homlle-onboarding-flow:not(.homlle-onboarding-home) .hc-main button{font-size:14px;min-height:44px;border-radius:99px;box-shadow:none}
 html body.homlle-onboarding-flow .hc-main button[type=submit]{background:#201e1d;color:#fff;border:2px solid #201e1d;padding:12px 24px;font-weight:750}
 html body.homlle-onboarding-flow .hc-main :is(button:disabled,input:disabled){opacity:.65;cursor:not-allowed}
-html body.homlle-onboarding-flow .hc-main :is(.hc-experience-service-card,.hc-experience-specialism,.hc-equipment-choice){background:#f5f3f3;border-color:#bbb;border-radius:13px;padding:16px}
+
 html body.homlle-onboarding-flow .hc-main :is(.hc-documents-drop,.hc-documents-confirm,.hc-document-card,.hc-training-card,.hc-academy-feature,.hc-academy-documents,.hc-contract-list-card,.hc-contract-sign-card,.hc-review-card,.hc-work-area-card){background:#fff;border:3px solid #2d2b2a;border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:none}
 html body.homlle-onboarding-flow .hc-main :is(.hc-documents-grid,.hc-contracts-layout){gap:12px}
 html body.homlle-onboarding-flow .hc-main :is(.hc-personal-grid,.hc-business-grid){gap:12px}
@@ -32,7 +32,7 @@ html body.homlle-onboarding-flow [hidden]{display:none!important}
 html body.homlle-onboarding-flow :is(a,button,input,select,textarea):focus-visible{outline:3px solid #126bc1;outline-offset:3px}
 @media(max-width:900px){html body.homlle-onboarding-flow .hc-side.cleaner-site-header[data-preview-sidebar]{width:100%;min-width:100%;max-width:none;height:72px}html body.homlle-onboarding-flow:not(.homlle-onboarding-home) .hc-main-inner{padding:22px 20px 95px}.of-topbar{flex-wrap:wrap;gap:16px}.of-progress{order:3;flex-basis:100%;max-width:none}html body.homlle-onboarding-flow .hc-side.cleaner-site-header[data-preview-sidebar] .hc-nav-sub[data-preview-page]{margin:0 3px!important}}
 @media(max-width:600px){html body.homlle-onboarding-flow:not(.homlle-onboarding-home) .hc-main h1{font-size:30px!important}html body.homlle-onboarding-flow .hc-main fieldset.of-card{padding:20px 16px;border-radius:18px}html body.homlle-onboarding-flow .hc-main :is(.hc-personal-grid,.hc-business-grid,.hc-personal-grid-four,.hc-personal-grid-three,.hc-experience-specialisms,.hc-experience-history-grid,.hc-contracts-layout){grid-template-columns:1fr!important}.of-card-heading{gap:12px}.of-card-title{font-size:11px}.of-topbar a{font-size:12px!important}}
-html body.homlle-onboarding-flow .hc-main .hc-academy-feature{background:#201e1d;color:#fff}
+
 html body.homlle-onboarding-flow .hc-main .hc-academy-card{border:3px solid #2d2b2a;border-radius:22px;box-shadow:none}
 html body.homlle-onboarding-flow .hc-main :is(.hc-review-summary,.hc-review-item,.hc-work-panel){background:#f3f2f2;border-color:#aaa;box-shadow:none}
 html body.homlle-onboarding-flow:not(.homlle-onboarding-home) .hc-main button.hc-documents-drop{border-radius:22px}
