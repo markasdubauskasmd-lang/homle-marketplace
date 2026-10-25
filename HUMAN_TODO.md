@@ -269,6 +269,30 @@ you ask somebody to register.
 
 ---
 
+### 3a. Prove the Cleaner path on the live service (after the next deploy)
+
+This was the engineer's job, but this build environment cannot reach
+`homlle.com` or Render (its network policy refuses the connection), so it falls
+to you or to an engineer on an ordinary connection. Use a synthetic Cleaner
+account you own (a mailbox of yours; while `STAGING_ACCOUNTS_ONLY=true` it must
+be on the staging allow-list):
+
+1. Apply at `https://homlle.com/cleaner/registration` and finish
+   `/cleaner/onboarding`.
+2. Approve it at `/admin/verifications`.
+3. In My Profile, fill the Experience step (introduction of at least 40
+   characters, hourly rate, languages, property types). The completion meter
+   must reach 100%. Then publish.
+4. In Schedule, add one available window in the coming week.
+5. Check the profile appears in the public directory.
+6. From a synthetic Landlord account, request a clean inside that window and
+   check the Cleaner is offered or invited.
+7. Afterwards: withdraw the window, unpublish, and suspend the synthetic
+   account from `/admin/accounts`.
+
+If any step fails, that is a launch blocker. Report the step and what the page
+said.
+
 ## 4. Render hosting
 
 - **Web service is on the `free` plan.** Free instances spin down; a live health
