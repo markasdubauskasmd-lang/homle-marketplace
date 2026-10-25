@@ -1,4 +1,5 @@
 import { mcpEnabled } from "./src/marketplace/mcp-server.mjs";
+import { compressStatic, negotiateEncoding } from "./src/static-compression.mjs";
 import { createServer } from "node:http";
 import { appendFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
@@ -5619,7 +5620,7 @@ async function serveErrorDocument(request, response, status, fileName) {
   }
 }
 
-async function serveFile(requestPath, response, cspNonce = "") {
+async function serveFile(requestPath, response, cspNonce = "", acceptEncoding = "") {
   const routes = {
     "/": "home.html",
     // The stated main growth channel is landlords and letting agents with
@@ -5741,11 +5742,18 @@ async function serveFile(requestPath, response, cspNonce = "") {
     // contents never change without the path changing, so it is safe to pin.
     const vendored = requestPath.startsWith("/vendor/");
     const immutablePublicAsset = immutableStaticAssets.has(requestPath);
+    // Pages rewritten per request (a nonce, an injected sheet) are compressed
+    // fresh; everything else is cached by path and modification time.
+    const rewritten = requestPath === "/cleaner/jobs-map" || relative === "active-job.html";
+    const encoding = negotiateEncoding(acceptEncoding);
+    const encoded = compressStatic(body, extension, encoding, rewritten ? "" : `${filePath}:${fileStat.mtimeMs}:${fileStat.size}`);
     response.writeHead(200, {
       "Content-Type": mimeTypes[extension] || "application/octet-stream",
-      "Cache-Control": extension === ".html" ? "no-store" : vendored || immutablePublicAsset ? "public, max-age=31536000, immutable" : "no-cache"
+      "Cache-Control": extension === ".html" ? "no-store" : vendored || immutablePublicAsset ? "public, max-age=31536000, immutable" : "no-cache",
+      ...(encoded ? { "Content-Encoding": encoding } : {}),
+      Vary: "Accept-Encoding"
     });
-    response.end(body);
+    response.end(encoded || body);
     return true;
   } catch {
     return false;
@@ -6022,7 +6030,7 @@ async function handleHttpRequest(request, response) {
       return json(response, 401, { ok: false, error: "Admin authorisation required." });
     }
     if (request.method === "GET" || request.method === "HEAD") {
-      if (await serveFile(requestUrl.pathname, response, cspNonce)) return;
+      if (await serveFile(requestUrl.pathname, response, cspNonce, request.headers["accept-encoding"])) return;
       // A browser asking for a page gets a page. Until this existed, every
       // mistyped URL, stale bookmark and expired share link in the product
       // answered with `{"ok":false,"error":"Not found."}` as application/json,
