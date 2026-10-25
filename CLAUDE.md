@@ -2,7 +2,8 @@
 
 Read this first, every session. Then read `PROGRESS.md` for where the work has
 reached, `DECISIONS.md` for what has already been settled, and `HUMAN_TODO.md`
-for what is waiting on the founder.
+for what is waiting on the founder. `LAUNCH_CHECKLIST.md` is the founder's
+ordered go-live list, including the deploy steps for every release.
 
 ---
 
