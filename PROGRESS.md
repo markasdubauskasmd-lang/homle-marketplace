@@ -30,7 +30,7 @@ Where each day stands. Every item has a test that fails before and passes after;
 | 6 | Support email on the site | ⏸ founder: HUMAN_TODO §0.7 | — |
 | 7 | Founder rehearsal | ⏸ founder | LAUNCH_CHECKLIST |
 
-Measured locally (Chromium, intercepted assets, so optimistic): landing LCP 0.4 s, CLS ≤ 0.015 at 390 and 1280 px.
+Measured against a local `server.mjs` with Chromium network and CPU throttling: landing LCP **1.54 s** and CLS **0.005** on a phone (390 px, slow 4G, 4× CPU); LCP **0.37 s** and CLS **0.016** on desktop (1280 px). Targets: LCP < 2.5 s, CLS < 0.1. Real-world numbers also depend on Render's cold start (HUMAN_TODO §0.1).
 
 ## 25 October 2026 — launch integration (verified)
 
