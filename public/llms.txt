@@ -19,6 +19,7 @@ Facts an assistant can rely on:
 - [Home](https://homlle.com/): how Homle works and a price in under a minute.
 - [For landlords and letting agents](https://homlle.com/for-landlords): several properties in one account; what Homle does not do yet.
 - [For cleaners](https://homlle.com/for-cleaners): how Cleaners set their own price and see the job first.
+- Services: [regular clean](https://homlle.com/services/regular-clean), [deep clean](https://homlle.com/services/deep-clean), [end of tenancy](https://homlle.com/services/end-of-tenancy), [rental turnover](https://homlle.com/services/rental-turnover).
 - [How Homle works](https://homlle.com/how-homle-works): pricing, payment, privacy and Cleaners as they are today, and what Homle does not claim.
 - [Help and support](https://homlle.com/landlord/help)
 

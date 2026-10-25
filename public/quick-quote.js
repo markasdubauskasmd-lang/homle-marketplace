@@ -48,6 +48,11 @@ if (root) {
   const submit = form.querySelector("[type=submit]");
   const interest = root.querySelector("[data-interest-form]");
 
+  // A service page links here as /?service=deep#quote; preselect that clean.
+  const requested = new URLSearchParams(location.search).get("service");
+  const preset = requested && form.querySelector(`input[name="serviceType"][value="${CSS.escape(requested)}"]`);
+  if (preset) preset.checked = true;
+
   root.querySelectorAll("[data-stepper]").forEach((stepper) => {
     const input = stepper.querySelector("input");
     stepper.addEventListener("click", (event) => {
@@ -141,4 +146,4 @@ async function fillFromPrices() {
     }
   } catch { /* the choices still work without a "from" price */ }
 }
-if (root) fillFromPrices();
+if (globalThis.document) fillFromPrices();

@@ -18,7 +18,7 @@ assert.deepEqual([...used].filter((name) => !defined.has(name)), [], "homle-ui.c
 const symbols = new Set([...sprite.matchAll(/<symbol id="([a-z0-9-]+)"/g)].map((match) => match[1]));
 assert(symbols.size >= 20, "The icon sprite lost its symbols.");
 
-const pages = ["for-landlords.html", "for-cleaners.html", "how-homle-works.html", "cookies.html", "privacy.html", "terms.html"];
+const pages = ["for-landlords.html", "for-cleaners.html", "how-homle-works.html", "service-regular-clean.html", "service-deep-clean.html", "service-end-of-tenancy.html", "service-rental-turnover.html", "cookies.html", "privacy.html", "terms.html"];
 for (const page of pages) {
   const html = read(`public/${page}`);
   const head = html.slice(0, html.indexOf("</head>"));

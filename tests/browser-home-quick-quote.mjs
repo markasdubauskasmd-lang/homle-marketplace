@@ -143,6 +143,12 @@ try {
     await until(`document.querySelector("[data-interest-status]").textContent.startsWith("Thanks")`, "the sign-up confirmation");
     assert.deepEqual(sent.interest.at(-1), { postcode: "ZE9 1AA", email: "visitor@example.invalid", consent: true });
   }
+  // A service page prices itself from the live list and hands its choice to the form.
+  await browser.goto(`${server.origin}/home.html?service=end-of-tenancy`);
+  await until(`document.querySelector('input[name="serviceType"][value="end-of-tenancy"]').checked`, "the preselected service");
+  await browser.goto(`${server.origin}/service-deep-clean.html`);
+  await until(`document.querySelector('[data-from-price="deep"]').textContent.startsWith("From £")`, "the service page's from price");
+  assert.equal(await browser.evaluate(`document.querySelector('a[href="/?service=deep#quote"]') !== null`), true, "The deep-clean page does not lead to the price form.");
   await new Promise((resolve) => setTimeout(resolve, 2500));
   const funnelText = JSON.stringify(sent.funnel);
   assert(sent.funnel.some((event) => event.metric === "funnel.price.shown" && event.dimensions?.surface === "landing"), `A price shown on the landing page was not counted: ${funnelText}`);

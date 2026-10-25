@@ -5628,6 +5628,10 @@ async function serveFile(requestPath, response, cspNonce = "") {
     // acts and, unlike the homepage, gives the channel something indexable.
     "/for-landlords": "for-landlords.html",
     "/how-homle-works": "how-homle-works.html",
+    "/services/regular-clean": "service-regular-clean.html",
+    "/services/deep-clean": "service-deep-clean.html",
+    "/services/end-of-tenancy": "service-end-of-tenancy.html",
+    "/services/rental-turnover": "service-rental-turnover.html",
     // Cleaner supply is the binding constraint: no cleaner means no booking,
     // whatever else works. The cleaner audience previously got two links
     // saying "Work as a cleaner" and no pitch at all.

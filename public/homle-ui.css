@@ -262,3 +262,8 @@ a.hs-card:hover { box-shadow: var(--hs-elevation-2); transform: translateY(-2px)
 .hs-faq details[open] summary::after { transform: rotate(-135deg) translate(-2px, -2px); }
 .hs-faq details p { padding-bottom: var(--hs-space-3); max-width: 62ch; }
 .hs-more :is(a, summary):focus-visible { outline: 3px solid var(--hs-focus); outline-offset: 2px; box-shadow: 0 0 0 2px var(--hs-ink); }
+
+/* A button placed inside older document prose keeps its own colours: the
+   document link rules (`.legal-main a`) would otherwise paint red on red. */
+body a.hs-btn-primary, body.customer-document .legal-main a.hs-btn-primary { color: #fff; text-decoration: none; }
+body a.hs-btn-secondary, body.customer-document .legal-main a.hs-btn-secondary { color: var(--hs-ink); text-decoration: none; }
