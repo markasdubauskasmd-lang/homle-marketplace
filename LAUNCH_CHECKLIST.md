@@ -85,8 +85,8 @@ the only way in).
 1. **Always-on web instance.** On the free plan the instance sleeps, and a
    cold start has been measured at about 29 s with 503s while it wakes. A
    customer who taps "Book" during that window sees an error. Render →
-   `homle-marketplace-preview` → **Settings → Instance type** → choose a paid
-   instance (Starter is the smallest always-on one) → Save. Check: open the
+   `homle-marketplace-preview` → **Settings → Instance type** → choose the smallest
+   paid, always-on instance type → Save. Check: open the
    site after an hour of no traffic; it should answer immediately.
 2. **Database review.** The database is `basic_256mb`, non-HA.
    - Render → the Postgres instance → **Recovery**: confirm point-in-time
