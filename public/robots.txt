@@ -2,6 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /api/
+Allow: /api/public/
 Disallow: /bookings/
 Disallow: /cleaner/
 Disallow: /landlord/
@@ -13,3 +14,27 @@ Disallow: /notifications
 Disallow: /opportunity
 
 Sitemap: https://homlle.com/sitemap.xml
+
+# AI crawlers (DECISIONS.md D30). Search and answer assistants that fetch a
+# page to answer a person's question follow the rules above. Crawlers that
+# collect pages to train models are refused everywhere.
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /

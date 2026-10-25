@@ -1,3 +1,4 @@
+import { mcpEnabled } from "./src/marketplace/mcp-server.mjs";
 import { createServer } from "node:http";
 import { appendFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
@@ -5797,7 +5798,12 @@ async function handleHttpRequest(request, response) {
       "/api/marketplace/payments/webhook",
       "/api/marketplace/email/resend/webhook"
     ].includes(requestUrl.pathname);
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "") && !signedProviderWebhook) ensureSameOrigin(request);
+    // /mcp (DECISIONS D31) is for AI assistants, which send no Origin. It is
+    // exempt only while MCP_ENABLED is on, and only because the route is
+    // stateless, read-only and never reads a cookie: the router still refuses
+    // any request that carries a foreign Origin.
+    const statelessMcpCall = request.method === "POST" && requestUrl.pathname === "/mcp" && mcpEnabled(process.env);
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "") && !signedProviderWebhook && !statelessMcpCall) ensureSameOrigin(request);
     if (request.method === "GET" && requestUrl.pathname === "/api/health") {
       return json(response, 200, {
         ok: true,
@@ -5874,7 +5880,7 @@ async function handleHttpRequest(request, response) {
     if (standaloneAuthenticationAttachment?.router && (requestUrl.pathname.startsWith("/api/marketplace/auth/") || requestUrl.pathname === "/api/marketplace/account" || requestUrl.pathname === "/api/marketplace/onboarding")) {
       if (await standaloneAuthenticationAttachment.router.handle(request, response, requestUrl)) return;
     }
-    if (marketplaceAttachment.router && (requestUrl.pathname.startsWith("/api/marketplace/") || requestUrl.pathname.startsWith("/api/public/"))) {
+    if (marketplaceAttachment.router && (requestUrl.pathname.startsWith("/api/marketplace/") || requestUrl.pathname.startsWith("/api/public/") || requestUrl.pathname === "/mcp")) {
       if (await marketplaceAttachment.router.handle(request, response, requestUrl)) return;
     }
     if (!await allowDataMutation(request, response, requestUrl.pathname)) return;

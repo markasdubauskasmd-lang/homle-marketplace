@@ -1,0 +1,276 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "Homle visitor API",
+    "version": "2026-10-25",
+    "summary": "Price a home clean and check whether Homle has a Cleaner near a postcode, without an account.",
+    "description": "The read-only, no-account part of Homle. Every answer is an estimate from Homle's standard price list; the exact price is confirmed before a customer books, and nothing is charged until after the clean. Booking itself needs a signed-in Homle account and is not part of this API. Requests are rate limited per address. Writes must come from the Homle origin.",
+    "contact": {
+      "name": "Homle",
+      "url": "https://homlle.com/landlord/help"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://homlle.com"
+    }
+  ],
+  "paths": {
+    "/api/public/pricing": {
+      "get": {
+        "operationId": "getPriceList",
+        "summary": "The customer price list every estimate is worked out from.",
+        "responses": {
+          "200": {
+            "description": "The current customer price list (amounts in pence, GBP).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "config"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "config": {
+                      "type": "object",
+                      "description": "Room base prices, included tasks per room, extra-task and premium-item prices, service-type multipliers and minimums, and multi-room and repeat-clean discounts."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/public/quote": {
+      "post": {
+        "operationId": "getQuote",
+        "summary": "Estimate the price of a clean for the rooms described.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuoteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "An itemised estimate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "estimate",
+                    "quote",
+                    "note"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "estimate": {
+                      "const": true
+                    },
+                    "quote": {
+                      "type": "object",
+                      "description": "Itemised lines and a total in pence (GBP), customer side only."
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/public/coverage": {
+      "get": {
+        "operationId": "checkCoverage",
+        "summary": "Whether Homle has a bookable Cleaner covering a UK postcode.",
+        "description": "Answers yes or no for the postcode's outward area only. It never discloses who the Cleaner is, how many there are, or where they are. 'No' is common while Homle is new.",
+        "parameters": [
+          {
+            "name": "postcode",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 10,
+              "examples": [
+                "SW1A 1AA",
+                "SW1A"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The coverage answer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ok",
+                    "covered",
+                    "area"
+                  ],
+                  "properties": {
+                    "ok": {
+                      "const": true
+                    },
+                    "covered": {
+                      "type": "boolean"
+                    },
+                    "area": {
+                      "type": "string",
+                      "description": "The outward postcode checked, for example SW1A."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/Invalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "QuoteRequest": {
+        "type": "object",
+        "required": [
+          "rooms"
+        ],
+        "properties": {
+          "serviceType": {
+            "enum": [
+              "standard",
+              "deep",
+              "end-of-tenancy",
+              "rental-turnover",
+              "commercial"
+            ],
+            "default": "standard"
+          },
+          "frequency": {
+            "enum": [
+              "one-time",
+              "weekly",
+              "fortnightly",
+              "every-four-weeks"
+            ],
+            "default": "one-time"
+          },
+          "requestedMinutes": {
+            "type": "integer",
+            "maximum": 960,
+            "description": "Optional length of the visit in minutes. The minimum is the price list's minimumBookingMinutes."
+          },
+          "rooms": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 40,
+            "items": {
+              "type": "object",
+              "properties": {
+                "roomType": {
+                  "enum": [
+                    "kitchen",
+                    "bathroom",
+                    "living-room",
+                    "bedroom",
+                    "office",
+                    "dining-room",
+                    "hallway",
+                    "utility-room",
+                    "other"
+                  ]
+                },
+                "items": {
+                  "type": "array",
+                  "description": "Tasks or premium items in the room.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                        "description": "A premium item code (oven, fridge, freezer, carpet-room, windows-interior, upholstery-item, mould-treatment, limescale, cupboards-interior, balcony-patio) or any task name."
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 80
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "ok",
+          "error"
+        ],
+        "properties": {
+          "ok": {
+            "const": false
+          },
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": {
+      "Invalid": {
+        "description": "The request could not be answered as sent.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Too many requests from this address; try again later."
+      }
+    }
+  }
+}

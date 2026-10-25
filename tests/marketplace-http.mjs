@@ -1660,4 +1660,43 @@ console.log("Revenue summary HTTP checks passed: administrator-only, window pass
   const tally = await dispatch(visitorRouter, "GET", "/api/marketplace/admin/launch-interest", { headers: { cookie: administratorAuthHeaders.cookie } });
   assert(tally.response.statusCode === 200 && tally.body.areas[0].count === 2, "An Administrator could not read the launch-interest tally.");
   console.log("Visitor API HTTP checks passed: price list, quote and coverage without an account, no economics or Cleaner data, origin-bound writes, bounded bodies, per-route ceilings, consented launch news, Administrator-only tally.");
+
+  // ── /mcp (DECISIONS D31) ─────────────────────────────────────────────────
+  // Off unless enabled; stateless JSON-RPC; no cookie read; a foreign Origin
+  // refused; each tool on its visitor rate-limit scope.
+  const agentHeaders = { "content-type": "application/json" };
+  const rpc = (router, body, headers = agentHeaders) => dispatch(router, "POST", "/mcp", { headers, body });
+  assert((await rpc(visitorRouter, { jsonrpc: "2.0", id: 1, method: "tools/list" })).handled === false, "/mcp answered while MCP_ENABLED was off.");
+  const agentRouter = createMarketplaceHttpRouter({ ...dependencies, publicMarketplace, publicCoverageRequiresPayout: true, mcpEnabled: true }, { clientKey: () => trustedClientKey });
+  const discover = await rpc(agentRouter, { jsonrpc: "2.0", id: "d", method: "server/discover" });
+  assert(discover.response.statusCode === 200 && discover.body.result.supportedVersions.includes("2026-07-28") && discover.body.result.capabilities.tools, `server/discover failed: ${JSON.stringify(discover.body).slice(0, 200)}`);
+  assert(!Object.keys(discover.response.headers || {}).some((name) => /mcp-session-id/i.test(name)), "The stateless endpoint issued a session.");
+  const listed = await rpc(agentRouter, { jsonrpc: "2.0", id: 2, method: "tools/list" });
+  assert(JSON.stringify(listed.body.result.tools.map((tool) => tool.name)) === JSON.stringify(["list_services", "get_quote", "check_coverage", "how_homle_works"]), "The MCP tool list changed.");
+  assert(listed.body.result.tools.every((tool) => tool.inputSchema.$schema === "https://json-schema.org/draft/2020-12/schema" && tool.annotations.readOnlyHint === true), "An MCP tool is not a read-only JSON Schema 2020-12 tool.");
+  const agentQuote = await rpc(agentRouter, { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "get_quote", arguments: { serviceType: "deep", bedrooms: 2, bathrooms: 1, livingRooms: 1 } } });
+  assert(agentQuote.body.result?.isError === false && agentQuote.body.result.structuredContent.totalPence > 0 && agentQuote.body.result.structuredContent.estimate === true, `The agent quote failed: ${JSON.stringify(agentQuote.body).slice(0, 200)}`);
+  assert(!/economics|cleanerPay|payout|margin|contribution/i.test(JSON.stringify(agentQuote.body)), "The agent quote carried platform economics.");
+  const agentCoverage = await rpc(agentRouter, { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "check_coverage", arguments: { postcode: "SW1A 1AA" } } });
+  assert(JSON.stringify(agentCoverage.body.result.structuredContent) === JSON.stringify({ covered: true, area: "SW1A" }), "Agent coverage disclosed more than yes/no and the area.");
+  assert(publicCalls.at(-1)?.requirePayout === true, "Agent coverage ignored the paid-mode rule.");
+  const badTool = await rpc(agentRouter, { jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "book_clean", arguments: {} } });
+  assert(badTool.body.error?.code === -32602, "An unknown tool was not refused.");
+  const badInput = await rpc(agentRouter, { jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "get_quote", arguments: { bedrooms: 99 } } });
+  assert(badInput.body.result?.isError === true, "An impossible room count was priced.");
+  assert((await rpc(agentRouter, { jsonrpc: "2.0", method: "notifications/initialized" })).response.statusCode === 202, "A notification was answered with a body.");
+  assert((await rpc(agentRouter, { jsonrpc: "2.0", id: 7, method: "tools/list" }, { ...agentHeaders, origin: "https://elsewhere.example" })).response.statusCode === 403, "A foreign page could call /mcp from a browser.");
+  assert((await dispatch(agentRouter, "GET", "/mcp")).response.statusCode === 405, "/mcp answered a GET.");
+  const batch = await dispatch(agentRouter, "POST", "/mcp", { headers: agentHeaders, body: [{ jsonrpc: "2.0", id: 8, method: "ping" }] });
+  assert(batch.body.error?.code === -32700 || batch.body.error?.code === -32600, "A batch was not refused.");
+  for (const [scope, name, args] of [["marketplace-public:quote", "get_quote", { bedrooms: 1 }], ["marketplace-public:coverage", "check_coverage", { postcode: "SW1A" }], ["marketplace-public:pricing", "list_services", {}]]) {
+    rateLimitedScope = scope;
+    const limited = await rpc(agentRouter, { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name, arguments: args } });
+    assert(limited.response.statusCode === 429, `${name} ignored the visitor rate limit: ${limited.response.statusCode}`);
+  }
+  rateLimitedScope = previousVisitorScope;
+  // A session cookie changes nothing: the endpoint never reads one.
+  const withCookie = await rpc(agentRouter, { jsonrpc: "2.0", id: 10, method: "tools/call", params: { name: "how_homle_works", arguments: {} } }, { ...agentHeaders, cookie: authHeaders.cookie });
+  assert(withCookie.body.result?.isError === false && !/landlord|alex|email/i.test(JSON.stringify(withCookie.body.result.structuredContent).replace(/customer's own Homle account/g, "")), "/mcp answered differently for a signed-in caller.");
+  console.log("MCP checks passed: off by default, stateless discover/list/call with no session, four read-only 2020-12 tools, engine quote without economics, paid-mode coverage, unknown tool and bad input refused, foreign Origin refused, visitor rate limits applied, cookies ignored.");
 }

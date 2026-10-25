@@ -2,6 +2,7 @@ import { scanRates, scanReleaseRates } from "./scan-telemetry.mjs";
 import { funnelBatch } from "./funnel-telemetry.mjs";
 import { caseRefundInstruction } from "./case-response-policy.mjs";
 import { measureFromReference, measurementLabel, referenceScale } from "./room-measurement.mjs";
+import { handleMcpMessage } from "./mcp-server.mjs";
 import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 import { cleanerProfilePhotoMimeTypes, maximumCleanerProfilePhotoBytes } from "./cleaner-profile-photo.mjs";
@@ -91,6 +92,7 @@ const adminSupportRequestPath = new RegExp(`^/api/marketplace/admin/support-requ
 const apiPrefix = "/api/marketplace/";
 // The anonymous visitor API: price list, quote, coverage, launch news.
 const publicApiPrefix = "/api/public/";
+const mcpPath = "/mcp";
 const maximumPublicQuoteBodyBytes = 16 * 1024;
 const launchInterestConsentVersion = "launch-news-v1";
 
@@ -178,6 +180,9 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   // The visitor API (migration 137). Optional: without it /api/public/* is unhandled.
   const publicMarketplace = dependencies?.publicMarketplace || null;
   const publicCoverageRequiresPayout = dependencies?.publicCoverageRequiresPayout === true;
+  // The MCP endpoint (DECISIONS D31). Off unless MCP_ENABLED=true; it serves
+  // the same visitor functions as /api/public/, so it needs them too.
+  const mcpRouteEnabled = dependencies?.mcpEnabled === true && publicMarketplace !== null;
   // Saved cards answer only while the platform worker that uses them is
   // running; otherwise a customer could save a card nothing would ever use.
   const savedCards = dependencies?.savedCardService || null;
@@ -243,8 +248,49 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
     async handle(request, response, suppliedUrl) {
       const url = suppliedUrl instanceof URL ? suppliedUrl : new URL(request.url || "/", "http://localhost");
       const pathname = url.pathname;
-      if (!pathname.startsWith(apiPrefix) && !pathname.startsWith(publicApiPrefix)) return false;
+      if (!pathname.startsWith(apiPrefix) && !pathname.startsWith(publicApiPrefix) && pathname !== mcpPath) return false;
       try {
+        // One stateless JSON-RPC message per POST. No cookie, session or
+        // account is read, so there is nothing for a cross-site request to
+        // ride; a browser that does send an Origin must still be Homle's own
+        // (MCP's DNS-rebinding rule). Each tool reuses a visitor rate-limit
+        // scope, so an agent gets exactly the budget a visitor gets.
+        if (pathname === mcpPath) {
+          if (!mcpRouteEnabled) return false;
+          if (request.headers?.origin) security.requireOrigin(request);
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const message = await readJsonObject(request, maximumPublicQuoteBodyBytes).catch((error) => {
+            if (error?.statusCode === 413) throw error;
+            return { invalidJson: true };
+          });
+          if (message?.invalidJson) {
+            sendJson(response, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Send one JSON-RPC message as a JSON object." } }, { "Cache-Control": "private, no-store" });
+            return true;
+          }
+          const pricing = async () => normalizedPricingConfig((await publicMarketplace.pricingConfig().catch(() => null)) || defaultPricingConfig);
+          const refusal = (error) => {
+            if (error?.statusCode === 422) throw Object.assign(new Error(error.message), { publicMessage: error.message });
+            throw error;
+          };
+          const answer = await handleMcpMessage(message, {
+            pricing: async () => { await limitPublicRead(request, "marketplace-public:pricing"); return pricing(); },
+            quote: async (input) => {
+              await limitPublicRead(request, "marketplace-public:quote");
+              const economics = (await publicMarketplace.pricingEconomics().catch(() => null)) || defaultPricingEconomics;
+              let computed;
+              try { computed = quoteRooms(input, await pricing()); }
+              catch (error) { if (error instanceof TypeError) throw Object.assign(error, { publicMessage: error.message }); throw error; }
+              return reviewedQuote(computed, economics).quote;
+            },
+            coverage: async (postcode) => {
+              await limitPublicRead(request, "marketplace-public:coverage");
+              return publicMarketplace.coverage(postcode, publicCoverageRequiresPayout).catch(refusal);
+            }
+          });
+          if (answer === null) { response.writeHead(202, { "Cache-Control": "private, no-store" }); response.end(); return true; }
+          sendJson(response, 200, answer, { "Cache-Control": "private, no-store" });
+          return true;
+        }
         if (pathname === "/api/marketplace/email/resend/webhook") {
           if (!emailSuppressions) return false;
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
