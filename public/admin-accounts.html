@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+  <title>Accounts — Homle</title><link rel="icon" href="/homle-logo.png" type="image/png"><link rel="stylesheet" href="/homle-tokens.css?v=20260728-2"><link rel="stylesheet" href="/styles.css?v=20260728-3">
+  <link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1">
+  <link rel="stylesheet" href="/admin-desk.css?v=20260831-1">
+  <script type="module" src="/admin-navigation.js?v=20260831-1"></script>
+  <script type="module" src="/admin-accounts.js?v=20260920-1"></script>
+</head>
+<body class="account-page admin-bookings-page admin-desk">
+  <a class="skip-link" href="#admin-accounts-main">Skip to account control</a>
+  <p class="network-status" data-network-status role="status" hidden>You are offline. Reconnect before changing an account.</p>
+  <header class="account-header"><div class="account-shell account-nav"><a class="brand" href="/" aria-label="Homle home"><img src="/homle-logo.png" width="40" height="40" alt=""><span>Homle</span></a><nav aria-label="Administrator" data-admin-private-navigation hidden></nav></div></header>
+  <main id="admin-accounts-main" class="booking-dashboard-shell">
+    <section class="booking-dashboard-gate" data-admin-accounts-gate aria-live="polite"><div><p class="eyebrow">Private trust and safety</p><h1 data-admin-accounts-gate-title>Checking secure Administrator access…</h1><p data-admin-accounts-gate-copy>This page opens only inside an authenticated Homle Administrator account.</p><div class="booking-dashboard-actions"><a class="button" href="/login?next=%2Fadmin%2Faccounts" data-admin-accounts-sign-in hidden>Sign in</a><button class="button button-outline" type="button" data-admin-accounts-retry hidden>Try again</button></div></div></section>
+    <div class="booking-dashboard" data-admin-private-workspace data-admin-accounts-workspace hidden>
+      <header class="booking-dashboard-header"><div><p class="eyebrow">Account control</p><h1>Suspend or restore an account</h1><p>Suspending signs the account out everywhere and stops it signing back in. It does not cancel their bookings, refund anyone or delete anything.</p></div></header>
+      <aside class="admin-case-policy-banner"><div><p class="eyebrow">Boundary</p><h2>Suspension is reversible. Deletion is not offered here.</h2></div><p>Deleting an account is a reviewed data-protection operation with its own retention rules, and it is handled through the data-protection queue rather than this page. Every change here is recorded against your account with the reason you give.</p></aside>
+      <section class="booking-dashboard-section">
+        <div class="admin-cases-toolbar"><div><h2>Find an account</h2><p>Search by the exact email address or account id. This page is a control surface, not a directory: it will not list or browse accounts.</p></div></div>
+        <form class="admin-verification-form" data-admin-accounts-search>
+          <label>Email address or account id
+            <input type="text" name="identifier" required minlength="3" maxlength="320" autocomplete="off" spellcheck="false" placeholder="someone@example.com">
+          </label>
+          <button class="button" type="submit" data-admin-accounts-search-submit>Find account</button>
+        </form>
+        <div class="admin-bookings-list" data-admin-accounts-result aria-live="polite" hidden></div>
+      </section>
+      <div class="booking-dashboard-feedback" data-admin-accounts-feedback role="status" tabindex="-1" hidden></div>
+    </div>
+  </main>
+  <footer class="account-footer"><div class="shell"><span>© <span data-year></span> Homle</span><span>Private Administrator workspace · <a href="/privacy">Privacy</a></span></div></footer>
+</body></html>

@@ -20,6 +20,18 @@ function supersededResult(command) {
     status: "provider-failed", recoveryRequired: false, recoveryReason: "superseded-before-dispatch", signedEventsReplayed: 0 });
 }
 
+// What a cancel command's result proves about the card hold. A cancel does not
+// throw when it goes wrong: an unknown provider outcome resolves to a recovery
+// record, a superseded or unsent command to provider-failed, and a refusal to
+// a recorded command whose provider verdict is failed. Only an accepted cancel
+// is a release; anything else must keep the booking alive with its money.
+export function cancellationOutcome(result) {
+  if (!result || result.recoveryRequired === true) return "uncertain";
+  if (result.status === "provider-failed" || result.providerResult === "failed") return "not-released";
+  if (result.providerResult === "succeeded" || result.status === "reconciled") return "released";
+  return "uncertain";
+}
+
 export async function recoverPersistedPaymentCommand({ actor, command, repository, provider, reason = null }) {
   const superseded = supersededResult(command);
   if (superseded) return superseded;
@@ -67,7 +79,11 @@ export async function dispatchPersistedPaymentCommand({ actor, prepared, kind, r
       const result = normalizeProviderCommand(await provider[kind]({ ...grant.requestIdentity, postDeadline: requestedAt + grant.remainingMs }));
       // Await inside this boundary: a lost database write after Stripe accepted
       // the request is just as indeterminate as a lost provider response.
-      return await repository.recordCommand(actor, prepared.commandId, result);
+      const recorded = await repository.recordCommand(actor, prepared.commandId, result);
+      // The ledger records any provider answer as provider-pending until the
+      // signed event arrives, so keep the provider's own verdict alongside it:
+      // without it a refused cancel is indistinguishable from an accepted one.
+      return recorded && Object.freeze({ ...recorded, providerResult: result.status });
     } catch (error) {
       if (error?.code !== "payment-attempt-deadline") {
         return recoverPersistedPaymentCommand({ actor, command: { ...persisted, requestIdentity: identity }, repository, provider,

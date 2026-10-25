@@ -10,12 +10,22 @@ const maximumTrackedFileBytes = 25 * 1024 * 1024;
 const maximumTrackedRepositoryBytes = 100 * 1024 * 1024;
 const requiredIgnoreRules = Object.freeze([".env", ".env.*", "!.env.example", "data/*.ndjson", "data/job-brief-images/", "node_modules/", "*.log", "backups/"]);
 const forbiddenSecretPatterns = Object.freeze([
-  { label: "private cryptographic key", pattern: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/ },
+  // Key material, not the marker. A PEM header alone appears in prose, in a
+  // validator that checks a supplied key's shape, and in a placeholder test
+  // fixture; none of those is a secret. A real key has a base64 body (raw or
+  // with escaped newlines, as in an env file or a JSON string) before its END.
+  { label: "private cryptographic key", pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |ENCRYPTED )?PRIVATE KEY-----(?:\s|\\n)*(?:[A-Za-z0-9+/=](?:\s|\\n)*){64,}-----END/ },
   { label: "Stripe live secret", pattern: /\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b/ },
   { label: "GitHub access token", pattern: /\bghp_[A-Za-z0-9]{30,}\b|\bgithub_pat_[A-Za-z0-9_]{40,}\b/ },
   { label: "AWS access key", pattern: /\bAKIA[A-Z0-9]{16}\b/ },
   { label: "Google API key", pattern: /\bAIza[A-Za-z0-9_-]{30,}\b/ },
   { label: "Slack access token", pattern: /\bxox[baprs]-[A-Za-z0-9-]{20,}\b/ }
+]);
+
+const syntheticDataFiles = new Set([
+  "data/scan-benchmark/readme.md",
+  "data/scan-benchmark/photo-evaluation.md",
+  "data/scan-benchmark/synthetic-seed.json"
 ]);
 
 function normalizedPath(value) {
@@ -27,6 +37,10 @@ function forbiddenTrackedPath(file) {
   const lower = normalized.toLowerCase();
   const base = path.posix.basename(lower);
   if (lower === "data/.gitkeep") return "";
+  // Named, not globbed: the room-scan benchmark is synthetic by construction
+  // (data/scan-benchmark/README.md), and a new file beside it is still refused
+  // until someone looks at it and adds it here.
+  if (syntheticDataFiles.has(lower)) return "";
   if (lower.startsWith("data/")) return "private data file";
   if (lower.startsWith("backups/") || lower.startsWith("node_modules/") || lower.startsWith(".git/")) return "local-only directory";
   if (base === ".env" || (base.startsWith(".env.") && base !== ".env.example")) return "environment-secret file";

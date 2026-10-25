@@ -1,0 +1,162 @@
+/* The Cleaner workspace in the Landlord workspace's language (P1-6).
+ *
+ * The founder chose one design system for both sides of the marketplace: the
+ * Landlord workspace's (DECISIONS.md D27). Side by side the two used to read
+ * as different products: warm cream, Archivo/Poppins at display sizes and
+ * 24px cards on the Cleaner side, and on its Activity pages a red striped frame
+ * with heavy black borders. This sheet loads last on every Cleaner page and
+ * re-points both onto the Landlord values. It does not edit the selected
+ * Activity design. homle-cleaner.css had its hard-coded warm creams and
+ * browns replaced by the neutral grey of the same relative luminance (so no
+ * contrast moved); its reds, greens and ambers are untouched.
+ *
+ * Every value is copied from landlord-dashboard-v2.css: canvas #f7f6f5,
+ * paper #fff, line #efedeb, border #e7e4e0, ink #1a1a1a / #3a3a3a, muted
+ * #666, coral #e11b22 / #c4151b / tint #fdecec, success #2e9e63 / #2e7d51,
+ * warn #9a6d14 / #fbf1df, 16px cards with the two-step card shadow, DM Sans
+ * headings at the dashboard's 30px page title. Muted greys keep at least the
+ * contrast the warm ones had.
+ */
+
+.hc,
+body.homlle-activity-page .hc {
+  --hc-ground: #f7f6f5;
+  --hc-panel: #ffffff;
+  --hc-panel-tint: #fafaf9;
+  --hc-cream: #f7f6f5;
+  --hc-rule: #efedeb;
+  --hc-rule-soft: #f4f3f1;
+  --hc-rule-strong: #e1deda;
+  --hc-rule-dash: #e7e4e0;
+  --hc-chip-border: #e7e4e0;
+  --hc-track: #efedeb;
+  --hc-ink: #1a1a1a;
+  --hc-ink-2: #3a3a3a;
+  --hc-ink-3: #666666;
+  --hc-ink-4: #3a3a3a;
+  --hc-muted: #666666;
+  --hc-muted-2: #6b6b6b;
+  --hc-muted-3: #707070;
+  --hc-muted-4: #6b6b6b;
+  --hc-placeholder: #8a8a8a;
+  --hc-red: #e11b22;
+  --hc-red-hover: #c4151b;
+  --hc-red-deep: #c4151b;
+  --hc-red-link: #c4151b;
+  --hc-red-link-hover: #8f1d10;
+  --hc-red-soft: #e11b22;
+  --hc-red-pill-bg: #fdecec;
+  --hc-red-pill-ink: #c4151b;
+  --hc-avatar-bg: #fdecec;
+  --hc-avatar-ink: #c4151b;
+  --hc-green: #2e9e63;
+  --hc-green-ink: #2e7d51;
+  --hc-green-soft: #eaf4ee;
+  --hc-green-soft-hover: #cfe6da;
+  --hc-green-note: #eaf4ee;
+  --hc-amber-soft: #fbf1df;
+  --hc-amber-ink: #9a6d14;
+  --hc-alert-red-soft: #fdecec;
+  --hc-font-display: var(--homle-body, "DM Sans", system-ui, -apple-system, sans-serif);
+  --hc-font-body: var(--homle-body, "DM Sans", system-ui, -apple-system, sans-serif);
+  --hc-card-shadow: 0 1px 2px oklch(.2 .03 60 / .05), 0 6px 16px oklch(.2 .03 60 / .06);
+  font-family: var(--hc-font-body);
+  color: var(--hc-ink);
+}
+
+/* Surfaces: one canvas, white cards with the dashboard's radius and shadow. */
+.hc .hc-main,
+body .hc .hc-main-inner { background: #f7f6f5; }
+.hc .hc-card,
+.hc .hc-panel { border-radius: 16px; border: 1px solid #efedeb; box-shadow: var(--hc-card-shadow); }
+
+/* Sidebar: white with a hairline, like the Landlord rail. */
+.hc .hc-side { width: 240px; background: #ffffff; border-right: 1px solid #efedeb; }
+.hc .hc-side .hc-nav-item { color: #3a3a3a; }
+.hc .hc-side .hc-nav-item:hover { color: #1a1a1a; background: #f7f6f5; }
+.hc .hc-side .hc-nav-item[aria-current=page] { color: #c4151b; background: #fdecec; }
+
+/* Headings: the dashboard's scale, in the body face, never display weight. */
+.hc .hc-page-title,
+body.homlle-activity-page .hc .hc-page-title { font-family: var(--hc-font-display); font-size: 30px; font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
+.hc .hc-title { font-size: 30px; font-weight: 700; letter-spacing: -.03em; }
+/* Page headings that carry their own page-specific class (Settings, Support,
+   Incidents and the rest) come down to the same scale. */
+.hc .hc-main-inner h1:not(.hc-h3) { font-family: var(--hc-font-display); font-size: 30px; font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
+.hc .hc-h3 { font-size: 20px; font-weight: 700; }
+.hc .hc-h4 { font-size: 16px; font-weight: 700; }
+.hc .hc-jd-title { font-size: 28px; font-weight: 700; }
+.hc .hc-jd-pay-amount,
+.hc .hc-rank-tier { font-size: 28px; font-weight: 700; }
+
+/* ── Activity pages: the selected September frame, brought into the system ── */
+
+body.homlle-activity-page { padding: 0; background: #f7f6f5; color: #1a1a1a; }
+body.homlle-activity-page .hc {
+  max-width: none; height: 100dvh; border: 0; border-radius: 0;
+  background: #f7f6f5; box-shadow: none;
+}
+body.homlle-activity-page .hc-side { width: 88px; background: #ffffff; border-right: 1px solid #efedeb; color: #1a1a1a; }
+body.homlle-activity-page .hc-brand-mark { background-image: url("/homle-logo-128-4f82ebad.png"); border-radius: 11px; }
+body.homlle-activity-page .hc-nav > .hc-nav-item { color: #3a3a3a; }
+body.homlle-activity-page .hc-nav > .hc-nav-item:hover,
+body.homlle-activity-page .hc-nav > .hc-nav-item[aria-current=page] { background: #fdecec; color: #c4151b; }
+body.homlle-activity-page .hc-nav > .hc-nav-item:focus-visible,
+body.homlle-activity-page .hc-nav-group-summary:focus-visible { outline-color: #2456e6; }
+body.homlle-activity-page .hc-nav > .hc-nav-group > .hc-nav-group-summary { border-color: #e7e4e0; color: #3a3a3a; }
+body.homlle-activity-page .hc-nav-group-summary:hover { background: #f7f6f5; }
+body.homlle-activity-page [data-account-group][open] [data-account-nav] { border: 1px solid #e7e4e0; box-shadow: var(--hc-card-shadow); }
+
+body.homlle-activity-page .hc-page-head { min-height: 0; padding: 28px 32px 8px; color: #1a1a1a; background: none; margin: 0 0 16px; }
+body.homlle-activity-page .hc-page-title { color: #1a1a1a; margin: 8px 0 6px; }
+body.homlle-activity-page .hc-page-sub { color: #666666; font-weight: 400; font-size: 15px; }
+body.homlle-activity-page .ha-eyebrow { color: #666666; letter-spacing: .1em; }
+body.homlle-activity-page .ha-account-link { background: #ffffff; color: #1a1a1a; border: 1px solid #e7e4e0; margin-top: 0; }
+body.homlle-activity-page .ha-account-link:hover { background: #f7f6f5; color: #1a1a1a; }
+body.homlle-activity-page .ha-account-link .hc-avatar { background: #1a1a1a; color: #ffffff; }
+body.homlle-activity-page .hc-bell { border: 1px solid #e7e4e0; }
+
+body.homlle-activity-page .hc-tile,
+body.homlle-activity-page .hc-week,
+body.homlle-activity-page .hc-upcoming,
+body.homlle-activity-page .hc-schedule-time-off,
+body.homlle-activity-page .hc-gate { border: 1px solid #efedeb; border-radius: 16px; box-shadow: var(--hc-card-shadow); }
+body.homlle-activity-page .hc-tile-label,
+body.homlle-activity-page .hc-tile-value { font-family: var(--hc-font-display); color: #1a1a1a; }
+body.homlle-activity-page .hc-tile-value { font-weight: 700; letter-spacing: -.03em; }
+body.homlle-activity-page .hc-tile-sub { color: #666666; }
+body.homlle-activity-page [data-schedule] > .hc-tiles .hc-tile:last-child { border-color: #e11b22; }
+body.homlle-activity-page [data-schedule] > .hc-tiles .hc-tile:last-child .hc-tile-label,
+body.homlle-activity-page [data-schedule] > .hc-tiles .hc-tile:last-child .hc-tile-value { color: #c4151b; }
+
+/* The feature card stays dark only where a property photo sits behind white
+   text; the empty state is an ordinary white card. */
+body.homlle-activity-page .ha-feature { border: 1px solid #efedeb; border-radius: 16px; box-shadow: var(--hc-card-shadow); }
+body.homlle-activity-page .ha-feature:has(.ha-feature-empty) { background: #ffffff; color: #1a1a1a; }
+body.homlle-activity-page .ha-feature-empty h3 { color: #1a1a1a; font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+body.homlle-activity-page .ha-feature-empty p:not(.ha-eyebrow) { color: #666666; }
+body.homlle-activity-page .ha-feature-empty .ha-feature-action { background: #e11b22; color: #ffffff; }
+body.homlle-activity-page .ha-feature-empty .ha-feature-action:hover { background: #c4151b; color: #ffffff; }
+
+body.homlle-activity-page .hc-weeknav-btn { border: 1px solid #e7e4e0; }
+body.homlle-activity-page .ha-day-block { border-width: 2px; background: #f4f3f1; color: #3a3a3a; }
+body.homlle-activity-page .ha-day[data-booked=true] .ha-day-block { background: #e11b22; color: #ffffff; }
+body.homlle-activity-page .ha-day[aria-pressed=true] .ha-day-block { border-color: #1a1a1a; }
+body.homlle-activity-page .ha-day[data-today=true] .ha-day-label,
+body.homlle-activity-page .ha-day-today,
+body.homlle-activity-page .ha-text-button { color: #c4151b; }
+body.homlle-activity-page .hc-upcoming-head { border-bottom: 1px solid #efedeb; }
+body.homlle-activity-page .ha-earnings-link { border-bottom-color: #e11b22; color: #c4151b; }
+body.homlle-activity-page .hc-activity-job-card { border-bottom-color: #efedeb; }
+
+@media (max-width: 700px) {
+  body.homlle-activity-page .hc-side { width: 100%; background: #ffffff; border-right: 0; border-top: 1px solid #efedeb; }
+  body.homlle-activity-page .hc-page-head { min-height: 0; padding: 22px 18px 6px; }
+  body.homlle-activity-page .hc-page-title { font-size: 25px; }
+  body.homlle-activity-page .ha-account-link { border: 0; }
+}
+@media (max-width: 1050px) {
+  .hc .hc-main-inner h1:not(.hc-h3),
+  .hc .hc-page-title,
+  body.homlle-activity-page .hc .hc-page-title { font-size: 25px; }
+}

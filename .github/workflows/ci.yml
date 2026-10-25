@@ -141,6 +141,7 @@ jobs:
           node tools/postgres-integration-runner.mjs
           node tools/postgres-media-delivery.mjs
           node tools/postgres-upload-expiry.mjs
+          node tools/postgres-quote-handoff.mjs
 
       - name: Rehearse isolated PostgreSQL backup and restore
         env:
@@ -160,7 +161,7 @@ jobs:
           TIDEWAY_DATABASE_TEST_CONFIRMATION: RUN TIDEWAY DISPOSABLE DATABASE TESTS
         run: node tools/postgres-email-lease.mjs
 
-      - name: Verify payment observation upgrade from actual migration116
+      - name: Verify payment observation and launch-work upgrade from actual migration116
         if: ${{ !cancelled() }}
         env:
           PGPASSWORD: postgres
@@ -179,6 +180,15 @@ jobs:
             [ "$(basename "$file")" = '117_external_payment_observations.sql' ] && break
             psql -v ON_ERROR_STOP=1 -X -h "$PGHOST" -p "$PGPORT" -U tideway_owner -d ci_tideway_upgrade -f "$file"
           done
-          for file in db/integration/payment-observations-upgrade-seed.sql db/migrations/117_external_payment_observations.sql db/integration/payment-observations-upgrade-verify.sql; do
+          for file in db/integration/payment-observations-upgrade-seed.sql db/integration/launch-work-upgrade-seed.sql db/migrations/117_external_payment_observations.sql db/integration/payment-observations-upgrade-verify.sql; do
+            psql -v ON_ERROR_STOP=1 -X -h "$PGHOST" -p "$PGPORT" -U tideway_owner -d ci_tideway_upgrade -f "$file"
+          done
+          # Continue the same live-shaped database through every later migration
+          # (the launch work, 118 onward) and the role grants, then verify.
+          for file in $(ls db/migrations/*.sql | sort); do
+            [ "$(basename "$file")" \> '117_external_payment_observations.sql' ] || continue
+            psql -v ON_ERROR_STOP=1 -X -h "$PGHOST" -p "$PGPORT" -U tideway_owner -d ci_tideway_upgrade -f "$file"
+          done
+          for file in db/runtime-role-grants.sql db/worker-role-grants.sql db/integration/launch-work-upgrade-verify.sql; do
             psql -v ON_ERROR_STOP=1 -X -h "$PGHOST" -p "$PGPORT" -U tideway_owner -d ci_tideway_upgrade -f "$file"
           done

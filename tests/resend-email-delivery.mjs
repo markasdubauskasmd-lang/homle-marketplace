@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { emailHtmlFromText } from "../src/marketplace/email-html.mjs";
 import { createTransactionalEmailDelivery, emailDeliveryEnvironment } from "../src/marketplace/email-delivery.mjs";
 import { createResendEmailDelivery, resendEndpoint } from "../src/marketplace/resend-email-delivery.mjs";
 
@@ -54,7 +55,10 @@ assert.equal(body.from, env.EMAIL_FROM);
 assert.equal(body.subject, "Homle: verify your email");
 assert(body.text.includes(verification.link) && body.text.includes(verification.expiresAt));
 assert.equal(body.headers["X-Homle-Delivery-Id"], requests[0].options.headers["Idempotency-Key"]);
-assert(!Object.hasOwn(body, "html") && !Object.hasOwn(body, "attachments"));
+// The HTML part is rendered from the validated text and nothing else, so the
+// two cannot disagree and no unvalidated input reaches markup.
+assert.equal(body.html, emailHtmlFromText(body.text, env.APP_ORIGIN, body.subject));
+assert(!/<script|<img|<iframe|\son\w+=/i.test(body.html) && !Object.hasOwn(body, "attachments"));
 
 await assert.rejects(() => delivery.send({ ...verification, recipient: "victim@example.com\r\nBcc: attacker@example.com" }), /recipient is invalid/);
 delivery.close();

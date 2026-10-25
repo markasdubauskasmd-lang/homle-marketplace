@@ -39,6 +39,50 @@ function statusSelect(label, options, current) {
   return { wrap, select };
 }
 
+// Rendered with textContent throughout: every value below came from somebody
+// filling in a form about themselves, and none of it is markup.
+function applicationNodes(application) {
+  const nodes = [];
+  const sections = Array.isArray(application?.sections) ? application.sections : [];
+  const documents = Array.isArray(application?.documents) ? application.documents : [];
+  nodes.push(node("p", "admin-verification-evidence-note",
+    "Opened for vetting. This view is recorded against your account. Do not copy anything from it into the evidence note below."));
+  if (!sections.length) nodes.push(node("p", "", "This application has no saved sections."));
+  for (const section of sections) {
+    const block = node("section", "admin-verification-evidence-section");
+    block.append(node("h4", "", `${section.section} · ${section.status}`));
+    if (section.readable !== true) {
+      // Flagged, never hidden. A section that cannot be read is a reason to
+      // refuse an application, not something to leave off the page.
+      block.append(node("p", "admin-verification-evidence-unreadable",
+        "This section could not be decrypted and must not be treated as submitted evidence."));
+    } else {
+      const entries = Object.entries(section.data && typeof section.data === "object" ? section.data : {});
+      if (!entries.length) block.append(node("p", "", "No answers were recorded in this section."));
+      const list = node("dl", "admin-verification-evidence-fields");
+      for (const [field, value] of entries) {
+        list.append(node("dt", "", String(field)), node("dd", "", typeof value === "object" && value !== null ? JSON.stringify(value) : String(value)));
+      }
+      if (entries.length) block.append(list);
+    }
+    nodes.push(block);
+  }
+  const documentBlock = node("section", "admin-verification-evidence-section");
+  documentBlock.append(node("h4", "", `Documents (${documents.length})`));
+  if (!documents.length) documentBlock.append(node("p", "", "No documents were uploaded with this application."));
+  for (const document_ of documents) {
+    documentBlock.append(node("p", "",
+      `${document_.documentType} · ${document_.originalFilename} · ${document_.mimeType} · ${document_.status}${document_.expiresOn ? ` · expires ${document_.expiresOn}` : ""}`));
+  }
+  // Said plainly, because an Administrator who believes they have seen a
+  // passport when they have only seen its filename is worse off than one who
+  // knows they have not.
+  documentBlock.append(node("p", "admin-verification-evidence-note",
+    "File contents are not shown here. Check each document itself before recording an identity decision."));
+  nodes.push(documentBlock);
+  return nodes;
+}
+
 function cleanerCard(record) {
   const state = cleanerVerificationState(record);
   const card = node("article", `admin-case-card admin-booking-card${state.awaiting ? " admin-booking-card-attention" : ""}`);
@@ -51,6 +95,32 @@ function cleanerCard(record) {
   );
   heading.append(title);
   card.append(heading);
+
+  // The evidence, fetched only when asked for. Approving a Cleaner is what
+  // puts a stranger in a customer's home, and this screen used to show a name
+  // and two status strings. It is behind a button rather than loaded with the
+  // queue because every read is audited against the Administrator's name --
+  // opening a page should not record them as having examined twenty people's
+  // identity documents.
+  const evidence = node("div", "admin-verification-evidence");
+  evidence.hidden = true;
+  const reveal = node("button", "button button-outline", "Review submitted application");
+  reveal.type = "button";
+  reveal.addEventListener("click", async () => {
+    if (!evidence.hidden) { evidence.hidden = true; reveal.textContent = "Review submitted application"; return; }
+    reveal.disabled = true; reveal.setAttribute("aria-busy", "true"); reveal.textContent = "Opening…";
+    try {
+      const { application } = await requestJson(`/api/marketplace/admin/cleaner-verifications/${encodeURIComponent(record.cleanerId)}/application`);
+      evidence.replaceChildren(...applicationNodes(application));
+      evidence.hidden = false;
+      reveal.textContent = "Hide submitted application";
+    } catch (error) {
+      showFeedback(error.code === "cleaner-application-not-submitted"
+        ? "This Cleaner has not submitted an application yet, so there is nothing to review."
+        : error.message, "error");
+    } finally { reveal.disabled = false; reveal.removeAttribute("aria-busy"); if (evidence.hidden) reveal.textContent = "Review submitted application"; }
+  });
+  card.append(reveal, evidence);
 
   const form = node("div", "admin-verification-form");
   const identity = statusSelect("Identity check", identityStatuses, record.identityCheckStatus);

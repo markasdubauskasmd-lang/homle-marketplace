@@ -1,6 +1,6 @@
 # Booking-case response playbook
 
-This playbook supports Tideway's `tideway-case-response-v1` review safeguard. It is an evidence and privacy control, not a refund policy, insurance statement, emergency service, customer promise or authority to contact anyone outside Tideway.
+This playbook supports Tideway's `tideway-case-response-v2` review safeguard. It is an evidence and privacy control. It is not a refund *policy* -- it does not say when a refund is deserved or how much -- although a resolution may now send a refund against the booking's own payment when the Administrator enters and authorises one. It remains no insurance statement, emergency service, customer promise or authority to contact anyone outside Tideway.
 
 ## Universal review sequence
 

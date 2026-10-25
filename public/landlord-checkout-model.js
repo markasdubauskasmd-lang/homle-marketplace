@@ -32,3 +32,29 @@ export function paymentRetryStorageKey(bookingId) {
   if (!bookingIdPattern.test(bookingId || "")) throw new TypeError("A valid booking reference is required.");
   return `homle_landlord_payment_retry_${bookingId.toLowerCase()}`;
 }
+
+// Pay at booking (M4). A card authorization lasts about a week, so payment
+// opens five days before the clean; further out than that, the customer can
+// save a card now and Homle places the hold when the window opens.
+export const paymentWindowDays = 5;
+const dayMs = 86_400_000;
+
+export function paymentWindowOpensAt(scheduledStartAt) {
+  const start = Date.parse(scheduledStartAt);
+  return Number.isFinite(start) ? new Date(start - paymentWindowDays * dayMs) : null;
+}
+
+export function savedCardOffered(payment, scheduledStartAt, now = Date.now()) {
+  const opens = paymentWindowOpensAt(scheduledStartAt);
+  return payment?.status === "not-started" && opens !== null && opens.getTime() > now;
+}
+
+export function savedCardPresentation(card) {
+  const states = {
+    saved: { title: "Card saved for this booking", copy: "Homle will place the hold on this card when payment opens. You are not charged until the clean is complete.", canWithdraw: true },
+    authorizing: { title: "Placing the hold now", copy: "Homle is placing the hold on your saved card. Nothing else is needed from you.", canWithdraw: false },
+    authorized: { title: "Hold placed on your saved card", copy: "The booking total is authorized but not charged. It is captured only after the clean.", canWithdraw: false },
+    "action-required": { title: "Your bank needs you to confirm", copy: "Your bank asked to confirm the hold in person. Use the payment step on this page to finish it.", canWithdraw: false }
+  };
+  return states[card?.status] || { title: "Save your card now", copy: "Nothing is charged today. Agree to the hold below, then enter your card in Stripe's secure form.", canWithdraw: false, offer: true };
+}

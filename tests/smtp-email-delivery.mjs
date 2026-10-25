@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { emailHtmlFromText } from "../src/marketplace/email-html.mjs";
 import { createSmtpEmailDelivery } from "../src/marketplace/smtp-email-delivery.mjs";
 
 const configurations = [];
@@ -49,7 +50,10 @@ assert.equal(messages[0].from, env.EMAIL_FROM);
 assert.equal(messages[0].to, verification.recipient);
 assert.equal(messages[0].subject, "Homle: verify your email");
 assert(messages[0].text.includes(verification.link) && messages[0].text.includes(verification.expiresAt));
-assert(!Object.hasOwn(messages[0], "html") && !Object.hasOwn(messages[0], "attachments"));
+// The HTML part is rendered from the validated text and nothing else, so the
+// two cannot disagree and no unvalidated input reaches markup.
+assert.equal(messages[0].html, emailHtmlFromText(messages[0].text, env.APP_ORIGIN, messages[0].subject));
+assert(!/<script|<img|<iframe|\son\w+=/i.test(messages[0].html) && !Object.hasOwn(messages[0], "attachments"));
 assert.match(messages[0].headers["X-Tideway-Delivery-Id"], /^[a-f0-9]{64}$/);
 
 const facebookVerification = await delivery.send({
@@ -107,4 +111,4 @@ const failingDelivery = await createSmtpEmailDelivery(env, {
 await assert.rejects(() => failingDelivery.verify(), (error) => error.message === "Email delivery is temporarily unavailable." && error.code === "eauth" && error.permanent === true && !error.message.includes("private password"));
 assert(privateFailure?.message.includes("private password"), "Private monitoring did not receive the original provider failure.");
 
-console.log("SMTP delivery tests passed: exact TLS transport, URL/file isolation, text-only auth/notification mail, stable Message-ID, header injection rejection, bounded provider failure and idempotent close.");
+console.log("SMTP delivery tests passed: exact TLS transport, URL/file isolation, text-derived HTML auth/notification mail, stable Message-ID, header injection rejection, bounded provider failure and idempotent close.");

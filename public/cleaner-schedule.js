@@ -6,6 +6,8 @@ import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
 import { renderCleanerNav } from "./cleaner-sidebar.js?v=20260729-6";
 import { loadOnboardingForm, saveOnboardingForm } from "./cleaner-onboarding-client.js?v=20260915-onboarding-flow-1";
 import { activityRecords, activityDateKey, renderActivityFeature, renderActivityWeek, connectActivityNavigation } from "./homlle-activity.js?v=20260908-1";
+import { storedCsrf } from "./session-csrf.js?v=20260718-1";
+import { availabilityWindowBooked } from "./cleaner-availability-model.js?v=20261025-booked-1";
 
 const gate = document.querySelector("[data-schedule-gate]");
 const gateTitle = document.querySelector("[data-schedule-gate-title]");
@@ -21,6 +23,11 @@ const upcomingEmpty = document.querySelector("[data-upcoming-empty]");
 const weekLabel = document.querySelector("[data-week-label]");
 const timeOffForm = document.querySelector("[data-schedule-time-off-form]");
 const timeOffStatus = document.querySelector("[data-schedule-time-off-status]");
+const availabilityForm = document.querySelector("[data-availability-form]");
+const availabilityStatus = document.querySelector("[data-availability-status]");
+const availabilityList = document.querySelector("[data-availability-list]");
+const availabilityEmpty = document.querySelector("[data-availability-empty]");
+const availabilitySubmit = document.querySelector("[data-availability-submit]");
 const activitySchedule = view?.closest(".hc-activity-schedule");
 const dashboardShell = document.querySelector("[data-cleaner-dashboard]");
 const mainInner = document.querySelector(".hc-main-inner");
@@ -131,45 +138,20 @@ function scheduleState(booking) {
   return ["cancelled", "expired", "completed"].includes(booking.status) ? "closed" : "confirmed";
 }
 
-function previewDate(dayIndex, hour, durationHours) {
-  const start = weekDays(dayIndex > 6 ? 1 : 0)[dayIndex % 7];
-  start.setUTCHours(hour, 0, 0, 0);
-  return {
-    scheduledStartAt: start.toISOString(),
-    scheduledEndAt: new Date(start.getTime() + durationHours * 3_600_000).toISOString()
-  };
-}
-
-function previewBookings() {
-  return [
-    {
-      bookingId: "preview-deep-clean",
-      preview: true,
-      participantRole: "cleaner",
-      status: "confirmed",
-      cleaningType: "Deep clean",
-      locationLabel: "Battersea, SW11",
-      propertyArea: "SW11",
-      pricePence: 6800,
-      taskCount: 8,
-      imageLabels: ["Kitchen", "Living room", "Bathroom"],
-      ...previewDate(5, 8, 3)
-    },
-    {
-      bookingId: "preview-regular-clean",
-      preview: true,
-      participantRole: "cleaner",
-      status: "confirmed",
-      cleaningType: "Regular home clean",
-      locationLabel: "Clapham, SW4",
-      propertyArea: "SW4",
-      pricePence: 4800,
-      taskCount: 6,
-      imageLabels: ["Kitchen", "Bedroom", "Hallway"],
-      ...previewDate(8, 12, 2)
-    }
-  ];
-}
+// A Cleaner with no work sees an empty week, not invented work. The calendar
+// itself still renders, because the shape of the week is genuinely useful before
+// the first job arrives — but it carries nothing that could be mistaken for a
+// booking.
+//
+// This replaced two fabricated cleans that were priced, dated and located in
+// south London. They carried an "example" tag, but they sat in an otherwise
+// empty calendar directly beneath stat tiles reading zero earnings and zero
+// jobs, so the page contradicted itself — and of the two readings on offer, the
+// optimistic one is the one a new Cleaner is most likely to take.
+//
+// tests/booking-dashboard-ui.mjs pins their absence, including the literal
+// fixture values, so this note deliberately describes them rather than quoting
+// them.
 
 function jobsForDay(date) {
   const key = londonKey(date.toISOString());
@@ -415,20 +397,163 @@ async function saveTimeOff(event) {
   }
 }
 
+// Available hours are the only thing matching reads. The POST endpoint behind
+// this has existed and been validated since the availability model was written,
+// with no caller anywhere in the product — so every Cleaner was unmatchable and
+// the directory stayed empty no matter how many people were recruited.
+let availabilityWindows = [];
+// The raw booking projections, kept apart from the calendar's display records.
+let occupyingBookings = [];
+let savingAvailability = false;
+
+const availabilityDayFormat = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" });
+const availabilityTimeFormat = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Europe/London" });
+
+function renderAvailability() {
+  if (!availabilityList) return;
+  availabilityList.replaceChildren();
+  const upcoming = availabilityWindows
+    .filter((window_) => window_.status !== "withdrawn" && new Date(window_.endAt).getTime() > Date.now())
+    .sort((a, b) => new Date(a.startAt) - new Date(b.startAt));
+  for (const window_ of upcoming) {
+    const item = element("li", "hc-availability-item");
+    const start = new Date(window_.startAt);
+    const end = new Date(window_.endAt);
+    item.append(
+      element("span", "hc-availability-item-when", `${availabilityDayFormat.format(start)} · ${availabilityTimeFormat.format(start)}–${availabilityTimeFormat.format(end)}`)
+    );
+    // A booking already depends on this window. Read from the bookings
+    // themselves: nothing writes an availability `held` status, so checking
+    // that alone meant a booked window always looked free.
+    if (availabilityWindowBooked(window_, occupyingBookings)) {
+      item.append(element("span", "hc-availability-item-held", "Booked"));
+    } else {
+      const remove = element("button", "hc-availability-item-remove", "Remove");
+      remove.type = "button";
+      remove.setAttribute("aria-label", `Remove availability on ${availabilityDayFormat.format(start)} from ${availabilityTimeFormat.format(start)} to ${availabilityTimeFormat.format(end)}`);
+      remove.addEventListener("click", () => withdrawAvailability(window_.availabilityId, remove));
+      item.append(remove);
+    }
+    availabilityList.append(item);
+  }
+  if (availabilityEmpty) availabilityEmpty.hidden = upcoming.length > 0;
+  if (availabilityStatus) {
+    availabilityStatus.textContent = upcoming.length === 0
+      ? "You cannot be offered work until you add available hours."
+      : `${upcoming.length} upcoming ${upcoming.length === 1 ? "window" : "windows"}. Homle can offer you work in these hours only.`;
+  }
+}
+
+// The form collects a local date and two local times; the server requires ISO
+// instants carrying an offset. Building the instant from the browser's own
+// timezone is what makes "09:00" mean nine in the morning where the Cleaner is
+// standing, rather than nine UTC.
+function availabilityInstants(form) {
+  const date = String(form.elements.availabilityDate?.value ?? "").trim();
+  const start = String(form.elements.availabilityStart?.value ?? "").trim();
+  const end = String(form.elements.availabilityEnd?.value ?? "").trim();
+  if (!date || !start || !end) return { error: "Choose a date, a start time and an end time." };
+  const startAt = new Date(`${date}T${start}`);
+  let endAt = new Date(`${date}T${end}`);
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) return { error: "That date or time could not be read. Check and try again." };
+  // An overnight window ends the next morning. Without this, "21:00 to 06:00"
+  // is rejected as ending before it starts, which is exactly the shift a lot of
+  // commercial cleaning runs on.
+  if (endAt <= startAt) endAt = new Date(endAt.getTime() + 24 * 60 * 60_000);
+  const durationMs = endAt.getTime() - startAt.getTime();
+  if (durationMs < 30 * 60_000) return { error: "An availability window must be at least 30 minutes." };
+  if (durationMs > 24 * 60 * 60_000) return { error: "An availability window cannot be longer than 24 hours." };
+  if (startAt.getTime() < Date.now() + 5 * 60_000) return { error: "Availability must start at least five minutes from now." };
+  if (startAt.getTime() > Date.now() + 366 * 24 * 60 * 60_000) return { error: "Availability can be added up to one year ahead." };
+  return { startAt: startAt.toISOString(), endAt: endAt.toISOString() };
+}
+
+async function loadAvailability() {
+  if (!availabilityForm) return;
+  try {
+    const result = await requestJson("/api/marketplace/cleaner/availability");
+    availabilityWindows = Array.isArray(result.availability) ? result.availability : [];
+    renderAvailability();
+  } catch (error) {
+    if (availabilityStatus) {
+      availabilityStatus.textContent = error?.statusCode === 401 || error?.statusCode === 403
+        ? "Sign in as a Cleaner to manage your available hours."
+        : "Your available hours could not be loaded. They have not been changed — refresh to try again.";
+    }
+  }
+}
+
+async function withdrawAvailability(availabilityId, button) {
+  if (!availabilityId || savingAvailability) return;
+  savingAvailability = true;
+  button.disabled = true;
+  try {
+    await requestJson(`/api/marketplace/cleaner/availability/${encodeURIComponent(availabilityId)}`, {
+      method: "DELETE",
+      headers: { "X-CSRF-Token": storedCsrf() }
+    });
+    availabilityWindows = availabilityWindows.filter((window_) => window_.availabilityId !== availabilityId);
+    renderAvailability();
+    showFeedback("Those hours were removed. Homle will not offer you work in them.");
+  } catch (error) {
+    button.disabled = false;
+    showFeedback(error?.code === "browser-offline"
+      ? "You are offline, so nothing was removed."
+      : error?.message || "Those hours could not be removed. Nothing was changed.", "error");
+  } finally {
+    savingAvailability = false;
+  }
+}
+
+if (availabilityForm) {
+  availabilityForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (savingAvailability) return;
+    const parsed = availabilityInstants(availabilityForm);
+    if (parsed.error) {
+      showFeedback(parsed.error, "error");
+      return;
+    }
+    savingAvailability = true;
+    if (availabilitySubmit) availabilitySubmit.disabled = true;
+    try {
+      const result = await requestJson("/api/marketplace/cleaner/availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": storedCsrf() },
+        body: JSON.stringify({ startAt: parsed.startAt, endAt: parsed.endAt })
+      });
+      if (result.availability) availabilityWindows = [...availabilityWindows, result.availability];
+      renderAvailability();
+      availabilityForm.reset();
+      showFeedback("Those hours were added. Homle can now offer you work in them.");
+    } catch (error) {
+      showFeedback(error?.code === "browser-offline"
+        ? "You are offline, so those hours were not added."
+        : error?.message || "Those hours could not be added. Nothing was changed.", "error");
+    } finally {
+      savingAvailability = false;
+      if (availabilitySubmit) availabilitySubmit.disabled = false;
+    }
+  });
+}
+
 function setTimeOffConnected(connected) {
   for (const control of timeOffForm?.querySelectorAll("input, button") || []) control.disabled = !connected;
 }
 
 function showPreviewSchedule(message) {
   previewMode = true;
-  bookings = previewBookings();
+  bookings = [];
   gate.hidden = true;
   view.hidden = false;
   view.dataset.preview = "true";
   setTimeOffConnected(false);
   if (timeOffStatus) timeOffStatus.textContent = "Time-off controls will activate when live Cleaner jobs are connected.";
   renderAll();
-  showFeedback(message || "Preview mode: these example cleans show how selected work will appear. They are not bookings.");
+  // An empty calendar on a failed load must not read as "you have no work".
+  // Saying the schedule could not be loaded is the only honest message when we
+  // do not know what is in it.
+  showFeedback(message || "Your schedule could not be loaded, so this calendar is empty. Refresh to see your real cleans.", "error");
 }
 
 async function loadSchedule() {
@@ -453,9 +578,10 @@ async function loadSchedule() {
       loadOnboardingForm(requestJson, "availability", timeOffForm).then((section) => section || { data: {} }).catch(() => null)
     ]);
     const liveBookings = Array.isArray(bookingResult.bookings) ? bookingResult.bookings : [];
+    occupyingBookings = liveBookings;
     previewMode = !activityRedesign && liveBookings.length === 0;
     if (!activityRedesign || requestedRevision === bookingRevision) {
-      bookings = activityRedesign ? activityRecords(liveBookings) : previewMode ? previewBookings() : liveBookings;
+      bookings = activityRedesign ? activityRecords(liveBookings) : previewMode ? [] : liveBookings;
     }
     view.dataset.preview = previewMode ? "true" : "false";
     setTimeOffConnected(!activityRedesign || Boolean(availabilitySection));
@@ -466,13 +592,16 @@ async function loadSchedule() {
     const payoutLink = document.querySelector("[data-cleaner-payout-link]");
     if (payoutLink) payoutLink.hidden = false;
     renderAll();
-    showFeedback(previewMode ? "No work has been selected yet. The clearly labelled examples below show how future cleans will appear." : "");
+    // Not awaited with the rest: available hours are their own panel with its
+    // own error state, and a slow read of them must not hold up the calendar.
+    loadAvailability();
+    showFeedback(previewMode ? "No work yet. Your accepted cleans will appear in this calendar. To be offered work, publish your profile and add future availability." : "");
   } catch (error) {
     if (error.code === "browser-offline") showGate("You are offline.", "Reconnect to load your current schedule.", { allowRetry: true });
     else if (error.statusCode === 401) showGate("Sign in as a Cleaner to open your schedule.", "Jobs are private to the assigned Cleaner account.", { allowSignIn: true });
     else if (error.statusCode === 403) showGate("This account cannot open the Cleaner schedule.", "Use a Cleaner account selected during onboarding.", { allowSignIn: true });
     else if (activityRedesign) showGate("Your schedule could not be loaded.", "Try again to see your real bookings and weekly totals.", { allowRetry: true });
-    else showPreviewSchedule("Live jobs are not connected yet. The examples below preview the Activity schedule; no work has been accepted or changed.");
+    else showPreviewSchedule("Live jobs are not connected yet, so this calendar is empty. No work has been accepted or changed.");
   } finally {
     loading = false;
   }
@@ -511,6 +640,8 @@ connectBookingRefresh(async () => {
   const result = await requestJson("/api/marketplace/bookings?limit=50");
   if (revision !== bookingRevision) return;
   const next = activityRedesign ? activityRecords(result.bookings || []) : (result.bookings || []);
+  occupyingBookings = result.bookings || [];
+  renderAvailability();
   if (!previewMode && JSON.stringify(bookings) === JSON.stringify(next)) return;
   bookings = next;
   previewMode = false; view.dataset.preview = "false"; renderAll();

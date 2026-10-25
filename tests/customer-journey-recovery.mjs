@@ -38,6 +38,10 @@ const section = (from, until) => script.slice(script.indexOf(from), script.index
       return { property };
     }
   });
+  // Analytics is module-level in the real page and outside these slices. Stubbed
+  // like every other collaborator here, so the handler under test runs unchanged:
+  // a counter must never be able to fail a customer's booking.
+  context.countFunnelStep = () => {};
   vm.runInContext(section("async function createOrRecoverProperty(", "async function createOrRecoverRequest("), context);
   await assert.rejects(context.createOrRecoverProperty("csrf"), /Read lost/);
   const uncertainId = state.draft.propertyDraftId;
@@ -78,6 +82,10 @@ function harness() {
     renderCleaner() {}, saveDraft() {}, updateResultTotals() {},
     document: { createElement: element }
   });
+  // Analytics is module-level in the real page and outside these slices. Stubbed
+  // like every other collaborator here, so the handler under test runs unchanged:
+  // a counter must never be able to fail a customer's booking.
+  context.countFunnelStep = () => {};
   vm.runInContext(section("let supplyLookup", "/* ── Step 2") + section("let cleanerLookup", "function renderCleaner(") + section("function renderResults()", "function updateResultTotals()"), context);
   return { context, state, el, requests };
 }
@@ -171,6 +179,10 @@ function invitationHarness({ found = true, approve = true, invitationError = nul
       throw Error("Unexpected route");
     }
   });
+  // Analytics is module-level in the real page and outside these slices. Stubbed
+  // like every other collaborator here, so the handler under test runs unchanged:
+  // a counter must never be able to fail a customer's booking.
+  ctx.countFunnelStep = () => {};
   vm.runInContext(section("function cleanerInvitationRecovery(", "async function loadBestEligibleCleaner(") + section("async function loadInvitationQuote(", "async function confirmJourney("), ctx);
   return { ctx, network, approvals, writes: () => writes };
 }
@@ -328,6 +340,9 @@ console.log("Customer invitation contract passed: empty capacity, declined exact
 
 
 // A scope edit after a saved request must not recover the old request by ID.
+// Dates are relative to today: the model refuses a past start, so a fixed
+// calendar date turns this into a test that fails on a date rather than a defect.
+const futureDate = days => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 // Exercise the actual duration handler and request save/recovery path together.
 {
   let durationChange, sequence = 0;
@@ -335,7 +350,7 @@ console.log("Customer invitation contract passed: empty capacity, declined exact
   const state = {
     scanSessionId: "", scanRooms: [],
     draft: { requestId: "", propertyId: "20000000-0000-4000-8000-000000000001",
-      serviceCode: "regular-domestic", date: "2026-10-08", time: "09:00",
+      serviceCode: "regular-domestic", date: futureDate(14), time: "09:00",
       durationMinutes: 120, frequency: "one-time", tasks: ["Kitchen: clean worktops"], transcript: "" }
   };
   const el = { duration: { value: "120", addEventListener(name, handler) { assert.equal(name, "change"); durationChange = handler; } } };
@@ -376,7 +391,7 @@ console.log("Customer invitation contract passed: empty capacity, declined exact
 
   for (const [field, value] of Object.entries({
     propertyId: "20000000-0000-4000-8000-000000000002", serviceCode: "deep-cleans",
-    date: "2026-10-09", time: "10:00", frequency: "weekly", durationMinutes: 180
+    date: futureDate(15), time: "10:00", frequency: "weekly", durationMinutes: 180
   })) {
     state.draft.requestId = "old-request"; state.scanSessionId = "old-scan";
     context.setRequestScopeValue(field, value);

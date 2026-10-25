@@ -2,7 +2,9 @@ function mappedDatabaseError(error) {
   const messages = {
     "request-not-found": [404, "request-not-found", "The cleaning request was not found."],
     "property-not-found": [409, "property-not-found", "The request property is no longer available."],
-    "booking-not-found": [404, "booking-not-found", "The booking invitation was not found."],
+    // Reached from invitations and from cancellation, so it cannot say
+    // "invitation" without being wrong half the time.
+    "booking-not-found": [404, "booking-not-found", "That booking was not found."],
     "request-not-matchable": [409, "request-not-matchable", "This cleaning request is no longer available for matching."],
     "cleaner-not-eligible": [409, "cleaner-not-eligible", "This cleaner is not currently eligible for invitations."],
     "cleaner-account-inactive": [409, "cleaner-not-eligible", "This cleaner is not currently eligible for invitations."],
@@ -18,6 +20,12 @@ function mappedDatabaseError(error) {
     "cleaner-schedule-conflict": [409, "schedule-conflict", "Another confirmed job now overlaps this booking."],
     "invalid-booking-economics": [409, "invalid-booking-economics", "The private booking terms do not satisfy the approved budget and margin rules."],
     "invalid-response-window": [409, "invalid-response-window", "The cleaner response window is no longer valid."],
+    // Without these two, the expected refusals of a cancellation — a job whose
+    // Cleaner is already on the way, or an account that is not the owner — fall
+    // through as a bare Error, become a 500 the UI cannot render, and page the
+    // on-call through onUnexpectedError.
+    "booking-not-cancellable": [409, "booking-not-cancellable", "This booking can no longer be cancelled. If a Cleaner is on the way or the work has started, open a case instead."],
+    "landlord-required": [403, "landlord-required", "A Landlord account is required to cancel a booking."],
     "booking-participant-required": [403, "booking-participant-required", "A Cleaner or Landlord account is required to view booking summaries."],
     "invalid-booking-summary-limit": [400, "invalid-booking-summary-limit", "The booking summary limit is outside the supported range."]
   };
@@ -58,6 +66,10 @@ export function createBookingRepository(database) {
         const result = await client.query(
           `SELECT request.id, request.requested_start_at, request.requested_end_at, request.required_services,
                   request.budget_pence, coverage.distance_km,
+                  -- The price the customer was shown, frozen on the request.
+                  -- Without these the invitation re-prices cost-up from the
+                  -- Cleaner's rate card and the shown price never survives.
+                  request.quoted_total_pence, request.quoted_minutes, request.pricing_config_version,
                   CASE WHEN $4::boolean THEN tideway_private.cleaner_payout_ready_for_paid_booking($2::uuid) ELSE TRUE END AS payout_ready,
                   COALESCE(jsonb_agg(jsonb_build_object('serviceCode', service.service_code, 'pricingModel', service.pricing_model, 'pricePence', service.price_pence) ORDER BY service.service_code) FILTER (WHERE service.id IS NOT NULL), '[]'::jsonb) AS services
              FROM cleaning_requests request
@@ -98,6 +110,14 @@ export function createBookingRepository(database) {
       return database.withUserTransaction(actor, async (client) => {
         try {
           const result = await client.query("SELECT (tideway_private.respond_to_cleaner_invitation($1::uuid, $2::text, $3::text)).*", [bookingId, response.decision, response.reason]);
+          return result.rows[0];
+        } catch (error) { throw mappedDatabaseError(error); }
+      });
+    },
+    cancelBooking(actor, bookingId, reason) {
+      return database.withUserTransaction(actor, async (client) => {
+        try {
+          const result = await client.query("SELECT (tideway_private.cancel_booking_as_landlord($1::uuid, $2::text)).*", [bookingId, reason]);
           return result.rows[0];
         } catch (error) { throw mappedDatabaseError(error); }
       });

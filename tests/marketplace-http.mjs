@@ -719,7 +719,7 @@ const restored = await dispatch(router, "POST", `/api/marketplace/properties/${p
 assert(missingRestoreCsrf.response.statusCode === 403 && cleanerRestore.response.statusCode === 403 && unsupportedRestoreMethod.response.statusCode === 405 && unsupportedRestoreMethod.response.headers.Allow === "POST" && restored.response.statusCode === 200 && restored.body.restoredProperty.propertyId === propertyId && calls.at(-1).kind === "property-restore" && calls.at(-1).actor.userId === sessions.landlord.user_id && calls.at(-1).propertyId === propertyId, "Property restoration lost CSRF protection, Landlord role isolation, method safety or route-resource binding.");
 const requestCreated = await dispatch(router, "POST", "/api/marketplace/cleaning-requests", { headers: authHeaders, body: { propertyId, landlordUserId: "33333333-3333-4333-8333-333333333333" } });
 const requestList = await dispatch(router, "GET", "/api/marketplace/cleaning-requests", { headers: { cookie: authHeaders.cookie } });
-assert(requestCreated.response.statusCode === 201 && requestCreated.body.cleaningRequest.status === "draft" && calls.at(-2).kind === "request-create" && calls.at(-2).actor.userId === sessions.landlord.user_id && requestList.response.statusCode === 200 && calls.at(-1).kind === "request-list", "Account cleaning-request routes did not bind private-draft creation/listing to the authenticated Landlord.");
+assert(requestCreated.response.statusCode === 201 && requestCreated.body.cleaningRequest.status === "draft" && calls.some((call) => call.kind === "request-create" && call.actor.userId === sessions.landlord.user_id) && requestList.response.statusCode === 200 && calls.at(-1).kind === "request-list", "Account cleaning-request routes did not bind private-draft creation/listing to the authenticated Landlord.");
 const requestScanUrl = "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/scan";
 const requestIntentUrl = "/api/marketplace/cleaning-requests/66666666-6666-4666-8666-666666666666/photos/intents";
 const requestPhotoId = "88888888-8888-4888-8888-888888888888";
@@ -816,7 +816,7 @@ const moderatedReview = await dispatch(router, "POST", "/api/marketplace/admin/r
 assert(moderatedReview.response.statusCode === 200 && calls.at(-1).kind === "review-moderate" && calls.at(-1).actor.roles.includes("administrator"), "Administrator review moderation route lost role or CSRF binding.");
 const disputeQueue = await dispatch(router, "GET", "/api/marketplace/admin/disputes?status=open&limit=25", { headers: { cookie: authHeaders.cookie } });
 const missingDisputeCsrf = await dispatch(router, "PATCH", "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": "application/json; charset=utf-8" }, body: { status: "reviewing" } });
-const reviewedDispute = await dispatch(router, "PATCH", "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { headers: authHeaders, body: { status: "resolved", resolutionNote: "The evidence was reviewed and the booking has been cancelled.", resolutionOutcome: "cancelled", policyVersion: "tideway-case-response-v1", evidenceReviewed: true, sensitiveDataMinimised: true, noExternalActionConfirmed: true } });
+const reviewedDispute = await dispatch(router, "PATCH", "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { headers: authHeaders, body: { status: "resolved", resolutionNote: "The evidence was reviewed and the booking has been cancelled.", resolutionOutcome: "cancelled", policyVersion: "tideway-case-response-v2", evidenceReviewed: true, sensitiveDataMinimised: true, noUnrecordedActionConfirmed: true } });
 assert(missingDisputeCsrf.response.statusCode === 403 && missingDisputeCsrf.body.code === "csrf-rejected", "Administrator case mutation accepted a missing CSRF token.");
 assert(disputeQueue.response.statusCode === 200 && calls.at(-2).kind === "dispute-list" && calls.at(-2).input.status === "open" && reviewedDispute.response.statusCode === 200 && reviewedDispute.body.dispute.resolutionOutcome === "cancelled" && calls.at(-1).kind === "dispute-review" && calls.at(-1).actor.roles.includes("administrator"), "Administrator booking-case queue or audited resolution route lost its role, query or CSRF boundary.");
 const supportQueue = await dispatch(router, "GET", "/api/marketplace/admin/support-requests?status=open&category=room-scan&limit=50", { headers: { cookie: authHeaders.cookie } });
@@ -1158,3 +1158,434 @@ console.log("Room-reading connection cancellation checks passed.");
   }
 }
 console.log("Room-reading HTTP streaming checks passed: early delivery, final success/failure and cancellation.");
+
+/* ── The anonymous visitor funnel beacon ───────────────────────────────── */
+
+// There is no session behind this route by design: the questions it answers are
+// about people who have no account yet. That makes the origin check and the
+// rate limit the only things standing between one machine and an aggregate
+// table, so both are asserted rather than assumed.
+{
+  const funnelOrigin = { origin: "http://127.0.0.1:4173", "content-type": "application/json" };
+  const recorded = [];
+  const funnelTelemetry = {
+    async recordBatch(events) { recorded.push(events); return events.reduce((total, event) => total + event.count, 0); },
+    async snapshot(actor, windowDays) { return { windowDays, counters: {}, totals: { "funnel.landing.viewed": 12 } }; }
+  };
+  const funnelRouter = createMarketplaceHttpRouter({ ...dependencies, funnelTelemetry }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+
+  // Accepted with no cookie, no CSRF token and no account.
+  const beacon = await dispatch(funnelRouter, "POST", "/api/marketplace/funnel-events", {
+    headers: funnelOrigin,
+    body: { events: [{ metric: "funnel.landing.viewed", dimensions: { surface: "for-landlords", audience: "landlord" } }] }
+  });
+  assert(beacon.response.statusCode === 202 && beacon.body.accepted === 1 && beacon.body.stored === 1,
+    `The anonymous funnel beacon refused an honest visit: ${beacon.response.statusCode} ${JSON.stringify(beacon.body)}`);
+  assert(recorded.at(-1)[0].dimensions.surface === "for-landlords", "The funnel beacon lost its bounded dimensions.");
+
+  // An unlisted name is dropped and the rest of the page still counts, so one
+  // stale client cannot make a visit vanish.
+  const mixed = await dispatch(funnelRouter, "POST", "/api/marketplace/funnel-events", {
+    headers: funnelOrigin,
+    body: { events: [{ metric: "funnel.landing.cta" }, { metric: "pageview", dimensions: { path: "/landlord/book?propertyId=8f2" } }] }
+  });
+  assert(mixed.body.accepted === 1 && !JSON.stringify(recorded.at(-1)).includes("propertyId"),
+    `An unlisted funnel event survived the route: ${JSON.stringify(recorded.at(-1))}`);
+
+  // Another origin cannot write into the aggregate.
+  const foreign = await dispatch(funnelRouter, "POST", "/api/marketplace/funnel-events", {
+    headers: { origin: "https://wrong.example", "content-type": "application/json" },
+    body: { events: [{ metric: "funnel.landing.viewed" }] }
+  });
+  assert(foreign.response.statusCode === 403, `The funnel beacon accepted a foreign origin: ${foreign.response.statusCode}`);
+
+  // And it is bounded by its own reviewed scope.
+  const previousScope = rateLimitedScope;
+  rateLimitedScope = "marketplace-public:funnel-events";
+  const limited = await dispatch(funnelRouter, "POST", "/api/marketplace/funnel-events", {
+    headers: funnelOrigin, body: { events: [{ metric: "funnel.landing.viewed" }] }
+  });
+  assert(limited.response.statusCode === 429, `The funnel beacon ignored its rate limit: ${limited.response.statusCode}`);
+  rateLimitedScope = previousScope;
+
+  assert((await dispatch(funnelRouter, "GET", "/api/marketplace/funnel-events", { headers: funnelOrigin })).response.statusCode === 405,
+    "The funnel beacon answered a method other than POST.");
+
+  // A storage failure is reported to monitoring and never to the visitor: their
+  // page is waiting on this and nothing they are doing depends on it.
+  unexpectedError = null;
+  const failingRouter = createMarketplaceHttpRouter({
+    ...dependencies,
+    funnelTelemetry: { async recordBatch() { throw new Error("aggregate write failed"); }, async snapshot() { return null; } }
+  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+  const survived = await dispatch(failingRouter, "POST", "/api/marketplace/funnel-events", {
+    headers: funnelOrigin, body: { events: [{ metric: "funnel.landing.viewed" }] }
+  });
+  assert(survived.response.statusCode === 202 && survived.body.stored === 0,
+    `A failed analytics write reached the visitor: ${survived.response.statusCode}`);
+  assert(unexpectedError?.message === "aggregate write failed", "A failed analytics write was swallowed without reaching monitoring.");
+  unexpectedError = null;
+
+  // The administrator report carries the visitor lane, and keeps working
+  // without it. Losing analytics must not lose the report somebody opened the
+  // page for.
+  const withVisitors = await dispatch(funnelRouter, "GET", "/api/marketplace/admin/funnel", { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(withVisitors.response.statusCode === 200 && withVisitors.body.visitors.totals["funnel.landing.viewed"] === 12,
+    "The Administrator funnel lost its visitor lane.");
+  const brokenVisitors = createMarketplaceHttpRouter({
+    ...dependencies,
+    funnelTelemetry: { async recordBatch() { return 0; }, async snapshot() { throw new Error("snapshot failed"); } }
+  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+  const withoutVisitors = await dispatch(brokenVisitors, "GET", "/api/marketplace/admin/funnel", { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(withoutVisitors.response.statusCode === 200 && withoutVisitors.body.visitors === null && withoutVisitors.body.onboarding,
+    "A failed visitor read took the whole Administrator funnel report with it.");
+  unexpectedError = null;
+
+  // With telemetry unconfigured the beacon is still a well-formed no-op rather
+  // than a 500 on somebody's landing page.
+  const withoutTelemetry = await dispatch(router, "POST", "/api/marketplace/funnel-events", {
+    headers: funnelOrigin, body: { events: [{ metric: "funnel.landing.viewed" }] }
+  });
+  assert(withoutTelemetry.response.statusCode === 202 && withoutTelemetry.body.stored === 0,
+    "An unconfigured funnel beacon did not degrade quietly.");
+}
+console.log("Funnel beacon HTTP checks passed: anonymous acceptance, origin and rate-limit bounds, dropped unlisted events, and degradation that never reaches the visitor or the report.");
+
+/* ── A refund issued from the case desk ────────────────────────────────── */
+
+// Resolving a case and refunding the customer it decided for used to be two
+// screens on two desks, and the second was easy to forget.
+{
+  const casePath = "/api/marketplace/admin/disputes/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const caseBookingId = "55555555-5555-4555-8555-555555555555";
+  const capturedPaymentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const resolution = {
+    status: "resolved",
+    resolutionNote: "The evidence was reviewed and a partial refund was agreed.",
+    resolutionOutcome: "cancelled",
+    policyVersion: "tideway-case-response-v2",
+    evidenceReviewed: true,
+    sensitiveDataMinimised: true,
+    noUnrecordedActionConfirmed: true
+  };
+
+  // A dedicated router with its own stubs, so the refund is asserted against a
+  // payment that has actually been captured. The shared stub reports nothing
+  // captured, which the real `begin_payment_command` would refuse outright --
+  // asserting a successful refund against it proves routing and nothing else.
+  function caseRouter({ refund, ledger = [] } = {}) {
+    const recorded = [];
+    const router = createMarketplaceHttpRouter({
+      ...dependencies,
+      disputeService: {
+        ...disputeService,
+        async getForAdministrator(actor, disputeId) {
+          recorded.push({ kind: "dispute-read", actor, disputeId });
+          return { disputeId, bookingId: caseBookingId, category: "quality", description: "The agreed cleaning scope was not completed.", status: "reviewing", resolutionNote: null, resolutionOutcome: null, createdAt: "2026-07-15T19:05:00.000Z", resolvedAt: null };
+        },
+        async review(actor, disputeId, input) {
+          recorded.push({ kind: "dispute-review", actor, disputeId, input });
+          return { disputeId, bookingId: caseBookingId, category: "quality", description: "The agreed cleaning scope was not completed.", status: input.status, resolutionNote: input.resolutionNote || null, resolutionOutcome: input.resolutionOutcome || null, createdAt: "2026-07-15T19:05:00.000Z", resolvedAt: input.status === "resolved" ? "2026-07-15T20:00:00.000Z" : null };
+        }
+      },
+      paymentService: {
+        ...paymentService,
+        async getForBooking(actor, bookingId) {
+          recorded.push({ kind: "payment-get", actor, bookingId });
+          return { paymentId: capturedPaymentId, bookingId, status: "captured", amountPence: 12_000, currency: "gbp", amountCapturedPence: 12_000, amountRefundedPence: 0, requiresCustomerAction: false, clientSecret: null };
+        },
+        async refund(actor, input) {
+          recorded.push({ kind: "refund", actor, input });
+          // A real command ledger refuses a key reused with a different
+          // amount, which is the guard the key shape exists to lean on.
+          const previous = ledger.find((entry) => entry.idempotencyKey === input.idempotencyKey);
+          if (previous && previous.amountPence !== input.amountPence) {
+            throw Object.assign(new Error("A different amount was already sent under this key."), { statusCode: 409, code: "payment-command-idempotency-conflict" });
+          }
+          if (!previous) ledger.push({ idempotencyKey: input.idempotencyKey, amountPence: input.amountPence });
+          if (typeof refund === "function") return refund(input);
+          return { commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: input.paymentId, kind: "refund", status: "succeeded", recoveryRequired: false };
+        }
+      }
+    }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+    return { router, recorded };
+  }
+
+  // A resolution with no refund field moves no money. Absent is not zero.
+  {
+    const { router: caseOnly, recorded } = caseRouter();
+    const withoutRefund = await dispatch(caseOnly, "PATCH", casePath, { headers: administratorAuthHeaders, body: resolution });
+    assert(withoutRefund.response.statusCode === 200 && withoutRefund.body.refund === null,
+      `A case with no refund reported one: ${JSON.stringify(withoutRefund.body.refund)}`);
+    assert(!recorded.some((call) => call.kind === "refund"), "A case with no refund still called the payment service.");
+  }
+
+  // With an authorised amount, the refund is sent against the payment the
+  // SERVER resolved from the case's own booking -- never a client-supplied id.
+  {
+    const { router: refunding, recorded } = caseRouter();
+    const withRefund = await dispatch(refunding, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    const refundCall = recorded.find((call) => call.kind === "refund");
+    assert(withRefund.response.statusCode === 200 && withRefund.body.refund?.issued === true && withRefund.body.refund.amountPence === 4500,
+      `The case desk did not issue the authorised refund: ${JSON.stringify(withRefund.body.refund)}`);
+    assert(refundCall?.input.paymentId === capturedPaymentId && refundCall.input.amountPence === 4500,
+      "The refund was sent for the wrong payment or amount.");
+    assert(recorded.find((call) => call.kind === "payment-get")?.bookingId === caseBookingId,
+      "The payment was looked up from something other than the resolved case's own booking.");
+    // The money moves BEFORE the decision is recorded. Resolving with the
+    // outcome `completed` lets settlement transfer the Cleaner's pay within
+    // minutes, and a transferred payment can never be refunded again -- so the
+    // opposite order could strand the refund with no route back.
+    assert(recorded.findIndex((call) => call.kind === "refund") < recorded.findIndex((call) => call.kind === "dispute-review"),
+      "The case was resolved before the refund it funds was sent, which can close the refund window for good.");
+  }
+
+  // Merely starting a review must never move money. This path carries no
+  // handling-standard attestation at all, because the dispute service only
+  // checks it when resolving.
+  {
+    const { router: reviewing, recorded } = caseRouter();
+    const started = await dispatch(reviewing, "PATCH", casePath, { headers: administratorAuthHeaders, body: { status: "reviewing", refundAmountPence: 9900, refundAuthorised: true } });
+    assert(started.response.statusCode === 422 && started.body.code === "refund-requires-resolution",
+      `Starting a review issued a refund with no attestation: ${started.response.statusCode} ${JSON.stringify(started.body)}`);
+    assert(!recorded.some((call) => call.kind === "refund" || call.kind === "dispute-review"),
+      "A refund on a review-start reached the payment service or changed the case.");
+  }
+
+  // A resubmitted form is idempotent, and a CHANGED amount is refused by the
+  // command ledger rather than sent as a second real refund. The key is keyed
+  // on the case alone for exactly this reason: `review` succeeds on an
+  // identical replay, so this line is reachable twice.
+  {
+    const ledger = [];
+    const { router: first } = caseRouter({ ledger });
+    await dispatch(first, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    const { router: replay, recorded: replayCalls } = caseRouter({ ledger });
+    const again = await dispatch(replay, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    assert(again.response.statusCode === 200, "An identical resubmission was refused.");
+    assert(replayCalls.find((call) => call.kind === "refund").input.idempotencyKey === "case_refund_bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "The case refund key varies, so a resubmission with a different amount would be a second real refund.");
+    const { router: changed, recorded: changedCalls } = caseRouter({ ledger });
+    const different = await dispatch(changed, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 5000, refundAuthorised: true } });
+    assert(different.response.statusCode === 409, `A changed refund amount was sent as a second refund: ${different.response.statusCode}`);
+    assert(!changedCalls.some((call) => call.kind === "dispute-review"), "A refused refund still resolved the case.");
+  }
+
+  // An amount with no explicit authorisation never reaches the payment service
+  // and never resolves the case.
+  {
+    const { router: unauthorisedRouter, recorded } = caseRouter();
+    const unauthorised = await dispatch(unauthorisedRouter, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500 } });
+    assert(unauthorised.response.statusCode >= 400, `An unauthorised refund amount was accepted: ${unauthorised.response.statusCode}`);
+    assert(!recorded.some((call) => call.kind === "refund" || call.kind === "dispute-review"),
+      "An unauthorised refund amount still moved money or resolved the case.");
+  }
+
+  // A refund that fails stops the whole request, so no case is ever marked
+  // final claiming money moved when it did not.
+  {
+    const { router: failing, recorded } = caseRouter({ refund: () => { throw Object.assign(new Error("Stripe refused"), { statusCode: 409, code: "payment-not-refundable" }); } });
+    const failed = await dispatch(failing, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    assert(failed.response.statusCode === 409 && failed.body.code === "payment-not-refundable",
+      `A failed case refund did not surface its reason: ${failed.response.statusCode} ${JSON.stringify(failed.body)}`);
+    assert(!recorded.some((call) => call.kind === "dispute-review"), "A case was resolved after its refund failed.");
+    unexpectedError = null;
+  }
+
+  // An uncertain provider outcome is never reported as issued. A recovery
+  // record means the refund may never have reached the provider, and "sent" is
+  // the surest way to have somebody send it twice.
+  {
+    const { router: uncertainRouter } = caseRouter({ refund: () => ({ commandId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", paymentId: capturedPaymentId, kind: "refund", status: "provider-pending", recoveryRequired: true }) });
+    const uncertain = await dispatch(uncertainRouter, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    assert(uncertain.body.refund.uncertain === true && uncertain.body.refund.issued === false,
+      `An unconfirmed refund was reported as sent: ${JSON.stringify(uncertain.body.refund)}`);
+  }
+
+  // With payments unconfigured, a refund is refused before anything is read or
+  // resolved.
+  {
+    const noPaymentsBefore = calls.length;
+    const refused = await dispatch(noPaymentRouter, "PATCH", casePath, { headers: administratorAuthHeaders, body: { ...resolution, refundAmountPence: 4500, refundAuthorised: true } });
+    assert(refused.response.statusCode === 503, `A refund was accepted with payments unconfigured: ${refused.response.statusCode}`);
+    assert(!calls.slice(noPaymentsBefore).some((call) => call.kind === "dispute-review"),
+      "A case was resolved with a refund that could never be sent.");
+  }
+}
+console.log("Case-desk refund checks passed: server-resolved payment, money before the final decision, review-start refused, replay idempotent and a changed amount refused, uncertainty never reported as sent, and a failed refund leaves the case open.");
+
+/* ── The Administrator's read of a submitted application ───────────────── */
+
+{
+  const applicationCleanerId = "66666666-6666-4666-8666-666666666666";
+  const applicationPath = `/api/marketplace/admin/cleaner-verifications/${applicationCleanerId}/application`;
+  const reads = [];
+  const reviewRouter = createMarketplaceHttpRouter({
+    ...dependencies,
+    administratorVerificationService: {
+      ...administratorVerificationService,
+      async getApplication(actor, cleanerId) {
+        reads.push({ actor, cleanerId });
+        return { cleanerId, sections: [{ section: "identity", status: "submitted", readable: true, data: { fullName: "A Cleaner" }, schemaVersion: 1, completedAt: null, updatedAt: null }], documents: [] };
+      }
+    }
+  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+
+  const reviewed = await dispatch(reviewRouter, "GET", applicationPath, { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(reviewed.response.statusCode === 200 && reviewed.body.application.sections[0].data.fullName === "A Cleaner",
+    `An Administrator could not read a submitted application: ${reviewed.response.statusCode}`);
+  assert(reads[0].actor.roles.includes("administrator") && reads[0].cleanerId === applicationCleanerId,
+    "The application read lost its actor or read a different cleaner.");
+
+  // Nobody else, and nothing but a read.
+  const landlordRead = await dispatch(reviewRouter, "GET", applicationPath, { headers: { cookie: authHeaders.cookie } });
+  assert(landlordRead.response.statusCode === 403, `A Landlord read a Cleaner's identity evidence: ${landlordRead.response.statusCode}`);
+  const anonymousRead = await dispatch(reviewRouter, "GET", applicationPath, {});
+  assert(anonymousRead.response.statusCode === 401, `A signed-out visitor read a Cleaner's identity evidence: ${anonymousRead.response.statusCode}`);
+  const written = await dispatch(reviewRouter, "POST", applicationPath, { headers: administratorAuthHeaders, body: {} });
+  assert(written.response.statusCode === 405, "The application review path accepted a write.");
+
+  // The queue route must keep working and must not be shadowed by the new one.
+  const queueStill = await dispatch(reviewRouter, "GET", `/api/marketplace/admin/cleaner-verifications/${applicationCleanerId}`, { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(queueStill.response.statusCode !== 200 || !queueStill.body.application,
+    "The single-verification route now returns an application, so the two paths have been confused.");
+}
+console.log("Cleaner application review HTTP checks passed: administrator-only read, denied to landlords and signed-out visitors, read-only, and the verification routes stay distinct.");
+
+/* ── Suspending an account ─────────────────────────────────────────────── */
+
+// `users.account_status` has been enforced since migration 001 and settable
+// from nowhere, so a Cleaner who behaved badly in somebody's home could not be
+// stopped. These pin the control that closes that.
+{
+  const targetAccountId = "77777777-7777-4777-8777-777777777777";
+  const statusPath = `/api/marketplace/admin/accounts/${targetAccountId}/status`;
+  const accountCalls = [];
+  const accountRouter = createMarketplaceHttpRouter({
+    ...dependencies,
+    administratorAccountService: {
+      async find(actor, identifier) {
+        accountCalls.push({ kind: "find", actor, identifier });
+        return { accountId: targetAccountId, email: "cleaner@example.com", displayName: "A Cleaner", accountStatus: "active", emailVerifiedAt: null, createdAt: "2026-06-01T10:00:00.000Z", roles: ["cleaner"], liveBookings: 1 };
+      },
+      async setStatus(actor, accountId, input) {
+        accountCalls.push({ kind: "set", actor, accountId, input });
+        return { accountId, accountStatus: input.accountStatus, previousStatus: "active", changed: true, revokedSessions: 2, liveBookings: 1 };
+      }
+    }
+  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+
+  const found = await dispatch(accountRouter, "GET", "/api/marketplace/admin/accounts?identifier=cleaner%40example.com", { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(found.response.statusCode === 200 && found.body.account.accountId === targetAccountId,
+    `An Administrator could not look up an account: ${found.response.statusCode}`);
+  assert(accountCalls[0].identifier === "cleaner@example.com", "The search identifier did not reach the service.");
+
+  const suspended = await dispatch(accountRouter, "POST", statusPath, { headers: administratorAuthHeaders, body: { accountStatus: "suspended", reason: "Reported conduct in a customer home." } });
+  assert(suspended.response.statusCode === 200 && suspended.body.changed === true && suspended.body.revokedSessions === 2,
+    `An account could not be suspended: ${suspended.response.statusCode} ${JSON.stringify(suspended.body)}`);
+  assert(accountCalls.at(-1).accountId === targetAccountId && accountCalls.at(-1).actor.roles.includes("administrator"),
+    "The suspension lost its target or its actor.");
+
+  // Nobody else, and never without CSRF.
+  const landlordLookup = await dispatch(accountRouter, "GET", "/api/marketplace/admin/accounts?identifier=cleaner%40example.com", { headers: { cookie: authHeaders.cookie } });
+  assert(landlordLookup.response.statusCode === 403, `A Landlord looked up another account: ${landlordLookup.response.statusCode}`);
+  const anonymousLookup = await dispatch(accountRouter, "GET", "/api/marketplace/admin/accounts?identifier=cleaner%40example.com", {});
+  assert(anonymousLookup.response.statusCode === 401, `A signed-out visitor looked up an account: ${anonymousLookup.response.statusCode}`);
+  const landlordSuspend = await dispatch(accountRouter, "POST", statusPath, { headers: authHeaders, body: { accountStatus: "suspended", reason: "A landlord attempting a suspension." } });
+  assert(landlordSuspend.response.statusCode === 403, `A Landlord suspended an account: ${landlordSuspend.response.statusCode}`);
+  const withoutCsrf = await dispatch(accountRouter, "POST", statusPath, {
+    headers: { cookie: administratorAuthHeaders.cookie, origin: administratorAuthHeaders.origin, "content-type": administratorAuthHeaders["content-type"] },
+    body: { accountStatus: "suspended", reason: "Reported conduct in a customer home." }
+  });
+  assert(withoutCsrf.response.statusCode === 403 && withoutCsrf.body.code === "csrf-rejected", "Account suspension accepted a missing CSRF token.");
+  assert((await dispatch(accountRouter, "GET", statusPath, { headers: { cookie: administratorAuthHeaders.cookie } })).response.statusCode === 405,
+    "The account status path answered a read.");
+
+  // With the service unattached the routes stay unhandled rather than
+  // pretending to be a control that is not there.
+  const withoutAccounts = createMarketplaceHttpRouter({ ...dependencies, administratorAccountService: null }, { clientKey: () => trustedClientKey });
+  assert((await dispatch(withoutAccounts, "GET", "/api/marketplace/admin/accounts?identifier=cleaner%40example.com", { headers: { cookie: administratorAuthHeaders.cookie } })).handled !== true,
+    "An unattached account service still answered a lookup.");
+}
+console.log("Account suspension HTTP checks passed: administrator-only lookup and suspension, CSRF-bound, read-only refused, and unattached service left unhandled.");
+
+/* ── The revenue summary ───────────────────────────────────────────────── */
+
+{
+  const revenueCalls = [];
+  const revenueRouter = createMarketplaceHttpRouter({
+    ...dependencies,
+    administratorFunnelService: {
+      ...administratorFunnelService,
+      async revenue(actor, input) {
+        revenueCalls.push({ actor, input });
+        return { windowDays: Number(input.windowDays) || 30, generatedAt: "2026-09-20T03:00:00.000Z", capturedCount: 1, refundedCount: 0, awaitingTransferCount: 0, capturedPence: 12000, refundedPence: 0, netCustomerPence: 12000, transferredPence: 8400, platformTakePence: 3600, plannedContributionPence: 3600 };
+      }
+    }
+  }, { clientKey: () => trustedClientKey, onUnexpectedError(error) { unexpectedError = error; } });
+
+  const revenue = await dispatch(revenueRouter, "GET", "/api/marketplace/admin/revenue?windowDays=90", { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(revenue.response.statusCode === 200 && revenue.body.revenue.platformTakePence === 3600,
+    `An Administrator could not read the revenue summary: ${revenue.response.statusCode}`);
+  assert(revenueCalls[0].input.windowDays === "90" && revenueCalls[0].actor.roles.includes("administrator"),
+    "The revenue read lost its window or its actor.");
+
+  const landlordRevenue = await dispatch(revenueRouter, "GET", "/api/marketplace/admin/revenue", { headers: { cookie: authHeaders.cookie } });
+  assert(landlordRevenue.response.statusCode === 403, `A Landlord read the platform revenue: ${landlordRevenue.response.statusCode}`);
+  const anonymousRevenue = await dispatch(revenueRouter, "GET", "/api/marketplace/admin/revenue", {});
+  assert(anonymousRevenue.response.statusCode === 401, `A signed-out visitor read the platform revenue: ${anonymousRevenue.response.statusCode}`);
+  assert((await dispatch(revenueRouter, "POST", "/api/marketplace/admin/revenue", { headers: administratorAuthHeaders, body: {} })).response.statusCode === 405,
+    "The revenue route accepted a write.");
+
+  // The funnel report is a separate read and still carries no money, which is
+  // what its own published privacy scope says.
+  const stillMoneyFree = await dispatch(revenueRouter, "GET", "/api/marketplace/admin/funnel", { headers: { cookie: administratorAuthHeaders.cookie } });
+  assert(stillMoneyFree.response.statusCode === 200 && !/Pence/.test(JSON.stringify(stillMoneyFree.body.onboarding || {})),
+    "The funnel report grew monetary data, contradicting its own stated scope.");
+}
+console.log("Revenue summary HTTP checks passed: administrator-only, window passed through, read-only, and the funnel report still carries no money.");
+
+// Saved cards (M4): closed unless the service exists AND its platform worker is
+// running; Landlord-only; consent passed through as a strict boolean; CSRF on
+// every write; never cached.
+{
+  const savedCardCalls = [];
+  const savedCardService = {
+    async get(actor, bookingId) { savedCardCalls.push({ kind: "get", actor, bookingId }); return null; },
+    async begin(actor, input) { savedCardCalls.push({ kind: "begin", actor, input }); return { bookingId: input.bookingId, status: "requires-customer-action", amountPence: 9000, currency: "gbp", requiresCustomerAction: true, clientSecret: "seti_secret" }; },
+    async confirm(actor, input) { savedCardCalls.push({ kind: "confirm", actor, input }); return { bookingId: input.bookingId, status: "saved", amountPence: 9000, currency: "gbp" }; },
+    async withdraw(actor, input) { savedCardCalls.push({ kind: "withdraw", actor, input }); return { bookingId: input.bookingId, status: "withdrawn", amountPence: 9000, currency: "gbp" }; }
+  };
+  const savedBookingId = "56565656-5656-4565-8565-565656565656";
+  const savedUrl = `/api/marketplace/bookings/${savedBookingId}/saved-card`;
+  let ready = false;
+  const savedCardRouter = createMarketplaceHttpRouter({ ...dependencies, savedCardService, savedCardsReady: () => ready }, { clientKey: () => trustedClientKey });
+
+  const closed = await dispatch(savedCardRouter, "GET", savedUrl, { headers: { cookie: authHeaders.cookie } });
+  assert(closed.handled === false || closed.response.statusCode === 404, "Saved-card routes answered while no platform worker would ever use a saved card.");
+  const absent = await dispatch(router, "GET", savedUrl, { headers: { cookie: authHeaders.cookie } });
+  assert(absent.handled === false || absent.response.statusCode === 404, "Saved-card routes answered with the feature switched off.");
+
+  ready = true;
+  const read = await dispatch(savedCardRouter, "GET", savedUrl, { headers: { cookie: authHeaders.cookie } });
+  assert(read.response.statusCode === 200 && read.body.savedCard === null && savedCardCalls.at(-1).kind === "get", "The saved-card read did not reach the service.");
+  assert(String(read.response.headers["Cache-Control"]).includes("no-store"), "A saved-card response could be cached.");
+  assert((await dispatch(savedCardRouter, "GET", savedUrl)).response.statusCode === 401, "A saved card was readable without a session.");
+  assert((await dispatch(savedCardRouter, "GET", savedUrl, { headers: { cookie: administratorAuthHeaders.cookie } })).response.statusCode === 403, "A non-Landlord session used the saved-card route.");
+
+  const noCsrf = await dispatch(savedCardRouter, "POST", savedUrl, { headers: { cookie: authHeaders.cookie, origin: authHeaders.origin, "content-type": authHeaders["content-type"] }, body: { consent: true } });
+  assert(noCsrf.response.statusCode === 403 && savedCardCalls.at(-1).kind === "get", "Saving a card accepted a missing CSRF token.");
+
+  await dispatch(savedCardRouter, "POST", savedUrl, { headers: authHeaders, body: { consent: "yes" } });
+  assert(savedCardCalls.at(-1).kind === "begin" && savedCardCalls.at(-1).input.consent === false, "A non-boolean consent was passed through as consent.");
+  const begun = await dispatch(savedCardRouter, "POST", savedUrl, { headers: authHeaders, body: { consent: true } });
+  assert(begun.response.statusCode === 201 && begun.body.savedCard.clientSecret === "seti_secret" && savedCardCalls.at(-1).input.consent === true, "Saving a card did not start the setup.");
+
+  const confirmed = await dispatch(savedCardRouter, "POST", `${savedUrl}/confirm`, { headers: authHeaders });
+  assert(confirmed.response.statusCode === 200 && confirmed.body.savedCard.status === "saved" && savedCardCalls.at(-1).kind === "confirm", "Confirming a saved card did not reach the service.");
+  const withdrawn = await dispatch(savedCardRouter, "POST", `${savedUrl}/withdraw`, { headers: authHeaders });
+  assert(withdrawn.response.statusCode === 200 && savedCardCalls.at(-1).kind === "withdraw", "Withdrawing a saved card did not reach the service.");
+  const getConfirm = await dispatch(savedCardRouter, "GET", `${savedUrl}/confirm`, { headers: { cookie: authHeaders.cookie } });
+  assert(getConfirm.response.statusCode === 405 && getConfirm.response.headers.Allow === "POST", "The confirm route accepted a read.");
+  console.log("Saved-card HTTP checks passed: closed without its worker, Landlord-only, CSRF-protected writes, strict consent, uncached.");
+}

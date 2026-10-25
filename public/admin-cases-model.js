@@ -2,14 +2,20 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 const allowedStatuses = Object.freeze(["open", "reviewing", "resolved", "closed"]);
 const allowedCategories = Object.freeze(["quality", "damage", "access", "safety", "conduct", "payment", "other"]);
 const controlCharacters = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
-export const caseResponsePolicyVersion = "tideway-case-response-v1";
+// Mirrors src/marketplace/case-response-policy.mjs. Version 2 because the case
+// desk can now issue the refund its own decision calls for, so v1's promise
+// that this screen "performs no payment action" stopped being true. An
+// attestation that is routinely untrue is worse than none, and a client still
+// sending v1 is refused rather than silently reinterpreted.
+export const caseResponsePolicyVersion = "tideway-case-response-v2";
+export const maximumCaseRefundPence = 1_000_000;
 
 const casePolicies = Object.freeze({
   quality: Object.freeze({
     priority: "Standard review",
     summary: "Compare the accepted scope with timestamped task progress and available before-and-after evidence.",
     evidence: Object.freeze(["Accepted room-by-room checklist", "Task updates and Cleaner notes", "Relevant before-and-after photos", "Booking messages about agreed scope"]),
-    boundary: "Do not promise a re-clean, discount or refund. Record only the booking outcome; any approved remedy remains a separate decision."
+    boundary: "Do not promise a re-clean or a discount. A refund may be issued with this resolution when one is warranted; any other remedy remains a separate decision."
   }),
   damage: Object.freeze({
     priority: "Priority review",
@@ -39,7 +45,7 @@ const casePolicies = Object.freeze({
     priority: "Standard review",
     summary: "Compare only Homle's provider-neutral payment status with the accepted booking amount and outcome.",
     evidence: Object.freeze(["Accepted customer total", "Provider-neutral authorization status", "Recorded booking outcome", "Existing payment-action audit references"]),
-    boundary: "Do not enter card, bank or provider-secret data. This case resolution does not capture, cancel, refund or transfer money."
+    boundary: "Do not enter card, bank or provider-secret data. This resolution may refund the booking's own payment; it never captures, cancels or transfers money."
   }),
   other: Object.freeze({
     priority: "Triage required",
@@ -119,6 +125,37 @@ export function adminCaseReviewPayload() {
   return Object.freeze({ status: "reviewing" });
 }
 
+/**
+ * The refund this resolution issues, in pence, or null for none.
+ *
+ * Entered in pounds, because that is what the Administrator is reading off the
+ * booking, and converted here so no part of the UI has to remember which unit
+ * it is holding. A blank field is no refund, not a zero one.
+ */
+export function caseRefundAmount(value) {
+  const supplied = value?.refundAmountPounds;
+  if (supplied == null) return null;
+  // `String([45])` is "45", so an array would otherwise pass the shape check
+  // below as an ordinary amount.
+  if (typeof supplied !== "string" && typeof supplied !== "number") throw new TypeError("Enter the refund as an amount in pounds.");
+  // A decimal amount, and nothing else. Bare `Number()` accepts "0x10" as 16,
+  // "1e3" as 1000, `[45]` as 45 and `true` as 1 -- and the server-side twin
+  // deliberately refuses anything that is not already a number, so a loose
+  // reading here is two halves disagreeing about what an amount is.
+  const text = String(supplied).trim();
+  if (text === "") return null;
+  if (!/^\d+(?:\.\d{1,2})?$/.test(text)) throw new TypeError("Enter the refund as an amount in pounds, to at most two decimal places.");
+  const pounds = Number(text);
+  if (!Number.isFinite(pounds) || pounds <= 0) throw new TypeError("Enter the refund as an amount in pounds.");
+  // Rounded off a string with at most two decimals, so this is exact: the
+  // float never has a third place to round away from what was typed.
+  const amountPence = Math.round(pounds * 100);
+  if (!Number.isInteger(amountPence) || amountPence < 1 || amountPence > maximumCaseRefundPence) {
+    throw new TypeError("That refund amount is outside the supported range.");
+  }
+  return amountPence;
+}
+
 export function adminCaseResolutionPayload(value) {
   const input = object(value, "Booking case resolution");
   const resolutionOutcome = String(input.resolutionOutcome || "").trim().toLowerCase();
@@ -127,7 +164,9 @@ export function adminCaseResolutionPayload(value) {
   if (input.policyVersion !== caseResponsePolicyVersion) throw new TypeError("Review the current booking-case handling standard before resolving this case.");
   if (input.evidenceReviewed !== true) throw new TypeError("Confirm that the relevant booking evidence was reviewed and named in the resolution note.");
   if (input.sensitiveDataMinimised !== true) throw new TypeError("Confirm that unnecessary personal, access and payment data was kept out of the resolution note.");
-  if (input.noExternalActionConfirmed !== true) throw new TypeError("Confirm that this decision does not perform a payment or external action.");
+  if (input.noUnrecordedActionConfirmed !== true) throw new TypeError("Confirm that nothing was done beyond what is recorded here.");
+  const refundAmountPence = caseRefundAmount(input);
+  if (refundAmountPence !== null && input.refundAuthorised !== true) throw new TypeError("Authorise the exact refund amount before resolving this case.");
   return Object.freeze({
     status: "resolved",
     resolutionOutcome,
@@ -135,7 +174,11 @@ export function adminCaseResolutionPayload(value) {
     policyVersion: caseResponsePolicyVersion,
     evidenceReviewed: true,
     sensitiveDataMinimised: true,
-    noExternalActionConfirmed: true
+    noUnrecordedActionConfirmed: true,
+    // Absent and zero are different things on purpose: absent means this
+    // decision moves no money. Only included when a refund is actually being
+    // made, so a blank field can never be mistaken for a nil refund.
+    ...(refundAmountPence === null ? {} : { refundAmountPence, refundAuthorised: true })
   });
 }
 

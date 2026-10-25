@@ -93,6 +93,19 @@ export function createDisputeService(repository, options = {}) {
       if (!result || !Array.isArray(result.disputes)) throw new Error("The booking-case queue is unavailable.");
       return Object.freeze({ disputes: Object.freeze(result.disputes.map(dispute)), limit: integer(result.limit, 1, 100, 50, "Case page size"), offset: integer(result.offset, 0, 10000, 0, "Case page offset") });
     },
+    /**
+     * One case, by its own id, read without changing it.
+     *
+     * The case desk needs the booking behind a case BEFORE it acts, so that a
+     * refund can be sent while the booking is still `disputed`. Resolving with
+     * the outcome `completed` lets settlement transfer the Cleaner's pay, and a
+     * transferred payment can never be refunded again.
+     */
+    async getForAdministrator(actor, disputeId) {
+      role(actor, ["administrator"], "read a booking case");
+      if (typeof repository.getForAdministrator !== "function") throw new TypeError("The administrator booking-case read is unavailable.");
+      return dispute(await repository.getForAdministrator(actor, uuid(disputeId, "case id")));
+    },
     async review(actor, disputeId, input = {}) {
       role(actor, ["administrator"], "update a booking case");
       const status = String(input.status || "").trim().toLowerCase();

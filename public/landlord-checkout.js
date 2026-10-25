@@ -1,6 +1,8 @@
-import { bookingIdFromSearch, formatPaymentAmount, paymentPresentation, paymentRetryStorageKey } from "./landlord-checkout-model.js";
+import { bookingIdFromSearch, formatPaymentAmount, paymentPresentation, paymentRetryStorageKey, paymentWindowOpensAt, savedCardOffered } from "./landlord-checkout-model.js";
+import { mountSavedCard, readSavedCard } from "./landlord-saved-card.js?v=20261025-saved-card-1";
 import { storedCsrf } from "./session-csrf.js";
 import { renderWorkspaceShell } from "./workspace-shell.js?v=20260830-1";
+import { recordFunnel } from "./funnel.js?v=20260920-1";
 
 const stripeScriptUrl = "https://js.stripe.com/clover/stripe.js";
 const bookingId = bookingIdFromSearch(location.search);
@@ -44,7 +46,7 @@ async function loadBookingContext() {
   try {
     const result = await requestJson("/api/marketplace/bookings?limit=50");
     const summary = (Array.isArray(result.bookings) ? result.bookings : []).find((booking) => booking.bookingId === bookingId);
-    if (!summary) return;
+    if (!summary) return null;
     const start = new Date(summary.scheduledStartAt);
     contextStrip.querySelector("[data-payment-context-property]").textContent = [summary.propertyName, summary.propertyArea].filter(Boolean).join(" · ") || "Saved property";
     contextStrip.querySelector("[data-payment-context-when]").textContent = Number.isNaN(start.getTime()) ? "Time unavailable" : contextWindow.format(start);
@@ -55,9 +57,30 @@ async function loadBookingContext() {
       contextStrip.querySelector("[data-payment-context-cleaner]").textContent = summary.counterpartyName;
     }
     contextStrip.hidden = false;
+    return summary;
   } catch {
     // Context only. The payment card is already honest without it.
+    return null;
   }
+}
+
+// Before the payment window opens, paying is not possible yet; saving a card
+// is (M4). Shown only when the server answers the saved-card route, which it
+// does only while the platform worker that will use the card is running.
+async function offerSavedCard(payment, summary) {
+  if (!summary || !savedCardOffered(payment, summary.scheduledStartAt)) return;
+  const { available, card } = await readSavedCard(requestJson, bookingId);
+  if (!available) return;
+  prepare.hidden = true;
+  const opens = paymentWindowOpensAt(summary.scheduledStartAt);
+  const opensText = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" }).format(opens);
+  document.querySelector("[data-payment-message-title]").textContent = `Payment opens on ${opensText}`;
+  document.querySelector("[data-payment-message-copy]").textContent = "A card hold lasts about a week, so it cannot be placed this far ahead. Save a card below and Homle places the hold then, or come back from that date to pay.";
+  mountSavedCard({
+    host: document.querySelector("[data-payment-message]"),
+    bookingId, card, amountPence: payment.amountPence, scheduledStartAt: summary.scheduledStartAt,
+    requestJson, recoverCsrf, loadStripe
+  });
 }
 
 function saveCsrf(token) {
@@ -283,6 +306,10 @@ async function refreshStatus({ manual = false } = {}) {
   }
 }
 
+// Set once the signed status has confirmed an authorization, so the funnel
+// counts the booking rather than the number of times somebody reloaded.
+let authorisationCounted = false;
+
 async function confirmStripePayment() {
   let timer;
   try {
@@ -312,7 +339,18 @@ async function confirmPayment(event) {
       if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
       const payment = await readPaymentStatus();
       renderPayment(payment);
-      if (!["creating", "requires-customer-action", "processing"].includes(payment?.status)) break;
+      if (!["creating", "requires-customer-action", "processing"].includes(payment?.status)) {
+        // Counted from the signed status Homle read back, not from Stripe's
+        // browser-side result: the funnel should say a payment was authorised
+        // only where the product itself believes one was. Guarded so a refresh
+        // or a second pass through the poll cannot count the same booking
+        // twice.
+        if (payment?.status === "authorized" && !authorisationCounted) {
+          authorisationCounted = true;
+          recordFunnel("funnel.payment.authorised", { audience: "customer", surface: "app" });
+        }
+        break;
+      }
       prepare.hidden = true;
       form.hidden = true;
       statusRefresh.hidden = false;
@@ -347,8 +385,9 @@ async function load() {
   try {
     const account = (await requestJson("/api/marketplace/account")).account;
     if (account?.selectedRole !== "landlord" || !account?.roles?.includes("landlord")) return showState("Use the booking Landlord account", "Cleaner and unrelated accounts cannot view or authorize this payment.", { kind: "authentication", allowSignIn: true });
-    renderPayment(await readPaymentStatus());
-    void loadBookingContext();
+    const payment = await readPaymentStatus();
+    renderPayment(payment);
+    void loadBookingContext().then((summary) => offerSavedCard(payment, summary)).catch(() => {});
   } catch (error) {
     if (error.code === "browser-offline") showState("You are offline", "Reconnect to check the exact frozen total and signed payment status. No payment was attempted.", { kind: "offline", allowRetry: true });
     else if (["payment-amount-unavailable", "payment-amount-mismatch"].includes(error.code)) showState("Booking total needs review", error.message, { kind: "error" });
