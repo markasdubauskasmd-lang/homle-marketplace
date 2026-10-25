@@ -141,17 +141,7 @@ body.homle-workspace .hw-nav a[aria-current="page"] {
      label needs. The darker shade measures 5.30:1 on the same tint. */
   color: var(--homle-ws-accent-on-tint, #c4151b);
 }
-body.homle-workspace .hw-nav-count {
-  margin-left: auto;
-  min-width: 20px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: var(--homle-ws-accent, #e11b22);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  text-align: center;
-}
+
 
 body.homle-workspace .hw-sidebar-account {
   display: flex;
@@ -418,7 +408,7 @@ body.homle-workspace input[type="radio"] {
   margin: 0;
   accent-color: var(--homle-ws-accent, #e11b22);
 }
-body.homle-workspace .hw-field { display: block; margin-top: 14px; }
+
 body.homle-workspace input[type="text"],
 body.homle-workspace input[type="email"],
 body.homle-workspace input[type="password"],
@@ -440,42 +430,17 @@ body.homle-workspace textarea { min-height: 120px; resize: vertical; }
 body.homle-workspace .hw-hint { margin: 6px 0 0; color: var(--homle-ws-dim, #6b6b6b); font-size: 12.5px; line-height: 1.5; }
 
 /* Badges and status. */
-body.homle-workspace .hw-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 11px;
-  border-radius: 999px;
-  background: #f2f0ee;
-  color: var(--homle-ws-ink-soft, #3a3a3a);
-  font-size: 12px;
-  font-weight: 600;
-}
-body.homle-workspace .hw-badge-success { background: var(--homle-ws-success-tint, #eaf4ee); color: var(--homle-ws-success-ink, #2e7d51); }
-body.homle-workspace .hw-badge-warn { background: var(--homle-ws-warn-tint, #fbf1df); color: var(--homle-ws-warn-ink, #9a6d14); }
-body.homle-workspace .hw-badge-accent { background: var(--homle-ws-accent-tint, #fdecec); color: var(--homle-ws-accent-dark, #c4151b); }
+
+
+
+
 
 /* A row inside a card that opens something else. */
-body.homle-workspace .hw-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  min-height: 64px;
-  padding: 14px 4px;
-  border: 0;
-  border-top: 1px solid var(--homle-ws-line, #efedeb);
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  text-decoration: none;
-  cursor: pointer;
-}
-body.homle-workspace .hw-row:first-of-type { border-top: 0; }
-body.homle-workspace .hw-row-copy { flex: 1; min-width: 0; }
-body.homle-workspace .hw-row-copy strong { display: block; font-size: 15px; }
-body.homle-workspace .hw-row-copy small { display: block; margin-top: 2px; color: var(--homle-ws-muted, #666); font-size: 13px; }
+
+
+
+
+
 
 /* Empty, loading and feedback states. Every page used to hand-roll these. */
 body.homle-workspace .hw-empty {
@@ -558,7 +523,7 @@ body.homle-workspace .hw-feedback[data-kind="success"] {
 
 /* Wide content — tables, timelines, code — scrolls inside its own box so the
    page body never slides sideways on a phone. */
-body.homle-workspace .hw-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
 
 /* Dialogs. The `<dialog>` element already gives modality, focus trapping and
    Escape; this only dresses it. The backdrop is a warm ink rather than the

@@ -12,7 +12,14 @@ const fields={propertyType:'flat',addressLine1:'1 Example Road',addressLine2:'Ap
 savePropertyFormDraft(storage,{ownerId:owner,fields,retryId:retry},now);
 assert.deepEqual(Object.keys(readPropertyFormDraft(storage,owner,now).fields),Object.keys(propertyDraftFields));
 assert.equal(readPropertyFormDraft(storage,owner,now).retryId,retry);
-for(const value of ['6789','under the mat','abc123','secret','private','Private tenant'])assert(!memory.get(key).includes(value));
+// Every stored text value is checked, and the raw record too except for the
+// all-digit code: the record carries millisecond timestamps, and a timestamp
+// that happens to contain "6789" is not a leaked door code.
+const storedText=(value)=>typeof value==='string'?[value]:value&&typeof value==='object'?Object.values(value).flatMap(storedText):[];
+for(const value of ['6789','under the mat','abc123','secret','private','Private tenant']){
+ assert(!storedText(JSON.parse(memory.get(key))).some((text)=>text.includes(value)),`The draft stored ${value}.`);
+ if(!/^\d+$/.test(value))assert(!memory.get(key).includes(value),`The draft record contains ${value}.`);
+}
 assert.equal(readPropertyFormDraft(storage,other,now),null);assert.equal(memory.size,0);
 for(const delta of [landlordRequestDraftLifetimeMs,-300001]){
  savePropertyFormDraft(storage,{ownerId:owner,fields},now);assert.equal(readPropertyFormDraft(storage,owner,now+delta),null);assert.equal(memory.size,0);

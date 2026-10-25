@@ -515,6 +515,18 @@ try {
   const openApi = await openApiResponse.json();
   assert(llmsResponse.ok && llmsResponse.headers.get("content-type") === "text/plain; charset=utf-8" && llmsText.startsWith("# Homle") && !llmsText.includes("onrender.com"), "llms.txt is missing or points at the preview host.");
   assert(openApiResponse.ok && openApi.openapi === "3.1.0" && Object.keys(openApi.paths).every((route) => route.startsWith("/api/public/")), "openapi.json is missing or describes more than the no-account API.");
+  // Text assets travel compressed when the browser accepts it, and plain when it does not.
+  const { brotliDecompressSync } = await import("node:zlib");
+  const rawGet = (pathname, headers) => new Promise((resolve, reject) => {
+    nodeHttpRequest(`${base}${pathname}`, { headers }, (reply) => { const chunks = []; reply.on("data", (chunk) => chunks.push(chunk)); reply.on("end", () => resolve({ headers: reply.headers, body: Buffer.concat(chunks) })); }).on("error", reject).end();
+  });
+  const stylesOnDisk = await readFile(path.join(root, "public", "styles.css"));
+  const compressedStyles = await rawGet("/styles.css", { "accept-encoding": "gzip, br" });
+  assert(compressedStyles.headers["content-encoding"] === "br" && compressedStyles.headers.vary === "Accept-Encoding" && brotliDecompressSync(compressedStyles.body).equals(stylesOnDisk) && compressedStyles.body.length < stylesOnDisk.length / 4, "styles.css was not served Brotli-compressed to a browser that accepts it.");
+  const plainStyles = await rawGet("/styles.css", {});
+  assert(!plainStyles.headers["content-encoding"] && plainStyles.body.equals(stylesOnDisk), "styles.css was compressed for a client that did not ask for it.");
+  const heroImage = await rawGet("/landing/open-plan-living-960-bacccd4e.webp", { "accept-encoding": "br" });
+  assert(!heroImage.headers["content-encoding"], "An already-compressed image was compressed again.");
   const mcpWhileOff = await nativeFetch(`${base}/mcp`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
   assert(mcpWhileOff.status === 403, `With MCP off, a POST without an Origin reached past the origin check: ${mcpWhileOff.status} ${(await mcpWhileOff.text()).slice(0, 200)}`);
   const landlordPage = await fetch(`${base}/for-landlords`);

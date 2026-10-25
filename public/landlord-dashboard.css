@@ -58,17 +58,7 @@ body.landlord-dashboard-page .site-header .shell.nav-wrap {
 }
 body.landlord-dashboard-page .workspace-brand { display: flex; align-items: center; gap: 11px; }
 body.landlord-dashboard-page .workspace-brand .brand { display: inline-flex; align-items: center; gap: 11px; font-family: var(--ld-display); font-weight: 700; font-size: 21px; color: var(--ld-ink-2); }
-body.landlord-dashboard-page .landlord-workspace-pill {
-  align-self: flex-start;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ld-coral);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
+
 
 body.landlord-dashboard-page .landlord-dashboard-nav {
   display: flex;
@@ -443,139 +433,45 @@ body.landlord-dashboard-page .scan-hero:focus-visible {
   box-shadow: 0 32px 56px rgba(200, 43, 51, .28);
 }
 
-body.landlord-dashboard-page .scan-hero-glow,
-body.landlord-dashboard-page .scan-hero-grid,
-body.landlord-dashboard-page .scan-hero-sweep,
-body.landlord-dashboard-page .scan-hero-dot { display: none; }
 
-body.landlord-dashboard-page .scan-hero-body { align-self: stretch; display: flex; flex-direction: column; min-width: 0; }
 
-body.landlord-dashboard-page .scan-hero-eyebrow {
-  margin-bottom: 17px;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .23em;
-}
 
-body.landlord-dashboard-page .scan-hero-title {
-  max-width: 560px;
-  margin-bottom: 14px;
-  color: #fff;
-  font-family: var(--ld-display);
-  font-size: clamp(31px, 3.1vw, 38px);
-  line-height: .98;
-  letter-spacing: -.035em;
-}
 
-body.landlord-dashboard-page .scan-hero-copy {
-  max-width: 590px;
-  margin-bottom: 20px;
-  color: rgba(255,255,255,.94);
-  font-size: 16px;
-  line-height: 1.52;
-}
 
-body.landlord-dashboard-page .scan-hero-cta { gap: 16px; }
 
-body.landlord-dashboard-page .scan-hero-button {
-  padding: 15px 26px;
-  color: #b91f30;
-  background: #fff;
-  box-shadow: 0 13px 28px rgba(113, 19, 31, .16);
-}
 
-body.landlord-dashboard-page .scan-hero:hover .scan-hero-button { color: #a61728; background: #fff; }
 
-body.landlord-dashboard-page .scan-hero-time {
-  max-width: 290px;
-  color: rgba(255,255,255,.92);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0;
-  line-height: 1.4;
-  text-transform: none;
-}
 
-body.landlord-dashboard-page .scan-hero-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: auto;
-  padding-top: 18px;
-}
 
-body.landlord-dashboard-page .scan-hero-tags > span {
-  padding: 7px 14px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.16);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-}
 
-body.landlord-dashboard-page .scan-hero-tags em { font-style: normal; font-weight: 400; opacity: .78; }
 
-body.landlord-dashboard-page .scan-hero-frame {
-  position: relative;
-  z-index: 2;
-  align-self: center;
-  justify-self: center;
-  width: 150px;
-  height: 290px;
-  aspect-ratio: auto;
-  border: 8px solid #171416;
-  border-radius: 29px;
-  overflow: hidden;
-  background: linear-gradient(180deg, #203e46 0%, #162c35 58%, #10242c 100%);
-  box-shadow: 0 20px 33px rgba(76, 12, 20, .27);
-}
 
-body.landlord-dashboard-page .scan-hero-frame::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 50% 48%, rgba(102,255,171,.13), transparent 45%);
-}
 
-body.landlord-dashboard-page .scan-hero-reticle { inset: 16px; }
 
-body.landlord-dashboard-page .scan-hero-reticle i {
-  width: 22px;
-  height: 22px;
-  border-color: #82f4b3;
-  border-width: 3px;
-  box-shadow: none;
-}
 
-body.landlord-dashboard-page .scan-hero:hover .scan-hero-reticle { inset: 16px; }
 
-body.landlord-dashboard-page .scan-hero:hover .scan-hero-reticle i { border-color: #82f4b3; box-shadow: none; }
 
-body.landlord-dashboard-page .scan-hero-beam {
-  position: absolute;
-  top: 50%;
-  left: 16px;
-  right: 16px;
-  height: 3px;
-  border-radius: 999px;
-  background: #75f3a9;
-  box-shadow: 0 0 14px 3px rgba(117,243,169,.65);
-  animation: landlordPhoneScan 3.2s ease-in-out infinite;
-}
 
-body.landlord-dashboard-page .scan-hero-frame strong {
-  position: absolute;
-  left: 25px;
-  right: 25px;
-  bottom: 20px;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .12em;
-  text-align: center;
-  text-transform: uppercase;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   body.landlord-dashboard-page .scan-hero {
     grid-template-columns: 1fr;
@@ -583,19 +479,19 @@ body.landlord-dashboard-page .scan-hero-frame strong {
     padding: 28px 23px;
   }
 
-  body.landlord-dashboard-page .scan-hero-frame { order: -1; width: 125px; height: 220px; }
+  
 
-  body.landlord-dashboard-page .scan-hero-copy { font-size: 15px; }
+  
 
-  body.landlord-dashboard-page .scan-hero-button { width: 100%; justify-content: center; }
+  
 
-  body.landlord-dashboard-page .scan-hero-time { max-width: none; }
+  
 
-  body.landlord-dashboard-page .scan-hero-tags { gap: 7px; }
+  
 
-  body.landlord-dashboard-page .scan-hero-tags > span { padding: 6px 10px; font-size: 11px; }
+  
 
-  body.landlord-dashboard-page .scan-hero-beam { animation: none; }
+  
 
 body.landlord-dashboard-page .landlord-record-form input,
 body.landlord-dashboard-page .landlord-record-form select,
@@ -806,13 +702,7 @@ body.landlord-dashboard-page .landlord-secure-badge {
   font-weight: 700;
 }
 body.landlord-dashboard-page .landlord-secure-badge > span { color: #20a04b; font-size: 10px; }
-body.landlord-dashboard-page .landlord-new-request {
-  min-height: 45px;
-  padding-inline: 25px;
-  background: var(--ld-coral);
-  color: #fff;
-  box-shadow: 0 14px 28px rgba(233, 69, 73, .24);
-}
+
 @keyframes landlordPhoneScan { 0%, 100% { transform: translateY(-42px); opacity: .5; } 50% { transform: translateY(46px); opacity: 1; } }
 
 body.landlord-dashboard-page .landlord-booking-section {
@@ -903,7 +793,7 @@ body.landlord-dashboard-page .landlord-booking-live [data-landlord-booking-live]
 }
   body.landlord-dashboard-page .role-dashboard-welcome h1 { font-size: clamp(39px, 12vw, 51px); }
   body.landlord-dashboard-page .role-dashboard-welcome p br { display: none; }
-  body.landlord-dashboard-page .landlord-new-request { justify-self: stretch; justify-content: center; }
+  
   body.landlord-dashboard-page .landlord-section-toggle { min-height: 56px; padding: 14px 16px; }
 }
 
@@ -960,18 +850,7 @@ body.landlord-dashboard-page .pac-sub { margin: 8px 0 0; color: var(--ld-muted);
    prose because the choice is made in a glance, not a read. */
 body.landlord-dashboard-page .pac-head-main { display: flex; align-items: flex-start; gap: 14px; min-width: 0; }
 body.landlord-dashboard-page .pac-head-text { min-width: 0; }
-body.landlord-dashboard-page .pac-head-icon {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  margin-top: 2px;
-  border-radius: 13px;
-  border: 1px solid var(--ld-line);
-  background: oklch(0.96 0.012 60);
-  color: var(--ld-ink);
-}
+
 body.landlord-dashboard-page .pac-head-tags { display: none; }
 body.landlord-dashboard-page .pac-head-art { display: none; }
 body.landlord-dashboard-page .pac-head-tags > span {
@@ -1007,7 +886,7 @@ body.landlord-dashboard-page .pac-reveal {
 }
 
 /* Collapse toggle hides the working area, keeps the header + saved drafts. */
-body.landlord-dashboard-page.pac-collapsed-host .pac-layout { display: none; }
+
 body.landlord-dashboard-page .pac-card.pac-collapsed .pac-layout { display: none; }
 body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-layout { display: none; }
 
@@ -1114,14 +993,7 @@ body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requ
   line-height: 1.5;
 }
 /* The pen badge, lit rather than outlined, so it carries on a dark field. */
-body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-head-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 15px;
-  border-color: rgba(255,255,255,.16);
-  background: rgba(255,186,116,.16);
-  color: #ffc796;
-}
+
 /* Only while collapsed — this is the banner where the choosing happens. Once
    the builder is open the form itself says all of this. */
 body.landlord-dashboard-page .landlord-workspace-panel[data-landlord-panel="requests"].pac-collapsed .pac-head-tags {
@@ -1293,7 +1165,7 @@ body.landlord-dashboard-page .pac-step { display: flex; flex-direction: column; 
 body.landlord-dashboard-page .pac-step + .pac-step { margin-top: 22px; }
 body.landlord-dashboard-page .pac-wizard-on .pac-step { margin-top: 0; }
 body.landlord-dashboard-page .pac-wizard-on .pac-step:not(.is-active) { display: none; }
-body.landlord-dashboard-page .pac-step-hint { margin: 0; color: var(--ld-muted-2); font-size: 14px; }
+
 
 /* Back / Next. */
 body.landlord-dashboard-page .pac-nav {
@@ -1369,24 +1241,10 @@ body.landlord-dashboard-page .landlord-speech-scope [data-speech-toggle]::before
 }
 
 /* Checklist bullets as clean rows with a coral marker. */
-body.landlord-dashboard-page .landlord-checklist-review { padding-top: 2px; }
-body.landlord-dashboard-page .landlord-task-preview { display: flex; flex-direction: column; gap: 8px; }
-body.landlord-dashboard-page .landlord-task-preview [role="listitem"] {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  font-size: 14.5px;
-  color: var(--ld-muted);
-}
-body.landlord-dashboard-page .landlord-task-preview [role="listitem"]::before {
-  content: "";
-  flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  margin-top: 7px;
-  border-radius: 50%;
-  background: var(--ld-coral);
-}
+
+
+
+
 
 /* One text box and the two actions the Landlord actually needs. Natural task
    descriptions remain valid; Add images opens a focused room/photo window. */

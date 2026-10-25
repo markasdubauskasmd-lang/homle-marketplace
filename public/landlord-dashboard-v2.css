@@ -539,21 +539,11 @@ body.landlord-dashboard-page #landlord-panel-account {
   max-width: 980px;
   margin: 0 auto;
 }
-body.landlord-dashboard-page .ld-account-heading { margin-bottom: 18px; }
-body.landlord-dashboard-page .ld-account-heading .landlord-secure-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-  color: var(--ld-success-ink);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-body.landlord-dashboard-page .ld-account-heading .landlord-secure-badge span { color: var(--ld-success); font-size: 8px; }
-body.landlord-dashboard-page .ld-account-heading h2 { margin: 0; font-size: clamp(30px, 4vw, 42px); }
-body.landlord-dashboard-page .ld-account-heading p { margin: 7px 0 0; color: var(--ld-muted); font-size: 15px; }
+
+
+
+
+
 
 body.landlord-dashboard-page .ld-account-identity-card {
   display: grid;
@@ -1015,9 +1005,9 @@ body.landlord-dashboard-page .ld-art-pen {
   body.landlord-dashboard-page .ld-start-body h3 { font-size: 15px; }
   body.landlord-dashboard-page .ld-start-body p { margin: 6px 0 12px; font-size: 12.5px; }
   body.landlord-dashboard-page .ld-btn { width: 100%; justify-content: center; padding: 11px; font-size: 13.5px; }
-  body.landlord-dashboard-page .ld-booking-entry { align-items: stretch; flex-direction: column; gap: 16px; padding: 18px; }
-  body.landlord-dashboard-page .ld-booking-entry-actions { width: 100%; }
-  body.landlord-dashboard-page .ld-booking-entry-actions .ld-btn { flex: 1; min-width: 0; }
+  
+  
+  
 
   /* On a phone the list and the thread cannot share a screen. The thread is
      what someone came for, so the list becomes a horizontal strip above it. */
@@ -1313,7 +1303,7 @@ body.landlord-dashboard-page .ld-past-report {
 }
 
 @media (max-width: 560px) {
-  body.landlord-dashboard-page .ld-booking-entry-actions { flex-direction: column; }
+  
   body.landlord-dashboard-page .ld-plan { flex-wrap: wrap; }
   body.landlord-dashboard-page .ld-plan-copy { flex-basis: calc(100% - 61px); }
   body.landlord-dashboard-page .ld-plan-price { margin-left: 61px; }
@@ -1896,8 +1886,8 @@ body.landlord-dashboard-page .landlord-account-menu[open] > summary .account-ava
 
 @media (max-width: 700px) {
   body.landlord-dashboard-page #landlord-panel-account { max-width: none; }
-  body.landlord-dashboard-page .ld-account-heading h2 { font-size: 32px; }
-  body.landlord-dashboard-page .ld-account-heading p { font-size: 14px; }
+  
+  
   body.landlord-dashboard-page .ld-account-identity-card {
     grid-template-columns: auto minmax(0, 1fr);
     gap: 14px;
@@ -2115,12 +2105,7 @@ body.landlord-dashboard-page .ld-btn-dark:hover { background: var(--ld-coral-dar
 
 /* â”€â”€ Account totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
-body.landlord-dashboard-page .ld-book-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 12px;
-  margin-top: 14px;
-}
+
 body.landlord-dashboard-page .ld-book-stat {
   padding: 15px 17px;
   background: var(--ld-paper);
@@ -2161,51 +2146,18 @@ body.landlord-dashboard-page .ld-past-grid {
   grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
   gap: 14px;
 }
-body.landlord-dashboard-page .ld-past {
-  display: flex;
-  flex-direction: column;
-  background: var(--ld-paper);
-  border: 1px solid var(--ld-line);
-  border-radius: 20px;
-  overflow: hidden;
-}
-body.landlord-dashboard-page .ld-past-banner {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: 44px;
-  padding: 9px 12px;
-  background: var(--ld-cream);
-  border-bottom: 1px solid var(--ld-line);
-}
-body.landlord-dashboard-page .ld-past-actions { display: flex; gap: 7px; }
-body.landlord-dashboard-page .ld-past-actions .ld-btn { padding: 7px 13px; font-size: 12.5px; }
 
-body.landlord-dashboard-page .ld-past-body { padding: 14px 16px; }
-body.landlord-dashboard-page .ld-past-address { font-size: 15.5px; font-weight: 700; letter-spacing: -.02em; }
-body.landlord-dashboard-page .ld-past-meta { margin-top: 3px; font-size: 12.5px; color: var(--ld-muted); }
 
-body.landlord-dashboard-page .ld-past-footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 11px 16px;
-  border-top: 1px solid var(--ld-line);
-  font-size: 12.5px;
-}
-body.landlord-dashboard-page .ld-past-avatar {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 26px;
-  height: 26px;
-  background: var(--ld-cream);
-  border-radius: 50%;
-  font-size: 10.5px;
-  font-weight: 700;
-  color: var(--ld-muted);
-}
-body.landlord-dashboard-page .ld-past-cleaner { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ld-muted); }
+
+
+
+
+
+
+
+
+
+
 body.landlord-dashboard-page .ld-past-state {
   flex: none;
   padding: 4px 9px;
@@ -2214,14 +2166,7 @@ body.landlord-dashboard-page .ld-past-state {
   font-weight: 600;
   color: var(--ld-success-ink);
 }
-body.landlord-dashboard-page .ld-past-issue {
-  flex: none;
-  padding: 4px 9px;
-  background: var(--ld-coral-tint);
-  border-radius: 99px;
-  font-weight: 600;
-  color: var(--ld-coral-dark);
-}
+
 
 /* â”€â”€ Place cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
@@ -2241,30 +2186,12 @@ body.landlord-dashboard-page .ld-prop-main { min-width: 0; flex: 1; }
 /* Two adjacent spans — "Last cleaned <date>" and "Next <date>" — with nothing
    between them. Without a gap and a separator they read as one broken string,
    "Last cleaned —Next —", which is the same fault the account totals had. */
-body.landlord-dashboard-page .ld-prop-dates {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 9px;
-  margin-top: 2px;
-  font-size: 12.5px;
-  color: var(--ld-muted);
-}
-body.landlord-dashboard-page .ld-prop-dates > span + span::before {
-  content: "·";
-  margin-right: 9px;
-  color: var(--ld-faint);
-}
-body.landlord-dashboard-page .ld-prop-dates strong { font-weight: 600; color: var(--ld-ink-soft); }
 
-body.landlord-dashboard-page .ld-prop-rooms { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-body.landlord-dashboard-page .ld-prop-room {
-  padding: 4px 9px;
-  background: var(--ld-cream);
-  border-radius: 99px;
-  font-size: 11.5px;
-  color: var(--ld-muted);
-}
+
+
+
+
+
 
 /* The dashed tile that closes the grid. Its three children are inline spans,
    so they have to be stacked here — otherwise the title and the copy beneath
@@ -3212,24 +3139,12 @@ body.landlord-dashboard-page .ld-care-card {
 }
 body.landlord-dashboard-page .ld-care-card h3 { margin: 0; font-size: 16px; font-weight: 700; }
 body.landlord-dashboard-page .ld-care-card-sub { margin: 5px 0 0; font-size: 13.5px; color: var(--ld-dim); }
-body.landlord-dashboard-page .ld-care-label {
-  margin: 0 0 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .13em;
-  text-transform: uppercase;
-  color: var(--ld-faint);
-}
-body.landlord-dashboard-page .ld-care-streak-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-body.landlord-dashboard-page .ld-care-streak-count { font-size: 25px; font-weight: 700; letter-spacing: -.03em; }
-body.landlord-dashboard-page .ld-care-streak-sub { margin: 5px 0 0; font-size: 13px; color: var(--ld-muted); }
-body.landlord-dashboard-page .ld-care-freeze-pill { display: none; }
-body.landlord-dashboard-page .ld-care-cells { display: flex; gap: 5px; margin-top: 18px; }
+
+
+
+
+
+
 body.landlord-dashboard-page .ld-care-cell {
   flex: 1;
   height: 30px;
@@ -3240,29 +3155,11 @@ body.landlord-dashboard-page .ld-care-cell.is-hit { background: var(--ld-coral);
 body.landlord-dashboard-page .ld-care-cell.is-miss { background: #f0eeec; }
 body.landlord-dashboard-page .ld-care-cell.is-frozen { background: #e8f0f9; border: 1px solid #cfe0f2; }
 body.landlord-dashboard-page .ld-care-cell.is-empty { background: transparent; border: 1px dashed #e0dcd7; }
-body.landlord-dashboard-page .ld-care-freeze {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 16px;
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--ld-canvas);
-}
-body.landlord-dashboard-page .ld-care-freeze-icon {
-  width: 32px;
-  height: 32px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: #e8f0f9;
-  color: #2c6bb0;
-  animation: ld-care-freeze 3.4s ease-in-out infinite;
-}
-body.landlord-dashboard-page .ld-care-freeze-copy { flex: 1; min-width: 0; display: grid; }
-body.landlord-dashboard-page .ld-care-freeze-copy strong { font-size: 13px; font-weight: 600; }
-body.landlord-dashboard-page .ld-care-freeze-copy small { margin-top: 2px; font-size: 11.5px; color: var(--ld-dim); }
+
+
+
+
+
 
 /* Discovery rows - what the last scan actually returned. */
 body.landlord-dashboard-page .ld-care-finds { display: grid; gap: 8px; margin-top: 15px; }
@@ -3325,16 +3222,8 @@ body.landlord-dashboard-page .ld-care-meter-fill {
 }
 body.landlord-dashboard-page .ld-care-meter-fill-lag { background: var(--ld-coral); }
 body.landlord-dashboard-page .ld-care-meter-fill-coverage { background: #e0c383; animation-delay: .42s; }
-body.landlord-dashboard-page .ld-care-callout {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin-top: 17px;
-  padding: 13px 15px;
-  border-radius: 13px;
-  background: var(--ld-coral-tint);
-}
-body.landlord-dashboard-page .ld-care-callout-copy { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.5; }
+
+
 body.landlord-dashboard-page .ld-care-callout-btn {
   flex: none;
   padding: 10px 15px;
@@ -3427,25 +3316,15 @@ body.landlord-dashboard-page .ld-care-note {
   body.landlord-dashboard-page .ld-care-grid { gap: 12px; margin-top: 12px; }
   body.landlord-dashboard-page .ld-care-card { padding: 16px; }
   body.landlord-dashboard-page .ld-care-card h3 { font-size: 15px; }
-  body.landlord-dashboard-page .ld-care-streak-count { font-size: 20px; }
+  
   /* These five carried the only statement of what the numbers mean — what a
      streak counts, what the scan and benchmark figures are, the coverage
      denominator and the record's own footnote — and none has a narrow twin, so
      hiding them left a phone with bare numerals. Shrunk and clamped instead. */
-  body.landlord-dashboard-page .ld-care-streak-sub { margin: 4px 0 0; font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  body.landlord-dashboard-page .ld-care-freeze-pill {
-    display: inline-flex;
-    flex: none;
-    align-self: center;
-    padding: 6px 11px;
-    border-radius: 999px;
-    background: #e8f0f9;
-    color: #2c6bb0;
-    font-size: 11px;
-    font-weight: 600;
-  }
-  body.landlord-dashboard-page .ld-care-freeze { display: none; }
-  body.landlord-dashboard-page .ld-care-cells { gap: 5px; margin-top: 13px; }
+  
+  
+  
+  
   body.landlord-dashboard-page .ld-care-cell { height: 26px; border-radius: 7px; }
   body.landlord-dashboard-page .ld-care-scan .ld-care-card-sub { margin: 4px 0 0; font-size: 11.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   body.landlord-dashboard-page .ld-care-finds { margin-top: 12px; }
@@ -3463,8 +3342,8 @@ body.landlord-dashboard-page .ld-care-note {
   body.landlord-dashboard-page .ld-care-meter-coverage { font-size: 11px; }
   body.landlord-dashboard-page .ld-care-meter-label-wide { display: none; }
   body.landlord-dashboard-page .ld-care-meter-label-narrow { display: inline; }
-  body.landlord-dashboard-page .ld-care-callout { margin-top: 14px; padding: 12px 14px; border-radius: 12px; }
-  body.landlord-dashboard-page .ld-care-callout-copy { font-size: 12px; line-height: 1.45; }
+  
+  
   body.landlord-dashboard-page .ld-care-callout-btn { padding: 9px 14px; border-radius: 11px; }
   body.landlord-dashboard-page .ld-care-note { font-size: 11px; padding: 10px 12px; }
 }
@@ -3556,14 +3435,7 @@ body.landlord-dashboard-page .ld-section-head {
 }
 
 /* A trailing note keeps the label's baseline but not its shout. */
-body.landlord-dashboard-page .ld-section-head-note {
-  flex: none;
-  font-size: 12.5px;
-  font-weight: 500;
-  letter-spacing: normal;
-  text-transform: none;
-  color: var(--ld-muted);
-}
+
 
 /* styles.css floors every workspace panel at 380px — a figure from the design
    this workspace replaced. Payments with nothing priced yet is 177px of real
