@@ -14,7 +14,10 @@ const publicDir = path.resolve("public");
 const render = vm.runInNewContext(source.slice(start, end) + "\nserveFile", {
   path, publicDir, Buffer, stat: async () => ({ isFile: () => true }),
   readFile: async () => Buffer.from(html), mimeTypes: { ".html": "text/html" },
-  immutableStaticAssets: new Set()
+  immutableStaticAssets: new Set(),
+  // serveFile compresses for clients that ask (src/static-compression.mjs);
+  // these renders send no Accept-Encoding, so the body is served as it is.
+  negotiateEncoding: () => null, compressStatic: () => null
 });
 const id = "55555555-5555-4555-8555-555555555555";
 let served;
