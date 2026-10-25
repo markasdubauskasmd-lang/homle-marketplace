@@ -472,6 +472,10 @@ function renderAlerts(summary, buckets) {
   if (!host) return;
   const alerts = [];
   if (summary.profileCompletionPercent < 100) alerts.push(["red", "Your registration is not complete", "Review the remaining onboarding steps before suitable requests can reach you.", "Review →", "/cleaner/onboarding"]);
+  // Complete but not yet live: matching only reaches published profiles, and a
+  // profile goes live when Homle approves it. Without this the dashboard said
+  // nothing at all while no request could reach the Cleaner.
+  if (summary.profileCompletionPercent >= 100 && !summary.profilePublished) alerts.push(["amber", "Waiting for Homle to approve your profile", "Your profile is complete. Requests start reaching you once Homle approves it and it goes live.", "Preview →", "/cleaner/profile/preview"]);
   if (summary.availableWindowCount === 0) alerts.push(["amber", "No future availability saved", "Complete availability from your Cleaner dashboard.", "Review →", "/cleaner/dashboard"]);
   if (summary.payoutState === "action-required") alerts.push(["amber", "Payout setup is unfinished", "Complete the secure form to receive transfers.", "Continue →", "/cleaner/payouts"]);
   if (summary.payoutState === "not-started") alerts.push(["amber", "Payout account not set up", "Set it up before your first completed job.", "Set up →", "/cleaner/payouts"]);
