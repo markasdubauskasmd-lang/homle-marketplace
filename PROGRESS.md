@@ -22,8 +22,10 @@ Where each day stands. Every item has a test that fails before and passes after;
 | 4 | Landlord "Getting started"; Cleaner "profile not published" alert; admin on tokens | ✅ | D33, `tests/landlord-getting-started.mjs`, `tests/cleaner-ready-alerts.mjs` |
 | 5 | robots AI policy, `llms.txt`, `/openapi.json`, `/mcp` (off by default) | ✅ | D30, D31, D32 |
 | 6 | Trust page `/how-homle-works`; 404/500 already branded; 265 KB of dead landing CSS removed | ✅ | — |
-| 6 | Service and area pages | ⏸ area pages need real coverage (none in the database yet); service pages after the founder names the launch area | HUMAN_TODO §0.4 |
-| 6 | CSS under 400 KB | ◐ 1.48 MB → 1.21 MB. The rest is `styles.css` (343 KB) and the Cleaner/Landlord sheets; needs a selector-by-selector audit against the computed-style baselines, not a guess | next |
+| 6 | Service pages `/services/{regular-clean,deep-clean,end-of-tenancy,rental-turnover}` with live from-prices | ✅ | `tests/browser-home-quick-quote.mjs` |
+| 6 | Area pages | ⏸ only for real coverage, and there is none in the database yet; build them from `public_cleaner_coverage` once the first Cleaner is live | HUMAN_TODO §0.3 |
+| 6 | Keyboard pass on the price form; accessible-name scan of 12 public and Landlord pages | ✅ one tab stop per radio group, visible focus, Enter submits; four unnamed Landlord fields named | — |
+| 6 | CSS under 400 KB | ◐ 1.48 MB → 1.17 MB. The rest is `styles.css` (343 KB) and the Cleaner/Landlord sheets; needs a selector-by-selector audit against the computed-style baselines, not a guess | next |
 | 6 | Funnel: a price shown on the landing page | ✅ `funnel.price.shown` / `landing`, already in migration 134's vocabulary, so no migration; no postcode, email or price is sent | `tests/browser-home-quick-quote.mjs` |
 | 6 | Support email on the site | ⏸ founder: HUMAN_TODO §0.7 | — |
 | 7 | Founder rehearsal | ⏸ founder | LAUNCH_CHECKLIST |
