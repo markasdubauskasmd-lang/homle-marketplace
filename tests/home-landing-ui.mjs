@@ -20,7 +20,12 @@ const [page, css, script, homeScript, server] = await Promise.all([
 // rebuilt here as external CSS, an external module and local assets rather than
 // shipped as exported. If any of it creeps back the page renders unstyled.
 assert(!/\sstyle=/.test(page), "The landing page uses inline style attributes, which the CSP blocks.");
-assert(!/<script(?![^>]*\ssrc=)/.test(page), "The landing page carries an inline script, which the CSP blocks.");
+// JSON-LD is data, not script: the browser never executes it, so the CSP is
+// not involved (DECISIONS D30). Every other inline <script> is still refused,
+// and the structured data may not carry a rating or review Homle does not have.
+assert(!/<script(?![^>]*\ssrc=)(?![^>]*\stype="application\/ld\+json")/.test(page), "The landing page carries an inline script, which the CSP blocks.");
+const structuredData = [...page.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((match) => JSON.parse(match[1]));
+assert(structuredData.length === 1 && !/aggregateRating|"review"|ratingValue|reviewCount|areaServed/i.test(JSON.stringify(structuredData)), "The landing page's structured data is missing or claims ratings, reviews or coverage.");
 assert(!/https?:\/\//.test(css), "The landing CSS pulls a stylesheet, font or image from off-origin, which the CSP blocks.");
 assert(!/https?:\/\//.test(script) && !script.includes("eval(") && !script.includes("new Function"), "The scroll script loads off-origin or uses eval, which the CSP blocks.");
 // Off-origin photography is the easiest of these to reintroduce by accident,

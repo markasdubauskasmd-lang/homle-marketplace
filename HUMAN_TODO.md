@@ -9,6 +9,29 @@ Ordered by what unblocks the most.
 
 ---
 
+## 0. Open to customers in 7 days — what only you can do (added 25 October)
+
+These are the items from the 7-day programme brief that code cannot do. Each one links to the detailed section further down where it already has one. They are in the order that unblocks the most.
+
+1. **Always-on hosting.** Move `homle-marketplace-preview` to a Render instance type that does not sleep. A visitor who lands on a cold instance waits 30–60 seconds for the first page, which kills the "price in under a minute" goal. This costs money, so it is your call. See §4.
+2. **Transactional email (Resend).** Without it, password reset and every booking email are off. See §1.
+3. **The first real Cleaner.** Coverage answers "yes" only for a real, active, public Cleaner with future availability. Until one exists, every postcode honestly says "not yet". See §3 and §3a.
+4. **Launch area, cancellation policy and refund policy.**
+   - Name the outward postcodes you will serve first.
+   - Write the cancellation and refund policy in plain words.
+   The terms page still says these are not finalised. See §5.
+5. **`PRICING_POLICY_APPROVED`.** Review the price list served at `/api/public/pricing`. This is the same list the guest quote uses. When you are satisfied, set the attestation yourself. Code will never set it.
+6. **AI crawler policy and OAuth provider.**
+   - Confirm the robots rules for AI crawlers. The default is to allow search and answer bots and disallow training bots; it ships on Day 5 and is logged in `DECISIONS.md`.
+   - Decide whether to fund an OAuth 2.1 provider for agent account tools. Those tools stay off (`MCP_ACCOUNT_TOOLS_ENABLED=false`) until you do.
+7. **A public support contact.** There is no support email address anywhere on the site. Create one, for example `help@homlle.com`, and tell the next session the address so it can be published on the footer, help and trust pages. Until then, "Help & support" goes to the in-app help page.
+8. **Optional:**
+   - A WebMCP origin token, if you want the browser-agent tools on.
+   - Real photography of real cleans. The design uses icons until real photos exist; it never uses stock photos that look like Homle work.
+9. **Marketing outside the code.** Google Business Profile, local landlord groups and letting agents. None of this can be done from the repository.
+
+---
+
 ## 1. Transactional email — highest leverage switch you hold
 
 **Unblocks:** password reset and account recovery, every booking notification,
@@ -414,3 +437,20 @@ journey is simply Google-only plus email/password.
 - **Tracked files and the publication guard** — the guard still reports six
   false positives and ~122 MB tracked against a 100 MiB limit. Narrowing it
   and moving the training videos out of git follow in their own pull request.
+
+---
+
+## 9. Launch-news sign-ups are personal data (added 25 October)
+
+The new postcode check lets a visitor in an area Homle does not cover yet
+leave an email for launch news, with an explicit consent tick (wording version
+`launch-news-v1`). Nothing is sent: email is off, and no send to this list
+exists in code. Before you use the list:
+
+1. Add one line to the Privacy Policy: what the launch-news list is, that it is
+   used only to say Homle now covers the person's area, and how to leave it.
+2. Decide how long an unused sign-up is kept (suggestion: 12 months), and tell
+   the engineer so it can be enforced.
+3. `/api/marketplace/admin/launch-interest` shows how many people asked, by
+   postcode district, without showing any address. Use it to choose where to
+   recruit Cleaners next.

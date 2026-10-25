@@ -2,6 +2,7 @@ import { scanRates, scanReleaseRates } from "./scan-telemetry.mjs";
 import { funnelBatch } from "./funnel-telemetry.mjs";
 import { caseRefundInstruction } from "./case-response-policy.mjs";
 import { measureFromReference, measurementLabel, referenceScale } from "./room-measurement.mjs";
+import { handleMcpMessage } from "./mcp-server.mjs";
 import { errorResponse, maximumBodyBytes, methodNotAllowed, readJsonObject, readRawBody, sendJson, maximumRoomPhotoBodyBytes, maximumRoomScanBodyBytes } from "./http-support.mjs";
 import { createRateLimitBoundary } from "./rate-limit-boundary.mjs";
 import { cleanerProfilePhotoMimeTypes, maximumCleanerProfilePhotoBytes } from "./cleaner-profile-photo.mjs";
@@ -89,6 +90,11 @@ const bookingDisputePath = new RegExp(`^/api/marketplace/bookings/(${uuidPattern
 const adminDisputePath = new RegExp(`^/api/marketplace/admin/disputes/(${uuidPattern})$`);
 const adminSupportRequestPath = new RegExp(`^/api/marketplace/admin/support-requests/(${uuidPattern})$`);
 const apiPrefix = "/api/marketplace/";
+// The anonymous visitor API: price list, quote, coverage, launch news.
+const publicApiPrefix = "/api/public/";
+const mcpPath = "/mcp";
+const maximumPublicQuoteBodyBytes = 16 * 1024;
+const launchInterestConsentVersion = "launch-news-v1";
 
 function queryFilters(url) {
   const result = {};
@@ -171,6 +177,12 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
   const landlordCare = dependencies?.landlordCareService;
   const privacyRequests = dependencies?.privacyRequestService;
   const payments = dependencies?.paymentService || null;
+  // The visitor API (migration 137). Optional: without it /api/public/* is unhandled.
+  const publicMarketplace = dependencies?.publicMarketplace || null;
+  const publicCoverageRequiresPayout = dependencies?.publicCoverageRequiresPayout === true;
+  // The MCP endpoint (DECISIONS D31). Off unless MCP_ENABLED=true; it serves
+  // the same visitor functions as /api/public/, so it needs them too.
+  const mcpRouteEnabled = dependencies?.mcpEnabled === true && publicMarketplace !== null;
   // Saved cards answer only while the platform worker that uses them is
   // running; otherwise a customer could save a card nothing would ever use.
   const savedCards = dependencies?.savedCardService || null;
@@ -236,8 +248,49 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
     async handle(request, response, suppliedUrl) {
       const url = suppliedUrl instanceof URL ? suppliedUrl : new URL(request.url || "/", "http://localhost");
       const pathname = url.pathname;
-      if (!pathname.startsWith(apiPrefix)) return false;
+      if (!pathname.startsWith(apiPrefix) && !pathname.startsWith(publicApiPrefix) && pathname !== mcpPath) return false;
       try {
+        // One stateless JSON-RPC message per POST. No cookie, session or
+        // account is read, so there is nothing for a cross-site request to
+        // ride; a browser that does send an Origin must still be Homle's own
+        // (MCP's DNS-rebinding rule). Each tool reuses a visitor rate-limit
+        // scope, so an agent gets exactly the budget a visitor gets.
+        if (pathname === mcpPath) {
+          if (!mcpRouteEnabled) return false;
+          if (request.headers?.origin) security.requireOrigin(request);
+          if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+          const message = await readJsonObject(request, maximumPublicQuoteBodyBytes).catch((error) => {
+            if (error?.statusCode === 413) throw error;
+            return { invalidJson: true };
+          });
+          if (message?.invalidJson) {
+            sendJson(response, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "Send one JSON-RPC message as a JSON object." } }, { "Cache-Control": "private, no-store" });
+            return true;
+          }
+          const pricing = async () => normalizedPricingConfig((await publicMarketplace.pricingConfig().catch(() => null)) || defaultPricingConfig);
+          const refusal = (error) => {
+            if (error?.statusCode === 422) throw Object.assign(new Error(error.message), { publicMessage: error.message });
+            throw error;
+          };
+          const answer = await handleMcpMessage(message, {
+            pricing: async () => { await limitPublicRead(request, "marketplace-public:pricing"); return pricing(); },
+            quote: async (input) => {
+              await limitPublicRead(request, "marketplace-public:quote");
+              const economics = (await publicMarketplace.pricingEconomics().catch(() => null)) || defaultPricingEconomics;
+              let computed;
+              try { computed = quoteRooms(input, await pricing()); }
+              catch (error) { if (error instanceof TypeError) throw Object.assign(error, { publicMessage: error.message }); throw error; }
+              return reviewedQuote(computed, economics).quote;
+            },
+            coverage: async (postcode) => {
+              await limitPublicRead(request, "marketplace-public:coverage");
+              return publicMarketplace.coverage(postcode, publicCoverageRequiresPayout).catch(refusal);
+            }
+          });
+          if (answer === null) { response.writeHead(202, { "Cache-Control": "private, no-store" }); response.end(); return true; }
+          sendJson(response, 200, answer, { "Cache-Control": "private, no-store" });
+          return true;
+        }
         if (pathname === "/api/marketplace/email/resend/webhook") {
           if (!emailSuppressions) return false;
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
@@ -649,6 +702,84 @@ export function createMarketplaceHttpRouter(dependencies, options = {}) {
         // No CSRF token and none needed: there is no session to ride and the
         // write touches no account, so a forged request can at worst inflate a
         // counter that the rate limit already bounds.
+        // ── The visitor API ────────────────────────────────────────────────
+        //
+        // What a visitor needs before any account: the price list, a quote
+        // for the home they describe, and whether Homle has a Cleaner near
+        // them. Each runs the same engine and the same rules as the signed-in
+        // routes and returns only the customer's side: no Cleaner pay, no
+        // platform economics, no Cleaner identity, count or location. Nothing
+        // is stored except a launch-news sign-up the visitor explicitly
+        // consents to. Writes inherit the server's same-origin check; every
+        // route has its own anonymous rate-limit scope.
+        if (pathname.startsWith(publicApiPrefix)) {
+          if (!publicMarketplace) return false;
+          if (pathname === "/api/public/pricing") {
+            if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+            await limitPublicRead(request, "marketplace-public:pricing");
+            const config = normalizedPricingConfig((await publicMarketplace.pricingConfig().catch(() => null)) || defaultPricingConfig);
+            sendJson(response, 200, { ok: true, config }, { "Cache-Control": "public, max-age=300" });
+            return true;
+          }
+          if (pathname === "/api/public/quote") {
+            if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+            security.requireOrigin(request);
+            await limitPublicRead(request, "marketplace-public:quote");
+            const body = await readJsonObject(request, maximumPublicQuoteBodyBytes);
+            if (!Array.isArray(body?.rooms)) {
+              sendJson(response, 422, { ok: false, code: "rooms-required", error: "Tell us at least one room to price." });
+              return true;
+            }
+            const config = normalizedPricingConfig((await publicMarketplace.pricingConfig().catch(() => null)) || defaultPricingConfig);
+            const economics = (await publicMarketplace.pricingEconomics().catch(() => null)) || defaultPricingEconomics;
+            let computed;
+            try { computed = quoteRooms(body, config); }
+            catch (error) {
+              if (!(error instanceof TypeError)) throw error;
+              sendJson(response, 422, { ok: false, code: "invalid-quote-request", error: error.message });
+              return true;
+            }
+            const { quote } = reviewedQuote(computed, economics);
+            sendJson(response, 200, { ok: true, estimate: true, quote,
+              note: "An estimate from Homle's standard price list. Your exact price is confirmed before you book, and nothing is charged until after the clean." },
+              { "Cache-Control": "private, no-store" });
+            return true;
+          }
+          if (pathname === "/api/public/coverage") {
+            if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+            await limitPublicRead(request, "marketplace-public:coverage");
+            const postcode = String(url.searchParams.get("postcode") || "").trim();
+            if (!postcode || postcode.length > 10) {
+              sendJson(response, 422, { ok: false, code: "invalid-postcode", error: "Enter a full UK postcode, such as SW1A 1AA, or its first half." });
+              return true;
+            }
+            const answer = await publicMarketplace.coverage(postcode, publicCoverageRequiresPayout);
+            sendJson(response, 200, { ok: true, covered: answer?.covered === true, area: String(answer?.area || "") }, { "Cache-Control": "private, no-store" });
+            return true;
+          }
+          if (pathname === "/api/public/launch-interest") {
+            if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
+            security.requireOrigin(request);
+            await limitPublicRead(request, "marketplace-public:launch-interest");
+            const body = await readJsonObject(request, 2048);
+            if (body?.consent !== true) {
+              sendJson(response, 422, { ok: false, code: "consent-required", error: "Tick the box to agree to launch news." });
+              return true;
+            }
+            await publicMarketplace.recordLaunchInterest(String(body.postcode || "").slice(0, 10), String(body.email || "").slice(0, 254), launchInterestConsentVersion);
+            // The same answer whether this address was new or not.
+            sendJson(response, 202, { ok: true }, { "Cache-Control": "private, no-store" });
+            return true;
+          }
+          return false;
+        }
+        if (pathname === "/api/marketplace/admin/launch-interest") {
+          if (!publicMarketplace) return false;
+          if (request.method !== "GET") return methodNotAllowed(response, ["GET"]), true;
+          const context = await security.protect(request, { roles: ["administrator"] });
+          sendJson(response, 200, { ok: true, areas: await publicMarketplace.administratorLaunchInterest(context.actor) }, { "Cache-Control": "private, no-store" });
+          return true;
+        }
         if (pathname === "/api/marketplace/funnel-events") {
           if (request.method !== "POST") return methodNotAllowed(response, ["POST"]), true;
           security.requireOrigin(request);

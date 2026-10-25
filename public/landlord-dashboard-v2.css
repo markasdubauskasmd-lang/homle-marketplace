@@ -3630,3 +3630,13 @@ body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) .pac-dot.
 
 /* Keep the approved Home unchanged; strengthen existing account badge text elsewhere. */
 body.landlord-dashboard-page:has([data-landlord-panel="home"][hidden]) :is(.account-menu-identity em, .ld-account-identity-copy > div span:first-child) { color: #2a7047; }
+
+/* Getting started (25 October 2026): the first step for a Landlord with
+   nothing in motion. Hidden once a request or booking exists (DECISIONS D33). */
+.ld-getting-started { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 16px; align-items: start; margin: 0 0 24px; padding: 22px 24px; border-radius: 16px; background: var(--ld-paper); border: 1px solid var(--ld-border); box-shadow: 0 10px 30px -18px rgba(26, 26, 26, .25); }
+.ld-getting-started[hidden] { display: none; }
+.ld-getting-started-mark { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: var(--ld-coral-tint); color: var(--ld-coral-dark); }
+.ld-getting-started-eyebrow { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ld-muted); }
+.ld-getting-started h2 { margin: 0 0 6px; font-size: 22px; line-height: 1.2; color: var(--ld-ink); }
+.ld-getting-started p:not(.ld-getting-started-eyebrow) { margin: 0 0 16px; color: var(--ld-ink-soft); max-width: 60ch; }
+@media (max-width: 560px) { .ld-getting-started { grid-template-columns: minmax(0, 1fr); padding: 20px; } }

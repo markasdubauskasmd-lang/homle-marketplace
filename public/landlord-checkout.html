@@ -8,7 +8,7 @@
   <title>Secure booking checkout | Homle</title>
   <link rel="icon" href="/homle-logo-128-4f82ebad.png" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
+  <link rel="stylesheet" href="/homle-tokens.css?v=20261025-1">
   <link rel="stylesheet" href="/styles.css?v=20260728-3">
   <link rel="stylesheet" href="/noncleaner-scroll.css?v=20260814-1">
   <link rel="stylesheet" href="/landlord-checkout-v2.css?v=20260906-1">
@@ -59,6 +59,11 @@
            container: the button re-enabled and nothing visible or audible
            explained why. Same class of defect as the archived-restore
            confirmation, found by the journey test's provider-unreachable probe. -->
+      <ol class="booking-payment-steps" aria-label="How paying for this booking works">
+        <li><strong>Now:</strong> the agreed total is held on your card. Nothing is taken yet.</li>
+        <li><strong>After the clean:</strong> the held amount is charged once the clean is finished.</li>
+        <li><strong>If the booking is cancelled first:</strong> the hold is released.</li>
+      </ol>
       <div class="booking-payment-feedback" data-payment-feedback role="alert" hidden></div>
       <button class="button booking-payment-prepare" type="button" data-payment-prepare hidden>Enter secure payment details</button>
       <a class="button booking-payment-complete" data-payment-complete href="/landlord/dashboard" hidden>Open confirmed booking</a>

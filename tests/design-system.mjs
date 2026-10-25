@@ -83,7 +83,7 @@ const declaringFonts = stylesheets.filter((name) => /@font-face\s*\{/.test(strip
 // neither can read the app's font declarations.
 assert.deepEqual(
   declaringFonts.sort(),
-  ["homle-cleaner.css", "homle-tokens.css", "homlle-onboarding.css", "landing-f56e7ce9.css", "onboarding-preview-v3.css"],
+  ["homle-cleaner.css", "homle-tokens.css", "homlle-onboarding.css", "onboarding-preview-v3.css"],
   `@font-face is declared in ${declaringFonts.join(", ")}. The same two families were once repeated across three stylesheets; one owner means a font swap is one edit rather than a hunt.`
 );
 

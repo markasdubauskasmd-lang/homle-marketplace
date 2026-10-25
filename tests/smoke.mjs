@@ -44,7 +44,7 @@ globalThis.fetch = (input, init = {}) => {
   if (target.origin === new URL(base).origin && !headers.has("origin")) headers.set("origin", base);
   return nativeFetch(input, { ...init, headers });
 };
-const child = spawn(process.execPath, ["server.mjs"], { cwd: root, env: { ...process.env, PORT: String(port), LAN_PORT: String(lanPort), LAN_HOST: "127.0.0.1", ADMIN_KEY: "test-admin-key", DATA_DIR: testDataDir }, stdio: "pipe" });
+const child = spawn(process.execPath, ["server.mjs"], { cwd: root, env: { ...process.env, PORT: String(port), LAN_PORT: String(lanPort), LAN_HOST: "127.0.0.1", ADMIN_KEY: "test-admin-key", DATA_DIR: testDataDir, MCP_ENABLED: "false" }, stdio: "pipe" });
 
 async function waitForServer() {
   for (let index = 0; index < 50; index += 1) {
@@ -506,7 +506,17 @@ try {
   const [robotsText, sitemapText] = await Promise.all([robotsResponse.text(), sitemapResponse.text()]);
   assert(robotsResponse.ok && robotsResponse.headers.get("content-type") === "text/plain; charset=utf-8" && robotsResponse.headers.get("cache-control") === "no-cache" && robotsText.includes("Sitemap: https://homlle.com/sitemap.xml") && ["/admin", "/api/", "/bookings/", "/cleaner/", "/landlord/", "/login", "/signup", "/onboarding", "/settings", "/notifications", "/opportunity"].every((route) => robotsText.includes(`Disallow: ${route}`)) && !robotsText.includes("onrender.com"), "The public crawler policy is missing, cache-unsafe, points at the preview host or permits a private marketplace surface.");
   const sitemapLocations = [...sitemapText.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
-  assert(sitemapResponse.ok && sitemapResponse.headers.get("content-type") === "application/xml; charset=utf-8" && sitemapResponse.headers.get("cache-control") === "no-cache" && JSON.stringify(sitemapLocations) === JSON.stringify(["https://homlle.com/", "https://homlle.com/for-landlords", "https://homlle.com/for-cleaners"]) && !sitemapText.includes("onrender.com"), "The canonical sitemap is missing, cache-unsafe, exposes a private/noindex route or advertises the preview host.");
+  assert(sitemapResponse.ok && sitemapResponse.headers.get("content-type") === "application/xml; charset=utf-8" && sitemapResponse.headers.get("cache-control") === "no-cache" && JSON.stringify(sitemapLocations) === JSON.stringify(["https://homlle.com/", "https://homlle.com/for-landlords", "https://homlle.com/for-cleaners", "https://homlle.com/how-homle-works", "https://homlle.com/services/regular-clean", "https://homlle.com/services/deep-clean", "https://homlle.com/services/end-of-tenancy", "https://homlle.com/services/rental-turnover"]) && !sitemapText.includes("onrender.com"), "The canonical sitemap is missing, cache-unsafe, exposes a private/noindex route or advertises the preview host.");
+  // AI readiness (DECISIONS D30, D31): training crawlers refused, the agent
+  // descriptions served, and /mcp keeps the origin check while it is off.
+  assert(["GPTBot", "ClaudeBot", "Google-Extended", "CCBot"].every((agent) => robotsText.includes(`User-agent: ${agent}\nDisallow: /\n`)), "robots.txt no longer refuses AI training crawlers.");
+  const [llmsResponse, openApiResponse] = await Promise.all([fetch(`${base}/llms.txt`), fetch(`${base}/openapi.json`)]);
+  const llmsText = await llmsResponse.text();
+  const openApi = await openApiResponse.json();
+  assert(llmsResponse.ok && llmsResponse.headers.get("content-type") === "text/plain; charset=utf-8" && llmsText.startsWith("# Homle") && !llmsText.includes("onrender.com"), "llms.txt is missing or points at the preview host.");
+  assert(openApiResponse.ok && openApi.openapi === "3.1.0" && Object.keys(openApi.paths).every((route) => route.startsWith("/api/public/")), "openapi.json is missing or describes more than the no-account API.");
+  const mcpWhileOff = await nativeFetch(`${base}/mcp`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+  assert(mcpWhileOff.status === 403, `With MCP off, a POST without an Origin reached past the origin check: ${mcpWhileOff.status} ${(await mcpWhileOff.text()).slice(0, 200)}`);
   const landlordPage = await fetch(`${base}/for-landlords`);
   const landlordPageText = await landlordPage.text();
   assert(landlordPage.ok && landlordPageText.includes("letting agents") && landlordPageText.includes("<link rel=\"canonical\" href=\"https://homlle.com/for-landlords\">") && landlordPageText.includes('property="og:title"') && !landlordPageText.includes('name="robots" content="noindex"'), "The landlord and letting-agent page is missing, uncanonicalised or de-indexed. It is the only page addressing the stated main growth channel.");

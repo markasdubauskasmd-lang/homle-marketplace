@@ -38,7 +38,13 @@ const supportedScopes = Object.freeze([
   // The anonymous visitor beacon. There is no session behind it, so this is the
   // only thing bounding what one machine can write into the funnel aggregate —
   // see migration 127.
-  "marketplace-public:funnel-events"
+  "marketplace-public:funnel-events",
+  // A visitor's price list, quote, coverage check and launch-news sign-up,
+  // all before any account exists -- see migration 137.
+  "marketplace-public:pricing",
+  "marketplace-public:quote",
+  "marketplace-public:coverage",
+  "marketplace-public:launch-interest"
 ]);
 
 function secretKey(value) {

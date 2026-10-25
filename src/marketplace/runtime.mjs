@@ -18,7 +18,9 @@ import { createPaymentService } from "./payment-service.mjs";
 import { createAuthorizationRelease } from "./booking-hold-release.mjs";
 import { paymentCommandWritesPaused } from "./payment-command-policy.mjs";
 import { createSavedCardRepository } from "./saved-card-repository.mjs";
+import { createPublicMarketplaceRepository } from "./public-marketplace-repository.mjs";
 import { createSavedCardService, savedCardAuthorizationEnabled } from "./saved-card-service.mjs";
+import { mcpEnabled } from "./mcp-server.mjs";
 import { createCleanerPayoutRepository } from "./cleaner-payout-repository.mjs";
 import { createCleanerPayoutService } from "./cleaner-payout-service.mjs";
 import { createMatchingRepository } from "./matching-repository.mjs";
@@ -367,7 +369,7 @@ export function createMarketplaceRuntime(pool, options = {}) {
     });
   }
   const privacyRequestService = createPrivacyRequestService(privacyRequestRepository, { assembleExport: assembleAccountExport });
-  const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, administratorAccountService, funnelTelemetry: funnelTelemetryRepository, landlordCareService, privacyRequestService, paymentService, savedCardService, savedCardsReady: () => savedCardState.ready, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
+  const marketplaceRouter = createMarketplaceHttpRouter({ landlordRepeatService, security, cleanerProfileService, cleanerOnboardingService, cleanerOnboardingDocumentService, cleanerProfilePhotoService, addressLookup, mapsClientConfig, favouriteCleanerService, propertyService, cleaningRequestService, scanService, scanPricingService, scanGroundTruthService, scanTelemetry, bookingWorkflowService, matchingService, journeyService, progressService, mediaService, requestMediaService, messageService, realtimeService, notificationService, emailSuppressionService, reviewService, disputeService, supportRequestService, administratorBookingService, administratorVerificationService, administratorCoverageService, administratorFunnelService, administratorAccountService, funnelTelemetry: funnelTelemetryRepository, landlordCareService, privacyRequestService, paymentService, savedCardService, publicMarketplace: createPublicMarketplaceRepository(database), publicCoverageRequiresPayout: paymentService !== null, mcpEnabled: mcpEnabled(env), savedCardsReady: () => savedCardState.ready, cleanerPayoutService, speechSummary, roomVision, rateLimiter: options.rateLimiter }, {
     clientKey: options.clientKey,
     onUnexpectedError: options.onUnexpectedError,
     pricingConfiguration: (actor) => pricingConfigurationRepository.activeConfig(actor),

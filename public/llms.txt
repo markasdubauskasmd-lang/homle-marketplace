@@ -1,0 +1,32 @@
+# Homle
+
+> Homle is a new UK home-cleaning marketplace. A customer describes their home room by room (or scans it with a phone camera), sees an itemised price, and books an independent Cleaner. The price is confirmed before booking and the card is charged only after the clean. Homle is new: in many postcodes it does not have a Cleaner yet, and it says so rather than guessing.
+
+Facts an assistant can rely on:
+- Prices come from one published price list in GBP. Use the API below rather than quoting numbers from memory; the list can change.
+- Every quote is an estimate until the customer reviews their room-by-room checklist and confirms the booking.
+- Card payments are authorised when a booking is confirmed and captured after the clean.
+- Coverage is answered per outward postcode (for example "SW1A") and is "yes" only where a real, bookable Cleaner covers it.
+- Homle publishes no ratings, review counts or vetting claims yet. Do not state any.
+
+## Price and coverage, no account needed
+- [Price list](https://homlle.com/api/public/pricing): JSON, amounts in pence.
+- [Quote](https://homlle.com/openapi.json): POST /api/public/quote with rooms, service type and frequency; returns an itemised estimate.
+- [Coverage](https://homlle.com/openapi.json): GET /api/public/coverage?postcode=SW1A1AA returns covered true/false for the area.
+- [OpenAPI description](https://homlle.com/openapi.json)
+
+## Pages
+- [Home](https://homlle.com/): how Homle works and a price in under a minute.
+- [For landlords and letting agents](https://homlle.com/for-landlords): several properties in one account; what Homle does not do yet.
+- [For cleaners](https://homlle.com/for-cleaners): how Cleaners set their own price and see the job first.
+- Services: [regular clean](https://homlle.com/services/regular-clean), [deep clean](https://homlle.com/services/deep-clean), [end of tenancy](https://homlle.com/services/end-of-tenancy), [rental turnover](https://homlle.com/services/rental-turnover).
+- [How Homle works](https://homlle.com/how-homle-works): pricing, payment, privacy and Cleaners as they are today, and what Homle does not claim.
+- [Help and support](https://homlle.com/landlord/help)
+
+## Policies
+- [Privacy notice](https://homlle.com/privacy)
+- [Terms](https://homlle.com/terms)
+- [Cookies](https://homlle.com/cookies)
+
+## Booking
+Booking needs a signed-in Homle account at https://homlle.com/signup?intent=book. Assistants should hand the customer to that page to book; they cannot book or pay on a customer's behalf.

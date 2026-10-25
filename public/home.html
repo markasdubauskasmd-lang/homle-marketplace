@@ -30,15 +30,18 @@
   <link rel="manifest" href="/site.webmanifest">
   <link rel="sitemap" type="application/xml" href="/sitemap.xml">
   <link rel="preload" as="image" type="image/webp" href="/landing/open-plan-living-960-bacccd4e.webp" imagesrcset="/landing/open-plan-living-480-15f06faa.webp 480w, /landing/open-plan-living-960-bacccd4e.webp 960w, /landing/open-plan-living-1600-c403e366.webp 1600w, /landing/open-plan-living-2200-f5b34bda.webp 2200w" imagesizes="100vw">
-  <link rel="stylesheet" href="/homle-tokens.css?v=20260728-2">
+  <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://homlle.com/#organization","name":"Homle","url":"https://homlle.com/","logo":"https://homlle.com/homle-logo-192-c8defd4b.png"},{"@type":"WebSite","@id":"https://homlle.com/#website","name":"Homle","url":"https://homlle.com/","inLanguage":"en-GB","publisher":{"@id":"https://homlle.com/#organization"}},{"@type":"Service","name":"Home cleaning priced room by room","serviceType":"House cleaning","provider":{"@id":"https://homlle.com/#organization"},"url":"https://homlle.com/#quote","description":"An itemised estimate from a published price list, a room-by-room checklist reviewed before booking, and a card held at booking and charged after the clean.","offers":{"@type":"Offer","priceCurrency":"GBP","url":"https://homlle.com/#quote"}}]}</script>
+  <link rel="stylesheet" href="/homle-tokens.css?v=20261025-1">
   <link rel="stylesheet" href="/landing-1571bff0.css">
+  <link rel="stylesheet" href="/homle-ui.css?v=20261025-3">
   <script src="/landing-a97a6ca6.js" type="module"></script>
   <script src="/home.js?v=20260906-1" type="module"></script>
+  <script src="/quick-quote.js?v=20261025-4" type="module"></script>
   <script src="/funnel.js?v=20260920-1" type="module"></script>
   <script src="/account-menu.js?v=20260729-1" type="module"></script>
 </head>
 <body class="ci-body" data-funnel-surface="landing" data-funnel-audience="unknown">
-  <a class="ci-skip" href="#ci-scan">Skip to content</a>
+  <a class="ci-skip" href="#quote">Skip to content</a>
 
   <div class="ci-root" data-ci-root>
 
@@ -49,6 +52,7 @@
       </a>
       <div class="ci-nav-right">
         <div class="ci-nav-links">
+          <a href="#quote">Get a price</a>
           <a href="#ci-scan">Scanner</a>
           <a href="#ci-manual">Book manually</a>
         <a data-funnel-cta data-funnel-audience="landlord" href="/for-landlords">Landlords &amp; letting agents</a>
@@ -111,20 +115,21 @@
         </div>
 
         <div class="ci-hero-copy">
-          <p class="ci-eyebrow">Homle · room intelligence</p>
+          <p class="ci-eyebrow">Home cleaning · priced room by room</p>
           <h1 class="ci-hero-title">
             <span class="ci-hero-l1">Cleaning,</span>
             <span class="ci-hero-l2">understood</span>
             <span class="ci-hero-l3">clearly.</span>
           </h1>
-          <p class="ci-hero-sub">Scan your rooms. Tell us what matters. Review the scope.</p>
+          <p class="ci-hero-sub">See a price for your home in under a minute. Scan your rooms or tell us what matters. Review the scope.</p>
           <div class="ci-hero-cta">
             <span class="ci-launch is-on">
               <span class="ci-launch-tail" aria-hidden="true"></span>
-              <a class="ci-btn-primary" href="/landlord/book">Scan Your Home</a>
+              <a class="ci-btn-primary" href="#quote" data-funnel-cta>Get a price</a>
             </span>
           </div>
           <div class="ci-hero-cta">
+            <a class="ci-btn-ghost" href="/landlord/book">Scan your home</a>
             <a class="ci-btn-ghost" href="/landlord/requests">Book manually</a>
             <a class="ci-btn-ghost" href="/landlord/help">Help</a>
           </div>
@@ -138,6 +143,69 @@
           </span>
           <span>Scroll</span>
           <span class="ci-cue-line"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Get a price: postcode, type of clean, rooms. An estimate and a coverage
+         answer from the visitor API, before any account. quick-quote.js. -->
+    <section class="hs-quote" id="quote" aria-labelledby="quote-title" data-quick-quote>
+      <div class="hs-container hs-quote-grid">
+        <div class="hs-quote-intro">
+          <p class="hs-eyebrow">Get a price</p>
+          <h2 id="quote-title">What would your clean cost?</h2>
+          <p class="hs-lead">Answer three questions and see an estimate straight away. You only make an account when you decide to book.</p>
+          <ol class="hs-how" aria-label="How Homle works">
+            <li><svg class="hs-icon" aria-hidden="true"><use href="/icons.svg#pound"/></svg><span><strong>See a price.</strong> From Homle's published price list, room by room.</span></li>
+            <li><svg class="hs-icon" aria-hidden="true"><use href="/icons.svg#list"/></svg><span><strong>Check the job.</strong> Review a checklist of every room before anything is booked.</span></li>
+            <li><svg class="hs-icon" aria-hidden="true"><use href="/icons.svg#card"/></svg><span><strong>Pay after the clean.</strong> Your card is held when you book and charged once the clean is done.</span></li>
+          </ol>
+        </div>
+
+        <div class="hs-card hs-quote-card">
+          <form class="hs-quote-form" data-quote-form novalidate>
+            <div class="hs-field">
+              <label class="hs-label" for="quote-postcode">1. Your postcode</label>
+              <input class="hs-input" id="quote-postcode" name="postcode" autocomplete="postal-code" inputmode="text" maxlength="10" placeholder="e.g. SW1A 1AA" required>
+            </div>
+
+            <fieldset class="hs-field hs-quote-services">
+              <legend class="hs-label">2. Type of clean</legend>
+              <label class="hs-choice"><input type="radio" name="serviceType" value="standard" checked><span><svg class="hs-icon" aria-hidden="true"><use href="/icons.svg#sparkle"/></svg><strong>Regular clean</strong><small data-from-price="standard">Kitchens, bathrooms, floors and surfaces</small></span></label>
+              <label class="hs-choice"><input type="radio" name="serviceType" value="deep"><span><svg class="hs-icon" aria-hidden="true"><use href="/icons.svg#bucket"/></svg><strong>Deep clean</strong><small data-from-price="deep">More time in every room</small></span></label>
+              <label class="hs-choice"><input type="radio" name="serviceType" value="end-of-tenancy"><span><svg class="hs-icon" aria-hidden="true"><use href="/icons.svg#key"/></svg><strong>End of tenancy</strong><small data-from-price="end-of-tenancy">Moving out, top to bottom</small></span></label>
+              <label class="hs-choice"><input type="radio" name="serviceType" value="rental-turnover"><span><svg class="hs-icon" aria-hidden="true"><use href="/icons.svg#refresh"/></svg><strong>Rental turnover</strong><small data-from-price="rental-turnover">Between guests or tenants</small></span></label>
+            </fieldset>
+
+            <fieldset class="hs-field hs-quote-rooms">
+              <legend class="hs-label">3. Rooms <span class="hs-hint">(a kitchen is included)</span></legend>
+              <div class="hs-stepper" data-stepper><label for="quote-bedrooms">Bedrooms</label><button class="hs-btn hs-btn-secondary" type="button" data-step="-1" aria-label="One fewer bedroom">&minus;</button><input class="hs-input" id="quote-bedrooms" name="bedrooms" type="number" min="0" max="10" value="1" inputmode="numeric"><button class="hs-btn hs-btn-secondary" type="button" data-step="1" aria-label="One more bedroom">+</button></div>
+              <div class="hs-stepper" data-stepper><label for="quote-bathrooms">Bathrooms</label><button class="hs-btn hs-btn-secondary" type="button" data-step="-1" aria-label="One fewer bathroom">&minus;</button><input class="hs-input" id="quote-bathrooms" name="bathrooms" type="number" min="0" max="10" value="1" inputmode="numeric"><button class="hs-btn hs-btn-secondary" type="button" data-step="1" aria-label="One more bathroom">+</button></div>
+              <div class="hs-stepper" data-stepper><label for="quote-living">Living rooms</label><button class="hs-btn hs-btn-secondary" type="button" data-step="-1" aria-label="One fewer living room">&minus;</button><input class="hs-input" id="quote-living" name="livingRooms" type="number" min="0" max="10" value="1" inputmode="numeric"><button class="hs-btn hs-btn-secondary" type="button" data-step="1" aria-label="One more living room">+</button></div>
+            </fieldset>
+
+            <p class="hs-error" data-quote-error role="alert" hidden></p>
+            <button class="hs-btn hs-btn-primary hs-btn-block" type="submit">Show my price</button>
+          </form>
+
+          <div class="hs-quote-result" data-quote-result tabindex="-1" aria-live="polite" hidden>
+            <p class="hs-eyebrow">Your estimate</p>
+            <p class="hs-quote-total" data-quote-total></p>
+            <p class="hs-meta" data-quote-time></p>
+            <p class="hs-quote-area" data-quote-area></p>
+            <p class="hs-meta" data-quote-note></p>
+            <a class="hs-btn hs-btn-primary hs-btn-block" href="/signup?intent=book" data-funnel-cta data-quote-book hidden>Book this clean</a>
+            <div class="hs-quote-not-yet" data-quote-not-yet hidden>
+              <p>Homle is new and is adding Cleaners area by area. Leave your email and we will tell you once, when we cover your area. Nothing else.</p>
+              <form class="hs-inline-form" data-interest-form novalidate>
+                <label class="hs-label" for="interest-email">Email</label>
+                <input class="hs-input" id="interest-email" name="email" type="email" autocomplete="email" required>
+                <label class="hs-check"><input type="checkbox" name="consent" value="yes"> Email me once when Homle covers my area. I can ask for my address to be deleted at any time.</label>
+                <button class="hs-btn hs-btn-secondary" type="submit">Tell me when you cover my area</button>
+                <p class="hs-meta" data-interest-status role="status"></p>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -389,6 +457,28 @@
       </div>
     </section>
 
+
+    <!-- Landlords and plain answers, built from the hs-* components. Every
+         answer describes what the product does today; nothing is promised. -->
+    <section class="hs-more" aria-labelledby="landlords-title">
+      <div class="hs-container hs-more-grid">
+        <div class="hs-card hs-landlords">
+          <span class="hs-icon-tile"><svg class="hs-icon" aria-hidden="true"><use href="/icons.svg#building"/></svg></span>
+          <h2 id="landlords-title">Several properties?</h2>
+          <p>Keep every property in one account, each with its own rooms, checklist and cleaning history. Rebook a turnaround in a couple of taps instead of explaining the same place again.</p>
+          <a class="hs-btn hs-btn-secondary" href="/for-landlords" data-funnel-cta data-funnel-audience="landlord">For landlords &amp; letting agents</a>
+        </div>
+        <div class="hs-faq">
+          <h2 id="faq-title">Questions, answered plainly</h2>
+          <details><summary>How is the price worked out?</summary><p>Room by room, from one published price list. Each room has a base price that includes its usual tasks; extras such as an oven or inside the fridge are added and named. A deep or end-of-tenancy clean takes longer in every room, so it costs more. Each type of clean has a minimum.</p></details>
+          <details><summary>When is my card charged?</summary><p>When you confirm a booking, your card is held for the agreed price. It is charged after the clean. If the booking is cancelled before then, the hold is released.</p></details>
+          <details><summary>Do I have to scan my home?</summary><p>No. The scanner is an optional shortcut that turns a phone walk-through into a room-by-room checklist. You can type the rooms instead. Either way you review the checklist before anything is booked.</p></details>
+          <details><summary>Who does the cleaning?</summary><p>Independent Cleaners who work through Homle. Each one sees your room-by-room checklist before accepting the job, and you can message them about your booking.</p></details>
+          <details><summary>What if you do not cover my area?</summary><p>Homle is new and is adding Cleaners area by area, so in many postcodes the answer is "not yet". We will say so rather than take a booking we cannot fill. You can leave your email to hear once when that changes.</p></details>
+          <details><summary>Can I cancel?</summary><p>Yes. The cancellation terms are shown with every booking, before you confirm it.</p></details>
+        </div>
+      </div>
+    </section>
 
     <!-- Act 6: the ask. -->
     <section class="ci-join" id="ci-join" data-stage="join">

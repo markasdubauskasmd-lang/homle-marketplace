@@ -1,3 +1,4 @@
+import { mcpEnabled } from "./src/marketplace/mcp-server.mjs";
 import { createServer } from "node:http";
 import { appendFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
@@ -276,12 +277,6 @@ const mimeTypes = {
 // Keep the original logo and JPEG fallbacks uncached because their stable URLs
 // are still used inside the strictly untouched Cleaner Dashboard boundary.
 const immutableStaticAssets = new Set([
-  "/landing-f56e7ce9.css",
-  "/landing-a7335043.css",
-  "/landing-4a1b2271.css",
-  "/landing-3f606a74.css",
-  "/landing-99672ef1.css",
-  "/landing-db33a50c.css",
   "/landing-1571bff0.css",
   "/landing-a97a6ca6.js",
   "/homle-logo-128-4f82ebad.png",
@@ -5632,6 +5627,11 @@ async function serveFile(requestPath, response, cspNonce = "") {
     // with one home. A separate page keeps that pitch out of the pinned-scroll
     // acts and, unlike the homepage, gives the channel something indexable.
     "/for-landlords": "for-landlords.html",
+    "/how-homle-works": "how-homle-works.html",
+    "/services/regular-clean": "service-regular-clean.html",
+    "/services/deep-clean": "service-deep-clean.html",
+    "/services/end-of-tenancy": "service-end-of-tenancy.html",
+    "/services/rental-turnover": "service-rental-turnover.html",
     // Cleaner supply is the binding constraint: no cleaner means no booking,
     // whatever else works. The cleaner audience previously got two links
     // saying "Work as a cleaner" and no pitch at all.
@@ -5797,7 +5797,12 @@ async function handleHttpRequest(request, response) {
       "/api/marketplace/payments/webhook",
       "/api/marketplace/email/resend/webhook"
     ].includes(requestUrl.pathname);
-    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "") && !signedProviderWebhook) ensureSameOrigin(request);
+    // /mcp (DECISIONS D31) is for AI assistants, which send no Origin. It is
+    // exempt only while MCP_ENABLED is on, and only because the route is
+    // stateless, read-only and never reads a cookie: the router still refuses
+    // any request that carries a foreign Origin.
+    const statelessMcpCall = request.method === "POST" && requestUrl.pathname === "/mcp" && mcpEnabled(process.env);
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method || "") && !signedProviderWebhook && !statelessMcpCall) ensureSameOrigin(request);
     if (request.method === "GET" && requestUrl.pathname === "/api/health") {
       return json(response, 200, {
         ok: true,
@@ -5874,7 +5879,7 @@ async function handleHttpRequest(request, response) {
     if (standaloneAuthenticationAttachment?.router && (requestUrl.pathname.startsWith("/api/marketplace/auth/") || requestUrl.pathname === "/api/marketplace/account" || requestUrl.pathname === "/api/marketplace/onboarding")) {
       if (await standaloneAuthenticationAttachment.router.handle(request, response, requestUrl)) return;
     }
-    if (marketplaceAttachment.router && requestUrl.pathname.startsWith("/api/marketplace/")) {
+    if (marketplaceAttachment.router && (requestUrl.pathname.startsWith("/api/marketplace/") || requestUrl.pathname.startsWith("/api/public/") || requestUrl.pathname === "/mcp")) {
       if (await marketplaceAttachment.router.handle(request, response, requestUrl)) return;
     }
     if (!await allowDataMutation(request, response, requestUrl.pathname)) return;

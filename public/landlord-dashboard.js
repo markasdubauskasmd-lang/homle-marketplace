@@ -11,7 +11,7 @@ import { consumeRoomPhotoInputFiles, maximumRoomPhotos, validatedRoomPhotoSelect
 import { extractRoomVideoFrames, maximumRoomVideoFrames } from "./room-video-frames.js";
 import { renderAccountAvatar } from "./account-avatar.js?v=20260718-1";
 import { dashboardWorkspaceAccess } from "./workspace-access.js?v=20260718-1";
-import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordStartFromSearch, liveBookingForRequest, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, propertyCleaningBlocker, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20260830-1";
+import { landlordDispatchAction, landlordMarketplaceCapabilityState, landlordGettingStarted, landlordStartFromSearch, liveBookingForRequest, moneyToPence, optionalRequestScope, pricingRequestFromManualTasks, propertyCleaningBlocker, requestStatusLabel, requestTasksFromLines, requestedWindow, suggestedCleaningType, tasksToLines } from "./landlord-dashboard-model.js?v=20261025-1";
 import { bookingInvitationDeadlineState, bookingSummaryBuckets, bookingSummaryMoneyBoundary, bookingSummaryPriceLabel, bookingSummaryStatusLabels, formatBookingMoment, formatBookingMoney, formatBookingWindow, formatInvitationTimeRemaining, landlordDashboardSummary } from "./booking-summary-model.js?v=20260723-3";
 import { activeBookingChangeRequestFor, supportRequestPage, supportStatusLabels } from "./landlord-help-model.js?v=20260804-1";
 import { storedCsrf } from "./session-csrf.js";
@@ -1703,6 +1703,7 @@ function renderPropertyBlocker(property, blocker) {
 }
 
 function renderProperties() {
+  renderGettingStarted();
   propertyList.replaceChildren();
   propertySelect.replaceChildren(element("option", "", properties.length ? "Choose a property" : "Add a property first"));
   propertySelect.firstElementChild.value = "";
@@ -2653,6 +2654,7 @@ function requestScanPanel(request, options = {}) {
 }
 
 function renderRequests() {
+  renderGettingStarted();
   requestList.replaceChildren();
   activeRequestList?.replaceChildren();
   // A matched request has become a booking, and the Happening now card below
@@ -3485,8 +3487,32 @@ document.querySelector("[data-ld-care-share]")?.addEventListener("click", async 
 });
 
 function renderHomeView() {
+  renderGettingStarted();
   renderIndicativePlans();
   renderCareRecord();
+}
+
+// Getting started (landlordGettingStarted). Text only, via textContent; the
+// action is a real link so it still works without this script.
+function renderGettingStarted() {
+  const card = document.querySelector("[data-ld-getting-started]");
+  if (!card) return;
+  const step = landlordGettingStarted({ properties, cleaningRequests: requests, bookings });
+  card.hidden = step.kind === "none";
+  if (card.hidden) return;
+  card.dataset.gettingStartedKind = step.kind;
+  card.querySelector("[data-getting-started-title]").textContent = step.title;
+  card.querySelector("[data-getting-started-body]").textContent = step.body;
+  const action = card.querySelector("[data-getting-started-action]");
+  action.textContent = step.action.label;
+  action.href = step.action.href || "/landlord/properties";
+  action.onclick = step.action.href ? null : (event) => {
+    event.preventDefault();
+    if (step.action.opens === "property") {
+      selectWorkspaceTab("properties", { historyMode: "push" });
+      openPropertyEditor();
+    }
+  };
 }
 
 const clockTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: bookingZone });
@@ -3819,6 +3845,7 @@ function renderPastCleans(buckets) {
 }
 
 function renderBookings() {
+  renderGettingStarted();
   const buckets = bookingSummaryBuckets(bookings, "landlord");
   const historySummary = landlordDashboardSummary(bookings);
   const featured = featuredBooking(buckets);

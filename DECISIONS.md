@@ -467,3 +467,76 @@ frame onto Landlord values; `homle-cleaner.css` swaps each warm cream or brown f
 the neutral grey of the same luminance, so no contrast ratio moved. An overlay
 sheet rather than an edit keeps it reversible one link per page. Guarded by
 `tests/cleaner-design-convergence.mjs`.
+
+**D28 — Visitors get a price and a coverage answer before any account.**
+The quote endpoint runs the booking path's own engine and price list, so the
+estimate cannot drift from what booking charges. Coverage reuses the matcher's
+rules (migration 137) and answers only yes/no for the outward area; it never
+reveals which Cleaner, how many, or where. The only thing stored is a launch-news
+sign-up with explicit consent, version `launch-news-v1`.
+
+**D29 — Add a price section to the landing page instead of rebuilding it.**
+Five tests pin the current landing page: its five scroll acts, its 19 hashed
+images and video, its controller internals, and its scroll smoothness. A
+rebuild would mean rewriting those guards, with no revenue gain from doing so.
+Instead, `#quote` (postcode, type of clean, rooms, then an estimate) goes
+straight after the hero, and the hero's main button now points to it. The
+scanner stays available as the optional extra. It is built from the hs-*
+components in their own files (`quick-quote.js` and `homle-ui.css`), so the
+content-addressed landing CSS and JS are untouched.
+
+**D30 — AI crawlers: answer engines yes, training crawlers no.**
+robots.txt refuses these crawlers everywhere: GPTBot, ClaudeBot,
+Google-Extended, Applebot-Extended, CCBot, Bytespider and meta-externalagent.
+Assistants that fetch a page to answer a person's question get the same rules
+as any visitor: public pages allowed, private routes disallowed. This lets
+assistants recommend Homle without donating the copy to training sets. The
+founder can reverse it (HUMAN_TODO §0.6). `llms.txt` and `/openapi.json`
+describe only the no-account API and state no trust claims. The landing page's JSON-LD (Organization, WebSite, Service, no rating, review
+or area) needed `tests/home-landing-ui.mjs` to accept `<script
+type="application/ld+json">`: the browser never executes it, so the CSP
+reason for refusing inline scripts does not apply. Every other inline script
+is still refused. This is a deliberate narrowing of that guard.
+
+**D31 — `/mcp`: four read-only tools, stateless, off by default.**
+`MCP_ENABLED=true` turns on `list_services`, `get_quote`, `check_coverage` and
+`how_homle_works`. It speaks JSON-RPC 2.0 under the 2026-07-28 revision:
+`server/discover`, no session header, JSON Schema 2020-12 inputs, and
+`initialize` kept for older clients.
+- Every tool reuses a visitor rate-limit scope, so no new database scope is
+  needed. The route never reads a cookie or an account.
+- AI clients send no Origin header, so `/mcp` is exempt from the server-wide
+  same-origin check, but only while the flag is on. This is the one deliberate
+  narrowing of that guard. It is safe because nothing on the route uses an
+  ambient credential. A request that does carry an Origin must still be Homle's
+  own; smoke proves the check holds while the flag is off.
+- Account tools (`MCP_ACCOUNT_TOOLS_ENABLED`) are designed, not built. They
+  would follow MCP authorization:
+  1. OAuth 2.1 with PKCE.
+  2. Protected Resource Metadata at
+     `/.well-known/oauth-protected-resource`, naming the authorization
+     server.
+  3. Audience-bound tokens, with scopes such as `bookings:read` and
+     `quotes:write` mapped onto the same `withUserTransaction` actor the
+     website uses.
+  The flag does nothing until the founder funds a provider (HUMAN_TODO
+  §0.6). Booking and payment stay with the customer on homlle.com.
+
+**D32 — Agentic checkout (ACP) and WebMCP: researched, not adopted yet.**
+The Agentic Commerce Protocol lets an assistant complete a Stripe checkout with
+a delegated payment token. Homle cannot take live money until the payment
+attestations are set (CLAUDE.md hard limits). A Homle booking also needs
+coverage, a reviewed checklist and a Cleaner's acceptance, which do not fit a
+one-shot cart. Revisit once `PUBLIC_PAYMENTS_APPROVED` is true and account
+tools exist. WebMCP (`navigator.modelContext`) would expose the same four
+tools from the page itself. It is still an experimental browser API, so it is
+deferred behind a future `WEBMCP_ENABLED` rather than shipped half-supported.
+
+**D33 — Landlord "Getting started" covers only what nothing else does.**
+A brand-new Landlord saw two generic start cards and nothing saying that a saved
+property comes first. The new card says "Add a property", then "Book your first
+clean", and steps aside as soon as any request or booking exists. The banner
+removed on 21 July (b903e09c) repeated the payment and live-job actions the
+booking cards already carry. `tests/landlord-dashboard-ui.mjs` still keeps that
+banner out, and `tests/landlord-getting-started.mjs` keeps this card from
+growing into it.

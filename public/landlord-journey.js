@@ -362,6 +362,35 @@ function adoptScan() {
   return true;
 }
 
+// A visitor who priced a clean on the landing page before having an account
+// (quick-quote.js) arrives here after signing in. Their choice of clean is
+// carried over once, into an owner-bound draft, so they are not asked again.
+// The stored answer holds only the outward postcode, the type of clean and
+// room counts: no address, no access detail. It is read once and deleted from
+// both stores before anything else, so it cannot reach another account in
+// this browser. A draft the customer already started wins.
+const guestQuoteKey = "homleGuestQuoteV1";
+const guestServiceCodes = Object.freeze({ standard: "regular-domestic", deep: "deep-cleans", "end-of-tenancy": "end-of-tenancy", "rental-turnover": "rental-turnovers" });
+function adoptGuestQuote() {
+  if (!state.draftOwner) return false;
+  let quote = null;
+  for (const store of [globalThis.sessionStorage, globalThis.localStorage]) {
+    try {
+      const stored = store?.getItem(guestQuoteKey);
+      store?.removeItem(guestQuoteKey);
+      if (stored && !quote) quote = JSON.parse(stored);
+    } catch { /* unavailable or corrupt storage: nothing to carry over */ }
+  }
+  const savedAt = Number(quote?.savedAt);
+  const fresh = quote?.version === 1 && Number.isFinite(savedAt)
+    && Date.now() >= savedAt - 5 * 60 * 1000 && Date.now() < savedAt + landlordRequestDraftLifetimeMs;
+  const code = fresh ? guestServiceCodes[quote.serviceType] : undefined;
+  if (!code || state.draft.serviceCode) return false;
+  setRequestScopeValue("serviceCode", code);
+  saveDraft();
+  return true;
+}
+
 /* ── Navigation ─────────────────────────────────────── */
 
 // The six steps are one document, so without this the browser Back button
@@ -2555,6 +2584,7 @@ async function openAuthenticatedJourney() {
     return false;
   }
   if (adoptScan()) toast("Your scan is here. Check the checklist before continuing.");
+  else if (adoptGuestQuote()) toast("We kept the type of clean you priced. Choose the property to continue.");
   // Drafts created before the property-first journey may already point at a
   // later step with only a free postcode. Do not let that stale browser state
   // bypass the new property choice or attach a scan to the wrong place.

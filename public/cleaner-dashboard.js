@@ -472,6 +472,10 @@ function renderAlerts(summary, buckets) {
   if (!host) return;
   const alerts = [];
   if (summary.profileCompletionPercent < 100) alerts.push(["red", "Your registration is not complete", "Review the remaining onboarding steps before suitable requests can reach you.", "Review →", "/cleaner/onboarding"]);
+  // Complete but not published: matching only reaches published profiles, and
+  // publishing is the Cleaner's own switch on the profile page. Without this the
+  // dashboard said nothing at all while no request could reach the Cleaner.
+  if (summary.profileCompletionPercent >= 100 && !summary.profilePublished) alerts.push(["amber", "Your profile is not published", "Your profile is complete. Requests only reach published profiles, so publish it from your profile page when you are ready.", "Publish →", "/cleaner/profile/preview"]);
   if (summary.availableWindowCount === 0) alerts.push(["amber", "No future availability saved", "Complete availability from your Cleaner dashboard.", "Review →", "/cleaner/dashboard"]);
   if (summary.payoutState === "action-required") alerts.push(["amber", "Payout setup is unfinished", "Complete the secure form to receive transfers.", "Continue →", "/cleaner/payouts"]);
   if (summary.payoutState === "not-started") alerts.push(["amber", "Payout account not set up", "Set it up before your first completed job.", "Set up →", "/cleaner/payouts"]);
