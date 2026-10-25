@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
--- After 117 to 134 are applied over the seeded 116 database, prove the
+-- After every later migration is applied over the seeded 116 database, prove the
 -- launch-work functions act on records that existed before they did, and
 -- that no live row was invalidated by a replaced constraint. Rolls back.
 DO $disposable_target$
@@ -19,7 +19,7 @@ DECLARE
   revenue jsonb;
 BEGIN
   IF to_regprocedure('tideway_private.get_administrator_revenue(integer)') IS NULL THEN
-    RAISE EXCEPTION 'Launch-work upgrade verification requires migration 134 to be applied';
+    RAISE EXCEPTION 'Launch-work upgrade verification requires the launch-work migrations to be applied';
   END IF;
 
   -- Replaced scope CHECK constraints (122, 123, 127) kept every live row.
@@ -60,4 +60,4 @@ BEGIN
 END;
 $upgrade$;
 ROLLBACK;
-\echo 'Actual PostgreSQL116-to134 launch-work upgrade passed: live rate-limit rows kept, pre-upgrade booking cancelled with history, historical refund summed once, expiry sweep runs.'
+\echo 'Actual PostgreSQL 116-to-head launch-work upgrade passed: live rate-limit rows kept, pre-upgrade booking cancelled with history, historical refund summed once, expiry sweep runs.'
